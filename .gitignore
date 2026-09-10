@@ -1,0 +1,16 @@
+# secrets & local env
+**/.env
+**/.venv/
+.venv/
+
+# python
+**/__pycache__/
+*.pyc
+
+# ephemeral db (created at runtime)
+backend/users.db
+
+# scratch / os
+.DS_Store
+Thumbs.db
+DuSu.apk

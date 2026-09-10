@@ -1,0 +1,2328 @@
+"""Database layer — Neon Postgres via SQLAlchemy 2.0 async.
+
+Graceful: if DATABASE_URL is empty the app still runs fully (stateless, as
+before) — `db_enabled` is False and callers fall back to no-persistence.
+
+Tables (v1):
+  users     — one row per Google account
+  profiles  — level + skill scores + learning goal (built by the assessment)
+  progress  — xp, coins, streak, badges, roadmap %  (gamification)
+"""
+
+from __future__ import annotations
+
+import base64
+import datetime as dt
+import hashlib
+import json
+import os
+
+from cryptography.fernet import Fernet, InvalidToken
+from sqlalchemy import String, Integer, Boolean, DateTime, Date, Text, ForeignKey, select, desc, func, delete
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm.attributes import flag_modified
+
+from .config import settings
+
+# --- BYOK key at-rest sealing (Fernet — real authenticated encryption) ---------------
+# Key derived from a server secret (set KEYS_SECRET, falls back to SESSION_SECRET, then a
+# local-dev default) via SHA-256 → urlsafe-base64, which is exactly the 32-byte key shape
+# Fernet requires. Every new/updated key is sealed with Fernet. Blobs written by the old
+# XOR-keystream scheme (pre-Fernet) are still readable via the legacy fallback below, so
+# upgrading this doesn't silently drop keys BYOK users already verified — they just get
+# re-sealed with Fernet the next time they're saved.
+_KEYS_SECRET = (os.getenv("KEYS_SECRET") or os.getenv("SESSION_SECRET") or "dusu-local-dev-key-secret").encode()
+_FERNET = Fernet(base64.urlsafe_b64encode(hashlib.sha256(_KEYS_SECRET).digest()))
+
+def _legacy_keystream(salt: bytes, n: int) -> bytes:
+    out, i = b"", 0
+    while len(out) < n:
+        out += hashlib.sha256(_KEYS_SECRET + salt + i.to_bytes(4, "big")).digest()
+        i += 1
+    return out[:n]
+
+def _unseal_legacy_xor(blob: str) -> str:
+    raw = base64.b64decode(blob)
+    salt, ct = raw[:8], raw[8:]
+    return bytes(a ^ b for a, b in zip(ct, _legacy_keystream(salt, len(ct)))).decode("utf-8")
+
+def _seal(text: str) -> str:
+    return _FERNET.encrypt(text.encode("utf-8")).decode("ascii")
+
+def _unseal(blob: str) -> str:
+    try:
+        return _FERNET.decrypt(blob.encode("ascii")).decode("utf-8")
+    except InvalidToken:
+        return _unseal_legacy_xor(blob)   # pre-upgrade blob, sealed before the Fernet switch
+
+# Roadmap constants (mirror the client CURRICULUM so the server can detect
+# level completion). One entry per level → number of lessons in it.
+LEVEL_LESSON_COUNTS = {1: 5, 2: 5, 3: 5, 4: 5, 5: 5, 6: 5, 7: 5}
+MAX_LEVEL = 7
+XP_PER_LESSON = 20
+# Every level now ends with a Boss Challenge (scored test) that gates level-up.
+LEVELS_WITH_TEST = {1, 2, 3, 4, 5, 6, 7}
+
+
+def _start_level(cefr: str) -> int:
+    """Assessment CEFR level → roadmap starting level."""
+    return {"A0": 1, "A1": 1, "A2": 2, "B1": 3, "B2": 4}.get((cefr or "A1").upper(), 1)
+
+
+def _daily_goal(practice_time: str) -> int:
+    """practice_time answer → lessons/day target."""
+    p = practice_time or ""
+    if "30" in p:
+        return 7
+    if "20" in p:
+        return 5
+    if "10" in p:
+        return 3
+    return 2  # 5 min/day or unknown
+
+
+def _normalize_url(url: str) -> str:
+    """Neon hands out `postgresql://...?sslmode=require&channel_binding=...`.
+    asyncpg needs the `+asyncpg` driver and rejects those query params (SSL is
+    passed via connect_args instead), so strip them."""
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+    if url.startswith("postgresql://"):
+        url = "postgresql+asyncpg://" + url[len("postgresql://"):]
+    if "?" in url:
+        url = url.split("?", 1)[0]
+    return url
+
+
+db_enabled = bool(settings.database_url)
+_engine = None
+_Session: async_sessionmaker[AsyncSession] | None = None
+
+if db_enabled:
+    _engine = create_async_engine(
+        _normalize_url(settings.database_url),
+        pool_pre_ping=True,
+        connect_args={"ssl": True},   # Neon requires TLS
+    )
+    _Session = async_sessionmaker(_engine, expire_on_commit=False)
+
+
+def _now() -> dt.datetime:
+    return dt.datetime.now(dt.timezone.utc)
+
+
+_IST_TZ = dt.timezone(dt.timedelta(hours=5, minutes=30))
+def _ist_day() -> str:
+    """Server-authoritative quota day in fixed IST (matches main._quota_day)."""
+    return dt.datetime.now(_IST_TZ).date().isoformat()
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class User(Base):
+    __tablename__ = "users"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)   # Google "sub"
+    email: Mapped[str] = mapped_column(String(255), default="")
+    name: Mapped[str] = mapped_column(String(255), default="")
+    picture: Mapped[str] = mapped_column(String(512), default="")
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    last_seen: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    status: Mapped[str] = mapped_column(String(16), default="active")     # active | pending | blocked
+    mode: Mapped[str] = mapped_column(String(16), default="personal")    # personal | office
+    plan: Mapped[str] = mapped_column(String(16), default="free")        # free | starter | plus | pro
+    plan_since: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
+
+
+class UsageDaily(Base):
+    """Request-quota counter — one row per user per LOCAL day."""
+    __tablename__ = "usage_daily"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    day: Mapped[str] = mapped_column(String(10), primary_key=True)   # local YYYY-MM-DD
+    requests: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class Profile(Base):
+    __tablename__ = "profiles"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    onboarded: Mapped[bool] = mapped_column(Boolean, default=False)
+    goal: Mapped[str] = mapped_column(String(64), default="")
+    comfort: Mapped[str] = mapped_column(String(64), default="")
+    practice_time: Mapped[str] = mapped_column(String(32), default="")
+    level: Mapped[str] = mapped_column(String(8), default="A0")
+    # skill scores 0-100
+    scores: Mapped[dict] = mapped_column(JSONB, default=dict)
+    weak_areas: Mapped[list] = mapped_column(JSONB, default=list)
+    assessed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Progress(Base):
+    __tablename__ = "progress"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    xp: Mapped[int] = mapped_column(Integer, default=0, index=True)   # leaderboard sort/rank
+    coins: Mapped[int] = mapped_column(Integer, default=0)
+    streak_days: Mapped[int] = mapped_column(Integer, default=0)
+    last_active: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
+    sessions_today: Mapped[int] = mapped_column(Integer, default=0)
+    daily_goal: Mapped[int] = mapped_column(Integer, default=5)
+    badges: Mapped[list] = mapped_column(JSONB, default=list)
+    journey: Mapped[dict] = mapped_column(JSONB, default=dict)
+    # --- Speaker Progression (DUSU_SPEAKER_PROGRESSION_PLAN.md) — separate from `xp`/`journey`,
+    # which stay the Journey curriculum's own currency (Option C, §4 of the plan).
+    speaker_xp: Mapped[int] = mapped_column(Integer, default=0, index=True)
+    speaker_rank: Mapped[str] = mapped_column(String(24), default="starter")
+    longest_streak_days: Mapped[int] = mapped_column(Integer, default=0)   # §14 Personal Best
+
+
+class Memory(Base):
+    """The emotional layer: one JSONB doc per user — nickname, interests, dream,
+    events, check-ins, daily stats, baseline/future-me, learned facts, last letter."""
+    __tablename__ = "memory"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    facts: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+
+class UserKey(Base):
+    """BYOK: a user's own provider API keys, sealed at rest. Loaded server-side so a
+    returning user (any device/browser) never has to re-enter them."""
+    __tablename__ = "user_keys"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    blob: Mapped[str] = mapped_column(Text, default="")     # sealed JSON {provider: key}
+    verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class Feedback(Base):
+    """User-submitted feedback / help request from the Help screen."""
+    __tablename__ = "feedback"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    email: Mapped[str] = mapped_column(String(255), default="")
+    kind: Mapped[str] = mapped_column(String(20), default="feedback")   # feedback | help
+    text: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class Conversation(Base):
+    """One row per finished conversation/interview/free-practice session — a
+    short LLM summary DuSu can recall later ('last time we talked about...')."""
+    __tablename__ = "conversations"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    mode: Mapped[str] = mapped_column(String(32), default="")
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    summary: Mapped[str] = mapped_column(Text, default="")
+
+
+class SeasonAward(Base):
+    """6-Month Speaker Awards (§7 item 16, Phase 3). Cross-user batch job at season
+    close needs indexed rows to scan by season_id — a per-user Memory.facts blob
+    can't do that without loading every user's memory document one at a time (§6)."""
+    # PK is (season_id, award_key) — one winner per category per season — NOT
+    # (user_id, season_id), since a single user can lead more than one category.
+    __tablename__ = "season_awards"
+    season_id: Mapped[str] = mapped_column(String(16), primary_key=True)   # e.g. "2026-H1"
+    award_key: Mapped[str] = mapped_column(String(48), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    computed_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    stats: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+
+class SessionScore(Base):
+    """Speaker Progression fact table (DUSU_SPEAKER_PROGRESSION_PLAN.md §6) — one row
+    per finished session, every derived thing (Before-vs-Now, Confidence Check deltas,
+    trends) reads from here via a plain indexed date-range query."""
+    __tablename__ = "session_scores"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    mode: Mapped[str] = mapped_column(String(32))   # daily | conversation | interview — matches the real WS `mode` value (§6)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+    minutes: Mapped[float] = mapped_column(default=0.0)
+    xp_earned: Mapped[int] = mapped_column(Integer, default=0)
+    confidence: Mapped[int] = mapped_column(Integer, default=0)
+    continuity: Mapped[int] = mapped_column(Integer, default=0)
+    vocabulary: Mapped[int] = mapped_column(Integer, default=0)
+    grammar_trend: Mapped[int] = mapped_column(Integer, default=0)
+    depth: Mapped[int] = mapped_column(Integer, default=0)
+    overall: Mapped[int] = mapped_column(Integer, default=0)
+    thoughts_translated: Mapped[int] = mapped_column(Integer, default=0)   # Daily Talk's unique metric, 0 elsewhere
+    genuine_effort: Mapped[bool] = mapped_column(Boolean, default=True, index=True)   # §2.1/§2.2/§13/§20
+
+
+class WeeklyStat(Base):
+    """Weekly League rollup (§6) — never scan SessionScore live for a leaderboard.
+    Composite PK: one row per user per week. Week boundary is a fixed IST week (§8)."""
+    __tablename__ = "weekly_stats"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    week_start: Mapped[dt.date] = mapped_column(Date, primary_key=True)
+    minutes_spoken: Mapped[float] = mapped_column(default=0.0)
+    sessions: Mapped[int] = mapped_column(Integer, default=0)
+    xp_earned: Mapped[int] = mapped_column(Integer, default=0, index=True)
+    avg_score: Mapped[int] = mapped_column(Integer, default=0)
+    journey_level: Mapped[int] = mapped_column(Integer, default=1)   # denormalized Profile.level snapshot — no join on read
+    xp_reached_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)   # tie-break (§6)
+
+
+async def init_db() -> None:
+    if not db_enabled:
+        return
+    from sqlalchemy import text as _text
+    async with _engine.begin() as conn:      # type: ignore[union-attr]
+        await conn.run_sync(Base.metadata.create_all)
+        # create_all won't add an index to an already-existing table → do it explicitly
+        await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_progress_xp ON progress (xp DESC)"))
+        # add new columns to an already-existing users table (create_all won't ALTER)
+        await conn.execute(_text("ALTER TABLE users ADD COLUMN IF NOT EXISTS status varchar(16) DEFAULT 'active'"))
+        await conn.execute(_text("ALTER TABLE users ADD COLUMN IF NOT EXISTS mode varchar(16) DEFAULT 'personal'"))
+        await conn.execute(_text("ALTER TABLE users ADD COLUMN IF NOT EXISTS plan varchar(16) DEFAULT 'free'"))
+        await conn.execute(_text("ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_since date"))
+        # Speaker Progression columns on the already-existing progress table (create_all won't ALTER)
+        await conn.execute(_text("ALTER TABLE progress ADD COLUMN IF NOT EXISTS speaker_xp integer DEFAULT 0"))
+        await conn.execute(_text("ALTER TABLE progress ADD COLUMN IF NOT EXISTS speaker_rank varchar(24) DEFAULT 'starter'"))
+        await conn.execute(_text("ALTER TABLE progress ADD COLUMN IF NOT EXISTS longest_streak_days integer DEFAULT 0"))
+        await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_progress_speaker_xp ON progress (speaker_xp DESC)"))
+        # Composite indexes create_all can't add to per-column `index=True` alone (§6)
+        await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_session_scores_user_created ON session_scores (user_id, created_at DESC)"))
+        await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_session_scores_user_mode_created ON session_scores (user_id, mode, created_at DESC)"))
+        await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_weekly_stats_week_xp ON weekly_stats (week_start, xp_earned DESC)"))
+        await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_weekly_stats_week_level_xp ON weekly_stats (week_start, journey_level, xp_earned DESC)"))
+
+
+def _state(user: User, prof: Profile, prog: Progress, mem: "Memory | None" = None) -> dict:
+    """Everything the client needs about a returning user (incl. emotional memory)."""
+    return {
+        "user": {"id": user.id, "email": user.email, "name": user.name, "picture": user.picture,
+                 "created_at": user.created_at.isoformat() if user.created_at else None},
+        "status": getattr(user, "status", "active") or "active",
+        "mode": getattr(user, "mode", "personal") or "personal",
+        "onboarded": prof.onboarded,
+        "profile": {
+            "goal": prof.goal, "comfort": prof.comfort, "practice_time": prof.practice_time,
+            "level": prof.level, "scores": prof.scores or {}, "weak_areas": prof.weak_areas or [],
+        },
+        "progress": {
+            "xp": prog.xp, "coins": prog.coins, "streak_days": prog.streak_days,
+            "sessions_today": prog.sessions_today, "daily_goal": prog.daily_goal,
+            "badges": prog.badges or [], "journey": prog.journey or {},
+        },
+        "memory": (mem.facts or {}) if mem else {},
+    }
+
+
+async def login(claims: dict) -> dict:
+    """Upsert the user on Google login; create profile+progress if new.
+    Returns the full state dict (onboarded flag drives first-run assessment)."""
+    uid = claims.get("sub") or claims.get("email")
+    async with _Session() as s:               # type: ignore[misc]
+        user = await s.get(User, uid)
+        if user is None:
+            user = User(id=uid)
+            s.add(user)
+        user.email = claims.get("email", user.email or "")
+        user.name = claims.get("name", user.name or "")
+        user.picture = claims.get("picture", user.picture or "")
+        user.last_seen = _now()
+
+        prof = await s.get(Profile, uid)
+        if prof is None:
+            prof = Profile(user_id=uid, scores={}, weak_areas=[])
+            s.add(prof)
+        prog = await s.get(Progress, uid)
+        if prog is None:
+            prog = Progress(user_id=uid, badges=[], journey={})
+            s.add(prog)
+        mem = await s.get(Memory, uid)
+        if mem is None:
+            mem = Memory(user_id=uid, facts={})
+            s.add(mem)
+
+        await s.commit()
+        return _state(user, prof, prog, mem)
+
+
+async def save_assessment(user_id: str, data: dict, lang: str = "en") -> dict:
+    """Persist assessment results → mark onboarded, and SEED the roadmap journey.
+    `data` has goal, comfort, practice_time, level, scores{}, weak_areas[]."""
+    async with _Session() as s:               # type: ignore[misc]
+        prof = await s.get(Profile, user_id)
+        if prof is None:
+            prof = Profile(user_id=user_id)
+            s.add(prof)
+        was_onboarded = bool(prof.onboarded)
+        prof.goal = data.get("goal", prof.goal)
+        prof.comfort = data.get("comfort", prof.comfort)
+        prof.practice_time = data.get("practice_time", prof.practice_time)
+        prof.level = data.get("level", prof.level)
+        prof.scores = data.get("scores", {}) or {}
+        prof.weak_areas = data.get("weak_areas", []) or []
+        prof.onboarded = True
+        prof.assessed_at = _now()
+
+        # Seed the roadmap from the assessment (starting level + daily goal + lang).
+        prog = await s.get(Progress, user_id)
+        if prog is None:
+            prog = Progress(user_id=user_id, badges=[], journey={})
+            s.add(prog)
+        start = _start_level(prof.level)
+        if was_onboarded and isinstance(prog.journey, dict) and prog.journey:
+            # A RE-TAKE of the level check (More -> Level check) — merge, never wipe.
+            # Replacing the whole doc erased every completed lesson, the current
+            # level, and test_scores the moment someone re-checked their level.
+            # Only ever raise the floor to the new assessed level, never regress
+            # progress the learner already earned.
+            j = dict(prog.journey)
+            j["start_level"] = max(int(j.get("start_level", 1) or 1), start)
+            j["current_level"] = max(int(j.get("current_level", 1) or 1), start)
+            j.setdefault("completed", {})
+            j.setdefault("sentences_spoken", 0)
+            j["lang"] = lang
+            prog.journey = j
+        else:
+            prog.journey = {
+                "start_level": start,
+                "current_level": start,
+                "completed": {},
+                "lang": lang,
+                "sentences_spoken": 0,
+            }
+        prog.daily_goal = _daily_goal(prof.practice_time)
+        flag_modified(prog, "journey")
+
+        await s.commit()
+        user = await s.get(User, user_id)
+        return _state(user, prof, prog)
+
+
+async def complete_lesson(user_id: str, level: int, lesson_id: str, lesson_type: str = "") -> dict:
+    """Mark a lesson done: update journey, award XP, streak, daily count, badges,
+    and unlock the next level when the current one is finished."""
+    async with _Session() as s:               # type: ignore[misc]
+        prog = await s.get(Progress, user_id)
+        if prog is None:
+            prog = Progress(user_id=user_id, badges=[], journey={})
+            s.add(prog)
+        j = dict(prog.journey or {})
+        j.setdefault("start_level", 1)
+        j.setdefault("current_level", 1)
+        j.setdefault("completed", {})
+        j.setdefault("sentences_spoken", 0)
+
+        completed = dict(j["completed"])
+        done = list(completed.get(str(level), []))
+        first_time = lesson_id not in done
+        if first_time:
+            done.append(lesson_id)
+            completed[str(level)] = done
+            j["completed"] = completed
+            j["sentences_spoken"] = int(j["sentences_spoken"]) + 1
+            prog.xp = (prog.xp or 0) + XP_PER_LESSON
+            # §5 — "Lesson XP (existing, unchanged) also contributes to Speaker XP":
+            # Journey keeps its own separate progression, but every lesson also feeds
+            # the cross-mode Speaker Rank so lesson-only learners aren't stuck at Starter.
+            prog.speaker_xp = (prog.speaker_xp or 0) + XP_PER_LESSON
+            prog.speaker_rank = await _speaker_rank_milestones_for(s, user_id, prog.speaker_xp)
+
+        # daily count + streak (only advance on the first lesson of a new day) —
+        # fixed-IST day boundary (§8), matching award_speaker_progress's shared
+        # streak so the two writers agree on what "today" means.
+        today = _ist_now().date()
+        if prog.last_active != today:
+            if prog.last_active == today - dt.timedelta(days=1):
+                prog.streak_days = (prog.streak_days or 0) + 1
+            else:
+                prog.streak_days = 1
+            prog.sessions_today = 0
+            prog.last_active = today
+            if prog.streak_days > (prog.longest_streak_days or 0):   # §14 Personal Best
+                prog.longest_streak_days = prog.streak_days
+            badge_for_streak = {3: "streak_3", 7: "streak_7", 30: "streak_30",
+                                 100: "streak_100", 180: "streak_180"}.get(prog.streak_days)
+            if badge_for_streak:
+                cur_badges = list(prog.badges or [])
+                if badge_for_streak not in cur_badges:
+                    cur_badges.append(badge_for_streak)
+                    prog.badges = cur_badges
+                    flag_modified(prog, "badges")
+        if first_time:
+            prog.sessions_today = (prog.sessions_today or 0) + 1
+
+        # Level-up: finishing every lesson unlocks the next level, UNLESS this
+        # level has a Level Test — those levels wait for submit_level_test.
+        leveled_up = False
+        cur = int(j["current_level"])
+        total = LEVEL_LESSON_COUNTS.get(cur, 5)
+        if (level == cur and len(completed.get(str(cur), [])) >= total
+                and cur < MAX_LEVEL and cur not in LEVELS_WITH_TEST):
+            j["current_level"] = cur + 1
+            leveled_up = True
+
+        # badges
+        badges = list(prog.badges or [])
+        new_badges = []
+        def _award(bid):
+            if bid not in badges:
+                badges.append(bid); new_badges.append(bid)
+        total_done = sum(len(v) for v in completed.values())
+        if total_done >= 1: _award("first_lesson")
+        if lesson_type == "converse": _award("first_converse")
+        if (prog.streak_days or 0) >= 7: _award("streak_7")
+        if int(j["sentences_spoken"]) >= 100: _award("sentences_100")
+        if leveled_up: _award("level_up")
+
+        prog.journey = j
+        prog.badges = badges
+        flag_modified(prog, "journey")
+        flag_modified(prog, "badges")
+        await s.commit()
+
+        user = await s.get(User, user_id)
+        prof = await s.get(Profile, user_id) or Profile(user_id=user_id)
+        return {"progress": _state(user, prof, prog)["progress"],
+                "leveled_up": leveled_up, "new_badges": new_badges}
+
+
+async def submit_level_test(user_id: str, level: int, score: int) -> dict:
+    """Record a Level Test attempt. Passing (score>=70) unlocks the next level
+    (only if this was the level the learner is currently on)."""
+    passed = score >= 70
+    async with _Session() as s:               # type: ignore[misc]
+        prog = await s.get(Progress, user_id)
+        if prog is None:
+            prog = Progress(user_id=user_id, badges=[], journey={})
+            s.add(prog)
+        j = dict(prog.journey or {})
+        j.setdefault("start_level", 1)
+        j.setdefault("current_level", 1)
+        j.setdefault("completed", {})
+        j.setdefault("sentences_spoken", 0)
+        test_scores = dict(j.get("test_scores", {}))
+        prev = test_scores.get(str(level), {"best": 0, "attempts": 0, "passed": False})
+        test_scores[str(level)] = {
+            "best": max(int(prev.get("best", 0)), score),
+            "attempts": int(prev.get("attempts", 0)) + 1,
+            "passed": bool(prev.get("passed", False)) or passed,
+        }
+        j["test_scores"] = test_scores
+
+        leveled_up = False
+        cur = int(j["current_level"])
+        if passed and level == cur and cur < MAX_LEVEL:
+            j["current_level"] = cur + 1
+            leveled_up = True
+
+        badges = list(prog.badges or [])
+        new_badges = []
+        def _award(bid):
+            if bid not in badges:
+                badges.append(bid); new_badges.append(bid)
+        if leveled_up: _award("level_up")
+        if score >= 90: _award("courage_confident")   # aced a challenge
+
+        prog.journey = j
+        prog.badges = badges
+        flag_modified(prog, "journey")
+        flag_modified(prog, "badges")
+        await s.commit()
+
+        user = await s.get(User, user_id)
+        prof = await s.get(Profile, user_id) or Profile(user_id=user_id)
+        return {"progress": _state(user, prof, prog)["progress"],
+                "leveled_up": leveled_up, "new_badges": new_badges, "passed": passed}
+
+
+# ---------------- Leaderboard (all-time XP, private aliases) ----------------
+
+_ALIAS_ADJ = ["Brave", "Swift", "Bright", "Bold", "Clever", "Calm", "Mighty", "Noble",
+              "Kind", "Sharp", "Sunny", "Lucky", "Royal", "Golden", "Cosmic", "Fierce"]
+_ALIAS_ANIMAL = ["Tiger", "Fox", "Eagle", "Lion", "Panda", "Hawk", "Wolf", "Owl",
+                 "Falcon", "Otter", "Dolphin", "Cheetah", "Bear", "Deer", "Sparrow", "Cobra"]
+
+
+def _alias(user_id: str) -> str:
+    """Stable, deterministic playful alias per user (no per-process randomness)."""
+    n = sum(ord(c) for c in (user_id or "x"))
+    return f"{_ALIAS_ADJ[n % len(_ALIAS_ADJ)]}{_ALIAS_ANIMAL[(n // 7) % len(_ALIAS_ANIMAL)]}"
+
+
+def alias_for(user_id: str) -> str:
+    """Public: the leaderboard name this user appears as. Same value the ranking
+    screens render, so the app can tell the user which row is them — otherwise the
+    boards are a wall of anonymous aliases with no way to recognise yourself."""
+    return _alias(user_id)
+
+
+async def leaderboard(me_id: str, limit: int = 20) -> dict:
+    """Top-N users by all-time XP (private aliases) + the caller's own rank."""
+    async with _Session() as s:               # type: ignore[misc]
+        rows = (await s.execute(
+            select(User.id, Progress.xp, Progress.streak_days, Progress.journey)
+            .join(Progress, Progress.user_id == User.id)
+            .order_by(desc(Progress.xp)).limit(limit)
+        )).all()
+        top = []
+        for i, r in enumerate(rows):
+            j = r.journey or {}
+            top.append({
+                "rank": i + 1,
+                "alias": _alias(r.id),
+                "xp": r.xp or 0,
+                "streak": r.streak_days or 0,
+                "level": (j.get("current_level") if isinstance(j, dict) else None) or 1,
+                "is_me": r.id == me_id,
+            })
+        # caller's own row + rank (even if outside the top-N)
+        me_prog = await s.get(Progress, me_id)
+        me_user = await s.get(User, me_id)
+        me_mem = await s.get(Memory, me_id)
+        you = None
+        if me_prog is not None:
+            my_xp = me_prog.xp or 0
+            higher = (await s.execute(
+                select(func.count()).select_from(Progress).where(Progress.xp > my_xp)
+            )).scalar() or 0
+            mf = (me_mem.facts if me_mem else {}) or {}
+            you = {
+                "rank": higher + 1,
+                "name": mf.get("nickname") or (me_user.name if me_user else "You"),
+                "xp": my_xp,
+                "streak": me_prog.streak_days or 0,
+                "level": (me_prog.journey or {}).get("current_level", 1) if isinstance(me_prog.journey, dict) else 1,
+            }
+        return {"top": top, "you": you}
+
+
+# =============== Speaker Progression: XP, Speaking Score, Rank, Weekly League ===============
+# DUSU_SPEAKER_PROGRESSION_PLAN.md — a SEPARATE progression axis from Journey's own `xp`/
+# `journey` fields (Option C, §4). `Progress.streak_days` is shared across both axes:
+# whichever activity (a Journey lesson via complete_lesson, or a speaking session via
+# award_speaker_progress below) happens first each day bumps it — the `last_active != today`
+# guard both paths already share makes that safe, no double-counting.
+
+_SPEAKER_RANKS = [("starter", 0), ("speaker", 750), ("confident_speaker", 2000),
+                  ("fluent_communicator", 4500), ("english_pro", 9000)]   # §4, exact thresholds
+_MODE_BONUS = {"daily": 10, "conversation": 15, "interview": 25}   # §2.1 ("conversation" = Face-to-Face, §6)
+_SESSION_XP_CAP = 300     # §2.1 anti-gaming cap
+_DAILY_XP_CAP = 600       # §2.1 anti-gaming cap
+_STREAK_MIN_MINUTES = 3   # §4 streak-qualifying floor
+_STREAK_MIN_TURNS = 5     # §4 streak-qualifying floor
+_IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
+
+
+def _speaker_rank_for(xp: int) -> str:
+    """XP-threshold rank (used when milestone-gating's own criteria aren't checked
+    separately, e.g. as a floor). Milestone-gating (§7 item 14) layers on top via
+    _speaker_rank_milestones_for below — this stays the pure-XP baseline."""
+    rank = _SPEAKER_RANKS[0][0]
+    for name, need in _SPEAKER_RANKS:
+        if xp >= need:
+            rank = name
+    return rank
+
+
+# Rank milestone-gating (§7 item 14) — replaces a pure XP threshold with "XP AND real
+# milestones," so a rank actually means something (per the plan's own reasoning: someone
+# could grind XP without ever really improving). Session counts come from SessionScore
+# (§6); Confidence Check completion comes from Memory.facts (set by save_confidence_check).
+_RANK_MILESTONES = {
+    "speaker": {"sessions": 5},
+    "confident_speaker": {"sessions": 15, "confidence_check": True},
+    "fluent_communicator": {"sessions": 30, "confidence_check": True},
+    "english_pro": {"sessions": 60, "confidence_check": True},
+}
+
+
+async def _speaker_rank_milestones_for(s, user_id: str, xp: int) -> str:
+    """The XP-threshold rank is a ceiling; milestone criteria (if any apply to that
+    rank) can hold the user at the previous rank until they're met."""
+    xp_rank = _speaker_rank_for(xp)
+    idx = next((i for i, (name, _) in enumerate(_SPEAKER_RANKS) if name == xp_rank), 0)
+    if idx == 0:
+        return xp_rank
+    session_count = None
+    has_check = None
+    for i in range(idx, 0, -1):
+        name = _SPEAKER_RANKS[i][0]
+        req = _RANK_MILESTONES.get(name)
+        if not req:
+            return name   # no milestone requirement for this rank — XP alone is enough
+        if session_count is None:
+            session_count = (await s.execute(
+                select(func.count()).select_from(SessionScore).where(SessionScore.user_id == user_id)
+            )).scalar() or 0
+        if req.get("sessions") and session_count < req["sessions"]:
+            continue   # not met — fall back to checking the rank below
+        if req.get("confidence_check"):
+            if has_check is None:
+                mem = await s.get(Memory, user_id)
+                has_check = bool((mem.facts or {}).get("last_confidence_check")) if mem else False
+            if not has_check:
+                continue
+        return name   # this rank's milestones are met
+    return _SPEAKER_RANKS[0][0]
+
+
+def _clamp100(v) -> int:
+    try:
+        return max(0, min(100, int(v)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _ist_now() -> dt.datetime:
+    return dt.datetime.now(_IST)
+
+
+def _ist_day_start_utc(d: dt.date) -> dt.datetime:
+    """Midnight IST for date `d`, as a UTC-comparable aware datetime — same fixed-IST
+    convention this app already uses for the daily quota reset (§8)."""
+    return dt.datetime.combine(d, dt.time(0, 0), tzinfo=_IST)
+
+
+def _ist_week_start(d: dt.date | None = None) -> dt.date:
+    """Fixed IST week (Monday), matching the existing IST-day precedent (§8) — not
+    per-user timezone, deliberately (see plan's reasoning)."""
+    d = d or _ist_now().date()
+    return d - dt.timedelta(days=d.weekday())
+
+
+async def award_speaker_progress(user_id: str, mode: str, minutes: float, turns: int,
+                                  scores: dict, genuine_effort: bool,
+                                  thoughts_translated: int = 0) -> dict:
+    """Called once per finished speaking session (daily/conversation/interview) from
+    main.py's _persist_session(). Computes the §2.1 XP formula, persists a
+    SessionScore fact row, updates Progress.speaker_xp/speaker_rank + the shared
+    streak (gated by §4's qualifying-day rule), and rolls WeeklyStat forward (§6/§8).
+    Returns what was actually awarded, for the post-session screen (§7)."""
+    if not db_enabled:
+        return {}
+    mode = mode if mode in _MODE_BONUS else "conversation"
+    today_ist = _ist_now().date()
+    async with _Session() as s:               # type: ignore[misc]
+        prog = await s.get(Progress, user_id)
+        if prog is None:
+            prog = Progress(user_id=user_id, badges=[], journey={})
+            s.add(prog)
+
+        # --- §2.1 XP formula ---
+        effort_multiplier = 1.0 if genuine_effort else 0.3
+        session_xp = min(int(minutes * 10) + _MODE_BONUS[mode], _SESSION_XP_CAP)
+        session_xp = int(session_xp * effort_multiplier)
+        day_start = _ist_day_start_utc(today_ist)
+        awarded_today = (await s.execute(
+            select(func.coalesce(func.sum(SessionScore.xp_earned), 0))
+            .where(SessionScore.user_id == user_id, SessionScore.created_at >= day_start)
+        )).scalar() or 0
+        # Allocation semantics locked in §2.1: credit only the remaining daily allowance,
+        # not the full session_xp clamped for display — DB and UI never need to disagree.
+        xp_to_award = max(0, min(session_xp, _DAILY_XP_CAP - int(awarded_today)))
+
+        overall = round(0.30 * _clamp100(scores.get("confidence")) + 0.25 * _clamp100(scores.get("continuity"))
+                         + 0.20 * _clamp100(scores.get("vocabulary")) + 0.15 * _clamp100(scores.get("grammar_trend"))
+                         + 0.10 * _clamp100(scores.get("depth")))
+
+        j = prog.journey if isinstance(prog.journey, dict) else {}
+        row = SessionScore(
+            user_id=user_id, mode=mode, minutes=minutes, xp_earned=xp_to_award,
+            confidence=_clamp100(scores.get("confidence")), continuity=_clamp100(scores.get("continuity")),
+            vocabulary=_clamp100(scores.get("vocabulary")), grammar_trend=_clamp100(scores.get("grammar_trend")),
+            depth=_clamp100(scores.get("depth")), overall=_clamp100(overall),
+            thoughts_translated=thoughts_translated, genuine_effort=genuine_effort,
+        )
+        s.add(row)
+
+        prev_rank = prog.speaker_rank or "starter"
+        prog.speaker_xp = (prog.speaker_xp or 0) + xp_to_award
+        prog.speaker_rank = await _speaker_rank_milestones_for(s, user_id, prog.speaker_xp)
+        rank_up = prog.speaker_rank != prev_rank
+
+        # --- shared streak, gated by the §4 qualifying-day rule ---
+        qualifies = genuine_effort and (minutes >= _STREAK_MIN_MINUTES or turns >= _STREAK_MIN_TURNS)
+        new_streak_badges = []
+        if qualifies and prog.last_active != today_ist:
+            if prog.last_active == today_ist - dt.timedelta(days=1):
+                prog.streak_days = (prog.streak_days or 0) + 1
+            else:
+                prog.streak_days = 1
+            prog.last_active = today_ist
+            if prog.streak_days > (prog.longest_streak_days or 0):   # §14 Personal Best
+                prog.longest_streak_days = prog.streak_days
+            # Named/tiered Speaking Streaks (§7 item 11) — same badge plumbing as everything else
+            badge_for_streak = {3: "streak_3", 7: "streak_7", 30: "streak_30",
+                                 100: "streak_100", 180: "streak_180"}.get(prog.streak_days)
+            if badge_for_streak:
+                cur_badges = list(prog.badges or [])
+                if badge_for_streak not in cur_badges:
+                    cur_badges.append(badge_for_streak)
+                    prog.badges = cur_badges
+                    flag_modified(prog, "badges")
+                    new_streak_badges.append(badge_for_streak)
+
+        await s.flush()
+
+        # --- WeeklyStat rollup (§6/§8) — lazy on-read, fixed IST week, never a live scan ---
+        week_start = _ist_week_start(today_ist)
+
+        async def _global_rank(xp: int, minutes_val: float, sessions_val: int, reached_at) -> int:
+            # Same 4-level tie-break as weekly_league() (§6, locked): xp -> minutes ->
+            # sessions -> xp_reached_at ASC (earlier = ranks better). Must match exactly —
+            # a separate/incomplete tie-break here would silently disagree with the
+            # real League screen on an exact 3-way tie.
+            cond = (
+                (WeeklyStat.xp_earned > xp) |
+                ((WeeklyStat.xp_earned == xp) & (WeeklyStat.minutes_spoken > minutes_val)) |
+                ((WeeklyStat.xp_earned == xp) & (WeeklyStat.minutes_spoken == minutes_val)
+                 & (WeeklyStat.sessions > sessions_val))
+            )
+            if reached_at is not None:
+                cond = cond | ((WeeklyStat.xp_earned == xp) & (WeeklyStat.minutes_spoken == minutes_val)
+                               & (WeeklyStat.sessions == sessions_val) & (WeeklyStat.xp_reached_at < reached_at))
+            higher = (await s.execute(
+                select(func.count()).select_from(WeeklyStat).where(WeeklyStat.week_start == week_start, cond)
+            )).scalar() or 0
+            return higher + 1
+
+        wk = await s.get(WeeklyStat, (user_id, week_start))
+        if wk is None:
+            wk = WeeklyStat(user_id=user_id, week_start=week_start,
+                             journey_level=int(j.get("current_level", 1) or 1))
+            s.add(wk)
+            await s.flush()
+        rank_before = await _global_rank(wk.xp_earned or 0, wk.minutes_spoken or 0, wk.sessions or 0, wk.xp_reached_at)
+        wk.minutes_spoken = (wk.minutes_spoken or 0) + minutes
+        wk.sessions = (wk.sessions or 0) + 1
+        if xp_to_award > 0:
+            wk.xp_earned = (wk.xp_earned or 0) + xp_to_award
+            wk.xp_reached_at = _now()   # tie-break field (§6)
+        wk.avg_score = round(((wk.avg_score or 0) * (wk.sessions - 1) + overall) / wk.sessions)
+        await s.flush()
+        rank_after = await _global_rank(wk.xp_earned or 0, wk.minutes_spoken or 0, wk.sessions or 0, wk.xp_reached_at)
+
+        # §2.2 session-level delta: this session's overall minus the average of the
+        # user's last 5 QUALIFYING sessions (genuine_effort=true, excluding the one
+        # just inserted) — not vs. the single previous session, and low-effort
+        # sessions never distort the trend (§2.2's exclusion rule).
+        prior = (await s.execute(
+            select(SessionScore.overall)
+            .where(SessionScore.user_id == user_id, SessionScore.genuine_effort.is_(True),
+                   SessionScore.id != row.id)
+            .order_by(desc(SessionScore.created_at)).limit(5)
+        )).scalars().all()
+        delta = round(row.overall - (sum(prior) / len(prior))) if prior else None
+
+        await s.commit()
+
+    # Achievement Gallery criteria (§7 item 10) — its own session, after the main commit
+    # above, so a slow COUNT query never holds the row locks the XP/streak write needed.
+    achievement_badges = await check_achievement_badges(user_id)
+
+    return {
+        "minutes": round(minutes, 1),
+        "xp_earned": xp_to_award, "speaker_xp": prog.speaker_xp, "speaker_rank": prog.speaker_rank,
+        "rank_up": rank_up, "overall": row.overall, "overall_delta": delta,
+        "scores": {"confidence": row.confidence, "continuity": row.continuity, "vocabulary": row.vocabulary,
+                   "grammar_trend": row.grammar_trend, "depth": row.depth},
+        "streak_days": prog.streak_days, "longest_streak_days": prog.longest_streak_days,
+        "thoughts_translated": thoughts_translated,
+        "league_rank_before": rank_before, "league_rank_after": rank_after,
+        "new_badges": new_streak_badges + achievement_badges,
+    }
+
+
+async def check_achievement_badges(user_id: str) -> list[str]:
+    """Achievement Gallery criteria (§7 item 10) — extends the existing badge system,
+    doesn't replace it. Cheap COUNT queries, run once per finished session (not a hot
+    path). Returns newly-awarded badge ids."""
+    if not db_enabled:
+        return []
+    async with _Session() as s:               # type: ignore[misc]
+        prog = await s.get(Progress, user_id)
+        mem = await s.get(Memory, user_id)
+        if prog is None:
+            return []
+        badges = set(prog.badges or [])
+        f = (mem.facts if mem else {}) or {}
+        candidates: dict[str, bool] = {}
+        candidates["vocabulary_explorer"] = int(f.get("vocab_total", 0) or 0) >= 1000
+        candidates["consistent_speaker"] = int(f.get("total_seconds", 0) or 0) >= 50 * 3600
+        if "conversation_builder" not in badges or "fearless_speaker" not in badges or "interview_ready" not in badges:
+            counts = dict((await s.execute(
+                select(SessionScore.mode, func.count()).where(SessionScore.user_id == user_id)
+                .group_by(SessionScore.mode)
+            )).all())
+            candidates["conversation_builder"] = (counts.get("conversation", 0) + counts.get("daily", 0)) >= 100
+            candidates["fearless_speaker"] = counts.get("conversation", 0) >= 50
+            candidates["interview_ready"] = counts.get("interview", 0) >= 50
+        new_ids = [bid for bid, earned in candidates.items() if earned and bid not in badges]
+        if new_ids:
+            prog.badges = list(badges) + new_ids
+            flag_modified(prog, "badges")
+            await s.commit()
+        return new_ids
+
+
+async def get_weekly_missions(user_id: str) -> dict:
+    """Personalized Weekly Missions (§7 item 9) — rules-based on stored stats, NOT
+    LLM-based (cheap, instant, per §9's cost note). Lazy on-read, same pattern as
+    the Weekly League rollup (§8): regenerate only when the stored week has passed."""
+    if not db_enabled:
+        return {"week_start": "", "missions": []}
+    week_start = _ist_week_start()
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        wm = f.get("weekly_missions")
+        if wm and wm.get("week_start") == week_start.isoformat():
+            return wm
+        prev_week_start = week_start - dt.timedelta(days=7)
+        prev = await s.get(WeeklyStat, (user_id, prev_week_start))
+        prev_minutes = (prev.minutes_spoken or 0) if prev else 0
+        prev_sessions = (prev.sessions or 0) if prev else 0
+
+        missions = []
+        # Personalization: low time -> a time goal; already-active -> a harder challenge.
+        if prev_minutes < 30:
+            missions.append({"id": "speak_time", "text": "Speak for 30 minutes this week",
+                              "metric": "minutes", "target": 30, "progress": 0, "xp": 100})
+        else:
+            missions.append({"id": "long_session", "text": "Have one 10-minute uninterrupted conversation",
+                              "metric": "long_session", "target": 10, "progress": 0, "xp": 100})
+        if prev_sessions < 3:
+            missions.append({"id": "sessions", "text": "Complete 3 Face-to-Face sessions this week",
+                              "metric": "conversation_sessions", "target": 3, "progress": 0, "xp": 100})
+        else:
+            missions.append({"id": "sessions_advanced", "text": "Complete 5 sessions across any mode this week",
+                              "metric": "any_sessions", "target": 5, "progress": 0, "xp": 100})
+        missions.append({"id": "consistency", "text": "Speak on 4 different days this week",
+                          "metric": "active_days", "target": 4, "progress": 0, "xp": 100})
+
+        wm = {"week_start": week_start.isoformat(), "missions": missions, "active_day_set": []}
+        f["weekly_missions"] = wm
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+        return wm
+
+
+async def update_weekly_missions(user_id: str, mode: str, minutes: float, session_overall: int) -> dict:
+    """Bump this week's mission progress from a just-finished session. Returns
+    {completed: [ids newly finished this call], bonus_xp: int} — +100 XP is
+    already counted per-mission below; +200 if this call clears the whole week."""
+    wm = await get_weekly_missions(user_id)   # ensures the week is current before bumping
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        wm = f.get("weekly_missions") or wm
+        today_key = _ist_now().date().isoformat()
+        active_days = set(wm.get("active_day_set") or [])
+        active_days.add(today_key)
+        wm["active_day_set"] = list(active_days)
+        was_all_done = all(m.get("progress", 0) >= m.get("target", 1) for m in wm.get("missions", []))
+        completed = []
+        for m in wm.get("missions", []):
+            if m.get("progress", 0) >= m.get("target", 1):
+                continue   # already done this week
+            metric = m.get("metric")
+            if metric == "minutes":
+                m["progress"] = min(m["target"], (m.get("progress", 0) or 0) + minutes)
+            elif metric == "long_session" and minutes >= m["target"]:
+                m["progress"] = m["target"]
+            elif metric == "conversation_sessions" and mode == "conversation":
+                m["progress"] = (m.get("progress", 0) or 0) + 1
+            elif metric == "any_sessions":
+                m["progress"] = (m.get("progress", 0) or 0) + 1
+            elif metric == "active_days":
+                m["progress"] = len(active_days)
+            if m.get("progress", 0) >= m.get("target", 1):
+                completed.append(m["id"])
+        bonus_xp = 0
+        now_all_done = all(m.get("progress", 0) >= m.get("target", 1) for m in wm.get("missions", []))
+        if completed and now_all_done and not was_all_done:
+            bonus_xp = 200   # cleared the whole week's missions in this session
+        f["weekly_missions"] = wm
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+        xp_from_missions = len(completed) * 100 + bonus_xp
+    if xp_from_missions:
+        async with _Session() as s:            # type: ignore[misc]
+            prog = await s.get(Progress, user_id)
+            if prog:
+                prog.speaker_xp = (prog.speaker_xp or 0) + xp_from_missions
+                prog.speaker_rank = await _speaker_rank_milestones_for(s, user_id, prog.speaker_xp)
+                await s.commit()
+    return {"completed": completed, "bonus_xp": bonus_xp, "xp_from_missions": xp_from_missions, "missions": wm.get("missions", [])}
+
+
+async def speaker_progress_state(user_id: str) -> dict:
+    """Cheap read for Home/`/me`: current Speaker Rank + XP-to-next-rank (§15 'next
+    target'), without recomputing anything — just reads the cached Progress row."""
+    if not db_enabled:
+        return {}
+    async with _Session() as s:               # type: ignore[misc]
+        prog = await s.get(Progress, user_id)
+        if prog is None:
+            return {"speaker_xp": 0, "speaker_rank": "starter", "next_rank": "speaker",
+                     "xp_to_next": _SPEAKER_RANKS[1][1], "longest_streak_days": 0}
+        xp = prog.speaker_xp or 0
+        rank = prog.speaker_rank or "starter"
+        idx = next((i for i, (name, _) in enumerate(_SPEAKER_RANKS) if name == rank), 0)
+        if idx + 1 < len(_SPEAKER_RANKS):
+            next_rank, next_need = _SPEAKER_RANKS[idx + 1]
+            xp_to_next = max(0, next_need - xp)
+        else:
+            next_rank, xp_to_next = None, 0   # §15 top-of-scale — "keep building your Personal Best"
+        return {"speaker_xp": xp, "speaker_rank": rank, "next_rank": next_rank,
+                "xp_to_next": xp_to_next, "longest_streak_days": prog.longest_streak_days or 0}
+
+
+async def weekly_league(me_id: str, by_level: bool = False, limit: int = 20) -> dict:
+    """Weekly Speaker League (§7 item 4) — global or by-Journey-level, read straight
+    off the WeeklyStat rollup (never a live aggregation, §6). Deterministic tie-break:
+    xp_earned DESC -> minutes_spoken DESC -> sessions DESC -> xp_reached_at ASC (§6)."""
+    if not db_enabled:
+        return {"top": [], "you": None, "week_start": _ist_week_start().isoformat()}
+    week_start = _ist_week_start()
+    order = (desc(WeeklyStat.xp_earned), desc(WeeklyStat.minutes_spoken),
+             desc(WeeklyStat.sessions), WeeklyStat.xp_reached_at)
+    async with _Session() as s:               # type: ignore[misc]
+        me_wk = await s.get(WeeklyStat, (me_id, week_start))
+        q = select(WeeklyStat).where(WeeklyStat.week_start == week_start)
+        if by_level and me_wk is not None:
+            q = q.where(WeeklyStat.journey_level == me_wk.journey_level)
+        rows = (await s.execute(q.order_by(*order).limit(limit))).scalars().all()
+        top = [{"rank": i + 1, "alias": _alias(r.user_id), "xp": r.xp_earned,
+                "minutes": round(r.minutes_spoken), "sessions": r.sessions,
+                "is_me": r.user_id == me_id} for i, r in enumerate(rows)]
+        you = None
+        if me_wk is not None:
+            base = select(WeeklyStat).where(WeeklyStat.week_start == week_start)
+            if by_level:
+                base = base.where(WeeklyStat.journey_level == me_wk.journey_level)
+            higher = (await s.execute(
+                base.where(
+                    (WeeklyStat.xp_earned > me_wk.xp_earned) |
+                    ((WeeklyStat.xp_earned == me_wk.xp_earned) & (WeeklyStat.minutes_spoken > me_wk.minutes_spoken)) |
+                    ((WeeklyStat.xp_earned == me_wk.xp_earned) & (WeeklyStat.minutes_spoken == me_wk.minutes_spoken)
+                     & (WeeklyStat.sessions > me_wk.sessions)) |
+                    ((WeeklyStat.xp_earned == me_wk.xp_earned) & (WeeklyStat.minutes_spoken == me_wk.minutes_spoken)
+                     & (WeeklyStat.sessions == me_wk.sessions) & (WeeklyStat.xp_reached_at < me_wk.xp_reached_at))
+                ).with_only_columns(func.count())
+            )).scalar() or 0
+            you = {"rank": higher + 1, "xp": me_wk.xp_earned, "minutes": round(me_wk.minutes_spoken),
+                   "sessions": me_wk.sessions}
+        return {"top": top, "you": you, "week_start": week_start.isoformat()}
+
+
+async def speaking_trend(user_id: str) -> dict:
+    """Before-vs-Now (§7 item 7): recent (last 7 days) vs baseline (first 7 days on
+    record) average Speaking Score, from real SessionScore rows — genuine_effort
+    sessions only (§2.2's exclusion rule). §2.2 also locks a fallback: if fewer than
+    7 days of history exist yet, compare against the Day-1 baseline score instead of
+    showing nothing. {} only when there's truly nothing to compare (0-1 sessions)."""
+    if not db_enabled:
+        return {}
+    async with _Session() as s:               # type: ignore[misc]
+        all_rows = (await s.execute(
+            select(SessionScore.overall, SessionScore.created_at).where(
+                SessionScore.user_id == user_id, SessionScore.genuine_effort.is_(True))
+            .order_by(SessionScore.created_at.asc())
+        )).all()
+        if len(all_rows) < 2:
+            return {}   # nothing to compare a single data point against
+        earliest = all_rows[0][1]
+        baseline_cutoff = earliest + dt.timedelta(days=7)
+        recent = (await s.execute(
+            select(func.avg(SessionScore.overall)).where(
+                SessionScore.user_id == user_id, SessionScore.genuine_effort.is_(True),
+                SessionScore.created_at >= _now() - dt.timedelta(days=7))
+        )).scalar()
+        baseline = (await s.execute(
+            select(func.avg(SessionScore.overall)).where(
+                SessionScore.user_id == user_id, SessionScore.genuine_effort.is_(True),
+                SessionScore.created_at <= baseline_cutoff)
+        )).scalar()
+        used_day1_fallback = False
+        if recent is None or baseline is None or recent == baseline:
+            # Not enough spread for a real 7-vs-7 window yet (e.g. all sessions so far
+            # fall on the same day) — fall back to Day-1 score vs the latest session,
+            # per §2.2's locked fallback, rather than blocking the card entirely.
+            baseline = all_rows[0][0]
+            recent = all_rows[-1][0]
+            used_day1_fallback = True
+        # Deeper Before-vs-Now (§7 item 13, Phase 2): a real timeline, not just two
+        # snapshots — bucket ALL genuine-effort sessions into up to 6 chronological
+        # chunks so the client can chart a progression, not a single before/after jump.
+        timeline = []
+        n_buckets = min(6, len(all_rows))
+        chunk_size = max(1, -(-len(all_rows) // n_buckets))   # ceil division
+        for i in range(0, len(all_rows), chunk_size):
+            chunk = all_rows[i:i + chunk_size]
+            avg_ov = sum(ov for ov, _ in chunk) / len(chunk)
+            timeline.append({"date": chunk[0][1].date().isoformat(), "avg": round(avg_ov)})
+        return {"baseline": round(baseline), "recent": round(recent), "delta": round(recent - baseline),
+                "timeline": timeline, "day1_fallback": used_day1_fallback}
+
+
+_MAX_CONFIDENCE_HISTORY = 20
+
+
+async def save_confidence_check(user_id: str, overall: int, components: dict) -> dict:
+    """Confidence Check (§7 item 8) — a deliberate, structured check, compared
+    against the PREVIOUS check (or nothing, if this is the first one). Stored in
+    Memory.facts (schemaless, small, per-user only — no cross-user query needed).
+    Deeper history (§7 item 12, Phase 2): keeps every check (capped), not just the
+    latest, so the client can show a full comparison history, not one delta."""
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        prev = f.get("last_confidence_check")
+        entry = {"date": _now().date().isoformat(), "overall": overall, "scores": components}
+        f["last_confidence_check"] = entry
+        history = list(f.get("confidence_check_history") or [])
+        history.append(entry)
+        f["confidence_check_history"] = history[-_MAX_CONFIDENCE_HISTORY:]
+        mem.facts = f
+        flag_modified(mem, "facts")
+
+        # §2.2 locked rule: delta is vs the previous check, OR vs the Day-1 baseline
+        # if this is the user's first check — never a bare `None` with real baseline
+        # data sitting right there in Profile.scores from onboarding.
+        baseline = None
+        if not prev:
+            prof = await s.get(Profile, user_id)
+            baseline = (prof.scores or {}).get("confidence") if prof and isinstance(prof.scores, dict) else None
+
+        await s.commit()
+        if prev:
+            delta, vs = overall - prev["overall"], "previous"
+        elif baseline is not None:
+            delta, vs = overall - baseline, "day1_baseline"
+        else:
+            delta, vs = None, None
+        return {"overall": overall, "scores": components, "delta": delta, "vs": vs,
+                "previous_date": prev.get("date") if prev else None,
+                "history": f["confidence_check_history"]}
+
+
+async def get_confidence_check_history(user_id: str) -> list[dict]:
+    if not db_enabled:
+        return []
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await s.get(Memory, user_id)
+        return list((mem.facts or {}).get("confidence_check_history") or []) if mem else []
+
+
+async def personal_best(user_id: str) -> dict:
+    """§14 Personal Best — a competition against your own history, not strangers.
+    Two of the four locked sub-metrics (longest streak, longest conversation) already
+    existed elsewhere; these are the two that needed SessionScore/WeeklyStat (§6) to
+    exist first, and are trivial MAX() queries now that they do."""
+    if not db_enabled:
+        return {}
+    async with _Session() as s:               # type: ignore[misc]
+        prog = await s.get(Progress, user_id)
+        mem = await s.get(Memory, user_id)
+        best_confidence = (await s.execute(
+            select(func.max(SessionScore.confidence)).where(
+                SessionScore.user_id == user_id, SessionScore.genuine_effort.is_(True))
+        )).scalar()
+        best_weekly_minutes = (await s.execute(
+            select(func.max(WeeklyStat.minutes_spoken)).where(WeeklyStat.user_id == user_id)
+        )).scalar()
+        facts = (mem.facts or {}) if mem else {}
+        return {
+            "longest_streak_days": (prog.longest_streak_days if prog else 0) or 0,
+            "longest_convo_sec": int(facts.get("longest_convo_sec", 0) or 0),
+            "best_confidence": round(best_confidence) if best_confidence is not None else None,
+            "best_weekly_minutes": round(best_weekly_minutes) if best_weekly_minutes is not None else None,
+        }
+
+
+async def get_state(user_id: str) -> dict | None:
+    async with _Session() as s:               # type: ignore[misc]
+        user = await s.get(User, user_id)
+        if user is None:
+            return None
+        prof = await s.get(Profile, user_id) or Profile(user_id=user_id)
+        prog = await s.get(Progress, user_id) or Progress(user_id=user_id)
+        mem = await s.get(Memory, user_id)
+        return _state(user, prof, prog, mem)
+
+
+# ---------------- Emotional memory helpers ----------------
+
+_MAX_CHECKINS = 30
+_MAX_VOCAB = 500
+_MAX_FACTS = 40
+
+# --- S1: 4-type memory (Companion System) ---
+# Identity + Relationship live in facts (never expire). Moments expire; Achievements never.
+_MOMENT_TTL_DAYS = 7          # emotional moments fade after a week
+_MAX_MOMENTS = 40
+_MAX_ACHIEVEMENTS = 60
+# Relationship Journey (internal, invisible to the user) — drives DuSu's tone.
+_REL_STAGES = ["Guest", "Friend", "Practice Partner", "Coach", "Mentor", "Companion"]
+# Journey worlds (mirror the client) — story, not level numbers.
+_WORLD_NAMES = ["The Village", "The Street", "The City", "The Workplace",
+                "The Interview Hall", "The Boardroom", "The Global Stage"]
+
+
+def _prune_moments(moms: list) -> list:
+    """Drop expired moments (Moment memory = 2–7 day shelf life)."""
+    today = _now().date().isoformat()
+    return [m for m in (moms or [])
+            if isinstance(m, dict) and (m.get("expires") or "9999-12-31") >= today]
+
+
+def _add_moments(f: dict, moms: list) -> None:
+    cur = list(f.get("moments") or [])
+    now = _now()
+    exp = (now + dt.timedelta(days=_MOMENT_TTL_DAYS)).date().isoformat()
+    for m in moms:
+        if isinstance(m, str):
+            m = {"text": m}
+        if not isinstance(m, dict) or not (m.get("text") or "").strip():
+            continue
+        cur.append({"text": m["text"].strip(),
+                    "emotion": (m.get("emotion") or "").strip(),
+                    "created": now.date().isoformat(),
+                    "expires": m.get("expires") or exp})
+    f["moments"] = _prune_moments(cur)[-_MAX_MOMENTS:]
+
+
+def _add_achievements(f: dict, achs: list) -> None:
+    cur = list(f.get("achievements") or [])
+    have = {a.get("text") for a in cur if isinstance(a, dict)}
+    today = _now().date().isoformat()
+    for a in achs:
+        if isinstance(a, str):
+            a = {"text": a}
+        if not isinstance(a, dict):
+            continue
+        t = (a.get("text") or "").strip()
+        if not t or t in have:
+            continue
+        cur.append({"text": t, "date": a.get("date") or today})
+        have.add(t)
+    f["achievements"] = cur[-_MAX_ACHIEVEMENTS:]
+
+
+async def _get_or_make_memory(s, user_id: str) -> "Memory":
+    # row-lock so concurrent writers (WS finally + /checkin, two tabs) don't
+    # clobber each other's full-doc JSONB write (lost-update race).
+    try:
+        mem = await s.get(Memory, user_id, with_for_update=True)
+    except Exception:
+        mem = await s.get(Memory, user_id)
+    if mem is None:
+        mem = Memory(user_id=user_id, facts={})
+        s.add(mem)
+    return mem
+
+
+async def get_memory(user_id: str) -> dict:
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await s.get(Memory, user_id)
+        f = dict(mem.facts) if mem and mem.facts else {}
+        if f.get("moments"):                  # never surface expired moments
+            f["moments"] = _prune_moments(f["moments"])
+        return f
+
+
+async def relationship_stage(user_id: str) -> dict:
+    """S3 — internal Relationship Journey (Guest→Companion). Drives DuSu's tone. Never shown."""
+    async with _Session() as s:               # type: ignore[misc]
+        u = await s.get(User, user_id)
+        sessions = (await s.execute(
+            select(func.count(Conversation.id)).where(Conversation.user_id == user_id)
+        )).scalar() or 0
+    days = (_now() - u.created_at).days if (u and u.created_at) else 0
+    if   sessions <= 1 and days < 1: idx = 0
+    elif sessions < 4:               idx = 1
+    elif sessions < 10:              idx = 2
+    elif sessions < 25:              idx = 3
+    elif sessions < 60:              idx = 4
+    else:                            idx = 5
+    return {"stage": _REL_STAGES[idx], "idx": idx, "days": days, "sessions": sessions}
+
+
+async def build_companion_context(user_id: str) -> dict:
+    """S3 — everything DuSu needs to sound like she knows + cares about this user."""
+    f = await get_memory(user_id)
+    stage = await relationship_stage(user_id)
+    async with _Session() as s:               # type: ignore[misc]
+        prog = await s.get(Progress, user_id)
+    cur = int(((prog.journey if prog else {}) or {}).get("current_level", 1) or 1)
+    world = _WORLD_NAMES[cur - 1] if 0 <= cur - 1 < len(_WORLD_NAMES) else ""
+    identity = {k: f[k] for k in ("nickname", "profession", "dream", "native_lang") if f.get(k)}
+    if f.get("interests"):
+        identity["interests"] = f["interests"]
+    return {
+        "identity": identity,
+        "relationship": f.get("relationship") or {},
+        "moments": _prune_moments(f.get("moments") or [])[-6:],
+        "achievements": (f.get("achievements") or [])[-6:],
+        "energy_today": f.get("energy_today") or {},
+        "stage": stage, "world": world, "level": cur,
+        "next_hook": f.get("next_hook", ""),
+    }
+
+
+_TODAY_CHALLENGES = [   # by weekday (0=Mon) — the home belongs to *today*
+    ("Monday reset", "New week — introduce the 'new you' in English.", "conversation"),
+    ("Tell me a story", "Something small that made you smile recently.", "conversation"),
+    ("Two-minute challenge", "Can you speak for 2 minutes — no Hindi?", "conversation"),
+    ("Interview muscle", "One tough interview question, together.", "interview"),
+    ("Friday win", "Tell me about a small victory this week.", "conversation"),
+    ("Weekend talk", "Relax — chat with me about anything.", "daily"),
+    ("Sunday dream", "Picture your dream. Say it out loud in English.", "conversation"),
+]
+
+
+async def build_growth(user_id: str) -> dict:
+    """S6 — growth as *becoming*, not points: confidence, vocabulary, transformation timeline."""
+    async with _Session() as s:               # type: ignore[misc]
+        u = await s.get(User, user_id)
+        prog = await s.get(Progress, user_id)
+        mem = await s.get(Memory, user_id)
+    f = dict(mem.facts) if mem and mem.facts else {}
+    streak = (prog.streak_days if prog else 0) or 0
+    journey = (prog.journey if prog else {}) or {}
+    cur_level = int(journey.get("current_level", 1) or 1)
+    total_sent = int(f.get("total_sentences", 0))
+    total_min = int(f.get("total_seconds", 0)) // 60
+    vocab_total = int(f.get("vocab_total", 0))
+    today = _now().date().isoformat()
+    vocab_today = int(((f.get("daily_stats") or {}).get(today) or {}).get("new_words", 0))
+
+    # Confidence — a felt composite (0-96), with a delta vs last time.
+    conf = min(96, 28 + streak * 3 + min(30, total_sent // 8)
+               + (cur_level - 1) * 6 + vocab_total // 40)
+    last = int(f.get("last_confidence", 0))
+    delta = conf - last
+    if conf != last:                          # persist the new baseline (best-effort)
+        try:
+            async with _Session() as s:       # type: ignore[misc]
+                m2 = await _get_or_make_memory(s, user_id)
+                g = dict(m2.facts or {}); g["last_confidence"] = conf
+                m2.facts = g; flag_modified(m2, "facts"); await s.commit()
+        except Exception:
+            pass
+
+    # Transformation timeline — Day 1 join + real achievements, by day number.
+    first = (u.created_at.date() if (u and u.created_at) else _now().date())
+    items = [{"day": 1, "icon": "✨", "text": "You met DuSu"}]
+    for a in (f.get("achievements") or []):
+        try:
+            ad = dt.date.fromisoformat(a.get("date"))
+            items.append({"day": (ad - first).days + 1, "icon": "✅", "text": a.get("text", "")})
+        except Exception:
+            continue
+    items = sorted(items, key=lambda x: x["day"])[-6:]
+
+    return {
+        "confidence": {"value": conf, "delta": delta},
+        "vocabulary": {"total": vocab_total, "today": vocab_today},
+        "streak": streak, "sentences": total_sent, "minutes": total_min,
+        "dream": f.get("dream", ""), "dream_pct": round(cur_level / MAX_LEVEL * 100),
+        "timeline": items,
+    }
+
+
+# A clear, well-named activity (name, action, plain what-you'll-do, icon, meta)
+_GOALS = {
+    "talk":      ("Talk with me, face to face", "conversation", "A relaxed English chat — just speak, I'll keep it going.", "💬", "~5 min"),
+    "journey":   ("Tell me about your day",      "daily",        "Chat in Hinglish about your life — learn as we go.",        "🌱", "~5 min"),
+    "learn":     ("Continue your learning",      "learning",     "Say it in Hindi → I say it in English → you repeat.",       "📖", "~4 min"),
+    "roadmap":   ("Pick up your lessons",        "journey",      "Your guided path — one step at a time.",                    "🗺️", "guided"),
+    "interview": ("Prepare for your interview",  "interview",    "A real mock interview, then a scored report.",              "🎯", "mock + score"),
+    "challenge": ("Today's challenge",           "conversation", "Speak for 2 minutes — no Hindi. Can you?",                  "⭐", "2 min"),
+}
+
+
+def _goal_card(key: str, why: str = "") -> dict:
+    g = _GOALS[key]
+    c = {"key": key, "goal": g[0], "action": g[1], "desc": g[2], "icon": g[3], "meta": g[4]}
+    if why:
+        c["why"] = why
+    return c
+
+
+async def build_opening(user_id: str) -> str:
+    """The Companion Moment — DuSu's memory-aware first line on Start Speaking."""
+    f = await get_memory(user_id)
+    if f.get("next_hook"):
+        return f"Last time we started something — {f['next_hook']}. Shall we pick it up?"
+    sums = await recent_summaries(user_id, 1)
+    if sums:
+        return f"I was just thinking about last time — {sums[0]}"
+    achs = f.get("achievements") or []
+    if achs:
+        return f"You did something great recently: {achs[-1].get('text','')}. Ready for more?"
+    moms = _prune_moments(f.get("moments") or [])
+    if moms:
+        return f"You mentioned {moms[-1].get('text','')}. How's that going?"
+    stage = await relationship_stage(user_id)
+    if stage["idx"] == 0:
+        return "I'm really glad you're here. Let's find your voice together."
+    return "Good to see you again. What shall we work on today?"
+
+
+async def build_recommendations(user_id: str) -> dict:
+    """Invisible ranking → 3 curated goals (primary carries a 'why'). Intent → feature."""
+    f = await get_memory(user_id)
+    async with _Session() as s:               # type: ignore[misc]
+        prog = await s.get(Progress, user_id)
+        prof = await s.get(Profile, user_id)
+    streak = (prog.streak_days if prog else 0) or 0
+    last = prog.last_active if prog else None
+    journey = (prog.journey if prog else {}) or {}
+    cur_level = int(journey.get("current_level", 1) or 1)
+    today = _now().date()
+    gap = (today - last).days if last else 99
+    energy = (f.get("energy_today") or {}).get("value", "")
+    onboarded = bool(prof and prof.onboarded)
+
+    # interview event within a week?
+    iv_days = None
+    for e in (f.get("events") or []):
+        if e.get("type") == "interview" and e.get("date"):
+            try:
+                d = (dt.date.fromisoformat(e["date"]) - today).days
+                if 0 <= d <= 7 and (iv_days is None or d < iv_days):
+                    iv_days = d
+            except Exception:
+                pass
+
+    if iv_days is not None:
+        primary = _goal_card("interview", f"your interview is only {iv_days} day{'s' if iv_days != 1 else ''} away")
+    elif f.get("next_hook"):
+        primary = _goal_card("journey", "let's pick up where we left off")
+    elif gap >= 3:
+        primary = _goal_card("talk", "it's been a few days — let's ease back in")
+    elif energy in ("low", "tired", "sad"):
+        primary = _goal_card("talk", "let's take it gentle today")
+    elif streak >= 2:
+        primary = _goal_card("learn", f"you're on a {streak}-day roll — keep it going")
+    elif energy in ("great", "confident", "excited"):
+        primary = _goal_card("challenge", "you sound confident today — let's push a little")
+    elif not onboarded or cur_level <= 1:
+        primary = _goal_card("learn", "let's build your foundation")
+    else:
+        primary = _goal_card("talk", "a few minutes keeps you sharp")
+
+    # Always show a clear trio: primary + one "connect" + one "learn".
+    picks = [primary["key"]]
+    def _add(k):
+        if k not in picks and len(picks) < 3:
+            picks.append(k)
+    if not any(p in ("talk", "journey") for p in picks):            # ensure a connect option
+        _add("journey" if primary["key"] != "journey" else "talk")
+    if not any(p in ("learn", "roadmap", "interview", "challenge") for p in picks):  # ensure a learn option
+        for k in (["interview"] if iv_days is not None else []) + ["learn", "roadmap"]:
+            _add(k); break
+    for k in ["talk", "journey", "learn", "roadmap", "interview", "challenge"]:      # fill if needed
+        _add(k)
+    cards = [primary if k == primary["key"] else _goal_card(k) for k in picks[:3]]
+    return {"primary": cards[0], "second": cards[1], "third": cards[2]}
+
+
+async def build_today(user_id: str) -> dict:
+    """S4 — the one dynamic 'today' card. Never the same two days running."""
+    ctx = await build_companion_context(user_id)
+    async with _Session() as s:               # type: ignore[misc]
+        prog = await s.get(Progress, user_id)
+        mem = await s.get(Memory, user_id)
+    f = dict(mem.facts) if mem and mem.facts else {}
+    streak = (prog.streak_days if prog else 0) or 0
+    sessions_today = (prog.sessions_today if prog else 0) or 0
+    last = prog.last_active if prog else None
+    today = _now().date()
+
+    # 1. A promise DuSu made last time (S5 story hook) — highest priority.
+    hook = f.get("next_hook")
+    if hook and sessions_today == 0:
+        return {"type": "story", "emoji": "📖", "title": "Where we left off",
+                "body": hook, "cta": "Continue", "action": "daily"}
+    # 2. Streak about to break (practised yesterday, nothing today).
+    if streak > 0 and last == today - dt.timedelta(days=1) and sessions_today == 0:
+        return {"type": "streak", "emoji": "🔥", "title": f"Keep your {streak}-day streak alive",
+                "body": "A few minutes today and it lives on.", "cta": "Continue", "action": "daily"}
+    # 3. A live moment to care about.
+    moments = ctx.get("moments") or []
+    if moments and sessions_today == 0:
+        m = moments[-1]
+        return {"type": "moment", "emoji": "💭", "title": "I've been thinking…",
+                "body": f"You mentioned {m.get('text','')}. How's that going?",
+                "cta": "Tell DuSu", "action": "daily"}
+    # 4. Celebrate a recent achievement.
+    achs = ctx.get("achievements") or []
+    if achs and sessions_today == 0:
+        return {"type": "celebrate", "emoji": "⭐", "title": "Look what you did",
+                "body": f"{achs[-1].get('text','')} — proud of you.", "cta": "Keep going", "action": "daily"}
+    # 5. Day-of-week challenge (variety).
+    t, b, action = _TODAY_CHALLENGES[today.weekday()]
+    return {"type": "challenge", "emoji": "🎯", "title": t, "body": b, "cta": "Start", "action": action}
+
+
+async def recent_summaries(user_id: str, limit: int = 3) -> list[str]:
+    async with _Session() as s:               # type: ignore[misc]
+        rows = (await s.execute(
+            select(Conversation.summary).where(Conversation.user_id == user_id)
+            .order_by(desc(Conversation.created_at)).limit(limit)
+        )).scalars().all()
+        return [r for r in rows if r]
+
+
+async def save_about(user_id: str, about: dict) -> dict:
+    """Persist the onboarding 'About you' facts + the Day-1 intro baseline."""
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        for k in ("nickname", "native_lang", "profession", "dream", "career_goal"):
+            if about.get(k):
+                f[k] = about[k]
+        if about.get("interests"):
+            f["interests"] = {**(f.get("interests") or {}), **about["interests"]}
+        intro = (about.get("intro_text") or "").strip()
+        if intro:
+            fm = f.get("future_me") or {}
+            if not fm.get("day1_text"):
+                fm["day1_text"] = intro
+                f["future_me"] = fm
+            base = f.get("baseline") or {}
+            if not base.get("intro_text"):
+                base["intro_text"] = intro
+                base["date"] = _now().date().isoformat()
+                f["baseline"] = base
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+        return f
+
+
+# "career" here means a chosen career goal ("Software Engineer", "Doctor", ...) — a
+# distinct concept from the English-level roadmap (Progress.journey / _GOALS["roadmap"]).
+async def save_career_roadmap(user_id: str, goal: str, summary: str, stages: list) -> dict:
+    """Persist a freshly generated career roadmap. Assigns stable ids server-side
+    (phase index + stage index within phase) and stamps generated_at — never trust
+    ids from the LLM. Replaces any existing roadmap (regenerating wipes progress)."""
+    phases_seen: list[str] = []
+    out_stages = []
+    for st in (stages or []):
+        if not isinstance(st, dict):
+            continue
+        phase = str(st.get("phase") or "General").strip() or "General"
+        if not phases_seen or phases_seen[-1] != phase:
+            phases_seen.append(phase)
+        p_idx = len(phases_seen) - 1
+        s_idx = sum(1 for x in out_stages if x["phase"] == phase)
+        out_stages.append({
+            "id": f"p{p_idx}_s{s_idx}",
+            "phase": phase,
+            "title": str(st.get("title") or "").strip()[:120],
+            "description": str(st.get("description") or "").strip()[:400],
+            "skills": [str(x).strip()[:40] for x in (st.get("skills") or []) if str(x).strip()][:6],
+            "done": False,
+        })
+    out_stages = out_stages[:24]   # hard cap, belt-and-suspenders alongside the prompt's own cap
+    roadmap = {
+        "goal": (goal or "").strip()[:80],
+        "summary": (summary or "").strip()[:400],
+        "generated_at": _now().isoformat(),
+        "stages": out_stages,
+    }
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        f["career_goal"] = roadmap["goal"]
+        f["career_roadmap"] = roadmap
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+        return roadmap
+
+
+async def set_career_stage_done(user_id: str, stage_id: str, done: bool) -> dict | None:
+    """Toggle one stage's completion flag in the stored roadmap. Returns the
+    updated roadmap, or None if there's no roadmap / no matching stage."""
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        roadmap = f.get("career_roadmap")
+        if not isinstance(roadmap, dict) or not roadmap.get("stages"):
+            return None
+        found = False
+        for st in roadmap["stages"]:
+            if st.get("id") == stage_id:
+                st["done"] = bool(done)
+                found = True
+                break
+        if not found:
+            return None
+        f["career_roadmap"] = roadmap
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+        return roadmap
+
+
+async def merge_facts(user_id: str, facts: dict, events: list) -> None:
+    """Merge LLM-extracted facts/events from a finished conversation into memory."""
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        if isinstance(facts, dict):
+            for k in ("nickname", "native_lang", "profession", "dream"):
+                if facts.get(k):
+                    f[k] = facts[k]
+            if facts.get("interests"):
+                f["interests"] = {**(f.get("interests") or {}), **facts["interests"]}
+            notes = facts.get("notes") or facts.get("facts") or []
+            if isinstance(notes, str):
+                notes = [notes]
+            if notes:
+                learned = (f.get("facts_learned") or []) + [n for n in notes if n]
+                f["facts_learned"] = list(dict.fromkeys(learned))[-_MAX_FACTS:]
+            # S1/S2 — Relationship traits (never expire): how DuSu should behave.
+            rel = facts.get("relationship")
+            if isinstance(rel, dict) and rel:
+                f["relationship"] = {**(f.get("relationship") or {}), **rel}
+            # S1/S2 — emotional Moments (2–7 day shelf life) + Achievements (permanent).
+            if isinstance(facts.get("moments"), list) and facts["moments"]:
+                _add_moments(f, facts["moments"])
+            if isinstance(facts.get("achievements"), list) and facts["achievements"]:
+                _add_achievements(f, facts["achievements"])
+        if isinstance(events, list) and events:
+            cur = f.get("events") or []
+            seen = {(e.get("type"), e.get("date")) for e in cur}
+            for e in events:
+                if isinstance(e, dict) and (e.get("type"), e.get("date")) not in seen:
+                    cur.append(e)
+            f["events"] = cur[-20:]
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+
+
+async def add_recent_questions(user_id: str, questions: list) -> None:
+    """Cross-session repetition guard: remember the last ~15 genuinely meaningful
+    questions DuSu has asked (any mode) so future sessions don't repeat them."""
+    if not isinstance(questions, list) or not questions:
+        return
+    qs = [str(q).strip() for q in questions if str(q).strip()]
+    if not qs:
+        return
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        cur = (f.get("recent_questions") or []) + qs
+        f["recent_questions"] = list(dict.fromkeys(cur))[-15:]
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+
+
+async def set_next_hook(user_id: str, hook: str) -> None:
+    """S5 — store the promise DuSu made for next time (story continuity)."""
+    hook = (hook or "").strip()
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        if hook:
+            f["next_hook"] = hook[:200]
+        else:
+            f.pop("next_hook", None)
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+
+
+async def add_feedback(user_id: str, email: str, kind: str, text: str) -> None:
+    """Store a Help/Feedback message from a user."""
+    text = (text or "").strip()[:600]
+    if not text:
+        return
+    kind = "help" if kind == "help" else "feedback"
+    async with _Session() as s:               # type: ignore[misc]
+        s.add(Feedback(user_id=user_id, email=email or "", kind=kind, text=text))
+        await s.commit()
+
+
+async def list_feedback(limit: int = 100) -> list[dict]:
+    """Recent feedback for the owner dashboard (newest first)."""
+    async with _Session() as s:               # type: ignore[misc]
+        rows = (await s.execute(
+            select(Feedback).order_by(desc(Feedback.created_at)).limit(limit)
+        )).scalars().all()
+        return [{"email": r.email, "kind": r.kind, "text": r.text,
+                 "at": r.created_at.isoformat() if r.created_at else ""} for r in rows]
+
+
+async def save_user_keys(user_id: str, keys: dict, verified: bool) -> None:
+    """Persist the user's BYOK provider keys (sealed). Only non-empty values kept."""
+    clean = {k: str(v).strip() for k, v in (keys or {}).items() if v and str(v).strip()}
+    blob = _seal(json.dumps(clean)) if clean else ""
+    async with _Session() as s:               # type: ignore[misc]
+        row = await s.get(UserKey, user_id)
+        if row:
+            row.blob = blob; row.verified = bool(verified); row.updated_at = _now()
+        else:
+            s.add(UserKey(user_id=user_id, blob=blob, verified=bool(verified)))
+        await s.commit()
+
+
+async def get_user_keys(user_id: str) -> dict:
+    """Return the user's stored BYOK keys (unsealed), or {} if none."""
+    async with _Session() as s:               # type: ignore[misc]
+        row = await s.get(UserKey, user_id)
+        if not row or not row.blob:
+            return {}
+        try:
+            return json.loads(_unseal(row.blob)) or {}
+        except Exception:
+            return {}
+
+
+# Minimum stored+verified keys that count as "this user is set up". Must match
+# main.MIN_VERIFIED_KEYS and the client's MIN_KEYS — when these disagreed, a user
+# was saved as verified but still reported has_keys=False, so they were sent back
+# to the key wall on every new device.
+MIN_STORED_KEYS = 2
+
+
+async def has_user_keys(user_id: str) -> bool:
+    """True if the user has stored key(s) that were verified working."""
+    async with _Session() as s:               # type: ignore[misc]
+        row = await s.get(UserKey, user_id)
+        if not row or not row.verified or not row.blob:
+            return False
+    d = await get_user_keys(user_id)
+    return sum(1 for v in d.values() if str(v).strip()) >= MIN_STORED_KEYS
+
+
+# ---- Request quota (free-tier daily limit) + plan + per-mode analytics ----
+async def incr_request(user_id: str, day: str, limit: int | None) -> dict:
+    """Count ONE model request for the user's local day. limit=None → unlimited.
+    Returns {allowed, used, left, limit}; when over the limit, does NOT increment."""
+    async with _Session() as s:               # type: ignore[misc]
+        row = await s.get(UsageDaily, (user_id, day))
+        used = row.requests if row else 0
+        if limit is not None and used >= limit:
+            return {"allowed": False, "used": used, "left": 0, "limit": limit}
+        if row:
+            row.requests = used + 1
+        else:
+            s.add(UsageDaily(user_id=user_id, day=day, requests=1))
+        await s.commit()
+        used2 = used + 1
+        return {"allowed": True, "used": used2,
+                "left": (None if limit is None else max(0, limit - used2)), "limit": limit}
+
+
+async def usage_today(user_id: str, day: str) -> int:
+    async with _Session() as s:               # type: ignore[misc]
+        row = await s.get(UsageDaily, (user_id, day))
+        return row.requests if row else 0
+
+
+async def usage_total(user_id: str) -> int:
+    async with _Session() as s:               # type: ignore[misc]
+        return int((await s.execute(select(func.coalesce(func.sum(UsageDaily.requests), 0))
+                                    .where(UsageDaily.user_id == user_id))).scalar() or 0)
+
+
+async def signup_day_count(user_id: str) -> int:
+    """Whole 24-hour periods elapsed since the account was created (free-trial clock).
+    24h-based (not calendar-date diff) so signing up at 11pm doesn't burn a day at midnight."""
+    async with _Session() as s:               # type: ignore[misc]
+        u = await s.get(User, user_id)
+        if not u or not u.created_at:
+            return 0
+        created = u.created_at
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=dt.timezone.utc)
+        return max(0, int((_now() - created).total_seconds() // 86400))
+
+
+async def get_plan(user_id: str) -> str:
+    async with _Session() as s:               # type: ignore[misc]
+        u = await s.get(User, user_id)
+        return (u.plan if u else "free") or "free"
+
+
+async def set_plan(user_id: str, plan: str) -> bool:
+    async with _Session() as s:               # type: ignore[misc]
+        u = await s.get(User, user_id)
+        if not u:
+            return False
+        u.plan = plan
+        u.plan_since = _now().date()
+        await s.commit()
+        return True
+
+
+async def mode_counts(user_id: str) -> dict:
+    """Per-mode conversation counts: daily / conversation / interview / learning."""
+    async with _Session() as s:               # type: ignore[misc]
+        rows = (await s.execute(select(Conversation.mode, func.count())
+                                .where(Conversation.user_id == user_id)
+                                .group_by(Conversation.mode))).all()
+        return {(m or ""): int(c) for m, c in rows}
+
+
+async def save_recent_turns(user_id: str, turns: list) -> None:
+    """Store the tail of the last conversation (raw turns, any mode) so DuSu can
+    pick up the exact thread next time — even across modes (Daily/Talk/Interview)."""
+    clean = []
+    for t in (turns or []):
+        if not isinstance(t, dict):
+            continue
+        role = t.get("role"); content = (t.get("content") or "").strip()
+        if role in ("user", "assistant") and content:
+            clean.append({"role": role, "content": content[:400], "mode": t.get("mode", "")})
+    clean = clean[-10:]
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        if clean:
+            f["recent_turns"] = clean
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+
+
+async def add_conversation(user_id: str, mode: str, summary: str) -> None:
+    if not (summary or "").strip():
+        return
+    async with _Session() as s:               # type: ignore[misc]
+        s.add(Conversation(user_id=user_id, mode=mode, summary=summary.strip()))
+        await s.commit()
+
+
+async def save_checkin(user_id: str, mood: str, energy: str = "") -> dict:
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        today = _now().date().isoformat()
+        checkins = [c for c in (f.get("checkins") or []) if c.get("date") != today]
+        checkins.append({"date": today, "mood": mood, "energy": energy or mood})
+        f["checkins"] = checkins[-_MAX_CHECKINS:]
+        # S1 — today's energy reshapes the whole session (read by the prompt builder).
+        f["energy_today"] = {"date": today, "value": energy or mood}
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+        return f
+
+
+async def save_daily_context(user_id: str, ctx: dict) -> None:
+    """Merge today's context into a 48h sliding window (today + yesterday only)."""
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        today = _now().date()
+        keep = {today.isoformat(), (today - dt.timedelta(days=1)).isoformat()}
+        dc = [e for e in (f.get("daily_context") or []) if e.get("date") in keep]
+        cur = next((e for e in dc if e.get("date") == today.isoformat()), None)
+        if cur is None:
+            cur = {"date": today.isoformat(), "mood": "", "plans": "", "weather": "", "events": [], "notes": []}
+            dc.append(cur)
+        if ctx.get("mood"):    cur["mood"] = ctx["mood"]
+        if ctx.get("plans"):   cur["plans"] = ctx["plans"]
+        if ctx.get("weather"): cur["weather"] = ctx["weather"]
+        if ctx.get("note"):    cur["notes"] = ((cur.get("notes") or []) + [ctx["note"]])[-8:]
+        for e in (ctx.get("events") or []):
+            if isinstance(e, dict) and e not in (cur.get("events") or []):
+                cur.setdefault("events", []).append(e)
+        f["daily_context"] = dc
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+
+
+async def record_practice(user_id: str, seconds: int = 0, sentences: int = 0, xp: int = 20) -> dict:
+    """Daily Talk's OLD flat-XP currency (separate from Speaker XP, §4) + the
+    "sessions today" counter for the Daily Goal display. Does NOT touch
+    streak_days/last_active — award_speaker_progress (called right after this, for
+    every speaking mode including daily) is the SOLE owner of the shared streak.
+    Two writers racing on the same field with two different day boundaries (this
+    used UTC, award_speaker_progress uses fixed IST) previously caused the streak
+    to double-count near midnight and made Daily-Talk-only streaks never register
+    at all (award_speaker_progress always saw a same-day last_active this one had
+    already just written)."""
+    async with _Session() as s:               # type: ignore[misc]
+        prog = await s.get(Progress, user_id)
+        if prog is None:
+            prog = Progress(user_id=user_id, badges=[], journey={})
+            s.add(prog)
+        prog.xp = (prog.xp or 0) + xp
+        # "New day" for the session-count display = no daily_stats bucket yet today —
+        # decoupled from Progress.last_active on purpose (see docstring).
+        mem = await _get_or_make_memory(s, user_id)
+        today_key = _ist_now().date().isoformat()
+        if today_key not in (mem.facts or {}).get("daily_stats", {}):
+            prog.sessions_today = 0
+        prog.sessions_today = (prog.sessions_today or 0) + 1
+        await s.commit()
+        # also fold into memory daily_stats + longest
+        await bump_daily_stat(user_id, sentences=sentences, seconds=seconds)
+        return {"xp": prog.xp, "streak_days": prog.streak_days, "sessions_today": prog.sessions_today}
+
+
+async def bump_daily_stat(user_id: str, sentences: int = 0, seconds: int = 0) -> None:
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        today = _ist_now().date().isoformat()   # fixed-IST day boundary, matches the rest of the app (§8)
+        stats = dict(f.get("daily_stats") or {})
+        # Seed ALL keys every time, even over a partially-populated bucket (e.g. one
+        # add_vocab wrote just {"new_words": n} for today before this ever ran) —
+        # a bare `d["sentences"] +=` on a bucket missing that key raises KeyError.
+        d = {"sentences": 0, "seconds": 0, "sessions": 0, **(stats.get(today) or {})}
+        d["sentences"] += sentences
+        d["seconds"] += seconds
+        d["sessions"] += 1
+        stats[today] = d
+        # keep only the last ~14 days
+        f["daily_stats"] = dict(sorted(stats.items())[-14:])
+        if seconds > int(f.get("longest_convo_sec", 0)):
+            f["longest_convo_sec"] = seconds
+        # S6 — lifetime totals for Growth signals
+        f["total_sentences"] = int(f.get("total_sentences", 0)) + sentences
+        f["total_seconds"] = int(f.get("total_seconds", 0)) + seconds
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+
+
+async def add_vocab(user_id: str, words: list[str]) -> None:
+    """S6 — grow the learner's spoken-vocabulary set; count new words per day."""
+    clean = {w for w in ((x or "").lower().strip(".,!?;:\"'") for x in words)
+             if w.isalpha() and len(w) >= 2}
+    if not clean:
+        return
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        have = set(f.get("vocab") or [])
+        fresh = clean - have
+        if fresh:
+            merged = list(have | clean)[-_MAX_VOCAB:]
+            f["vocab"] = merged
+            f["vocab_total"] = int(f.get("vocab_total", 0)) + len(fresh)
+            today = _ist_now().date().isoformat()   # must match bump_daily_stat's day key (§8)
+            stats = dict(f.get("daily_stats") or {})
+            d = {"sentences": 0, "seconds": 0, "sessions": 0, **(stats.get(today) or {})}
+            d["new_words"] = int(d.get("new_words", 0)) + len(fresh)
+            stats[today] = d
+            f["daily_stats"] = stats
+            mem.facts = f
+            flag_modified(mem, "facts")
+            await s.commit()
+
+
+async def save_letter(user_id: str, text: str) -> None:
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        f["last_letter"] = {"date": _now().date().isoformat(), "text": text}
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+
+
+async def award_badges(user_id: str, ids: list[str]) -> list[str]:
+    """Add badge ids to progress if not already present. Returns newly-added ids."""
+    if not ids:
+        return []
+    async with _Session() as s:               # type: ignore[misc]
+        prog = await s.get(Progress, user_id)
+        if prog is None:
+            prog = Progress(user_id=user_id, badges=[], journey={})
+            s.add(prog)
+        badges = list(prog.badges or [])
+        new = [b for b in ids if b not in badges]
+        if new:
+            prog.badges = badges + new
+            flag_modified(prog, "badges")
+            await s.commit()
+        return new
+
+
+async def set_nickname(user_id: str, nickname: str) -> dict:
+    """What DuSu calls the learner. Editable from the Profile screen."""
+    nickname = (nickname or "").strip()[:40]
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        if nickname:
+            f["nickname"] = nickname
+        else:
+            f.pop("nickname", None)
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+        return f
+
+
+async def save_future_me(user_id: str, text: str) -> dict:
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        fm = dict(f.get("future_me") or {})
+        if not fm.get("day1_text"):
+            fm["day1_text"] = text
+        fm["latest_text"] = text
+        fm["latest_date"] = _now().date().isoformat()
+        f["future_me"] = fm
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+        return f
+
+
+# ===================== ADMIN (owner dashboard) =====================
+async def admin_list_users() -> list[dict]:
+    """Full per-user info for the owner dashboard: identity, status/mode, level,
+    xp/streak, today's + total activity, and recent per-day usage."""
+    if not db_enabled:
+        return []
+    async with _Session() as s:               # type: ignore[misc]
+        rows = (await s.execute(select(User).order_by(User.last_seen.desc()))).scalars().all()
+        out = []
+        for u in rows:
+            prof = await s.get(Profile, u.id)
+            prog = await s.get(Progress, u.id)
+            mem = await s.get(Memory, u.id)
+            f = (mem.facts if mem else {}) or {}
+            convos = (await s.execute(
+                select(func.count()).select_from(Conversation).where(Conversation.user_id == u.id))).scalar() or 0
+            # per-mode conversation counts (daily/conversation/interview/learning)
+            mrows = (await s.execute(select(Conversation.mode, func.count())
+                                     .where(Conversation.user_id == u.id)
+                                     .group_by(Conversation.mode))).all()
+            modes = {(m or ""): int(c) for m, c in mrows}
+            _day = _ist_day()   # match the IST quota bucket used to charge requests
+            _ut = await s.get(UsageDaily, (u.id, _day))
+            req_today = _ut.requests if _ut else 0
+            req_total = int((await s.execute(select(func.coalesce(func.sum(UsageDaily.requests), 0))
+                                             .where(UsageDaily.user_id == u.id))).scalar() or 0)
+            online = bool(u.last_seen and (_now() - u.last_seen).total_seconds() < 300)
+            out.append({
+                "id": u.id,
+                "email": u.email or "",
+                "plan": getattr(u, "plan", "free") or "free",
+                "office": await office_has(u.email or ""),
+                "online": online,
+                "requests_today": int(req_today),
+                "requests_total": req_total,
+                "modes": modes,
+                "name": u.name or f.get("nickname", "") or "",
+                "picture": u.picture or "",
+                "status": getattr(u, "status", "active") or "active",
+                "mode": getattr(u, "mode", "personal") or "personal",
+                "created_at": u.created_at.isoformat() if u.created_at else None,
+                "last_seen": u.last_seen.isoformat() if u.last_seen else None,
+                "onboarded": bool(prof.onboarded) if prof else False,
+                "level": (prof.level if prof else "") or "",
+                "goal": (prof.goal if prof else "") or "",
+                "xp": (prog.xp if prog else 0) or 0,
+                "streak_days": (prog.streak_days if prog else 0) or 0,
+                "sessions_today": (prog.sessions_today if prog else 0) or 0,
+                "daily_goal": (prog.daily_goal if prog else 0) or 0,
+                "total_sessions": int(convos),
+                "total_minutes": round(int(f.get("total_seconds", 0)) / 60),
+                "words": int((f.get("vocabulary") or {}).get("total", f.get("vocab_total", 0)) or 0),
+                "daily_stats": f.get("daily_stats") or {},   # {date: {sessions, seconds, sentences}}
+            })
+        return out
+
+
+async def set_user_status(user_id: str, status: str) -> bool:
+    if not db_enabled or status not in ("active", "pending", "blocked"):
+        return False
+    async with _Session() as s:               # type: ignore[misc]
+        u = await s.get(User, user_id)
+        if not u:
+            return False
+        u.status = status
+        await s.commit()
+        return True
+
+
+async def set_user_mode(user_id: str, mode: str, status: str | None = None) -> bool:
+    if not db_enabled or mode not in ("personal", "office"):
+        return False
+    async with _Session() as s:               # type: ignore[misc]
+        u = await s.get(User, user_id)
+        if not u:
+            return False
+        u.mode = mode
+        if status:
+            u.status = status
+        await s.commit()
+        return True
+
+
+async def get_user_flags(user_id: str) -> dict:
+    """Cheap status/mode lookup for the access gate."""
+    if not db_enabled:
+        return {"status": "active", "mode": "personal"}
+    async with _Session() as s:               # type: ignore[misc]
+        u = await s.get(User, user_id)
+        if not u:
+            return {"status": "active", "mode": "personal"}
+        return {"status": getattr(u, "status", "active") or "active",
+                "mode": getattr(u, "mode", "personal") or "personal"}
+
+
+# ===================== OFFICE EMAIL ALLOWLIST (owner-managed) =====================
+class OfficeEmail(Base):
+    __tablename__ = "office_emails"
+    email: Mapped[str] = mapped_column(String(255), primary_key=True)   # lowercased
+    added_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+async def office_list() -> list[str]:
+    if not db_enabled:
+        return []
+    async with _Session() as s:               # type: ignore[misc]
+        rows = (await s.execute(select(OfficeEmail.email).order_by(OfficeEmail.added_at.desc()))).scalars().all()
+        return list(rows)
+
+
+async def office_has(email: str) -> bool:
+    e = (email or "").strip().lower()
+    if not e or not db_enabled:
+        return False
+    async with _Session() as s:               # type: ignore[misc]
+        return (await s.get(OfficeEmail, e)) is not None
+
+
+async def office_add(email: str) -> bool:
+    e = (email or "").strip().lower()
+    if not e or "@" not in e or not db_enabled:
+        return False
+    async with _Session() as s:               # type: ignore[misc]
+        if await s.get(OfficeEmail, e) is None:
+            s.add(OfficeEmail(email=e)); await s.commit()
+        return True
+
+
+async def office_remove(email: str) -> bool:
+    e = (email or "").strip().lower()
+    if not e or not db_enabled:
+        return False
+    async with _Session() as s:               # type: ignore[misc]
+        row = await s.get(OfficeEmail, e)
+        if row:
+            await s.delete(row); await s.commit()
+        return True
+
+
+# ===================== APP SETTINGS (owner toggles) =====================
+class Setting(Base):
+    __tablename__ = "settings"
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(String(255), default="")
+
+
+async def get_setting(key: str, default: str = "") -> str:
+    if not db_enabled:
+        return default
+    async with _Session() as s:               # type: ignore[misc]
+        r = await s.get(Setting, key)
+        return r.value if r else default
+
+
+async def set_setting(key: str, value: str) -> None:
+    if not db_enabled:
+        return
+    async with _Session() as s:               # type: ignore[misc]
+        r = await s.get(Setting, key)
+        if r:
+            r.value = value
+        else:
+            s.add(Setting(key=key, value=value))
+        await s.commit()
+
+
+async def admin_wipe_users(keep_emails: set[str]) -> int:
+    """Delete every user (+ their profile/progress/memory/conversations) whose
+    email is NOT in keep_emails. Owner-triggered reset for testing. Returns count."""
+    if not db_enabled:
+        return 0
+    keep = {(e or "").strip().lower() for e in keep_emails}
+    async with _Session() as s:               # type: ignore[misc]
+        users = (await s.execute(select(User))).scalars().all()
+        del_ids = [u.id for u in users if (u.email or "").strip().lower() not in keep]
+        if not del_ids:
+            return 0
+        for tbl in (Conversation, Memory, Progress, Profile, UserKey, Feedback, UsageDaily,
+                    SessionScore, WeeklyStat, SeasonAward):
+            await s.execute(delete(tbl).where(tbl.user_id.in_(del_ids)))
+        await s.execute(delete(User).where(User.id.in_(del_ids)))
+        await s.commit()
+        return len(del_ids)
+
+
+async def delete_user(user_id: str) -> bool:
+    """Delete a single user + all their data (owner action)."""
+    if not db_enabled:
+        return False
+    async with _Session() as s:               # type: ignore[misc]
+        for tbl in (Conversation, Memory, Progress, Profile, UserKey, Feedback, UsageDaily,
+                    SessionScore, WeeklyStat, SeasonAward):
+            await s.execute(delete(tbl).where(tbl.user_id == user_id))
+        u = await s.get(User, user_id)
+        if u:
+            await s.delete(u)
+        await s.commit()
+        return True
+
+
+# --- 6-Month Speaker Awards (§7 item 16, Phase 3) -----------------------------------
+# No cron on this stack (Render free tier) — season close is an owner-triggered batch,
+# same pattern as admin_wipe_users. Awards are rare on purpose (§17 "not everyone gets
+# one") — one winner per category, not a per-user personal-best badge.
+_SEASON_AWARD_LABELS = {
+    "consistency_champion": "Consistency Champion",
+    "most_improved": "Most Improved Speaker",
+    "conversation_champion": "Conversation Champion",
+    "confidence_builder": "Confidence Builder",
+    "dedicated_speaker": "Dedicated Speaker",
+}
+_SEASON_MIN_SESSIONS = 4   # need enough signal for a season title to mean anything
+
+
+def current_season_id(d: dt.date | None = None) -> str:
+    d = d or _ist_now().date()
+    return f"{d.year}-H1" if d.month <= 6 else f"{d.year}-H2"
+
+
+def _season_bounds(season_id: str) -> tuple[dt.datetime, dt.datetime]:
+    year_s, half = season_id.split("-")
+    year = int(year_s)
+    if half == "H1":
+        start, end = dt.date(year, 1, 1), dt.date(year, 7, 1)
+    else:
+        start, end = dt.date(year, 7, 1), dt.date(year + 1, 1, 1)
+    return _ist_day_start_utc(start), _ist_day_start_utc(end)
+
+
+def previous_closed_season_id() -> str:
+    """The most recent season that has fully ended (not the one in progress)."""
+    today = _ist_now().date()
+    if today.month <= 6:
+        return f"{today.year - 1}-H2"
+    return f"{today.year}-H1"
+
+
+async def compute_season_awards(season_id: str | None = None) -> dict:
+    """Owner-triggered: scans SessionScore for the given (default: previous closed)
+    season and assigns one winner per category. Idempotent — re-running replaces
+    that season's awards rather than duplicating them."""
+    if not db_enabled:
+        return {"season_id": season_id or "", "awards": {}}
+    season_id = season_id or previous_closed_season_id()
+    start, end = _season_bounds(season_id)
+    async with _Session() as s:               # type: ignore[misc]
+        rows = (await s.execute(
+            select(SessionScore.user_id, SessionScore.mode, SessionScore.minutes,
+                   SessionScore.confidence, SessionScore.overall, SessionScore.genuine_effort,
+                   SessionScore.created_at)
+            .where(SessionScore.created_at >= start, SessionScore.created_at < end)
+            .order_by(SessionScore.created_at.asc())
+        )).all()
+
+        per_user: dict[str, list] = {}
+        for uid, mode, minutes, confidence, overall, genuine, created_at in rows:
+            per_user.setdefault(uid, []).append(
+                {"mode": mode, "minutes": minutes or 0, "confidence": confidence or 0,
+                 "overall": overall or 0, "genuine": genuine, "created_at": created_at})
+
+        stats = {}
+        for uid, sess in per_user.items():
+            if len(sess) < _SEASON_MIN_SESSIONS:
+                continue
+            genuine_sess = [x for x in sess if x["genuine"]] or sess
+            minutes_total = sum(x["minutes"] for x in sess)
+            conv_count = sum(1 for x in sess if x["mode"] == "conversation")
+            avg_conf = sum(x["confidence"] for x in genuine_sess) / len(genuine_sess)
+            half = max(2, len(genuine_sess) // 2)
+            first_avg = sum(x["overall"] for x in genuine_sess[:half]) / half
+            second_avg = sum(x["overall"] for x in genuine_sess[-half:]) / half
+            improvement = second_avg - first_avg
+            streak_row = await s.get(Progress, uid)
+            longest_streak = streak_row.longest_streak_days if streak_row else 0
+            stats[uid] = {
+                "sessions": len(sess), "minutes_total": round(minutes_total, 1),
+                "conversation_sessions": conv_count, "avg_confidence": round(avg_conf, 1),
+                "improvement": round(improvement, 1), "longest_streak_days": longest_streak,
+            }
+
+        def _winner(key: str):
+            eligible = {uid: v for uid, v in stats.items() if v[key] > 0}
+            if not eligible:
+                return None
+            return max(eligible.items(), key=lambda kv: kv[1][key])
+
+        picks = {
+            "consistency_champion": _winner("longest_streak_days"),
+            "most_improved": _winner("improvement"),
+            "conversation_champion": _winner("conversation_sessions"),
+            "confidence_builder": _winner("avg_confidence"),
+            "dedicated_speaker": _winner("minutes_total"),
+        }
+
+        await s.execute(delete(SeasonAward).where(SeasonAward.season_id == season_id))
+        awards_out = {}
+        for award_key, pick in picks.items():
+            if not pick:
+                continue
+            uid, uv = pick
+            s.add(SeasonAward(user_id=uid, season_id=season_id, award_key=award_key, stats=uv))
+            awards_out[award_key] = {"user_id": uid, **uv}
+        await s.commit()
+        return {"season_id": season_id, "eligible_users": len(stats), "awards": awards_out}
+
+
+async def interview_context(user_id: str) -> dict:
+    """What the interviewer needs to pick a difficulty tier (§7 item 15): CEFR level
+    (Profile, not Memory — this is the one real level signal, unlike facts["level"]
+    which nothing ever writes), the stated career goal (Memory.facts, set by the
+    Career Roadmap feature), and average performance on past interview sessions."""
+    if not db_enabled:
+        return {"level": "", "career_goal": "", "past_count": 0, "past_avg": None}
+    async with _Session() as s:               # type: ignore[misc]
+        prof = await s.get(Profile, user_id)
+        mem = await s.get(Memory, user_id)
+        rows = (await s.execute(
+            select(SessionScore.overall, SessionScore.genuine_effort)
+            .where(SessionScore.user_id == user_id, SessionScore.mode == "interview")
+            .order_by(desc(SessionScore.created_at)).limit(10)
+        )).all()
+        genuine = [ov for ov, g in rows if g] or [ov for ov, _ in rows]
+        return {
+            "level": (prof.level if prof else "") or "",
+            "career_goal": ((mem.facts or {}).get("career_goal") if mem else "") or "",
+            "past_count": len(rows),
+            "past_avg": round(sum(genuine) / len(genuine), 1) if genuine else None,
+        }
+
+
+async def get_my_season_awards(user_id: str) -> list[dict]:
+    if not db_enabled:
+        return []
+    async with _Session() as s:               # type: ignore[misc]
+        rows = (await s.execute(
+            select(SeasonAward).where(SeasonAward.user_id == user_id)
+            .order_by(desc(SeasonAward.season_id))
+        )).scalars().all()
+        return [{"season_id": r.season_id, "award_key": r.award_key,
+                  "label": _SEASON_AWARD_LABELS.get(r.award_key, r.award_key),
+                  "stats": r.stats} for r in rows]
