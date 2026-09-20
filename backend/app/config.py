@@ -20,8 +20,13 @@ class Settings(BaseSettings):
     google_client_id: str = ""
     session_secret: str = "dev-change-me"
 
-    # --- Database (Neon Postgres). Empty = no DB (app runs stateless as before). ---
+    # --- Database (Postgres). Empty = no DB (app runs stateless as before). ---
+    # Under docker compose this is injected from the stack's own `db` service and
+    # is never an external host — see docker-compose.yml.
     database_url: str = ""
+    # This stack's Postgres serves no TLS cert, so compose sets DATABASE_SSL=false.
+    # The default stays True for any host that does demand TLS.
+    database_ssl: bool = True
 
     # --- Usage limits (protect the shared free quota) ---
     max_sessions_per_day: int = 20      # per user; resets daily

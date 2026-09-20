@@ -2282,7 +2282,12 @@ const MIN_KEYS = 2;
 // keeps a new user on a shared browser from inheriting a previous user's keys.
 function hasOwnKeys(){
   if(userState && userState.has_keys) return true;                 // stored server-side
-  return keyCount() >= MIN_KEYS && keysVerified() && !!curEmail() && keysOwner() === curEmail();
+  const owner = curEmail();
+  // A signed-in browser must never inherit the previous account's keys. A build with
+  // no Google sign-in configured has no email to tie them to, so the owner check is
+  // simply not applicable there (both sides are "").
+  if(AUTH_ENABLED && !owner) return false;
+  return keyCount() >= MIN_KEYS && keysVerified() && keysOwner() === owner;
 }
 // Pull the account's saved keys from the server into this browser (with a loader message)
 // so the form is prefilled and the session can send them.
@@ -2303,9 +2308,19 @@ async function loadStoredKeys(){
 let _notifT = null;
 function showNotif(msg){ const b = $("notifBar"); if(!b) return; $("notifTxt").textContent = msg || ""; b.hidden = false;
   clearTimeout(_notifT); _notifT = setTimeout(() => { b.hidden = true; }, 10000); }
-// Must this user add their own keys? (global switch ON + not free-access)
-// Only OFFICE-approved accounts must bring their own keys; free users ride our keys.
-function needsKeys(){ return !!(userState && userState.office && !hasOwnKeys()); }
+// Have we actually HEARD from /me for this account? `office` is only ever set by the
+// server, so its absence means "we don't know yet", not "no keys needed".
+function accessKnown(){ return !!(userState && typeof userState.office !== "undefined"); }
+// Must this user add their own keys? Office/BYOK accounts must; owner/unlimited and
+// quota-phase free accounts ride our keys.
+// This gate fails CLOSED. When /me hasn't answered (offline, 500, DB down, or a build
+// with no sign-in at all) we cannot prove the account rides our keys, and a keyless
+// user on Home finds every button blocked by this same gate anyway — so fall back to
+// what this browser can prove: does it hold verified keys?
+function needsKeys(){
+  if(!accessKnown()) return !hasOwnKeys();
+  return !!(userState.office && !hasOwnKeys());
+}
 function mustAddKeys(){ return needsKeys() && !hasOwnKeys(); }
 // Block a session start until keys are added; returns true if blocked.
 function guardKeys(){
@@ -2496,8 +2511,9 @@ function openMore(){
   document.querySelectorAll(".btab").forEach(x=>x.classList.remove("active"));
   const b = document.querySelector('.btab[data-tab="more"]'); if(b) b.classList.add("active");
   const ad = $("mrowAdmin"); if(ad) ad.hidden = !(userState && userState.role === "owner");
-  // Keys row is visible only to office-approved users (or users who must BYOK).
-  const kr = document.querySelector('.mrow[data-more="keys"]'); if(kr) kr.hidden = !(officeAllowed() || needsKeys());
+  // Keys row: office-approved users, users who must BYOK, and anyone already holding
+  // their own keys (so a dead key can be rotated).
+  const kr = document.querySelector('.mrow[data-more="keys"]'); if(kr) kr.hidden = !(officeAllowed() || needsKeys() || hasOwnKeys());
   toggleSheet(true);
 }
 // More sheet rows → route through navTo where a URL/guard exists.
@@ -2549,7 +2565,7 @@ document.addEventListener("click", (e) => {
 function gAuth(){ return (AUTH_ENABLED && !authToken) ? () => show("login") : null; }
 // office/key routes: only owner-approved (office) users, or users who must BYOK, may open /keys
 function gOffice(){
-  return (officeAllowed() || needsKeys()) ? null
+  return (officeAllowed() || needsKeys() || hasOwnKeys()) ? null
        : () => { try{ showNotif("Keys are only for approved office accounts."); }catch(_){} goHome(); };
 }
 // request-quota guard for FREE users. Server also enforces (WS quota_exceeded); this stops
@@ -5578,18 +5594,24 @@ function logout(){
 }
 $("logoutBtn").onclick = logout;
 
+// Last-resort routing when /me never answered (offline, 5xx, no sign-in configured).
+// Returns true if it placed the user. Never falls OPEN: without verified keys the only
+// screen that can actually move a user forward is the key setup.
+function routeFallback(){
+  if(!mustAddKeys()) return false;
+  if(useMode !== "office"){ useMode = "office"; localStorage.setItem("dusu_usemode","office"); }
+  show("keys"); loadKeysUI();
+  if($("keysStatus")) $("keysStatus").innerHTML = "🔒 Add 2 free API keys below to start — about a minute each.";
+  return true;
+}
+
 // Deterministic login gate — decides the screen after /me: keys → test → home.
 // fromRefresh=true means this is the BACKGROUND /me re-confirm (not a boot/login/gesture).
 // In that case, once the gates pass we must NOT yank the user off whatever screen they
 // navigated to while /me was in flight — only refresh Home if they're already on it.
 function routeAfterLogin(fromRefresh){
-  // 1) non-free user must have their own VERIFIED keys (hard gate — always enforce)
-  if(needsKeys() && !hasOwnKeys()){
-    if(useMode !== "office"){ useMode = "office"; localStorage.setItem("dusu_usemode","office"); }
-    show("keys"); loadKeysUI();
-    if($("keysStatus")) $("keysStatus").innerHTML = "🔒 Add 2 free API keys below to start — about a minute each.";
-    return;
-  }
+  // 1) a BYOK account must have its own VERIFIED keys (hard gate — always enforce)
+  if(routeFallback()) return;
   // 2) test (level check) not done yet (guarded against double-start)
   if(userState && userState.onboarded === false){ if(!aActive) startAssessment(); return; }
   // 3) all good
@@ -5681,10 +5703,11 @@ function onGoogle(resp){
       const _wasOnboarded = d.onboarded !== false;
       refreshMe(true).then(st => {         // initial=true → allowed to navigate
         hideBootGate();
-        // /me unreachable, or routing left us on login → don't strand the user.
-        if(!st || currentScreen() === "login") show("home");
+        // /me unreachable, or routing left us on login → don't strand the user, and
+        // don't wave a keyless one through to a Home where nothing is clickable.
+        if(!st || currentScreen() === "login"){ if(!routeFallback()) show("home"); }
         if(_wasOnboarded && currentScreen() === "home") speakWelcome();
-      }).catch(() => { hideBootGate(); show("home"); });
+      }).catch(() => { hideBootGate(); if(!routeFallback()) show("home"); });
     })
     .catch(() => { $("loginNote").textContent = "Sign-in failed. Please try again."; });
 }
@@ -5692,9 +5715,11 @@ function onGoogle(resp){
 function initAuth(){
   // Super-admin portal has its OWN static-cred gate — never require Google sign-in for it.
   if(location.pathname === "/superadmin"){ try{ openSuperadmin(); }catch(_){ show("login"); } return; }
-  if(!AUTH_ENABLED){                 // dev fallback: no Google config → skip login
+  if(!AUTH_ENABLED){                 // no Google config → no login screen to show
     $("userChip").hidden = true;
-    show("home");
+    // Keys are still mandatory (the WS start gate answers keys_required without them),
+    // so honor the same gate here instead of dropping the user on a dead Home.
+    if(!routeFallback()) show("home");
     return;
   }
   if(authToken && authUser){
@@ -5710,8 +5735,8 @@ function initAuth(){
     else { try{ routeAfterLogin(); }catch(_){ show("home"); } }
     refreshMe(true).then(st => {
       hideBootGate();
-      if(!st || currentScreen() === "login") show("home");
-    }).catch(() => { hideBootGate(); show("home"); });
+      if(!st || currentScreen() === "login"){ if(!routeFallback()) show("home"); }
+    }).catch(() => { hideBootGate(); if(!routeFallback()) show("home"); });
   }
   else { show("login"); }
   (function ready(){
