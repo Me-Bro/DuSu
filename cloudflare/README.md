@@ -1,5 +1,12 @@
 # DuSu — Cloudflare local-first + Render fallback (setup)
 
+> **SUPERSEDED (2026-09-20).** This describes a two-origin plan (PC + Render) sharing one
+> managed **Neon** database — none of which was deployed. DuSu now runs as a single
+> Docker Compose stack (backend + its own Postgres) fronted by the host's cloudflared at
+> `dusu.ruralrootcloud.com`; see `cloudflare/TUNNEL.md`. There is no external database and
+> no second origin, so the "same DB either way" reasoning below no longer applies. Kept
+> for reference only.
+
 One stable URL `https://dusu.ranabrothers.online` that serves DuSu from **your PC** when
 it's on, and **Render** when it's off. Same **Neon** DB either way (no data split).
 

@@ -81,10 +81,13 @@ async def trial_left(uid: str | None) -> int:
 
 
 # --- Hot-path caches -----------------------------------------------------------
-# Neon is a REMOTE database: one round-trip measured ~700-850ms from the app. The
-# per-turn access gate was doing FIVE of them sequentially (~3.5s) before every
+# History: on the old REMOTE managed database one round-trip measured ~700-850ms,
+# and the per-turn access gate did FIVE of them sequentially (~3.5s) before every
 # single reply — four times the cost of generating the reply itself (~0.9s). That,
-# not the model, was the "DuSu takes forever to answer" problem.
+# not the model, was the "DuSu takes forever to answer" problem. The database now
+# runs beside the app in the same compose stack, so a round-trip is sub-millisecond
+# and these caches are cheap insurance rather than load-bearing. Keep them: they
+# also absorb a slow/restarting database without stalling every turn.
 #
 # These two values are read on every turn but change only when the owner flips a
 # switch / edits the allowlist, so a short TTL cache is safe: the worst case is an
@@ -173,8 +176,7 @@ async def charge_request(email: str, uid: str | None, day: str) -> dict:
     Returns {allowed, left, limit, unlimited}."""
     if await is_unlimited(email) or not (uid and db.db_enabled):
         return {"allowed": True, "left": None, "limit": None, "unlimited": True}
-    # These two are independent lookups — run them together rather than paying two
-    # sequential ~700ms Neon round-trips.
+    # These two are independent lookups — gather rather than run them back to back.
     try:
         plan, days_left = await asyncio.gather(db.get_plan(uid), trial_left(uid))
     except Exception:
@@ -192,10 +194,11 @@ async def charge_request(email: str, uid: str | None, day: str) -> dict:
 class TurnQuota:
     """Per-CONNECTION quota gate for the WebSocket.
 
-    Why this exists: charge_request() costs ~3.5s (five sequential round-trips to a
-    remote Neon instance) and the old code ran it before EVERY spoken turn — the
-    single biggest source of "DuSu takes forever to reply", dwarfing the ~0.9s the
-    model actually needs.
+    Why this exists: charge_request() used to cost ~3.5s (five sequential round-trips
+    to the old remote managed database) and the old code ran it before EVERY spoken
+    turn — the single biggest source of "DuSu takes forever to reply", dwarfing the
+    ~0.9s the model actually needs. The database is in-stack now, but resolving this
+    once per connection is still the right shape.
 
     The plan/trial/limit facts it looks up can't change mid-conversation, so they're
     resolved ONCE when the socket opens. After that each turn is decided from memory
@@ -457,8 +460,14 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
                 trial_over = trial_days <= 0
         except Exception:
             pass
-    # has_keys: office accounts must BYOK; everyone else rides our keys.
-    _has_keys = True
+    # has_keys: office/BYOK accounts must bring their own; everyone else rides our keys.
+    # Default TRUE only for accounts that need NO keys. For a BYOK account this must be
+    # positive evidence, never an optimistic default: with no DATABASE_URL there is no
+    # server-side key store at all, so the honest answer is False and the browser's own
+    # verified keys decide (client hasOwnKeys()). Defaulting to True here told the client
+    # "this account is set up" for every keyless user on a DB-less deploy, which is why
+    # the post-login gate waved them straight through to Home instead of the keys screen.
+    _has_keys = not _office
     if _office and db.db_enabled and uid:
         try:
             _has_keys = await db.has_user_keys(uid)
@@ -493,7 +502,9 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
         return state
     except Exception as e:
         print(f"[me] db failed: {type(e).__name__}: {e}")
-        return {"onboarded": False}
+        # Keep the access flags even when the DB read fails — without them the client
+        # cannot evaluate its key gate at all and falls through to Home.
+        return {"onboarded": False, **common}
 
 
 def _wants_html(request: Request) -> bool:
@@ -624,8 +635,14 @@ async def keys_verify(inp: KeysIn, authorization: str | None = Header(None)):
     On at least MIN_VERIFIED_KEYS working keys, persist them (sealed) so the user
     never re-enters them on return."""
     claims = auth.read_session(_bearer(authorization, inp.token))
-    if not claims:
+    # When Google sign-in isn't configured there is no identity to check and no login
+    # screen to pass, yet the app still demands BYOK keys before any session (the WS
+    # gate rejects a keyless start). Refusing this call would make the key screen a
+    # dead end in that configuration. Nothing is persisted without a session `sub`,
+    # and the only thing tested is a key the caller already supplied.
+    if not claims and auth.auth_enabled:
         raise HTTPException(401, "Not signed in")
+    claims = claims or {}
     from openai import AsyncOpenAI
     out = {}
     for p in settings.providers_from(inp.keys):
@@ -672,8 +689,9 @@ async def keys_get(inp: KeysGetIn, authorization: str | None = Header(None)):
     """Return the signed-in user's own stored BYOK keys (so a returning device can
     reuse them without re-entry). Only ever returns the caller's OWN keys."""
     claims = auth.read_session(_bearer(authorization, inp.token))
-    if not claims:
+    if not claims and auth.auth_enabled:
         raise HTTPException(401, "Not signed in")
+    claims = claims or {}          # no-auth dev build: nothing stored, returns {}
     keys, verified = {}, False
     if db.db_enabled and claims.get("sub"):
         try:
@@ -1782,8 +1800,9 @@ async def interview_ws(ws: WebSocket):
                 if not text:
                     continue
                 # FREE-tier request quota. Resolved ONCE per connection (see TurnQuota)
-                # — this used to be ~3.5s of sequential Neon round-trips before every
-                # single reply. Now it's an in-memory decision with a background write.
+                # — this used to be ~3.5s of sequential round-trips to a remote database
+                # before every single reply. Now it's an in-memory decision with a
+                # background write.
                 q = turn_quota.spend()
                 if not q["allowed"]:
                     await _send(ws, type="quota_exceeded", left=0, limit=q.get("limit"),

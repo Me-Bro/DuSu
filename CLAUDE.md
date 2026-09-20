@@ -1,5 +1,13 @@
 # DuSu — Project Guide (CLAUDE.md)
 
+> **⚠️ 2026-09-20 — the database is now SELF-HOSTED.** DuSu runs on the `db` Postgres
+> service in this repo's `docker-compose.yml`; the managed **Neon** database was retired and
+> all its data migrated across. Compose builds `DATABASE_URL` from the `POSTGRES_*` vars in
+> the root `.env` and injects it into the backend, overriding `backend/.env` — so the app
+> structurally cannot reach an external provider. Every "Neon" mention below this line is
+> historical. Bring the stack up with `docker compose up -d` (that is the PRODUCTION run;
+> for a hot-reload dev loop add `-f docker-compose.yml -f docker-compose.dev.yml`).
+
 > **Read me first.** This is the single onboarding doc for a fresh Claude Code session (e.g. after moving the repo to another laptop). It explains the whole product, architecture, backend, frontend, database, LLM, mobile apps, Cloudflare plan, and dev/deploy workflow. Repo: `git@github.com:davidrana123/dusu-app.git`. Live: <https://dusu-app-1.onrender.com>. Also note: run the backend from `backend/.venv`; secrets live in `backend/.env` (**never commit**); Render **auto-deploys on push to `main`**.
 
 ## Table of Contents
@@ -95,8 +103,8 @@ The plans frame DuSu as a **premium confidence product** ("Calm × Duolingo × a
 | Speech | Browser **Web Speech API** (STT) + **speechSynthesis** (TTS) — Chrome/Edge | in `test_client.html` |
 | LLM | Multi-provider OpenAI-compatible fallback chain: **gemini → groq → openrouter → github**, with per-provider cooldowns | `config.py`, `providers/openrouter_provider.py` (`_complete`) |
 | Auth | Google Sign-In → HMAC-signed 30-day stateless session token | `auth.py` |
-| DB | Neon Postgres via SQLAlchemy 2.0 async + asyncpg; **graceful degrade** if `DATABASE_URL` empty (`db_enabled`) | `db.py` (~1,199 lines) |
-| Hosting | Render (live) + Neon; Cloudflare/local-first planned | `Procfile`, `DEPLOY.md` |
+| DB | Self-hosted Postgres (`db` service in `docker-compose.yml`) via SQLAlchemy 2.0 async + asyncpg; **graceful degrade** if `DATABASE_URL` empty (`db_enabled`) | `db.py` |
+| Hosting | Docker Compose on the host box (backend + Postgres), fronted by cloudflared at `dusu.ruralrootcloud.com` | `docker-compose.yml`, `cloudflare/TUNNEL.md` |
 
 **DB tables** (`db.py`): `users` (id=Google sub, email, name, picture, status, mode), `profiles` (onboarded, goal, comfort, practice_time, CEFR level, scores JSONB, weak_areas), `progress` (xp, coins, streak_days, sessions_today, daily_goal, badges, journey JSONB), `memory` (single JSONB `facts` doc — the emotional layer), `conversations` (one summary row per finished session), plus a key/value `settings` table.
 
@@ -133,7 +141,7 @@ Note: the `backend/README.md` and some plans still describe the earlier "intervi
 
 ## 2. Architecture & Repo Layout
 
-DuSu is a **$0-stack, browser-first spoken-English coach**. All speech (STT + TTS) happens in the user's browser via the Web Speech API; the server is text-only and stateless-capable. One FastAPI process serves both the single-file HTML frontend and the WebSocket/HTTP API, backed by a free LLM fallback chain and (optionally) Neon Postgres.
+DuSu is a **$0-stack, browser-first spoken-English coach**. All speech (STT + TTS) happens in the user's browser via the Web Speech API; the server is text-only and stateless-capable. One FastAPI process serves both the single-file HTML frontend and the WebSocket/HTTP API, backed by a free LLM fallback chain and its own Postgres container.
 
 ### Component diagram
 
@@ -159,7 +167,7 @@ DuSu is a **$0-stack, browser-first spoken-English coach**. All speech (STT + TT
 └───────────────┬───────────────────────────────┬───────────────────────────┘
                 ▼                                 ▼
 ┌───────────────────────────────┐   ┌────────────────────────────────────────┐
-│ FREE LLM CHAIN (OpenAI-compat) │   │ Neon Postgres (SQLAlchemy 2.0 async /   │
+│ FREE LLM CHAIN (OpenAI-compat) │   │ Postgres — the `db` compose service     │
 │ providers/openrouter_provider  │   │ asyncpg)  — backend/app/db.py           │
 │ tried in order, auto-failover: │   │ Tables: users, profiles, progress,      │
 │  1 gemini  2 groq              │   │ memory(JSONB), conversations,            │
@@ -220,7 +228,7 @@ c:\Personal Work\English Specking\
 │   │   ├── config.py                pydantic Settings from .env; providers()/providers_from() build the
 │   │   │                            4-provider LLM chain (gemini→groq→openrouter→github); usage caps
 │   │   ├── auth.py                  Google ID-token verify + HMAC-signed stateless session tokens (30-day)
-│   │   ├── db.py                    Neon Postgres (SQLAlchemy 2.0 async). Tables: users, profiles,
+│   │   ├── db.py                    Postgres, self-hosted (SQLAlchemy 2.0 async). Tables: users, profiles,
 │   │   │                            progress, memory(JSONB), conversations, office_emails, settings.
 │   │   │                            Roadmap logic (7 levels), XP/streak/badges, emotional memory,
 │   │   │                            leaderboard, relationship stages, admin ops. No-op if no DATABASE_URL
@@ -254,7 +262,7 @@ c:\Personal Work\English Specking\
 │   ├── runtime.txt                  python-3.12.7 (Render)
 │   ├── Procfile                     `web: uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 │   ├── .env                         REAL secrets (git-ignored): GEMINI/GROQ/OPENROUTER/GITHUB keys,
-│   │                                GOOGLE_CLIENT_ID, SESSION_SECRET, DATABASE_URL (Neon), HOST, PORT
+│   │                                GOOGLE_CLIENT_ID, SESSION_SECRET, HOST, PORT (DATABASE_URL comes from compose)
 │   ├── .env.example                 Template (note: mentions older single-OpenRouter setup — code truth
 │   │                                is config.py's 4-provider chain)
 │   └── README.md                    Backend run instructions + call-flow diagram (v0-era)
@@ -315,7 +323,7 @@ c:\Personal Work\English Specking\
 ### Key runtime facts (verified in code)
 
 - **LLM provider chain order** (`config.py`): `gemini` → `groq` → `openrouter` → `github`, each with its own model fallback list; a provider hit with 429/quota is cooled down (90s, or 1800s for daily-quota errors). `.env` var names: `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `GITHUB_TOKEN`.
-- **Other env vars**: `GOOGLE_CLIENT_ID` (enables login), `SESSION_SECRET` (HMAC token signing — falls back to random per-process if left as `dev-change-me`), `DATABASE_URL` (Neon; empty ⇒ stateless), `HOST`, `PORT`; plus `ANDROID_TWA_PACKAGE` and `ANDROID_CERT_SHA256` (read by `main.py` for `/.well-known/assetlinks.json`). Usage caps `max_sessions_per_day=20`, `conversation_max_turns=40`, `interview_max_turns=15`.
+- **Other env vars**: `GOOGLE_CLIENT_ID` (enables login), `SESSION_SECRET` (HMAC token signing — falls back to random per-process if left as `dev-change-me`), `DATABASE_URL` (injected by compose from the `db` service; empty ⇒ stateless), `HOST`, `PORT`; plus `ANDROID_TWA_PACKAGE` and `ANDROID_CERT_SHA256` (read by `main.py` for `/.well-known/assetlinks.json`). Usage caps `max_sessions_per_day=20`, `conversation_max_turns=40`, `interview_max_turns=15`.
 - **Access model** (`main.py`): `OWNER_EMAILS = {david123rana@gmail.com}`, `UNLIMITED_EMAILS = {shuhanisuhana037@gmail.com}`; a DB-backed `office_emails` allowlist grants "free access" to the default keys; a global `require_own_keys` setting (owner-toggled) forces everyone else into BYOK.
 - **Frontend localStorage keys**: `dusu_token`, `dusu_user`, `dusu_state`, `dusu_onboarded`, `dusu_usemode`, `dusu_office_keys`, `dusu_keys_ok`, `dusu_voice`, `dusu_daily_resume`, `dusu_letter`, `dusu_usage`, `dusu_think`.
 - **Live origins**: Render app `https://dusu-app-1.onrender.com`; stable Cloudflare front door `https://dusu.ranabrothers.online`; PC tunnel `https://pc.ranabrothers.online`.
@@ -485,22 +493,22 @@ Scores one spoken lesson answer, no DB write. `set_active_keys(keys)` then 401. 
 
 ## 4. Database (backend/app/db.py)
 
-The entire persistence layer lives in a single module: `backend/app/db.py`. It uses **SQLAlchemy 2.0 async** (declarative `Mapped[...]` models) against **Neon Postgres** via the `asyncpg` driver. The design principle is *graceful degradation*: if no database is configured the app still runs fully, just statelessly.
+The entire persistence layer lives in a single module: `backend/app/db.py`. It uses **SQLAlchemy 2.0 async** (declarative `Mapped[...]` models) against the **self-hosted Postgres** (`db` service in `docker-compose.yml`) via the `asyncpg` driver. The design principle is *graceful degradation*: if no database is configured the app still runs fully, just statelessly.
 
 ### 4.1 Connection & the `db_enabled` switch
 
 | Symbol | Definition | Meaning |
 |---|---|---|
 | `db_enabled` | `bool(settings.database_url)` (line 63) | `True` only when the `DATABASE_URL` env var is non-empty. Empty locally ⇒ `db_enabled = False` ⇒ the app is **stateless** (no user rows, no memory, no progress persisted). |
-| `settings.database_url` | Pydantic field `database_url: str = ""` in `backend/app/config.py` (line 24), loaded from `.env` env var **`DATABASE_URL`** | The Neon connection string. |
-| `_engine` | `create_async_engine(...)` — only built when `db_enabled` (lines 64, 67-72); otherwise `None` | Async engine with `pool_pre_ping=True` and `connect_args={"ssl": True}` (Neon requires TLS). |
+| `settings.database_url` | Pydantic field `database_url: str = ""` in `backend/app/config.py` (line 24), loaded from `.env` env var **`DATABASE_URL`** | The Postgres connection string — injected by compose as `postgresql://…@db:5432/dusu`. |
+| `_engine` | `create_async_engine(...)` — only built when `db_enabled` (lines 64, 67-72); otherwise `None` | Async engine with `pool_pre_ping=True`; `connect_args={"ssl": True}` only when `DATABASE_SSL` is true — compose sets it **false**, since in-network Postgres serves no TLS cert. |
 | `_Session` | `async_sessionmaker(_engine, expire_on_commit=False)` — `None` when DB disabled (lines 65, 73) | Session factory used by every public function via `async with _Session() as s:`. |
 
 Every public function that touches the DB opens `async with _Session() as s:`. When `db_enabled` is `False`, `_Session` is `None`; the admin/office/settings helpers guard with `if not db_enabled: return <empty>` first, but the core user functions (`login`, `save_assessment`, etc.) assume the caller only invokes them when the DB is on — the router layer is responsible for that gate.
 
 #### `_normalize_url(url)` (lines 50-60)
 
-Neon hands out URLs like `postgresql://user:pass@host/db?sslmode=require&channel_binding=require`. asyncpg needs the `+asyncpg` driver and **rejects** those query params (SSL is supplied via `connect_args` instead). The function:
+Managed providers hand out URLs like `postgresql://user:pass@host/db?sslmode=require&channel_binding=require`. asyncpg needs the `+asyncpg` driver and **rejects** those query params (SSL is supplied via `connect_args` instead). The function:
 
 1. `postgres://` → `postgresql://`
 2. `postgresql://` → `postgresql+asyncpg://`
@@ -766,7 +774,7 @@ Loaded once from `.env` (`SettingsConfigDict(env_file=".env", extra="ignore")`);
 | `github_token` | GitHub Models inference key |
 | `google_client_id` | Google Sign-In |
 | `session_secret` (default `"dev-change-me"`) | session signing |
-| `database_url` (default `""`) | Neon Postgres; empty = app runs stateless |
+| `database_url` (default `""`) | Postgres; supplied by compose. Empty = app runs stateless |
 | `host` (`0.0.0.0`), `port` (`8000`) | server bind |
 
 **Usage caps** (protect the shared free quota):
@@ -1281,7 +1289,7 @@ app / users → https://dusu.ranabrothers.online   (Worker: cloudflare/worker.js
 
 - `worker.js`: `pcHealthy(PC)` probes `PC_ORIGIN/health` with a 1.5 s timeout, result cached ~10 s in the edge cache (`caches.default`). Picks PC else CLOUD, forwards the original request **verbatim** (headers + body + WS `Upgrade`). Mid-flight failure retries CLOUD **only for plain HTTP** (a WebSocket can't be retried after upgrade); otherwise returns a 502 text. WS (`/ws/interview`) passes through.
 - `wrangler.toml`: `name = dusu-failover`, route `dusu.ranabrothers.online/*` on zone `ranabrothers.online`; `[vars] PC_ORIGIN = https://pc.ranabrothers.online`, `CLOUD_ORIGIN = https://dusu-app-1.onrender.com`.
-- **DB decision = Option A (single Neon), FINAL** (`DUSU_LOCAL_CLOUDFLARE_PLAN.md`): only *compute* is local-first; the DB is always Neon so PC/Render never diverge. Local SQLite is intentionally NOT used. The PC backend must point `DATABASE_URL` at the **same Neon URL** Render uses.
+- **DB decision — SUPERSEDED.** That plan assumed a single shared managed database so PC/Render could never diverge. As of 2026-09-20 the database is the `db` container in this stack and there is no second origin to diverge from. If a Render/edge origin is ever revived it would need to reach this Postgres (or get its own) — the old "point both at the same managed URL" instruction no longer applies.
 - Setup (all interactive, run by the human — see `cloudflare/README.md`): run backend on PC → `cloudflared` tunnel `dusu-pc` routed to `pc.ranabrothers.online` (installed as an always-on Windows service) → `wrangler deploy` + a **proxied** placeholder DNS record for `dusu` → only then repoint the app's `strings.xml` (`launchUrl`/`hostName`/`asset_statements`) to the Worker origin and add that origin to Google OAuth JS origins. Cost ≈ $0 (domain + free Cloudflare/Neon/Render tiers).
 - **Status: none of the Cloudflare infra is deployed yet.** Only the app-side items (offline gate, 4h notifications) from that plan are built.
 
@@ -1296,7 +1304,7 @@ app / users → https://dusu.ranabrothers.online   (Worker: cloudflare/worker.js
 
 | Var | Purpose |
 |---|---|
-| `DATABASE_URL` | Neon Postgres URL (asyncpg). Absent → DB features no-op. |
+| `DATABASE_URL` | Postgres URL (asyncpg). Under compose it's injected from the `db` service. Absent → DB features no-op. |
 | `OPENROUTER_API_KEY` + `OPENROUTER_BASE_URL` | LLM (OpenRouter, `https://openrouter.ai/api/v1`) |
 | `LLM_MODELS` | comma-separated free-model fallback chain |
 | `GOOGLE_CLIENT_ID` | Google Sign-In (login required when set) |
@@ -1317,7 +1325,7 @@ cd "C:\Personal Work\English Specking\backend"
 # → open http://127.0.0.1:8000/  (health: /health → {"ok":true,"has_key":..,"providers":[..]})
 ```
 
-Secrets in `backend/.env` (never committed). For local-first parity, `DATABASE_URL` should be the same Neon URL as prod.
+Secrets in `backend/.env` (never committed); DB credentials live in the root `.env` (`POSTGRES_*`) and compose builds `DATABASE_URL` from them. `docker compose up -d` is the **production** run (code baked into the image). The dev loop is `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d`, which mounts `./backend` and runs uvicorn with `--reload` so edits apply without a rebuild. The dev overlay is deliberately not named `docker-compose.override.yml`, so a bare `up` can never turn the live deployment into a dev container.
 
 ### 8.7 Verification workflow & hard-won lessons
 
