@@ -41,9 +41,9 @@ Browser (Chrome/Edge)                     FastAPI backend
                                (auto-failover, per-provider cooldown)
                                                     │
                                                     ▼
-                               Neon Postgres (optional — empty
-                               DATABASE_URL = app runs fully, just
-                               stateless, no memory/XP persistence)
+                               Postgres — the `db` service in this
+                               repo's docker-compose.yml (self-hosted;
+                               empty DATABASE_URL = fully stateless)
 ```
 
 Speech never leaves the browser — the WebSocket wire carries **text only**. The LLM is the brain, never the ears/voice.
@@ -54,8 +54,8 @@ Speech never leaves the browser — the WebSocket wire carries **text only**. Th
 | Backend | FastAPI + one WebSocket — `backend/app/main.py` |
 | LLM | Multi-provider free-tier fallback chain — `backend/app/config.py`, `backend/app/providers/` |
 | Auth | Google Sign-In → HMAC-signed stateless session token — `backend/app/auth.py` |
-| DB | Neon Postgres, SQLAlchemy 2.0 async, graceful no-DB degrade — `backend/app/db.py` |
-| Hosting | Render (live), Neon (DB) |
+| DB | Self-hosted Postgres (`db` service in `docker-compose.yml`), SQLAlchemy 2.0 async, graceful no-DB degrade — `backend/app/db.py` |
+| Hosting | Docker Compose on the host box (app + Postgres), fronted by cloudflared |
 
 ---
 
@@ -77,7 +77,7 @@ cloudflare/          Planned local-first edge failover (Worker + tunnel) — not
 - **Python 3.12.7** (`backend/runtime.txt`)
 - **Git**
 - At least **one** free LLM API key (Groq, Gemini, OpenRouter, or GitHub Models)
-- (optional) **Neon Postgres** account — for persistence (memory/XP/roadmap). Without it the app still runs fully, just stateless.
+- **Docker + Docker Compose** — brings up the app *and* its Postgres. (Running bare with an empty `DATABASE_URL` still works, just stateless: no memory/XP/roadmap.)
 - (optional) **Google Cloud OAuth client** — for Google Sign-In locally
 - (optional) **JDK 17** + **Android SDK** — only if building the Android APK
 
@@ -131,7 +131,7 @@ Free key sources: [Groq](https://console.groq.com/keys) · [Gemini](https://aist
 
 Google Sign-In (optional): console.cloud.google.com → APIs & Services → Credentials → OAuth client ID → type "Web application" → Authorized JS origin `http://localhost:8000` → paste Client ID.
 
-Neon Postgres (optional): free project at neon.tech → paste the connection string into `DATABASE_URL`. Tables/migrations auto-run on startup.
+Database: nothing to sign up for. `docker compose up -d` (the production run — code baked into the image; for hot reload add `-f docker-compose.yml -f docker-compose.dev.yml`) starts Postgres alongside the app and injects `DATABASE_URL` from the `POSTGRES_*` vars in the root `.env`; tables and migrations auto-run on startup (`db.init_db()`). Data lives in the `pgdata` volume — `docker compose down -v` destroys it. To move the data to another host, use `backend/scripts/migrate_db.py`.
 
 ### 4. Run
 

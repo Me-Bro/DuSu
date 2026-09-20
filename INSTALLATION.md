@@ -29,7 +29,7 @@ Rest of this doc (§1-§9) is the from-scratch path — useful as reference or i
 | **A code editor** | VS Code / Claude Code | — |
 | (optional) **JDK 17** standalone | 17.x | only if building the Android APK |
 | (optional) **Android SDK** (API 34) | — | only if building the Android APK |
-| (optional) **Neon Postgres** account | — | only if you want persistence (memory/progress/roadmap). App runs fine without it — stateless mode |
+| **Docker + Docker Compose** | — | brings up the app *and* its Postgres (`db` service). Running bare without a `DATABASE_URL` still works — stateless mode, no memory/progress/roadmap |
 | (optional) **Google Cloud OAuth client** | — | only if you want Google Sign-In locally |
 | At least **one** free LLM API key | Groq / Gemini / OpenRouter / GitHub Models | the app needs at least one working key to think |
 
@@ -107,7 +107,7 @@ Where to get keys (all free tiers):
 
 Google Sign-In (optional): console.cloud.google.com → APIs & Services → Credentials → Create OAuth client ID → type "Web application" → Authorized JavaScript origin `http://localhost:8000` → copy Client ID into `GOOGLE_CLIENT_ID`.
 
-Neon Postgres (optional, for persistence): create a free project at neon.tech → copy the connection string into `DATABASE_URL`. The app auto-creates tables + runs migrations on startup (`db.init_db()`). Without it, everything still runs — no memory/XP/roadmap persistence.
+Database: nothing to sign up for — it's self-hosted. `docker compose up -d` (production; add `-f docker-compose.yml -f docker-compose.dev.yml` for a hot-reload dev loop) starts Postgres beside the app and injects `DATABASE_URL` from the `POSTGRES_*` vars in the root `.env`, so `DATABASE_URL` in `backend/.env` stays empty. The app auto-creates tables + runs migrations on startup (`db.init_db()`). Data lives in the `pgdata` volume; `docker compose down -v` destroys it. Copy data to another host with `backend/scripts/migrate_db.py`.
 
 ---
 
@@ -206,7 +206,7 @@ Release build needs `android-twa/keystore.properties` (git-ignored: `storeFile`/
 | Logo/icon doesn't update in browser | Bump `CACHE` version string in `backend/sw.js`, hard-refresh |
 | Android build fails on Gradle/AGP toolchain | `JAVA_HOME` pointing at Android Studio's bundled JBR instead of a real JDK 17 |
 | Login doesn't work locally | `GOOGLE_CLIENT_ID` empty (fine — login is skipped in dev) or origin not added to the OAuth client's Authorized JavaScript origins |
-| No memory/XP/streak persistence | `DATABASE_URL` empty — app runs stateless by design; add a Neon URL to enable |
+| No memory/XP/streak persistence | No database reachable — run via `docker compose up -d` (which supplies `DATABASE_URL` from the `db` service), or check `docker compose logs db` |
 | A code change "works" but Render 500s on boot | Run `python -c "import app.main"` locally first — `ast`-level syntax checks miss real import/`NameError`s |
 | Editing `test_client.html` white-screens the app | Single JS syntax error breaks the whole file — validate with `node --check` (extract the `<script>` block) before trusting a change |
 
