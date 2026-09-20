@@ -9,7 +9,7 @@ This is a **separate module** from `../android-launcher` (which only kicked the 
 out to external Chrome). Different package name (`com.dusu.app` vs `com.dusu.launcher`)
 so both can be installed side-by-side.
 
-- **Loads:** `https://dusu-app-1.onrender.com/`
+- **Loads:** `https://dusu.ruralrootcloud.com/`
 - **Package:** `com.dusu.app`
 - **Min Android:** 5.0 (API 21)
 
@@ -79,7 +79,7 @@ keytool -list -v -keystore dusu-release.jks -alias dusu | grep SHA256
 
 Copy the `SHA256:` value (e.g. `AB:CD:...:EF`).
 
-**b. Tell the server about it** — set an env var on Render (backend service):
+**b. Tell the server about it** — set an env var on the prod host (docker-compose `.env`):
 
 ```
 ANDROID_CERT_SHA256 = AB:CD:...:EF
@@ -88,11 +88,11 @@ ANDROID_CERT_SHA256 = AB:CD:...:EF
 (Comma-separate multiple, e.g. your upload key **and** the Play App Signing key.)
 
 The backend already serves the matching statement at
-`https://dusu-app-1.onrender.com/.well-known/assetlinks.json` from that env var.
+`https://dusu.ruralrootcloud.com/.well-known/assetlinks.json` from that env var.
 Verify after deploy:
 
 ```bash
-curl -s https://dusu-app-1.onrender.com/.well-known/assetlinks.json
+curl -s https://dusu.ruralrootcloud.com/.well-known/assetlinks.json
 ```
 
 The app side is already declared (`app/src/main/res/values/strings.xml` →
@@ -103,11 +103,11 @@ DuSu edge-to-edge with no address bar.
 
 ---
 
-## 4. Custom domain later
+## 4. Moving domains again
 
-If you move off `onrender.com`, update in three places:
+Update in three places:
 1. `app/src/main/res/values/strings.xml` — `launchUrl`, `hostName`, `asset_statements` site.
-2. Render env — keep `ANDROID_CERT_SHA256` (same cert), point the domain's DNS.
+2. Prod host env — keep `ANDROID_CERT_SHA256` (same cert), point the new domain's DNS.
 3. The new domain must serve `/.well-known/assetlinks.json` (the backend route does).
 
 ---
