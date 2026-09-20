@@ -2,7 +2,7 @@
    Network-first for navigations (always try fresh HTML so deploys show up),
    falling back to cache when offline. WebSocket + API calls are never cached. */
 
-const CACHE = "dusu-v12";   // bumped: new app logo/icon
+const CACHE = "dusu-v13";   // bumped: post-login key gate + self-hosted DB cutover
 const SHELL = ["/", "/logo.png", "/manifest.webmanifest"];
 // Cache-first is now an ALLOWLIST, not a denylist — every new authenticated GET
 // endpoint added to main.py is safe by default instead of needing a matching
