@@ -80,7 +80,7 @@ class Settings(BaseSettings):
                 # Free tier is heavily rate-limited (429s) — kept as a late fallback
                 # only. gpt-oss-*:free were dropped from the free tier (404).
                 "models": ["z-ai/glm-5.2:free", "google/gemma-4-31b-it:free"],
-                "headers": {"HTTP-Referer": "https://dusu-app-1.onrender.com", "X-Title": "DuSu"},
+                "headers": {"HTTP-Referer": "https://dusu.ruralrootcloud.com", "X-Title": "DuSu"},
                 "extra": {"reasoning": {"exclude": True, "effort": "low"}},
             })
         if self.github_token:
@@ -117,7 +117,7 @@ class Settings(BaseSettings):
             chain.append({"name": "openrouter", "base_url": "https://openrouter.ai/api/v1",
                 "key": k["openrouter"],
                 "models": ["z-ai/glm-5.2:free", "google/gemma-4-31b-it:free"],
-                "headers": {"HTTP-Referer": "https://dusu-app-1.onrender.com", "X-Title": "DuSu"},
+                "headers": {"HTTP-Referer": "https://dusu.ruralrootcloud.com", "X-Title": "DuSu"},
                 "extra": {"reasoning": {"exclude": True, "effort": "low"}}})
         if k.get("github"):
             chain.append({"name": "github", "base_url": "https://models.github.ai/inference",

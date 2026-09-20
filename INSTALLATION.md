@@ -3,7 +3,7 @@
 > Full setup for moving this repo to a fresh laptop/PC. Read `CLAUDE.md` first for what DuSu *is* (product, architecture, all files) — this doc is only the "get it running" steps.
 
 Repo: `git@github.com:davidrana123/dusu-app.git` (branch `main`)
-Live: https://dusu-app-1.onrender.com (Render, auto-deploys on push to `main`)
+Live: https://dusu.ruralrootcloud.com (self-hosted Docker + cloudflared tunnel; deploys via PR merge to `main`)
 
 ---
 
@@ -181,7 +181,7 @@ Copy the built APK to repo root as `DuSu-app.apk` if you want to ship it as-is.
 
 Release build needs `android-twa/keystore.properties` (git-ignored: `storeFile`/`storePassword`/`keyAlias`/`keyPassword`). Without it, `assembleRelease` still runs but produces an unsigned APK — use debug for testing.
 
-**Full-screen (no Chrome address bar)** requires Digital Asset Links to verify both ways: the app already trusts `dusu-app-1.onrender.com` (`strings.xml`); the server needs `ANDROID_CERT_SHA256` set (get it via `keytool -list -v` on your keystore) so `GET /.well-known/assetlinks.json` returns the right fingerprint.
+**Full-screen (no Chrome address bar)** requires Digital Asset Links to verify both ways: the app already trusts `dusu.ruralrootcloud.com` (`strings.xml`); the server needs `ANDROID_CERT_SHA256` set (get it via `keytool -list -v` on your keystore) so `GET /.well-known/assetlinks.json` returns the right fingerprint.
 
 ---
 
@@ -193,7 +193,7 @@ Release build needs `android-twa/keystore.properties` (git-ignored: `storeFile`/
 - Free tier sleeps after ~15 min idle (cold start 30-50s) — expected, not a bug.
 - After deploy, confirm it's actually live before declaring done:
   ```bash
-  curl -s https://dusu-app-1.onrender.com/health
+  curl -s https://dusu.ruralrootcloud.com/health
   ```
 
 ---
