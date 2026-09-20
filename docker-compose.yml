@@ -1,0 +1,56 @@
+# DuSu runs fully self-hosted: the app AND its database live in this stack.
+# There is no external/managed Postgres — the `db` service below IS the database.
+
+services:
+  # The database. Not a dev convenience, not a profile — the app's only store.
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dusu}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dusu}
+      POSTGRES_DB: ${POSTGRES_DB:-dusu}
+    volumes:
+      # Named volume = the data survives `docker compose down` / rebuilds.
+      # `down -v` DELETES it. There is no managed provider holding a copy.
+      # Mount point is /var/lib/postgresql (NOT .../data): Postgres 18+ images
+      # store the cluster in a major-version subdirectory under it, and refuse to
+      # start if the volume is pinned at the old .../data path.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dusu} -d ${POSTGRES_DB:-dusu}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    # Deliberately NOT published to the host — only the backend, on this compose
+    # network, ever needs it. For a psql shell:
+    #   docker compose exec db psql -U dusu -d dusu
+
+  backend:
+    build: ./backend
+    image: dusu-backend
+    env_file:
+      - ./backend/.env
+    environment:
+      # Built from the POSTGRES_* vars in the root .env, so credentials have ONE
+      # source of truth. `environment` wins over `env_file`, so a stale external
+      # DATABASE_URL left in backend/.env cannot send the app off this stack.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dusu}:${POSTGRES_PASSWORD:-dusu}@db:5432/${POSTGRES_DB:-dusu}
+      DATABASE_SSL: "false"   # in-network Postgres serves no TLS cert
+    depends_on:
+      db:
+        # Wait for real readiness, not just "container started" — app startup
+        # runs init_db() immediately and would fail against a booting Postgres.
+        condition: service_healthy
+    ports:
+      # Host BACKEND_PORT (default 3878) -> the container's fixed internal 8000.
+      - "${BACKEND_PORT:-3878}:8000"
+    restart: unless-stopped
+
+# dusu.ruralrootcloud.com is served by the host's own cloudflared (a systemd
+# service, same as this box's other tunnels) routing straight to
+# http://localhost:${BACKEND_PORT:-3878} — not a container in this compose
+# file. See cloudflare/TUNNEL.md for the one-time dashboard route setup.
+
+volumes:
+  pgdata:

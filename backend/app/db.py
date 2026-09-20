@@ -1,4 +1,7 @@
-"""Database layer — Neon Postgres via SQLAlchemy 2.0 async.
+"""Database layer — Postgres via SQLAlchemy 2.0 async.
+
+The database is self-hosted: the `db` service in docker-compose.yml, on the
+compose network, is the only store. There is no managed/external provider.
 
 Graceful: if DATABASE_URL is empty the app still runs fully (stateless, as
 before) — `db_enabled` is False and callers fall back to no-persistence.
@@ -84,9 +87,10 @@ def _daily_goal(practice_time: str) -> int:
 
 
 def _normalize_url(url: str) -> str:
-    """Neon hands out `postgresql://...?sslmode=require&channel_binding=...`.
-    asyncpg needs the `+asyncpg` driver and rejects those query params (SSL is
-    passed via connect_args instead), so strip them."""
+    """asyncpg needs the `+asyncpg` driver, and rejects libpq query params such as
+    `?sslmode=require&channel_binding=...` (TLS is passed via connect_args
+    instead), so strip everything after `?`. Kept because a hand-pasted URL — or
+    one copied from an old managed-provider console — still arrives in that shape."""
     if url.startswith("postgres://"):
         url = "postgresql://" + url[len("postgres://"):]
     if url.startswith("postgresql://"):
@@ -104,7 +108,7 @@ if db_enabled:
     _engine = create_async_engine(
         _normalize_url(settings.database_url),
         pool_pre_ping=True,
-        connect_args={"ssl": True},   # Neon requires TLS
+        connect_args={"ssl": True} if settings.database_ssl else {},
     )
     _Session = async_sessionmaker(_engine, expire_on_commit=False)
 
