@@ -39,7 +39,10 @@
   </div>
 
   <h2>Who we share data with</h2>
-  <p>To generate DuSu's spoken replies, the text of your conversation is sent to whichever AI provider is active for your account — Google Gemini, Groq, OpenRouter, or GitHub Models. This is a pass-through to generate a response; DuSu does not use your conversations to train any model. Speech-to-text and text-to-speech both happen entirely in your own browser and are never uploaded anywhere.</p>
+  <p>To generate DuSu's spoken replies, the text of your conversation is sent to whichever AI provider is active for your account — Google Gemini, Groq, OpenRouter, or GitHub Models. This is a pass-through to generate a response; DuSu does not use your conversations to train any model.</p>
+
+  <h2>How speech is handled</h2>
+  <p>DuSu does not record, receive or store your voice. Speech-to-text and text-to-speech are performed by your browser's own speech features, and only the resulting <i>text</i> is ever sent to DuSu's servers. Note that most browsers (including Chrome on Android) carry out speech recognition using their vendor's online speech service, which means your audio may be processed by your browser vendor under their own privacy policy — that step happens between you and your browser, and DuSu has no access to it.</p>
 
   <h2>How your data is protected</h2>
   <p>All traffic between your device and DuSu's server is encrypted in transit (HTTPS/WSS). Your stored AI provider keys are obfuscated at rest so they are not stored as plain text in the database.</p>

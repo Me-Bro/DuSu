@@ -130,7 +130,7 @@ Speak with Confidence.
 | Asset | Spec | Status |
 |---|---|---|
 | App icon | 512×512 PNG, 32-bit | ✅ `android-twa\play-icon-512.png` |
-| Feature graphic | 1024×500 PNG/JPG, **no transparency** | ❌ you need to make this |
+| Feature graphic | 1024×500 PNG/JPG, **no transparency** | ✅ `android-twa\play-feature-1024x500.png` (regenerate with `gen_feature_graphic.py`) |
 | Phone screenshots | 2–8 required, 16:9 or 9:16, 320–3840px | ❌ take from your phone |
 
 Screenshot suggestions (take these 5 on your phone): Home with "Start Speaking", a live Talk session, the Interview scorecard, the Journey/roadmap screen, the Leaderboard.
@@ -250,7 +250,9 @@ Location, Financial info, Health, Contacts, Calendar, SMS/Call logs, Files/Docs,
 
 ### ⚠️ One accuracy caveat to review before you sign this
 
-`privacy.html` currently states speech-to-text happens "entirely in your own browser and are never uploaded anywhere." On Android, Chrome's Web Speech API typically **streams audio to Google's speech servers** for recognition — it is not fully on-device. The app never receives or stores that audio, but the current wording overstates the case. Worth softening that sentence (e.g. "speech recognition is handled by your browser and its speech service; DuSu's servers never receive your audio") so the policy matches reality before a regulator or reviewer reads it.
+**Resolved.** `privacy.html` previously claimed speech-to-text happens "entirely in your own browser and are never uploaded anywhere." On Android, Chrome's Web Speech API **streams audio to Google's speech servers** for recognition — it is not on-device, so that wording overstated the case. It now has a dedicated "How speech is handled" section stating plainly that DuSu never receives your audio, while disclosing that your browser vendor may process it under their own policy.
+
+This matters for the form above: you are declaring that DuSu does **not** collect audio, which is true — the app has no microphone permission and the server only ever receives text. Do not tick any audio data type.
 
 ---
 
