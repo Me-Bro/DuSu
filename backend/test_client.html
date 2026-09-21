@@ -131,7 +131,14 @@
   .usage-chip { font-size:12px; color:var(--ink-faint); background:var(--glass);
     border:1px solid var(--glass-brd); border-radius:12px; padding:6px 11px; white-space:nowrap; }
   .usage-chip.low { color:#ffc2cb; border-color:rgba(224,138,122,.4); }
-  @media (max-width:560px){ .usage-chip{ display:none; } }
+  /* Day counter: gold-tinted so it reads as progress, not as a warning. */
+  .day-chip { color:var(--gold); border-color:rgba(212,175,55,.32); }
+  @media (max-width:560px){
+    .usage-chip{ display:none; }
+    /* The day count is the one chip that must survive on a phone — it is how the
+       user sees their streak of showing up. Keep it, just tighter. */
+    .usage-chip.day-chip{ display:inline-block; font-size:11px; padding:5px 9px; }
+  }
   .voicebar { display:flex; background:var(--glass); border:1px solid var(--glass-brd);
               border-radius:12px; overflow:hidden; }
   .vbtn { font:inherit; font-size:16px; line-height:1; padding:7px 12px; background:none; border:none;
@@ -1323,6 +1330,7 @@
     <span class="beta-badge" title="Beta testing — unrestricted access for now">Beta<span class="beta-long"> Testing · Unlimited</span></span>
     <div class="tag" id="tagline">Speak with confidence</div>
     <div class="hdr-right" id="hdrRight" hidden>
+      <span class="usage-chip day-chip" id="dayChip" title="Days since you joined DuSu" hidden></span>
       <span class="usage-chip" id="reqChip" title="Free requests left today" hidden></span>
       <span class="usage-chip" id="usageChip" title="Free trial days left" hidden></span>
       <div class="voicebar" title="DuSu's voice">
@@ -5269,9 +5277,20 @@ function usageGet(){
 function usageInc(){ if(isUnlimited()) return usageGet(); const u = usageGet(); u.n++; localStorage.setItem("dusu_usage", JSON.stringify(u)); return u; }
 const FREE_TRIAL_DAYS = 20;
 function refreshUsage(){
+  updateDayChip();
   updateReqChip();
   updateTrialChip();
   updateAliasChip();
+}
+// Header: "Day N" since signup. Server-computed (from users.created_at) so it can't
+// be reset by clearing the browser or reinstalling the app.
+function updateDayChip(){
+  const el = $("dayChip"); if(!el) return;
+  const n = userState && userState.day_number;
+  if(!n || !authToken){ el.hidden = true; return; }
+  el.hidden = false;
+  el.textContent = "Day " + n;
+  el.title = n === 1 ? "Your first day with DuSu 🎉" : "Day " + n + " with DuSu — keep going";
 }
 // Header: the public name this account appears as on the leaderboard / league.
 // Those boards are alias-only for privacy, so without showing it here the user has

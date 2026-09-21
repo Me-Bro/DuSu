@@ -512,10 +512,20 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
             _has_keys = await db.has_user_keys(uid)
         except Exception:
             _has_keys = False
+    # "Day N" since signup, shown in the header. Reuses the free-trial clock
+    # (signup_day_count = whole 24h periods) so the day number and any trial
+    # countdown can never disagree. Day 1 = the day you signed up.
+    _day_num = 1
+    if db.db_enabled and uid:
+        try:
+            _day_num = await db.signup_day_count(uid) + 1
+        except Exception:
+            _day_num = 1
     common = {"role": _role, "email": email, "office": _office, "office_allowed": _office,
               "unlimited": _unlim, "plan": plan, "requests_left": req_left,
               "request_limit": req_limit, "trial_days_left": trial_days, "trial_over": trial_over,
               "has_keys": _has_keys,
+              "day_number": _day_num,
               "level_test": await level_test_on(),
               # The public name this user appears as on the leaderboard / league.
               # Boards are alias-only for privacy (§18), so without this the user
