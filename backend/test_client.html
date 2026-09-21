@@ -44,7 +44,9 @@
       linear-gradient(165deg,var(--bg0),var(--bg1) 60%,var(--bg2));
     -webkit-font-smoothing:antialiased;
     /* app-shell: fixed viewport height; content scrolls between header and the bottom nav */
-    height:100vh; height:100dvh; display:flex; flex-direction:column;
+    /* progressive chain: dvh (exact, follows the toolbar) where supported, svh (the
+       smallest viewport — never over-measures) next, plain vh as the last resort. */
+    height:100vh; height:100svh; height:100dvh; display:flex; flex-direction:column;
     /* overflow:hidden on BOTH axes, not just x. With only overflow-x set, anything that
        pushed content past the body height made the BODY itself scrollable — and .bnav is
        a normal flex child, so it scrolled away with the page instead of staying put.
@@ -62,7 +64,12 @@
   .wrap { max-width:440px; width:100%; flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; margin:0 auto; position:relative; z-index:1;
     /* keep content clear of the notch / status bar / gesture nav in standalone mode */
     padding:max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
-            max(48px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
+            max(48px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+    /* .bnav is position:fixed, so it no longer reserves space in the flow — without
+       this the last item on every screen sits underneath it. 76px nav + safe area. */
+    padding-bottom:calc(76px + env(safe-area-inset-bottom) + 16px); }
+  /* Nav is hidden on these two screens, so don't reserve room for it. */
+  body:has(#login.on) .wrap, body:has(#assessment.on) .wrap { padding-bottom:max(48px, env(safe-area-inset-bottom)); }
 
   /* ---- small-phone polish ---- */
   @media (max-width:480px){
@@ -1009,7 +1016,14 @@
   .spark { position:absolute; width:6px; height:6px; border-radius:50%;
     background:var(--gold-lt); pointer-events:none; }
   /* ===== Bottom navigation (Instagram-style) ===== */
-  .bnav{flex:0 0 auto;width:100%;max-width:440px;height:76px;margin:0 auto;z-index:60;
+  /* position:fixed, NOT a flex child. As a flex child the nav was twice lost to a
+     mis-sized shell: Android Chrome resolves 100dvh against the toolbar-hidden
+     viewport at cold start, so with body{overflow:hidden} the bottom strip holding
+     the nav was clipped and unreachable — intermittently, depending on whether the
+     Custom Tab URL bar was showing. Fixed positioning resolves against the visual
+     viewport, so the nav cannot be clipped however the shell is measured. */
+  .bnav{position:fixed;left:50%;transform:translateX(-50%);bottom:0;
+    width:100%;max-width:440px;height:76px;z-index:60;
     display:flex;background:rgba(10,14,26,.94);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid rgba(255,255,255,.07);
     padding-bottom:env(safe-area-inset-bottom)}
   .bnav.hide{display:none}
