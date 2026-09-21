@@ -43,21 +43,45 @@ When you enroll in Play App Signing (default for new apps), Google **re-signs** 
    ssh rooted-ssh 'cd ~/Desktop/DuSu && nano backend/.env'
    # make the line read:
    # ANDROID_CERT_SHA256=EF:02:...:62:0D,<PLAY_APP_SIGNING_SHA256>
-   ssh rooted-ssh 'cd ~/Desktop/DuSu && docker compose up -d backend'
+   ssh rooted-ssh 'cd ~/Desktop/DuSu && docker compose up -d --force-recreate backend'
    ```
-   (`up -d`, **not** `restart` — restart does not re-read `.env`.)
+   **`--force-recreate` is required.** `restart` reuses the container's existing
+   environment, and plain `up -d` is not enough either: Compose compares service
+   *config*, not the contents of `env_file`, so it prints "Starting" and keeps the old
+   values. This was hit for real while enabling the super-admin portal — the variable
+   was correct on disk and the endpoint still behaved as if unset.
 4. Verify: `curl https://dusu.ruralrootcloud.com/.well-known/assetlinks.json` shows **both** fingerprints.
 
 ### 1b. The reviewer cannot get into the app — you must give them access
 
 DuSu requires Google Sign-In, and in `access_phase = "growth"` (the current default) every normal user must add **2 verified AI provider keys** before anything works. A Google reviewer with a fresh account hits that wall and will reject the app as broken/unusable.
 
-Pick one before submitting:
+⚠️ **Do NOT use the office/"free access" allowlist for this.** `is_office()` in
+`main.py` means *"must bring own keys"*, not "free access" — `resolve_keys()` returns
+`keys_required` for anyone on that list. Adding the reviewer there makes it worse, not
+better. (The admin UI label has been corrected to "Require own keys (BYOK)", but the
+function name still reads backwards.)
 
-- **Recommended:** create a dedicated demo Google account, add its email to the free-access allowlist (Admin dashboard → free-access email → Add, or `POST /admin/office`), so it uses your default keys with no BYOK step. Put those credentials in the **App access** section.
-- Alternative: temporarily set `access_phase` to `quota` in the Admin dashboard during review. Reviewer still needs a sign-in account, so you likely need the demo account regardless.
+The only two things that actually exempt an account:
 
-Check your current `access_phase` in the Admin dashboard (More → Dashboard, owner only) before deciding.
+- **`UNLIMITED_EMAILS` in `main.py`** — currently an empty set. Adding the demo
+  account's email there gives it unlimited use of the server's keys, with no BYOK and
+  no quota. Affects exactly that one address; testers still BYOK as intended. Needs a
+  code change + deploy.
+- **`access_phase = "quota"`** — flipped in the Admin dashboard. Drops the BYOK
+  requirement for *everyone* for the duration of review, which is a bigger blast
+  radius than you probably want.
+
+Either way the reviewer still needs an account to sign in with, so create a dedicated
+demo Google account and put its credentials in the **App access** section.
+
+**Also confirm the server's own keys work before review starts.** Whichever route you
+pick, the reviewer rides the default chain — and if it is down (as it was on
+2026-09-21: Groq revoked, Gemini expired, GitHub retired) the reviewer sees an app
+that cannot answer. Check `curl https://dusu.ruralrootcloud.com/health` and compare
+`available` against `cooling`. Note a Gemini `AQ.`-prefixed value is a short-lived
+OAuth token, not an API key — use an `AIza` key from AI Studio so it does not expire
+mid-review.
 
 ---
 
@@ -201,7 +225,7 @@ Verified: no AdMob, no ad SDK anywhere in the codebase.
 | Is there a way for users to report AI-generated content? | **Yes** — Help & Feedback → "Report an inappropriate response" |
 | Is there an unmoderated / user-generated content feed? | No |
 
-> If asked about generative AI safeguards: DuSu relies on the underlying model providers' safety filtering (Google Gemini, Groq, OpenRouter, GitHub Models), plus warm-coach system prompts and in-app reporting. There is no separate moderation layer.
+> If asked about generative AI safeguards: DuSu relies on the underlying model providers' safety filtering (Google Gemini, Groq, OpenRouter), plus warm-coach system prompts and in-app reporting. There is no separate moderation layer.
 
 ---
 
@@ -242,7 +266,7 @@ Why 18+: DuSu's positioning is job interviews and campus placements, and the pri
 
 ### Notes for the "shared" entries
 
-When Play asks *why* data is shared, the honest answer is: conversation text and the user's name are transmitted to third-party AI model providers (Google Gemini, Groq, OpenRouter, GitHub Models) solely to generate the assistant's reply. It is a pass-through for app functionality — not sold, not used for advertising, and not used to train models.
+When Play asks *why* data is shared, the honest answer is: conversation text and the user's name are transmitted to third-party AI model providers (Google Gemini, Groq, OpenRouter) solely to generate the assistant's reply. It is a pass-through for app functionality — not sold, not used for advertising, and not used to train models.
 
 ### What to say NO to
 
@@ -303,14 +327,38 @@ Only after 14 days of closed testing:
 - [ ] Add the **Play App Signing SHA-256** to `ANDROID_CERT_SHA256` (§1a) — otherwise Play users see the browser URL bar
 - [ ] Install from Play on a real phone and confirm it opens full-screen, mic works, and sign-in works
 - [ ] Add `https://dusu.ruralrootcloud.com` to Google Cloud Console → OAuth client → Authorized JavaScript origins, if not already done — sign-in breaks without it
-- [ ] Remove the demo account from the free-access allowlist once review is done (or keep it for future updates — each update gets reviewed too)
+- [ ] Remove the demo account from `UNLIMITED_EMAILS` once review is done (or keep it — each update gets reviewed too)
 - [ ] Revisit `access_phase` if you flipped it to `quota` for review
-- [ ] Record the real keys tutorial video and swap `TUTORIAL_VIDEO_ID` in `test_client.html` (currently a placeholder)
 
 ---
 
-## 14. Known gaps (from PLAYSTORE_LAUNCH_PLAN.md, still open)
+## 14. Readiness check — status as of 2026-09-21
+
+**Not ready to submit.** Four items outstanding:
+
+| # | Blocker | Owner |
+|---|---|---|
+| 1 | **Reviewer access** — see §1b. Still unresolved; the highest rejection risk on this list. | You (decision) + code change |
+| 2 | **Phone screenshots** (2 minimum) | You — needs your device |
+| 3 | **12 testers not invited** — the 14-day closed-testing clock has not started | You |
+| 4 | **Server LLM keys** — Groq revoked, Gemini running on an expiring `AQ.` OAuth token. Only matters for accounts on the default chain (owner + any exempted reviewer), not for testers on their own keys. | You — new keys |
+
+**Ready:** signed AAB (still current — no `android-twa/app/src` changes since it was
+built), feature graphic, app icon, privacy/terms/account-deletion pages with the
+support email, asset links verified against Google's Digital Asset Links API, and the
+full answer sheet in §2–§10 of this file.
+
+**Unverified:** the bottom-nav fix (nav visibility is now derived from the visible
+screen rather than set by `show()`). Deployed but only confirmable on a real device —
+retest sign-in → sign-out → sign-in as a second account before submitting.
+
+---
+
+## 15. Known gaps
 
 - No payment/subscription code exists — `/subscribe` is a placeholder. If you sell subscriptions later, it **must** go through Google Play Billing, not Razorpay/Stripe, or you violate Play's Payments policy.
 - Free-tier LLM models can occasionally produce garbled output — an accepted quality ceiling of the $0 provider chain, not a bug introduced by the launch work.
-- `is_office()` vs the admin UI's "Free access (our keys)" label mean opposite things in code. Not blocking, but resolve it before it causes an access-control surprise.
+- `is_office()` still *reads* like "free access" but *means* "must BYOK". The admin UI label is fixed; the function name is not. See the warning in §1b.
+- GitHub Models has been removed from the keys screen — it is in a platform-wide retirement brownout (410 for everyone), so no user could ever have made it work. Three providers remain: Groq, Gemini, OpenRouter; any 2 satisfy the minimum.
+- Every request through the shared cloudflared tunnel costs ~1s (app answers in ~3ms locally). Affects RootEd identically, so it is shared infrastructure, not DuSu. Deferred to the team.
+- **Super-admin portal** is live at `/superadmin` with its own credentials, separate from Google sign-in, gated by `SUPERADMIN_USER` / `SUPERADMIN_PASS`. Returns 503 when unset. Note its API field is `username`, not `user`.
