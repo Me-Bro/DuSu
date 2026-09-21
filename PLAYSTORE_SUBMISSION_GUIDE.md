@@ -52,9 +52,20 @@ When you enroll in Play App Signing (default for new apps), Google **re-signs** 
    was correct on disk and the endpoint still behaved as if unset.
 4. Verify: `curl https://dusu.ruralrootcloud.com/.well-known/assetlinks.json` shows **both** fingerprints.
 
-### 1b. The reviewer cannot get into the app — you must give them access
+### 1b. The reviewer must complete BYOK setup — decided, with mitigation
 
-DuSu requires Google Sign-In, and in `access_phase = "growth"` (the current default) every normal user must add **2 verified AI provider keys** before anything works. A Google reviewer with a fresh account hits that wall and will reject the app as broken/unusable.
+DuSu requires Google Sign-In, and in `access_phase = "growth"` (the current default) every normal user must add **2 verified AI provider keys** before anything works. A Google reviewer hits that same wall.
+
+**Decision (2026-09-21): no exemption — the reviewer brings their own keys like
+everyone else.** BYOK apps do ship on Play, so this is workable. The mitigation is
+entirely in the **App access** instructions (§5): they must spell out the key setup
+step by step, warn that free tiers intermittently rate-limit, and offer a support
+email fallback so a stuck reviewer contacts you instead of rejecting.
+
+Residual risk, stated plainly: verification makes a live call to each provider, so a
+reviewer with valid keys can still be blocked if a provider returns 429 at that
+moment (observed repeatedly on OpenRouter). If the app is rejected as "unable to
+access", the fastest fix is the exemption below, then resubmit.
 
 ⚠️ **Do NOT use the office/"free access" allowlist for this.** `is_office()` in
 `main.py` means *"must bring own keys"*, not "free access" — `resolve_keys()` returns
@@ -186,12 +197,45 @@ Select: **All or some functionality is restricted**
 
 Add an instruction entry:
 
+**Decision (2026-09-21): no reviewer exemption.** Everyone brings their own keys,
+including Google's reviewer. That keeps the growth-phase model intact, so the
+instructions below have to carry the whole load — they are what decides approval.
+Write them out in full; a reviewer who gets stuck rejects rather than debugs.
+
 | Field | Value |
 |---|---|
-| Name | Google Sign-In required |
-| Username | *(your demo Google account email — see §1b)* |
+| Name | Google Sign-In + free AI key setup |
+| Username | *(a Google account you control, for the reviewer to sign in with)* |
 | Password | *(that account's password)* |
-| Any other instructions | `DuSu requires Google Sign-In. Tap the Google button on the launch screen and sign in with the account above. This account is pre-approved on our free-access list, so no API keys are needed. After sign-in you may be asked to complete a short spoken level test — tap Skip to reach the home screen, then tap "Start Speaking" to try the main feature. A microphone permission prompt will appear; please allow it.` |
+
+**Any other instructions** — paste this:
+
+```
+DuSu is a bring-your-own-key app: it runs on the user's own FREE AI provider
+keys, so no usage is billed to anyone. Setup takes about 2 minutes.
+
+1. Tap the Google button and sign in with the account above.
+2. You will land on the "Add your keys" screen. TWO working keys are required.
+3. Tap "Get free key" next to any two of these. All three are free, no card:
+   - Groq       https://console.groq.com/keys      (fastest, start here)
+   - Gemini     https://aistudio.google.com/apikey (key must start with AIza)
+   - OpenRouter https://openrouter.ai/keys
+4. Paste each key into its field and tap "Verify & save".
+   NOTE: these are free tiers and occasionally return a rate-limit error. If a
+   key shows a red X, it is usually temporary - wait ~30 seconds and tap
+   "Verify & save" again, or add a key from a different provider instead.
+5. Once 2 keys show a green tick you go straight to the home screen.
+6. Tap "Start Speaking" for the main feature. Please ALLOW the microphone
+   prompt - the app is voice-first and does nothing without it.
+
+A walkthrough video is embedded on the keys screen itself.
+If you cannot complete key setup for any reason, please contact
+support.ruralrootcloud@gmail.com and we will provide a pre-configured account
+rather than have the review blocked.
+```
+
+That last line matters: it gives the reviewer an exit that isn't "reject", and costs
+you nothing unless they use it.
 
 ---
 
@@ -338,10 +382,12 @@ Only after 14 days of closed testing:
 
 | # | Blocker | Owner |
 |---|---|---|
-| 1 | **Reviewer access** — see §1b. Still unresolved; the highest rejection risk on this list. | You (decision) + code change |
-| 2 | **Phone screenshots** (2 minimum) | You — needs your device |
-| 3 | **12 testers not invited** — the 14-day closed-testing clock has not started | You |
-| 4 | **Server LLM keys** — Groq revoked, Gemini running on an expiring `AQ.` OAuth token. Only matters for accounts on the default chain (owner + any exempted reviewer), not for testers on their own keys. | You — new keys |
+| 1 | **Phone screenshots** (2 minimum) | You — needs your device |
+| 2 | **12 testers not invited** — the 14-day closed-testing clock has not started | You |
+| 3 | **Server LLM keys** — Groq revoked, Gemini running on an expiring `AQ.` OAuth token. With no reviewer exemption this only affects the owner account, not testers or the reviewer (all on their own keys). Still worth fixing so you can use your own app. | You — new keys |
+
+**Decided, not blocking:** reviewer access — no exemption, reviewer does BYOK like
+everyone else (§1b). Accepted risk; mitigation is the §5 instructions.
 
 **Ready:** signed AAB (still current — no `android-twa/app/src` changes since it was
 built), feature graphic, app icon, privacy/terms/account-deletion pages with the
