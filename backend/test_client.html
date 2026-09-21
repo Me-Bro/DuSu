@@ -2912,6 +2912,8 @@ async function openAdmin(){
       <input type="checkbox" id="reqKeysSw" ${d.access_phase !== "quota" ? "checked" : ""}></label>
       <label class="swrow"><span><b>Level check on signup</b><br><span class="msub">On = new users take the spoken level test. Off = onboarded with defaults, test hidden.</span></span>
       <input type="checkbox" id="lvlTestSw" ${d.level_test === false ? "" : "checked"}></label>
+      <label class="swrow"><span><b>Owner must add own keys</b><br><span class="msub">On = your owner account faces the same BYOK wall as a real user (dogfooding). Admin access is unaffected.</span></span>
+      <input type="checkbox" id="ownerByokSw" ${d.owner_byok ? "checked" : ""}></label>
       <button class="uBtn bad" id="wipeBtn" style="width:100%;margin:2px 0 4px">🗑 Reset test users</button>`;
     // Office allowlist. NOTE: is_office() in main.py means "must BYOK", NOT free
     // access — resolve_keys() demands own keys for anyone on this list. The old
@@ -2962,11 +2964,14 @@ function wireOffice(){
   const saveSettings = async () => {
     const growth = !!($("reqKeysSw") && $("reqKeysSw").checked);
     const lvl = !!($("lvlTestSw") && $("lvlTestSw").checked);
+    const obk = !!($("ownerByokSw") && $("ownerByokSw").checked);
     try{ await fetch("/admin/settings",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({token:authToken, access_phase: growth ? "growth" : "quota", level_test: lvl})}); }catch(_){}
+      body:JSON.stringify({token:authToken, access_phase: growth ? "growth" : "quota",
+                           level_test: lvl, owner_byok: obk})}); }catch(_){}
   };
   if($("reqKeysSw")) $("reqKeysSw").onchange = saveSettings;
   if($("lvlTestSw")) $("lvlTestSw").onchange = saveSettings;
+  if($("ownerByokSw")) $("ownerByokSw").onchange = saveSettings;
   if($("wipeBtn")) $("wipeBtn").onclick = async () => {
     if(!confirm("Delete ALL users except david, shuhani & free-access emails? This cannot be undone.")) return;
     try{ const r = await fetch("/admin/wipe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:authToken})});

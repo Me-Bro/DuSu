@@ -137,6 +137,17 @@ async def access_phase() -> str:
         return "growth"
 
 
+async def owner_byok_on() -> bool:
+    """Owner normally rides the server's default keys. Flip this on to make the owner
+    account face the same BYOK wall as a real user — for dogfooding the actual signup
+    friction. Admin rights are unaffected: _require_owner still keys off role, so the
+    dashboard (and this switch) stay reachable."""
+    try:
+        return await _cached("owner_byok", lambda: db.get_setting("owner_byok", "off")) == "on"
+    except Exception:
+        return False
+
+
 async def level_test_on() -> bool:
     """Is the onboarding level check part of the signup flow? Owner-flippable
     (Settings table). When off, a new account is onboarded with default values
@@ -167,9 +178,10 @@ async def resolve_keys(email: str, keys: dict, uid: str | None = None):
     """Effective key chain. (ok, keys_or_None, reason). None = our default chain.
     owner/unlimited always use OUR keys. Everyone else must BYOK (client-supplied or
     previously verified+stored) when office-approved OR the global phase is 'growth'."""
-    if role_for(email) in ("owner", "unlimited"):
+    _r = role_for(email)
+    if _r == "unlimited" or (_r == "owner" and not await owner_byok_on()):
         return True, None, ""                 # our keys
-    if await is_office(email) or await access_phase() == "growth":
+    if _r == "owner" or await is_office(email) or await access_phase() == "growth":
         # Must actually resolve to a non-empty provider chain — an unrecognized key
         # name (typo, wrong case, junk) must NOT silently fall through to the owner's
         # default env keys. settings.providers_from() only builds entries for the
@@ -461,7 +473,9 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
     _role = role_for(email)
     # BYOK + Keys visibility: office-approved allowlist, OR everyone (except owner/
     # unlimited) during the growth phase — see access_phase().
-    _office = await is_office(email) or (_role == "user" and await access_phase() == "growth")
+    _office = (await is_office(email)
+               or (_role == "user" and await access_phase() == "growth")
+               or (_role == "owner" and await owner_byok_on()))
     _unlim = await is_unlimited(email)        # no quota
     plan, req_left, req_limit, trial_days, trial_over = "free", None, None, None, False
     if not _unlim and db.db_enabled and uid:
@@ -896,7 +910,8 @@ async def admin_overview(token: str = "", authorization: str | None = Header(Non
     """Owner-only dashboard: every user's full info + activity."""
     claims = _require_owner(token, authorization)
     out = {"you": claims.get("email", ""), "role": "owner", "db": db.db_enabled, "users": [],
-           "access_phase": await access_phase(), "level_test": await level_test_on()}
+           "access_phase": await access_phase(), "level_test": await level_test_on(),
+           "owner_byok": await owner_byok_on()}
     if db.db_enabled:
         try:
             users = await db.admin_list_users()
@@ -921,6 +936,7 @@ class SettingsIn(BaseModel):
     token: str = ""
     access_phase: str = "growth"
     level_test: bool = True
+    owner_byok: bool = False
 
 
 @app.post("/admin/settings")
@@ -930,8 +946,9 @@ async def admin_settings(inp: SettingsIn, authorization: str | None = Header(Non
     phase = inp.access_phase if inp.access_phase in ("growth", "quota") else "growth"
     await db.set_setting("access_phase", phase)
     await db.set_setting("level_test", "on" if inp.level_test else "off")
+    await db.set_setting("owner_byok", "on" if inp.owner_byok else "off")
     invalidate_access_cache()
-    return {"access_phase": phase, "level_test": inp.level_test}
+    return {"access_phase": phase, "level_test": inp.level_test, "owner_byok": inp.owner_byok}
 
 
 class WipeIn(BaseModel):
