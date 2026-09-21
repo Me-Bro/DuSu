@@ -2204,7 +2204,7 @@
   <button class="mrow" data-more="admin" id="mrowAdmin" hidden><span class="mi">📊</span><span><span class="mt">Dashboard</span><br><span class="msub">Users &amp; activity (owner)</span></span></button>
   <button class="mrow" data-more="profile"><span class="mi">👤</span><span><span class="mt">Profile</span><br><span class="msub">Streaks, badges, memories</span></span></button>
   <button class="mrow" data-more="keys"><span class="mi">🔑</span><span><span class="mt">DuSu keys / Mode</span><br><span class="msub">Personal or Office (own keys)</span></span></button>
-  <button class="mrow" data-more="leveltest"><span class="mi">🧪</span><span><span class="mt">Level check</span><br><span class="msub">Re-check your English level</span></span></button>
+  <button class="mrow" data-more="leveltest" id="mrowLevelTest"><span class="mi">🧪</span><span><span class="mt">Level check</span><br><span class="msub">Re-check your English level</span></span></button>
   <button class="mrow" data-more="help"><span class="mi">💌</span><span><span class="mt">Help &amp; Feedback</span><br><span class="msub">Reach out — feedback or a problem</span></span></button>
   <button class="mrow" data-more="confidence"><span class="mi">🎯</span><span><span class="mt">Confidence Check</span><br><span class="msub">A 2-minute check — see how you've grown</span></span></button>
   <button class="mrow" data-more="achievements"><span class="mi">🏅</span><span><span class="mt">Achievements</span><br><span class="msub">Your DUSU badge collection</span></span></button>
@@ -2512,6 +2512,8 @@ function openMore(){
   document.querySelectorAll(".btab").forEach(x=>x.classList.remove("active"));
   const b = document.querySelector('.btab[data-tab="more"]'); if(b) b.classList.add("active");
   const ad = $("mrowAdmin"); if(ad) ad.hidden = !(userState && userState.role === "owner");
+  // Level check hidden entirely while the owner has the assessment switched off.
+  const lt = $("mrowLevelTest"); if(lt) lt.hidden = !!(userState && userState.level_test === false);
   // Keys row: office-approved users, users who must BYOK, and anyone already holding
   // their own keys (so a dead key can be rotated).
   const kr = document.querySelector('.mrow[data-more="keys"]'); if(kr) kr.hidden = !(officeAllowed() || needsKeys() || hasOwnKeys());
@@ -2908,6 +2910,8 @@ async function openAdmin(){
     h += `<div class="admin-head">Access</div>
       <label class="swrow"><span><b>Growth phase (BYOK for everyone)</b><br><span class="msub">On = everyone must add their own keys, unlimited use. Off = shared quota + trial, as before.</span></span>
       <input type="checkbox" id="reqKeysSw" ${d.access_phase !== "quota" ? "checked" : ""}></label>
+      <label class="swrow"><span><b>Level check on signup</b><br><span class="msub">On = new users take the spoken level test. Off = onboarded with defaults, test hidden.</span></span>
+      <input type="checkbox" id="lvlTestSw" ${d.level_test === false ? "" : "checked"}></label>
       <button class="uBtn bad" id="wipeBtn" style="width:100%;margin:2px 0 4px">🗑 Reset test users</button>`;
     // Office allowlist. NOTE: is_office() in main.py means "must BYOK", NOT free
     // access — resolve_keys() demands own keys for anyone on this list. The old
@@ -2952,10 +2956,17 @@ async function openAdmin(){
 function wireOffice(){
   if($("offAddBtn")) $("offAddBtn").onclick = () => officeEmail(($("offEmail").value||"").trim(), "add");
   document.querySelectorAll("[data-off]").forEach(b=>b.onclick=()=>officeEmail(b.dataset.off, "remove"));
-  if($("reqKeysSw")) $("reqKeysSw").onchange = async (e) => {
+  // Both switches POST the full settings object. /admin/settings writes every field it
+  // receives, and SettingsIn defaults level_test to true — so sending one switch alone
+  // would silently reset the other.
+  const saveSettings = async () => {
+    const growth = !!($("reqKeysSw") && $("reqKeysSw").checked);
+    const lvl = !!($("lvlTestSw") && $("lvlTestSw").checked);
     try{ await fetch("/admin/settings",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({token:authToken, access_phase: e.target.checked ? "growth" : "quota"})}); }catch(_){}
+      body:JSON.stringify({token:authToken, access_phase: growth ? "growth" : "quota", level_test: lvl})}); }catch(_){}
   };
+  if($("reqKeysSw")) $("reqKeysSw").onchange = saveSettings;
+  if($("lvlTestSw")) $("lvlTestSw").onchange = saveSettings;
   if($("wipeBtn")) $("wipeBtn").onclick = async () => {
     if(!confirm("Delete ALL users except david, shuhani & free-access emails? This cannot be undone.")) return;
     try{ const r = await fetch("/admin/wipe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:authToken})});
@@ -5617,8 +5628,12 @@ function routeFallback(){
 function routeAfterLogin(fromRefresh){
   // 1) a BYOK account must have its own VERIFIED keys (hard gate — always enforce)
   if(routeFallback()) return;
-  // 2) test (level check) not done yet (guarded against double-start)
-  if(userState && userState.onboarded === false){ if(!aActive) startAssessment(); return; }
+  // 2) test (level check) not done yet (guarded against double-start).
+  // level_test === false = owner disabled it; the server onboards the account with
+  // defaults instead, so never push anyone into the assessment here.
+  if(userState && userState.onboarded === false && userState.level_test !== false){
+    if(!aActive) startAssessment(); return;
+  }
   // 3) all good
   if(fromRefresh){
     // background re-confirm: don't navigate the user; just freshen Home if that's where they are

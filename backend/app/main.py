@@ -137,6 +137,22 @@ async def access_phase() -> str:
         return "growth"
 
 
+async def level_test_on() -> bool:
+    """Is the onboarding level check part of the signup flow? Owner-flippable
+    (Settings table). When off, a new account is onboarded with default values
+    instead — skipping it without seeding would leave profile.onboarded False,
+    which hides most of Home and stops /me building today/growth/opening."""
+    try:
+        return await _cached("level_test", lambda: db.get_setting("level_test", "on")) != "off"
+    except Exception:
+        return True
+
+
+# Profile seeded for accounts that skip the level check (see level_test_on).
+SKIPPED_TEST_PROFILE = {"goal": "", "comfort": "", "practice_time": "10",
+                        "level": "A1", "scores": {}, "weak_areas": []}
+
+
 async def is_unlimited(email: str) -> bool:
     """No daily quota: owner, unlimited allowlist, office-approved, or growth-phase
     (everyone BYOKs, so nobody rides a shared/capped quota)."""
@@ -477,6 +493,7 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
               "unlimited": _unlim, "plan": plan, "requests_left": req_left,
               "request_limit": req_limit, "trial_days_left": trial_days, "trial_over": trial_over,
               "has_keys": _has_keys,
+              "level_test": await level_test_on(),
               # The public name this user appears as on the leaderboard / league.
               # Boards are alias-only for privacy (§18), so without this the user
               # has no way to recognise their own row.
@@ -485,6 +502,16 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
         return {"onboarded": None, **common}
     try:
         state = await db.login(claims)   # upsert row + bump last_seen + return state
+        # Level check turned off → onboard with defaults on first sight, so the account
+        # behaves exactly like one that took the test (Home cards, journey, roadmap all
+        # key off profile.onboarded).
+        if isinstance(state, dict) and not state.get("onboarded") and not common["level_test"] and uid:
+            try:
+                await db.save_assessment(uid, SKIPPED_TEST_PROFILE)
+                state = await db.get_state(uid) or state
+                state.update(common)
+            except Exception as e:
+                print(f"[me] auto-onboard failed: {type(e).__name__}: {e}")
         if isinstance(state, dict):
             state.update(common)
         if isinstance(state, dict) and state.get("onboarded"):
@@ -869,7 +896,7 @@ async def admin_overview(token: str = "", authorization: str | None = Header(Non
     """Owner-only dashboard: every user's full info + activity."""
     claims = _require_owner(token, authorization)
     out = {"you": claims.get("email", ""), "role": "owner", "db": db.db_enabled, "users": [],
-           "access_phase": await access_phase()}
+           "access_phase": await access_phase(), "level_test": await level_test_on()}
     if db.db_enabled:
         try:
             users = await db.admin_list_users()
@@ -893,16 +920,18 @@ async def admin_overview(token: str = "", authorization: str | None = Header(Non
 class SettingsIn(BaseModel):
     token: str = ""
     access_phase: str = "growth"
+    level_test: bool = True
 
 
 @app.post("/admin/settings")
 async def admin_settings(inp: SettingsIn, authorization: str | None = Header(None)):
-    """Owner-only: flip the global growth/quota access-phase switch."""
+    """Owner-only: flip the global access-phase and level-check switches."""
     _require_owner(inp.token, authorization)
     phase = inp.access_phase if inp.access_phase in ("growth", "quota") else "growth"
     await db.set_setting("access_phase", phase)
+    await db.set_setting("level_test", "on" if inp.level_test else "off")
     invalidate_access_cache()
-    return {"access_phase": phase}
+    return {"access_phase": phase, "level_test": inp.level_test}
 
 
 class WipeIn(BaseModel):
