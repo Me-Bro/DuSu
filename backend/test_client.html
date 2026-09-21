@@ -1587,13 +1587,6 @@
           <div class="keyblk-hint">Create an account → "Create Key" → copy.</div>
         </div>
 
-        <div class="keyblk">
-          <div class="keyblk-hd"><span class="keyblk-name">GitHub token</span>
-            <a class="keyblk-get" href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener noreferrer">Get free key ↗</a></div>
-          <label class="keyrow"><input id="kGithub" type="password" autocomplete="off" placeholder="github_pat_…"><i class="kst" id="stGithub"></i></label>
-          <div class="keyblk-hint">Fine-grained token — must include the <b>Models</b> permission.</div>
-        </div>
-
         <button class="btn primary" id="verifyKeys" style="width:100%;margin-top:6px">Verify &amp; save</button>
         <div class="keys-status" id="keysStatus"></div>
       </div>
@@ -2847,9 +2840,8 @@ function loadKeysUI(){
   const k = (function(){ try{ return JSON.parse(localStorage.getItem("dusu_office_keys")||"{}")||{}; }catch(_){ return {}; } })();
   if($("kGemini")) $("kGemini").value = k.gemini || "";
   if($("kOpenrouter")) $("kOpenrouter").value = k.openrouter || "";
-  if($("kGithub")) $("kGithub").value = k.github || "";
   if($("kGroq")) $("kGroq").value = k.groq || "";
-  ["stGemini","stOpenrouter","stGithub","stGroq"].forEach(id=>{ if($(id)) $(id).textContent=""; });
+  ["stGemini","stOpenrouter","stGroq"].forEach(id=>{ if($(id)) $(id).textContent=""; });
   if($("keysStatus")) $("keysStatus").textContent = "";
   const forceOffice = needsKeys();          // must bring own keys
   // When keys are mandatory there is no Personal/Office CHOICE to present — showing
@@ -2877,21 +2869,21 @@ function loadKeysUI(){
 if($("modePersonal")) $("modePersonal").onclick = () => { useMode="personal"; localStorage.setItem("dusu_usemode","personal"); setModeUI(); postMode("personal"); };
 if($("modeOffice")) $("modeOffice").onclick = () => { useMode="office"; localStorage.setItem("dusu_usemode","office"); setModeUI(); postMode("office"); };
 // editing any key invalidates the "verified" flag → must re-verify
-["kGemini","kOpenrouter","kGithub","kGroq"].forEach(id => { const el = $(id); if(el) el.oninput = () => localStorage.removeItem("dusu_keys_ok"); });
+["kGemini","kOpenrouter","kGroq"].forEach(id => { const el = $(id); if(el) el.oninput = () => localStorage.removeItem("dusu_keys_ok"); });
 if($("keysBack")) $("keysBack").onclick = () => show("home");
 if($("adminBack")) $("adminBack").onclick = () => show("home");
 if($("verifyKeys")) $("verifyKeys").onclick = async () => {
   const keys = { gemini:$("kGemini").value.trim(), openrouter:$("kOpenrouter").value.trim(),
-                 github:$("kGithub").value.trim(), groq:$("kGroq").value.trim() };
+                 groq:$("kGroq").value.trim() };
   $("keysStatus").textContent = "Verifying…";
-  const map = {gemini:"stGemini", openrouter:"stOpenrouter", github:"stGithub", groq:"stGroq"};
+  const map = {gemini:"stGemini", openrouter:"stOpenrouter", groq:"stGroq"};
   Object.keys(map).forEach(p=>{ if($(map[p])) $(map[p]).textContent = keys[p] ? "⏳" : ""; });
   try{
     const r = await fetch("/keys/verify", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ token:authToken, keys }) });
     const d = await r.json(); const res = d.results || {};
     // Per-key verdict from a REAL live call to that provider — a key that looks
     // right but doesn't work must be called out, not silently accepted.
-    const LABEL = {gemini:"Gemini", openrouter:"OpenRouter", github:"GitHub token", groq:"Groq"};
+    const LABEL = {gemini:"Gemini", openrouter:"OpenRouter", groq:"Groq"};
     const bad = [];
     Object.keys(map).forEach(p=>{ const st=$(map[p]); if(!keys[p]){ if(st) st.textContent=""; return; }
       const ok = res[p] && res[p].ok; if(st) st.textContent = ok ? "✅" : "❌";
