@@ -42,16 +42,24 @@
       radial-gradient(1100px 700px at 82% -12%, #1a2033 0%, transparent 55%),
       radial-gradient(900px 600px at -12% 112%, #14161f 0%, transparent 55%),
       linear-gradient(165deg,var(--bg0),var(--bg1) 60%,var(--bg2));
-    overflow-x:hidden; -webkit-font-smoothing:antialiased;
+    -webkit-font-smoothing:antialiased;
     /* app-shell: fixed viewport height; content scrolls between header and the bottom nav */
     height:100vh; height:100dvh; display:flex; flex-direction:column;
+    /* overflow:hidden on BOTH axes, not just x. With only overflow-x set, anything that
+       pushed content past the body height made the BODY itself scrollable — and .bnav is
+       a normal flex child, so it scrolled away with the page instead of staying put.
+       Android Chrome makes this easy to hit: 100dvh changes as the toolbar hides/shows.
+       Clipping here forces every scroll into .wrap, the one intended scroll region. */
+    overflow:hidden;
     overscroll-behavior-y:none; -webkit-tap-highlight-color:transparent;
   }
   /* don't let taps select UI chrome text like a webpage */
   header.top, .brand, .tag, button, .mode-card h3, .mic-btn, .vbtn, .signout { user-select:none; -webkit-user-select:none; }
   button, .mode-card, .mic-btn, .back, a { touch-action:manipulation; }   /* snappy taps, no zoom */
   /* ===== App shell: phone-width, bottom nav (mobile-first; desktop = same for now) ===== */
-  .wrap { max-width:440px; width:100%; flex:1 1 auto; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; padding-bottom:24px; margin:0 auto; position:relative; z-index:1;
+  /* min-height:0 is load-bearing: a flex item defaults to min-height:auto, which refuses
+     to shrink below its content and pushes the nav off-screen on tall pages. */
+  .wrap { max-width:440px; width:100%; flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; margin:0 auto; position:relative; z-index:1;
     /* keep content clear of the notch / status bar / gesture nav in standalone mode */
     padding:max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
             max(48px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
@@ -2445,6 +2453,12 @@ const VOICE_SCREENS = new Set(["session","daily","learning"]);
 let speakEpoch = 0;
 function killSpeech(){ speakEpoch++; try{ if(window.speechSynthesis) window.speechSynthesis.cancel(); }catch(_){} }
 function currentScreen(){ const el = document.querySelector(".screen.on"); return el ? el.id : ""; }
+// Scrolling lives in .wrap, not the document — body is overflow:hidden so the bottom
+// nav can't scroll away. window.scrollTo() is a no-op here and must not be used.
+function scrollShellTop(){
+  const w = document.querySelector(".wrap");
+  if(w) w.scrollTo({ top:0, behavior:"smooth" });
+}
 // Kill BOTH voice loops (conversation + daily): stop mic, cancel speech, drop the socket.
 function stopAllVoice(){
   running = false; aiSpeaking = false;
@@ -3039,7 +3053,7 @@ function goHome(){
   try{ if(window.speechSynthesis) window.speechSynthesis.cancel(); }catch(_){}
   try{ closeMoment(false); }catch(_){}
   show("home");   // show() collapses the More reveal + re-renders home
-  window.scrollTo({ top:0, behavior:"smooth" });
+  scrollShellTop();
 }
 if($("homeBtn")) $("homeBtn").onclick = goHome;
 // curiosity lead card → Confidence Talk (today's challenge)
@@ -3188,7 +3202,7 @@ $("startInterview").onclick = () => startSession("interview");
 $("role").addEventListener("keydown", e => { if(e.key === "Enter") startSession("interview"); });
 // footer product links; back-to-top scrolls
 document.querySelectorAll(".foot-col a[data-mode]").forEach(a => a.onclick = () => chooseMode(a.dataset.mode));
-$("toTop").onclick = () => window.scrollTo({ top:0, behavior:"smooth" });
+$("toTop").onclick = scrollShellTop;
 
 function startSession(mode){
   if(guardKeys()) return;   // no verified own keys → keys screen (covers direct callers, not just chooseMode)
