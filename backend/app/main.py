@@ -2006,6 +2006,12 @@ async def interview_ws(ws: WebSocket):
         try:
             if _is_quota(e):
                 await _send(ws, type="quota", msg="Your API keys hit their limit. Add or replace a key in Settings.")
+            elif "all providers" in str(e).lower():
+                # Whole chain down/rate-limited. str(e) here is a stack of raw provider
+                # errors ("Error code: 410 - github_models_retirement_brownout…") which
+                # tells the user nothing they can act on.
+                await _send(ws, type="error",
+                            msg="All AI providers are busy right now. Please try again in a minute.")
             else:
                 await _send(ws, type="error", msg=str(e))
         except Exception:

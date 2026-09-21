@@ -23,6 +23,9 @@ _clients: dict[tuple, AsyncOpenAI] = {}   # keyed (provider_name, api_key), not 
 # groq ~0.7s, gemini-flash-lite ~1.0s). Anything still silent at 20s is not going to
 # save the turn — the chain's next provider will answer sooner than it will.
 _REQUEST_TIMEOUT_S = 20.0
+# Ceiling for one whole chain walk (all providers × models, both passes). Without it a
+# total outage costs the caller the sum of every attempt's timeout.
+_CHAIN_DEADLINE_S = 30.0
 _cooldown: dict[str, float] = {}   # provider name -> skip-until timestamp
 
 # BYOK / Office mode: a per-request provider chain. When set (via set_active_keys),
@@ -177,15 +180,24 @@ async def _complete(messages: list[dict], max_tokens: int, prefer_fast: bool = F
     chain = _active_chain.get() or settings.providers()   # Office keys if set, else default
     if prefer_fast:
         chain = sorted(chain, key=lambda p: 0 if p["name"] == "groq" else 1)
+    # Hard ceiling on the WHOLE walk. Each attempt is capped at _REQUEST_TIMEOUT_S, but
+    # the chain can hold 6+ model attempts across two passes — when everything is down
+    # that stacked up to ~2 minutes of the user staring at "DuSu is getting ready".
+    # Failing at 30s lets the client show a real error while the user still cares.
+    deadline = time.time() + _CHAIN_DEADLINE_S
     for ignore_cd in (False, True):
         now = time.time()
         attempted = False
         for p in chain:
+            if time.time() > deadline:
+                break
             if not ignore_cd and _cooldown.get(p["name"], 0) > now:
                 continue
             attempted = True
             client = _client(p)
             for model in p["models"]:
+                if time.time() > deadline:
+                    break
                 try:
                     resp = await client.chat.completions.create(
                         model=model,
