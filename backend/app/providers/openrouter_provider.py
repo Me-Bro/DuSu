@@ -138,10 +138,27 @@ def _trim_to_last_sentence(text: str) -> str:
     return text[: matches[-1].end()].strip()
 
 
+# A provider failing on credentials or retirement will NOT recover on its own — no
+# amount of waiting fixes a bad key or a shut-down endpoint. Retrying these on the
+# 90s rate-limit schedule burns a real round-trip on every fallback (measured: dead
+# Gemini 0.69s, retired GitHub Models 1.30s) against a sub-second turn-latency goal.
+_DEAD_MARKERS = ("401", "403", "404", "410", "invalid authentication",
+                 "invalid api key", "unauthorized", "retirement", "brownout")
+
+
+def cooling_down() -> list[str]:
+    """Providers the chain is currently skipping (expired entries ignored)."""
+    now = time.time()
+    return sorted(n for n, until in _cooldown.items() if until > now)
+
+
 def _mark_cooldown(name: str, err: str) -> None:
     """A rate-limited/exhausted provider is skipped for a while so we don't
     waste a failing round-trip on it every single turn."""
     low = err.lower()
+    if any(k in low for k in _DEAD_MARKERS):
+        _cooldown[name] = time.time() + 21600        # 6h — misconfigured/retired, not busy
+        return
     daily = any(k in low for k in ("day", "quota", "free_tier", "free-models"))
     _cooldown[name] = time.time() + (1800 if daily else 90)
 

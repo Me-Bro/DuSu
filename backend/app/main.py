@@ -383,8 +383,17 @@ async def assetlinks():
 
 @app.get("/health")
 async def health():
-    providers = settings.providers()
-    return {"ok": True, "has_key": bool(providers), "providers": [p["name"] for p in providers]}
+    """`providers` only means "a key string is configured" — it does NOT mean the
+    provider works. A dead key still shows up there, which made this endpoint read
+    healthy while half the chain was returning 401/410. `cooling` lists providers the
+    chain is currently skipping after a real failure, so the difference between the
+    two is the honest signal. Stays a cheap in-memory read: probing providers live
+    on every health check would burn free-tier quota and add seconds to it."""
+    from .providers.openrouter_provider import cooling_down
+    providers = [p["name"] for p in settings.providers()]
+    cooling = cooling_down()
+    return {"ok": True, "has_key": bool(providers), "providers": providers,
+            "cooling": cooling, "available": [p for p in providers if p not in cooling]}
 
 
 class GoogleIn(BaseModel):
@@ -933,22 +942,31 @@ async def admin_overview(token: str = "", authorization: str | None = Header(Non
 
 
 class SettingsIn(BaseModel):
+    # Every switch defaults to None, NOT to its "normal" value: this endpoint writes
+    # whatever it receives, so a payload that omits a field must leave that setting
+    # alone. With real defaults, a caller flipping one switch silently reset the
+    # others (e.g. turning off growth phase would re-enable the level check).
     token: str = ""
-    access_phase: str = "growth"
-    level_test: bool = True
-    owner_byok: bool = False
+    access_phase: str | None = None
+    level_test: bool | None = None
+    owner_byok: bool | None = None
 
 
 @app.post("/admin/settings")
 async def admin_settings(inp: SettingsIn, authorization: str | None = Header(None)):
-    """Owner-only: flip the global access-phase and level-check switches."""
+    """Owner-only: flip global access switches. Only fields present in the payload
+    are written; omitted ones keep their current value."""
     _require_owner(inp.token, authorization)
-    phase = inp.access_phase if inp.access_phase in ("growth", "quota") else "growth"
-    await db.set_setting("access_phase", phase)
-    await db.set_setting("level_test", "on" if inp.level_test else "off")
-    await db.set_setting("owner_byok", "on" if inp.owner_byok else "off")
+    if inp.access_phase is not None:
+        phase = inp.access_phase if inp.access_phase in ("growth", "quota") else "growth"
+        await db.set_setting("access_phase", phase)
+    if inp.level_test is not None:
+        await db.set_setting("level_test", "on" if inp.level_test else "off")
+    if inp.owner_byok is not None:
+        await db.set_setting("owner_byok", "on" if inp.owner_byok else "off")
     invalidate_access_cache()
-    return {"access_phase": phase, "level_test": inp.level_test, "owner_byok": inp.owner_byok}
+    return {"access_phase": await access_phase(), "level_test": await level_test_on(),
+            "owner_byok": await owner_byok_on()}
 
 
 class WipeIn(BaseModel):
@@ -1698,6 +1716,13 @@ async def interview_ws(ws: WebSocket):
             return
         try:
             mem = await session.summarize_and_extract()
+            # _extract_json returns {"error": "scoring_parse_failed", ...} when the model
+            # emits unparseable JSON — a TRUTHY dict. Treating it as a result wrote the
+            # session's memory as blanks and, worse, called set_next_hook(uid, "") which
+            # ERASED the existing "continue next time" thread. Keep the old memory.
+            if isinstance(mem, dict) and mem.get("error"):
+                print(f"[memory] extract parse failed for {uid}; keeping previous memory")
+                mem = {}
             if mem:
                 await db.add_conversation(uid, session.mode, mem.get("summary", ""))
                 await db.merge_facts(uid, mem.get("facts", {}) or {}, mem.get("events", []) or [])
