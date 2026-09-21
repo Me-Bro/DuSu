@@ -2909,11 +2909,15 @@ async function openAdmin(){
       <label class="swrow"><span><b>Growth phase (BYOK for everyone)</b><br><span class="msub">On = everyone must add their own keys, unlimited use. Off = shared quota + trial, as before.</span></span>
       <input type="checkbox" id="reqKeysSw" ${d.access_phase !== "quota" ? "checked" : ""}></label>
       <button class="uBtn bad" id="wipeBtn" style="width:100%;margin:2px 0 4px">🗑 Reset test users</button>`;
-    // Free-access emails (use OUR keys) — owner adds e.g. Surendri here
+    // Office allowlist. NOTE: is_office() in main.py means "must BYOK", NOT free
+    // access — resolve_keys() demands own keys for anyone on this list. The old
+    // "Free access (our keys)" label claimed the opposite and invited the mistake
+    // of adding people here to exempt them.
     const oe = d.office_emails || [];
-    h += `<div class="admin-head">Free access (our keys)</div>
+    h += `<div class="admin-head">Require own keys (BYOK)</div>
+      <p class="keys-note" style="margin:0 0 6px">These emails must add their own AI keys. Redundant while Growth phase is on (everyone already must).</p>
       <div class="offAdd"><input id="offEmail" type="email" placeholder="person@email.com"/><button class="uBtn ok" id="offAddBtn">Add</button></div>
-      <div id="offList">` + (oe.length ? oe.map(e=>`<div class="admin-row">${esc(e)}<button class="uBtn bad" data-off="${esc(e)}" style="margin-left:auto">Remove</button></div>`).join("") : '<p class="keys-note">No extra free emails.</p>') + `</div>`;
+      <div id="offList">` + (oe.length ? oe.map(e=>`<div class="admin-row">${esc(e)}<button class="uBtn bad" data-off="${esc(e)}" style="margin-left:auto">Remove</button></div>`).join("") : '<p class="keys-note">No emails on the BYOK list.</p>') + `</div>`;
     // Feedback / help messages from users
     const fb = d.feedback || [];
     h += `<div class="admin-head">Feedback &amp; help (${fb.length})</div>`;
