@@ -118,6 +118,9 @@ class Session:
         convo = "\n".join(f"{m['role']}: {m['content']}" for m in self.transcript)
         payload = (
             f"LEARNER FACTS:\n{self.facts_summary or '(none yet)'}\n\n"
+            # Explicit, every turn. DAILY_TURN_SYSTEM requires addressing the learner
+            # by name; when the name was missing the model invented one.
+            f"learner_name: {self.name or 'unknown'}\n"
             f"profession: {self.profession or 'unknown'}\n"
             f"time_of_day: {self.time_of_day or 'unknown'}\n"
             f"english_level: {self.level or 'A1'}\n"

@@ -1856,9 +1856,17 @@ async def interview_ws(ws: WebSocket):
                 tod = ""
                 if isinstance(hour, (int, float)):
                     tod = "morning" if hour < 12 else "afternoon" if hour < 17 else "evening"
+                # Name: prefer the stored nickname, then the signed-in Google name,
+                # and only then whatever the client sent. Daily Talk sends no `name`
+                # at all, so this used to reach the model empty — and because
+                # DAILY_TURN_SYSTEM tells it to address the learner by their real
+                # name, the model simply INVENTED one (a user signed in as Pratap
+                # Singh was greeted as "Rohit"). Never leave the name blank.
+                _who = (facts.get("nickname") or (claims.get("name", "") if claims else "")
+                        or data.get("name", ""))
                 session = Session(
                     mode,
-                    data.get("name", ""),
+                    _who,
                     data.get("role", ""),
                     facts_summary=facts_summary,
                     mood=data.get("mood", ""),
