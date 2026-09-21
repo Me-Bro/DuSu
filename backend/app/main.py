@@ -1265,6 +1265,29 @@ async def career_progress(inp: CareerProgressIn):
     return {"ok": roadmap is not None, "roadmap": roadmap}
 
 
+class SkipOnboardIn(BaseModel):
+    token: str = ""
+
+
+@app.post("/onboard/skip")
+async def onboard_skip(inp: SkipOnboardIn, authorization: str | None = Header(None)):
+    """Leave the level check without taking it. Onboards with the same defaults the
+    level_test=off path uses, so the account is not routed straight back here on the
+    next login (the assessment screen hides the bottom nav — without this the user is
+    stuck on it permanently)."""
+    claims = auth.read_session(_bearer(authorization, inp.token))
+    if not claims:
+        raise HTTPException(401, "Not signed in")
+    if not db.db_enabled:
+        return {"ok": True, "onboarded": False}
+    try:
+        await db.save_assessment(claims["sub"], SKIPPED_TEST_PROFILE)
+        return {"ok": True, "onboarded": True}
+    except Exception as e:
+        print(f"[onboard/skip] failed: {type(e).__name__}: {e}")
+        raise HTTPException(500, "skip_failed")
+
+
 class CheckinIn(BaseModel):
     token: str
     mood: str

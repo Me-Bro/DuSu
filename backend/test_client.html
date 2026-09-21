@@ -591,6 +591,9 @@
 
   /* ASSESSMENT */
   .assess-head { display:flex; align-items:center; gap:14px; margin-bottom:30px; }
+  .assess-exit { flex:0 0 auto; background:transparent; border:1px solid rgba(255,255,255,.16);
+    color:var(--ink-faint); font-size:13px; padding:5px 12px; border-radius:999px; cursor:pointer; }
+  .assess-exit:hover { color:var(--ink); border-color:rgba(255,255,255,.3); }
   .assess-brand { font-family:var(--font-d); font-size:19px; font-weight:600; color:var(--ink-dim); white-space:nowrap; }
   .assess-prog { flex:1; height:7px; border-radius:6px; background:var(--glass); border:1px solid var(--glass-brd); overflow:hidden; }
   .assess-prog i { display:block; height:100%; width:0; background:var(--grad); transition:width .45s ease; }
@@ -1940,6 +1943,10 @@
     <div class="assess-head">
       <div class="assess-brand">Level Check</div>
       <div class="assess-prog"><i id="assessBar"></i></div>
+      <!-- Always an exit. The bottom nav is hidden on this screen, so without this
+           an un-onboarded account is routed back here on every login with no way
+           out and no way to reach any other screen. -->
+      <button class="assess-exit" id="assessExit" title="Skip for now">Skip</button>
     </div>
     <div class="assess-body">
       <div id="assessStep" class="assess-step"></div>
@@ -4255,6 +4262,18 @@ function aReveal(d){
   say(msg, aVoiceProfile());
 }
 function goHomeAfterAssess(){ aActive = false; stopAssessSpeech(); show("home"); try{ setWelcome(); renderHomeJourney(); }catch(_){} refreshMe(); }
+// Leave the level check without finishing it. Persists default onboarding first —
+// otherwise routeAfterLogin() sends this account straight back here next login.
+async function skipAssessment(){
+  aActive = false; stopAssessSpeech();
+  if(userState) userState.onboarded = true;
+  try{ localStorage.setItem("dusu_onboarded","true"); }catch(_){}
+  show("home");
+  try{ await fetch("/onboard/skip",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({token:authToken})}); }catch(_){}
+  try{ setWelcome(); renderHomeJourney(); }catch(_){}
+  refreshMe();
+}
 
 /* ================= My Journey (roadmap + lessons) ================= */
 const LEVEL_ICONS = ["🧠","🗣️","💬","💪","🎯","💼","🚀"];
@@ -5767,10 +5786,14 @@ function initAuth(){
   (function ready(){
     if(!(window.google && google.accounts && google.accounts.id)){ return setTimeout(ready, 200); }
     google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onGoogle });
+    // Never silently re-use the last account: without this a second tester on the
+    // same device is signed straight back in as the previous user.
+    try{ google.accounts.id.disableAutoSelect(); }catch(_){}
     google.accounts.id.renderButton($("gbtn"),
       { theme:"filled_black", size:"large", shape:"pill", text:"continue_with", width:280 });
   })();
 }
+if($("assessExit")) $("assessExit").onclick = skipAssessment;
 initAuth();
 
 // PWA: register the service worker so DuSu is installable / works offline-shell.
