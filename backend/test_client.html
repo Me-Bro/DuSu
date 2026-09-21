@@ -2530,6 +2530,17 @@ function syncNav(id, pathOverride){
   const t = (pathOverride && PATH_TAB[pathOverride]) || NAV_TAB[id];
   document.querySelectorAll(".btab").forEach(b => b.classList.toggle("active", !!t && b.dataset.tab === t));
 }
+// The nav starts hidden in the markup and is only ever revealed by syncNav(). That
+// made its visibility depend on every routing path remembering to call show() — and
+// show() swallows syncNav errors in a try/catch — so a single missed or failed call
+// left the nav stuck hidden until a full reload. Reported after logout -> sign in as
+// a second account: app usable, no nav, fixed only by killing and reopening the app.
+// Deriving it from the visible screen instead makes that whole class impossible.
+try{
+  const _navSync = new MutationObserver(() => { try{ syncNav(currentScreen()); }catch(_){} });
+  document.querySelectorAll(".screen").forEach(s =>
+    _navSync.observe(s, { attributes:true, attributeFilter:["class"] }));
+}catch(_){}
 // Switching browser tab / minimizing → stop the AI (don't keep talking + looping in the background).
 document.addEventListener("visibilitychange", () => {
   if(document.hidden && (running || VOICE_SCREENS.has(currentScreen()))){ try{ stopAllVoice(); }catch(_){} }
@@ -5789,8 +5800,12 @@ function onGoogle(resp){
         // /me unreachable, or routing left us on login → don't strand the user, and
         // don't wave a keyless one through to a Home where nothing is clickable.
         if(!st || currentScreen() === "login"){ if(!routeFallback()) show("home"); }
+        // Sign-in is the moment the nav was observed stuck hidden (logout -> sign in
+        // as a second account). Re-derive it from the screen that actually ended up
+        // visible, whichever branch above we took.
+        try{ syncNav(currentScreen()); }catch(_){}
         if(_wasOnboarded && currentScreen() === "home") speakWelcome();
-      }).catch(() => { hideBootGate(); if(!routeFallback()) show("home"); });
+      }).catch(() => { hideBootGate(); if(!routeFallback()) show("home"); try{ syncNav(currentScreen()); }catch(_){} });
     })
     .catch(() => { $("loginNote").textContent = "Sign-in failed. Please try again."; });
 }
@@ -5819,7 +5834,8 @@ function initAuth(){
     refreshMe(true).then(st => {
       hideBootGate();
       if(!st || currentScreen() === "login"){ if(!routeFallback()) show("home"); }
-    }).catch(() => { hideBootGate(); if(!routeFallback()) show("home"); });
+      try{ syncNav(currentScreen()); }catch(_){}   // boot: derive nav from the screen we landed on
+    }).catch(() => { hideBootGate(); if(!routeFallback()) show("home"); try{ syncNav(currentScreen()); }catch(_){} });
   }
   else { show("login"); }
   (function ready(){
