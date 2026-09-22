@@ -1065,13 +1065,21 @@ class ModeIn(BaseModel):
 
 @app.post("/mode")
 async def set_mode(inp: ModeIn):
-    """User picks Personal/Office. Office for a normal user → pending (needs owner
-    approval); owner/unlimited stay active. Personal → active."""
+    """User picks Personal/Office. "Office → pending, needs owner approval" is a
+    QUOTA-PHASE concept only: it dates from when Office was a curated allowlist and
+    approval gated a scarce shared-key exemption. Under `access_phase == "growth"`
+    every normal user already MUST bring their own keys by default (see
+    resolve_keys/_office in /me) — there is nothing left to approve, and parking the
+    account in "pending" just mislabels a fully working account as blocked-on-owner
+    in the dashboard. Found live: a freshly created BYOK account ended up "pending"
+    with zero functional effect (the WS gate only checks for "blocked"), but it
+    misrepresented the account's real state. Keep the approval step working for a
+    future switch back to quota phase; skip it entirely while in growth phase."""
     claims = auth.read_session(inp.token)
     if not claims:
         raise HTTPException(401, "Not signed in")
     role = role_for(claims.get("email", ""))
-    if inp.mode == "office" and role == "user":
+    if inp.mode == "office" and role == "user" and await access_phase() == "quota":
         status = "pending"
     else:
         status = "active"
