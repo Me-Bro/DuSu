@@ -12,7 +12,9 @@ Fill-in-the-blanks reference for uploading DuSu to Google Play. Every answer bel
 | Package / Application ID | `com.dusu.app` |
 | Version | `versionName 1.0`, `versionCode 1` |
 | Developer legal name | David Singh Rana |
-| Support email | support.ruralrootcloud@gmail.com |
+| Public brand / maker name | Rana Brothers (not a registered company — do NOT enter it as the
+  developer legal name; Play verifies that against your ID) |
+| Support email | support@ranabrothers.online |
 | Website | https://dusu.ruralrootcloud.com |
 | Privacy policy | https://dusu.ruralrootcloud.com/privacy |
 | Terms of service | https://dusu.ruralrootcloud.com/terms |
@@ -176,7 +178,7 @@ Screenshot suggestions (take these 5 on your phone): Home with "Start Speaking",
 |---|---|
 | App category | **Education** |
 | Tags | Language learning, Education |
-| Email address | support.ruralrootcloud@gmail.com |
+| Email address | support@ranabrothers.online |
 | Website | https://dusu.ruralrootcloud.com |
 | Phone | optional — leave blank |
 | External marketing | No (unless you want it) |
@@ -230,7 +232,7 @@ keys, so no usage is billed to anyone. Setup takes about 2 minutes.
 
 A walkthrough video is embedded on the keys screen itself.
 If you cannot complete key setup for any reason, please contact
-support.ruralrootcloud@gmail.com and we will provide a pre-configured account
+support@ranabrothers.online and we will provide a pre-configured account
 rather than have the review blocked.
 ```
 
@@ -253,7 +255,7 @@ Verified: no AdMob, no ad SDK anywhere in the codebase.
 
 | Question | Answer |
 |---|---|
-| Email address | support.ruralrootcloud@gmail.com |
+| Email address | support@ranabrothers.online |
 | Category | **Reference, News, or Educational** |
 | Violence | No |
 | Sexuality / nudity | No |
