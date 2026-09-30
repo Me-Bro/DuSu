@@ -1317,6 +1317,297 @@
   .cp-row.done .cp-mark{background:color-mix(in srgb,var(--green) 16%,transparent);border-color:color-mix(in srgb,var(--green) 45%,transparent);color:var(--green)}
   .cp-foot{display:flex;gap:10px;margin-top:14px}
   .cp-foot .btn{flex:1;text-align:center}
+  /* =========================================================================
+     ============  DESKTOP LAYER  —  nothing below 1200px is touched  ========
+     =========================================================================
+     DuSu is built mobile-first: .wrap is a 440px column and .bnav is a 76px bar
+     pinned to the bottom of the viewport. On a laptop that renders as a phone
+     strip floating in the middle of a 1920px screen. Everything below is a
+     PRESENTATION-ONLY desktop layer — no JS, no DOM, no copy — and it lives
+     entirely inside min-width media queries, so the phone / PWA / com.dusu.app
+     TWA rendering stays byte-for-byte what it was.  See DUSU_DESKTOP_UI_PLAN.md
+     for the reasoning and the constraints this had to respect. */
+  @media (min-width:1200px){
+    :root{ --rail:264px;    /* fixed left sidebar width */
+           --shell:1120px;  /* centred content column   */
+           --gut:44px; }    /* content gutter           */
+
+    /* ---------- SHELL: fixed left rail + centred content column ---------- */
+    body{ padding-left:var(--rail); }
+    /* The rail is hidden on these two screens (syncNav adds .bnav.hide), so the
+       space it reserves has to disappear with it or the page sits off-centre. */
+    body:has(#login.on), body:has(#assessment.on){ padding-left:0; }
+
+    /* Re-declares the whole `padding` shorthand on purpose: the base rule sets
+       padding and THEN overrides padding-bottom to clear the 76px bottom nav —
+       which does not exist here. padding-top is 0 so the sticky header below
+       can sit flush against the scrollport edge instead of leaving a
+       see-through strip above itself. */
+    .wrap{ max-width:var(--shell); padding:0 var(--gut) 64px; }
+
+    /* ---------- HEADER: sticky bar spanning the content column ---------- */
+    header.top{ position:sticky; top:0; z-index:40;
+      margin:0 calc(-1 * var(--gut)) 26px; padding:16px var(--gut);
+      background:rgba(8,11,20,.74);
+      backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+      border-bottom:1px solid rgba(255,255,255,.06); }
+    .brand{ font-size:28px; }
+    .uwho > span{ max-width:150px; }
+
+    /* ---------- NAV: bottom tab bar -> vertical sidebar rail ---------- */
+    .bnav{ left:0; top:0; bottom:auto; transform:none;
+      width:var(--rail); max-width:none; height:100vh; height:100dvh;
+      flex-direction:column; align-items:stretch; gap:4px;
+      padding:24px 14px calc(22px + env(safe-area-inset-bottom));
+      border-top:none; border-right:1px solid rgba(255,255,255,.07);
+      background:rgba(8,11,20,.82); }
+    /* App identity at the head of the rail — what a desktop sidebar is expected
+       to carry. Decorative only; the real wordmark still lives in header.top. */
+    .bnav::before{ content:"DuSu"; flex:none; display:flex; align-items:center;
+      height:54px; margin:2px 8px 20px; padding-left:46px;
+      background:url("/logo.png") left center / 34px 34px no-repeat;
+      font-family:var(--font-d); font-weight:700; font-size:25px; letter-spacing:.01em;
+      color:var(--gold-lt); border-bottom:1px solid rgba(255,255,255,.06); }
+    .btab{ flex:0 0 auto; flex-direction:row; justify-content:flex-start; align-items:center;
+      gap:14px; padding:12px 14px; border-radius:14px; font-size:14.5px; text-align:left;
+      color:var(--ink-dim); transition:background .18s ease, color .18s ease; }
+    .btab svg{ width:21px; height:21px; flex:none; }
+    .btab:hover{ background:rgba(255,255,255,.05); color:var(--ink); }
+    .btab.active{ color:var(--gold-lt);
+      background:color-mix(in srgb, var(--gold) 15%, transparent);
+      box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--gold) 28%, transparent); }
+    /* "More" belongs at the foot of a sidebar, not mid-list. */
+    .btab[data-tab="more"]{ margin-top:auto; }
+
+    /* ---------- OVERLAYS: bottom sheet -> centred modal, bar -> toast ------- */
+    /* Centred over the CONTENT area, not the raw viewport — the rail stays
+       visible behind the scrim, so a viewport-centred dialog reads off-axis. */
+    .msheet{ left:calc(50% + var(--rail) / 2); top:50%; bottom:auto; right:auto;
+      width:min(520px, calc(100vw - 80px)); max-width:520px;
+      transform:translate(-50%,-46%) scale(.97); opacity:0; pointer-events:none;
+      border-radius:24px; padding:22px 24px 26px; max-height:min(76vh,720px);
+      box-shadow:0 40px 90px -30px rgba(0,0,0,.9);
+      transition:transform .28s cubic-bezier(.2,.7,.2,1), opacity .2s ease;
+      display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+      column-gap:12px; align-content:start; }
+    /* On a phone the sheet is parked off-screen by translateY(130%), so it never
+       needed pointer-events. A centred modal sitting at opacity 0 would swallow
+       every click over the middle of the screen. */
+    .msheet.on{ transform:translate(-50%,-50%) scale(1); opacity:1; pointer-events:auto; }
+    .msheet h3{ grid-column:1 / -1; font-size:22px; margin:2px 0 14px; }
+    .msheet .rg-item, .msheet > p, .msheet > .btn{ grid-column:1 / -1; }
+    .mrow{ margin-bottom:10px; }
+    .notif{ left:auto; right:26px; top:22px; transform:none;
+      width:auto; max-width:420px; border-radius:16px;
+      border:1px solid rgba(240,169,82,.45); }
+
+    /* Keyboard focus is a real desktop input method — make it visible. */
+    :focus-visible{ outline:2px solid var(--gold-lt); outline-offset:3px; }
+
+    /* ---------- shared screen chrome ---------- */
+    .sess-head{ margin-bottom:20px; gap:14px; }
+    .sess-title{ font-size:24px; }
+    .sess-sub{ font-size:13px; }
+    /* .back-home is a labelled pill (width:auto + "Home"); sizing plain .back
+       here would squash it to 42px and overlap the screen title. */
+    .back:not(.back-home){ width:42px; height:42px; }
+    .back-home{ height:42px; }
+
+    /* ---------- LOGIN ---------- */
+    #login .login-card{ max-width:460px; margin:12vh auto 0; padding:46px 38px; }
+    #login .login-card .mark{ height:150px; }
+    #login .login-card h1{ font-size:32px; }
+
+    /* ---------- HOME ---------- */
+    #home{ max-width:1060px; margin:0 auto; }
+    .hstage{ padding:30px 0 22px; }
+    .hchar{ width:200px; height:200px; }
+    .hchar .wface{ width:216px !important; height:216px !important; }
+    .hchar .wface-png{ width:216px; height:216px; }
+    .hchar-glow{ width:250px; height:250px; }
+    .hbubble{ font-size:21px; margin:22px 0 10px; }
+    .htitle{ font-size:clamp(38px,3.4vw,54px); }
+    .hsub{ font-size:17px; margin-bottom:18px; }
+    .hbtn{ font-size:18px; padding:20px 54px; }
+    .hjourney{ font-size:15px; padding:13px 26px; }
+    .hchips span{ font-size:13px; padding:7px 14px; }
+    /* the 340px-wide phone cards get real desktop width */
+    .sr-card, .sr-league, .hgoal, .cc-card, .sr-missions{ width:420px; max-width:100%; }
+    .cp-home{ max-width:560px; }
+    .today-card{ width:min(560px,100%); }
+    .moment{ width:min(760px,100%); }
+    .moment-say{ font-size:24px; max-width:640px; }
+    /* three curated goals read as a row on a wide screen, not a stack */
+    .moment-recs{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:16px; align-items:stretch; }
+    .moment-recs .rec{ height:100%; }
+    /* The secondary home blocks stay ONE readable column: splitting them across
+       two would tear each .sec-label away from the block it labels (grid rows
+       lock the two columns together). The footer keeps the full width. */
+    #moreHome > #moodRow, #moreHome > #eventBanner, #moreHome > #letterCard,
+    #moreHome > #journeyBanner, #moreHome > #progressLabel, #moreHome > .nav-cards,
+    #moreHome > #freeLabel, #moreHome > #freeLoader, #moreHome > #growthTimeline,
+    #moreHome > #warn{ max-width:780px; margin-left:auto; margin-right:auto; }
+    .foot{ margin-top:72px; }
+    .foot-cols{ gap:40px; }
+
+    /* ---------- PRACTICE ---------- */
+    #practice{ max-width:1060px; margin:0 auto; }
+    #practice .modes{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:30px; margin-top:18px; align-items:stretch; }
+    #practice .prac-block{ align-items:stretch; gap:16px; }
+    #practice .prac-h{ font-size:23px; min-height:64px;
+      display:flex; align-items:center; justify-content:center; }
+    /* On a phone each mode is a compact pill — the blurb, chips, badge and
+       watermark are hidden with !important for density. A desktop column has
+       room for the whole card, so bring them back (hence the !important here). */
+    #practice .mode-card{ flex:1; align-self:stretch; width:100%; max-width:none;
+      flex-direction:column; align-items:flex-start; justify-content:flex-start;
+      gap:0; text-align:left; padding:26px 24px 22px; border-radius:24px; }
+    #practice .mode-card p{ display:block !important; font-size:14.5px; color:#c3c8d6;
+      line-height:1.55; margin:10px 0 0; }
+    #practice .mode-card .mc-chips{ display:flex !important; flex-wrap:wrap;
+      gap:7px; margin:16px 0 0; }
+    #practice .mode-card .mc-badge{ display:inline-flex !important; top:18px; right:18px; }
+    #practice .mode-card .mc-wm{ display:block !important;
+      right:8px; bottom:-4px; font-size:84px; opacity:.045; }
+    #practice .mode-card h3{ font-size:24px; margin-top:18px; white-space:normal; }
+    #practice .mode-card .mc-orb{ width:52px; height:52px; border-radius:16px; }
+    #practice .mode-card .mc-orb svg{ width:26px; height:26px; }
+    #practice .mode-card .mc-cta{ margin-top:auto; padding-top:20px; gap:9px;
+      font-size:13.5px; font-weight:600; color:var(--ink-dim); }
+    #practice .soon{ margin-top:34px; font-size:13px; }
+
+    /* ---------- INTERVIEW SETUP ---------- */
+    #setup{ max-width:900px; margin:0 auto; }
+    #setup .login-card{ max-width:540px; padding:40px 38px; }
+
+    /* ---------- SESSION (Talk / Interview): stage left, transcript right ----- */
+    #session{ max-width:1060px; margin:0 auto; }
+    /* #id.on (1,1,0) beats .screen.on (0,2,0) on ID count, so `display` can be
+       swapped without touching the router. Every row is placed explicitly. */
+    #session.on{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+      column-gap:38px; align-content:start; }
+    #session.on > .sess-head{ grid-column:1 / -1; }
+    #session.on > .stage{ grid-column:1; grid-row:2; }
+    #session.on > .controls{ grid-column:1; grid-row:3; }
+    #session.on > .feed{ grid-column:2; grid-row:2 / span 2; margin-top:0;
+      max-height:min(60vh,520px); padding:18px; border-radius:20px;
+      background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06); }
+    #session .orb-wrap{ width:260px; height:260px; }
+    #session .orb{ width:180px; height:180px; }
+    #session #face{ width:180px; height:180px; }
+    #session .state-label{ font-size:21px; }
+    #session .msg{ max-width:94%; }
+
+    /* ---------- INTERVIEW REPORT ---------- */
+    #report{ max-width:980px; margin:0 auto; }
+    #report.on{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+      column-gap:22px; align-content:start; }
+    #report.on > *{ grid-column:1 / -1; }
+    #report.on > .card.good{ grid-column:1; }   /* strengths + fixes side by side */
+    #report.on > .card.fix{ grid-column:2; }
+    #report .metrics{ grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px 26px; }
+    #report .card{ height:100%; }
+
+    /* ---------- SESSION RESULT ---------- */
+    #sessionResult{ max-width:660px; margin:0 auto; }
+
+    /* ---------- DAILY TALK ---------- */
+    #daily{ max-width:900px; margin:0 auto; }
+    #daily .orb-wrap{ width:250px; height:250px; }
+    #daily .orb{ width:176px; height:176px; }
+    #daily .orb .wface{ width:140px; height:140px; }   /* keeps the phone's .8 face:orb ratio */
+    #daily .daily-more{ max-width:640px; }
+    .di-btn{ width:150px; padding:20px 10px 18px; }
+    .di-ic{ font-size:34px; }
+    .di-lbl{ font-size:18px; }
+
+    /* ---------- LEARNING ---------- */
+    #learning{ max-width:900px; margin:0 auto; }
+
+    /* ---------- LESSON ---------- */
+    #lesson{ max-width:860px; margin:0 auto; }
+    #lesson .lesson-prompt{ font-size:29px; max-width:640px; }
+
+    /* voice screens share the mic + result card */
+    .mic-btn{ width:132px; height:132px; }
+    .mic-label{ font-size:19px; }
+    .learn-instr{ font-size:17px; max-width:620px; }
+    .trans-card{ max-width:640px; }
+
+    /* ---------- LEVEL CHECK ---------- */
+    #assessment{ max-width:860px; margin:0 auto; }
+    #assessment .assess-head{ margin-top:26px; }
+    .assess-body{ max-width:720px; }
+    .assess-step h2{ font-size:34px; }
+    .assess-step .sub{ font-size:16px; max-width:560px; }
+    .assess-step .say-line{ font-size:26px; }
+    /* answers sit 2-up instead of one long stack */
+    .opt-list{ grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); max-width:640px; }
+    .atext{ max-width:520px; }
+    .assess-face{ width:112px; height:112px; font-size:52px; }
+    .level-badge{ font-size:56px; }
+
+    /* ---------- JOURNEY ---------- */
+    #journey{ max-width:1000px; margin:0 auto; }
+    #journey .stat-chip{ padding:16px 10px; }
+    #journey .stat-chip b{ font-size:27px; }
+    #journey .dash-head{ font-size:19px; margin-top:18px; }
+    #journey .dash-skills{ grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px 28px; }
+    #journey .roadmap{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+    #journey .roadmap .worlds-ahead{ grid-column:1 / -1; }   /* a caption, not a level row */
+
+    /* ---------- LEADERBOARD / WEEKLY LEAGUE ---------- */
+    #leaderboard, #league{ max-width:900px; margin:0 auto; }
+    #leaderboard .podium, #league .podium{ gap:16px; margin:16px 0 28px; }
+    #leaderboard .pod, #league .pod{ max-width:170px; padding:18px 12px 22px; }
+    #leaderboard .pod.p1, #league .pod.p1{ padding-top:34px; }
+    #leaderboard .lb-list, #league .lb-list{ display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 14px; }
+    #leaderboard .lb-you, #league .lb-you{ max-width:520px; margin-left:auto; margin-right:auto; }
+
+    /* ---------- ACHIEVEMENTS ---------- */
+    #achievements{ max-width:900px; margin:0 auto; }
+    #achGrid{ grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
+
+    /* ---------- AI KEYS / MODE ---------- */
+    #keys{ max-width:1000px; margin:0 auto; }
+    /* Walkthrough on the left, the key form on the right — a first-time user
+       reads the steps and fills the inputs in one view instead of scrolling
+       between them. Each child's row is placed explicitly so the two columns
+       cannot drift apart as things are shown/hidden. */
+    #keys .keys-wrap{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+      column-gap:34px; align-items:start; }
+    #keys .keys-wrap > .mode-pick{ grid-column:1 / -1; grid-row:1; }
+    #keys .keys-wrap > #officeNote{ grid-column:1; grid-row:2; }
+    #keys .keys-wrap > #keysTutorial{ grid-column:1; grid-row:3; }
+    #keys .keys-wrap > #keysSteps{ grid-column:1; grid-row:4; }
+    #keys .keys-wrap > #keysForm{ grid-column:2; grid-row:2 / span 3; }
+
+    /* ---------- FORM-LIKE SCREENS (never stretch a form to 1120px) ---------- */
+    #profile, #help, #subscribe, #superadmin{ max-width:760px; margin:0 auto; }
+    #career{ max-width:860px; margin:0 auto; }
+    #career .cp-head{ margin-bottom:26px; }
+    #career .cp-title{ font-size:33px; }
+
+    /* ---------- ADMIN DASHBOARD ---------- */
+    #admin{ max-width:1060px; margin:0 auto; }
+    /* Headings / stat strips / switches span the full width; the per-user cards
+       are peers, so they auto-place two to a row. */
+    #adminBody{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+      column-gap:16px; align-items:start; }
+    #adminBody > *{ grid-column:1 / -1; }
+    #adminBody > .uCard{ grid-column:auto; }
+    #admin .admin-stats > div{ padding:14px 6px; }
+  }
+
+  /* Large desktops / external monitors: same layout, a little more room. */
+  @media (min-width:1600px){
+    :root{ --rail:280px; --shell:1240px; --gut:52px; }
+    #home, #practice, #session, #admin{ max-width:1180px; }
+    #report, #journey{ max-width:1080px; }
+  }
 </style>
 </head>
 <body>
