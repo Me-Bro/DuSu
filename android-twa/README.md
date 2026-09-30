@@ -9,7 +9,8 @@ This is a **separate module** from `../android-launcher` (which only kicked the 
 out to external Chrome). Different package name (`com.dusu.app` vs `com.dusu.launcher`)
 so both can be installed side-by-side.
 
-- **Loads:** `https://dusu.ruralrootcloud.com/`
+- **Loads:** `https://dusu.ranabrothers.online/` (canonical). `asset_statements` also trusts
+  the legacy `https://dusu.ruralrootcloud.com` so already-installed copies stay verified.
 - **Package:** `com.dusu.app`
 - **Min Android:** 5.0 (API 21)
 
@@ -88,11 +89,12 @@ ANDROID_CERT_SHA256 = AB:CD:...:EF
 (Comma-separate multiple, e.g. your upload key **and** the Play App Signing key.)
 
 The backend already serves the matching statement at
-`https://dusu.ruralrootcloud.com/.well-known/assetlinks.json` from that env var.
+`https://dusu.ranabrothers.online/.well-known/assetlinks.json` from that env var (it is host-agnostic, so it
+serves correctly on the legacy hostname too).
 Verify after deploy:
 
 ```bash
-curl -s https://dusu.ruralrootcloud.com/.well-known/assetlinks.json
+curl -s https://dusu.ranabrothers.online/.well-known/assetlinks.json
 ```
 
 The app side is already declared (`app/src/main/res/values/strings.xml` →

@@ -47,7 +47,8 @@ services:
       - "${BACKEND_PORT:-3878}:8000"
     restart: unless-stopped
 
-# dusu.ruralrootcloud.com is served by the host's own cloudflared (a systemd
+# dusu.ranabrothers.online (and the legacy dusu.ruralrootcloud.com) are served by the
+# host's own cloudflared (a systemd
 # service, same as this box's other tunnels) routing straight to
 # http://localhost:${BACKEND_PORT:-3878} — not a container in this compose
 # file. See cloudflare/TUNNEL.md for the one-time dashboard route setup.

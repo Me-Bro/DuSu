@@ -73,11 +73,9 @@ product should pre-announce that.
 | `backend/account-deletion.html` | Contact address swapped |
 | `PLAYSTORE_SUBMISSION_GUIDE.md` | Support email swapped (4 places) + an explicit warning **not** to put "Rana Brothers" in Play's *developer legal name* field, which Play verifies against government ID |
 
-**URLs were deliberately left alone**, per instruction: `dusu.ruralrootcloud.com` remains the
-host in `android-twa/.../strings.xml`, `docker-compose.yml`, `cloudflare/TUNNEL.md` and the
-OpenRouter `HTTP-Referer` in `backend/app/config.py`. The only remaining `ruralroot` strings
-in the repo are those infrastructure references — nothing a user sees. §8 covers cutting the
-domain over when you're ready.
+**Update (same day):** the URLs have since been moved too — the canonical host is now
+`https://dusu.ranabrothers.online`, added *alongside* the legacy `dusu.ruralrootcloud.com`
+rather than replacing it, so nothing breaks. See §8 and `DUSU_DOMAIN_CUTOVER.md`.
 
 ---
 
@@ -240,25 +238,25 @@ that has an unverified bug is the one mistake that's expensive to undo.
 
 ---
 
-## 8. Domain cutover (deferred, per instruction)
+## 8. Domain cutover — done in the repo, two dashboard steps left
 
-URLs stay on `dusu.ruralrootcloud.com` for now. When you want the public URL to match the
-brand, the target is `dusu.ranabrothers.online` (Cloudflare zone already yours — see
-`DUSU_LOCAL_CLOUDFLARE_PLAN.md`, which already assumes that hostname). It is **not** a find-
-and-replace; it touches four things that must change together:
+The canonical URL is now **`https://dusu.ranabrothers.online`**, so the address a user sees
+matches the brand they're being marketed. It was done as an **add**, not a move: the legacy
+`dusu.ruralrootcloud.com` stays live on the same tunnel and the same container, so no existing
+link, QR code, screenshot or sideloaded APK breaks, and nothing else on this box is touched.
 
-1. `android-twa/app/src/main/res/values/strings.xml` — `launchUrl`, `hostName`,
-   `asset_statements` → then rebuild and re-publish the APK/AAB.
-2. `/.well-known/assetlinks.json` must be served from the new host (it already is, by the
-   backend) — re-verify with `curl`, or the TWA loses full-screen and shows a URL bar.
-3. Google OAuth — add the new origin to *Authorised JavaScript origins* in Google Cloud
-   Console **before** cutting over, or sign-in breaks for everyone.
-4. `backend/app/config.py` — the OpenRouter `HTTP-Referer` header.
+Already done in the repo: TWA `launchUrl`/`hostName` (with `asset_statements` trusting *both*
+origins), the OpenRouter `HTTP-Referer` (now a single `PUBLIC_ORIGIN` constant), the Play
+guide's Website/Privacy/Terms/Deletion URLs, and every install/tunnel doc.
 
-Do it **between** Play releases, never mid-review, and keep the old hostname resolving for at
-least 30 days so installed TWAs don't break.
+**Still yours to do, ~5 minutes, both additive:** add the `dusu.ranabrothers.online` public
+hostname to the Cloudflare tunnel, and add `https://dusu.ranabrothers.online` to the Google
+OAuth authorised origins *without removing the old one*. Full runbook, the "what is protected
+and why" table, verification commands and rollback: **`DUSU_DOMAIN_CUTOVER.md`**.
 
----
+Timing note: DuSu is not on Play yet, which is exactly why this was the right moment — there
+are no installed users pinned to the old hostname, and the listing now goes in on the new URL
+from day one instead of needing an update later.
 
 ## 9. Money, and the line you can't cross casually
 

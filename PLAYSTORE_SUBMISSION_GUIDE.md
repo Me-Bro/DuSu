@@ -15,10 +15,10 @@ Fill-in-the-blanks reference for uploading DuSu to Google Play. Every answer bel
 | Public brand / maker name | Rana Brothers (not a registered company — do NOT enter it as the
   developer legal name; Play verifies that against your ID) |
 | Support email | support@ranabrothers.online |
-| Website | https://dusu.ruralrootcloud.com |
-| Privacy policy | https://dusu.ruralrootcloud.com/privacy |
-| Terms of service | https://dusu.ruralrootcloud.com/terms |
-| Account deletion page | https://dusu.ruralrootcloud.com/account-deletion |
+| Website | https://dusu.ranabrothers.online |
+| Privacy policy | https://dusu.ranabrothers.online/privacy |
+| Terms of service | https://dusu.ranabrothers.online/terms |
+| Account deletion page | https://dusu.ranabrothers.online/account-deletion |
 | Category | Education |
 | Free or paid | Free |
 | Contains ads | No |
@@ -52,7 +52,7 @@ When you enroll in Play App Signing (default for new apps), Google **re-signs** 
    *config*, not the contents of `env_file`, so it prints "Starting" and keeps the old
    values. This was hit for real while enabling the super-admin portal — the variable
    was correct on disk and the endpoint still behaved as if unset.
-4. Verify: `curl https://dusu.ruralrootcloud.com/.well-known/assetlinks.json` shows **both** fingerprints.
+4. Verify: `curl https://dusu.ranabrothers.online/.well-known/assetlinks.json` shows **both** fingerprints.
 
 ### 1b. The reviewer must complete BYOK setup — decided, with mitigation
 
@@ -91,7 +91,7 @@ demo Google account and put its credentials in the **App access** section.
 **Also confirm the server's own keys work before review starts.** Whichever route you
 pick, the reviewer rides the default chain — and if it is down (as it was on
 2026-09-21: Groq revoked, Gemini expired, GitHub retired) the reviewer sees an app
-that cannot answer. Check `curl https://dusu.ruralrootcloud.com/health` and compare
+that cannot answer. Check `curl https://dusu.ranabrothers.online/health` and compare
 `available` against `cooling`. Note a Gemini `AQ.`-prefixed value is a short-lived
 OAuth token, not an API key — use an `AIza` key from AI Studio so it does not expire
 mid-review.
@@ -179,7 +179,7 @@ Screenshot suggestions (take these 5 on your phone): Home with "Start Speaking",
 | App category | **Education** |
 | Tags | Language learning, Education |
 | Email address | support@ranabrothers.online |
-| Website | https://dusu.ruralrootcloud.com |
+| Website | https://dusu.ranabrothers.online |
 | Phone | optional — leave blank |
 | External marketing | No (unless you want it) |
 
@@ -189,7 +189,7 @@ Screenshot suggestions (take these 5 on your phone): Home with "Start Speaking",
 
 | Question | Answer |
 |---|---|
-| Privacy policy URL | `https://dusu.ruralrootcloud.com/privacy` |
+| Privacy policy URL | `https://dusu.ranabrothers.online/privacy` |
 
 ---
 
@@ -296,7 +296,7 @@ Why 18+: DuSu's positioning is job interviews and campus placements, and the pri
 | Does your app collect or share any of the required user data types? | **Yes** |
 | Is all of the user data collected by your app encrypted in transit? | **Yes** (HTTPS / WSS) |
 | Do you provide a way for users to request that their data be deleted? | **Yes** |
-| Data deletion URL | `https://dusu.ruralrootcloud.com/account-deletion` |
+| Data deletion URL | `https://dusu.ranabrothers.online/account-deletion` |
 
 ### Data types — declare exactly these
 
@@ -372,7 +372,7 @@ Only after 14 days of closed testing:
 
 - [ ] Add the **Play App Signing SHA-256** to `ANDROID_CERT_SHA256` (§1a) — otherwise Play users see the browser URL bar
 - [ ] Install from Play on a real phone and confirm it opens full-screen, mic works, and sign-in works
-- [ ] Add `https://dusu.ruralrootcloud.com` to Google Cloud Console → OAuth client → Authorized JavaScript origins, if not already done — sign-in breaks without it
+- [ ] Add `https://dusu.ranabrothers.online` to Google Cloud Console → OAuth client → Authorized JavaScript origins, if not already done — sign-in breaks without it
 - [ ] Remove the demo account from `UNLIMITED_EMAILS` once review is done (or keep it — each update gets reviewed too)
 - [ ] Revisit `access_phase` if you flipped it to `quota` for review
 

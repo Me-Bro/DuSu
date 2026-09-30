@@ -104,7 +104,7 @@ The plans frame DuSu as a **premium confidence product** ("Calm × Duolingo × a
 | LLM | Multi-provider OpenAI-compatible fallback chain: **gemini → groq → openrouter → github**, with per-provider cooldowns | `config.py`, `providers/openrouter_provider.py` (`_complete`) |
 | Auth | Google Sign-In → HMAC-signed 30-day stateless session token | `auth.py` |
 | DB | Self-hosted Postgres (`db` service in `docker-compose.yml`) via SQLAlchemy 2.0 async + asyncpg; **graceful degrade** if `DATABASE_URL` empty (`db_enabled`) | `db.py` |
-| Hosting | Docker Compose on the host box (backend + Postgres), fronted by cloudflared at `dusu.ruralrootcloud.com` | `docker-compose.yml`, `cloudflare/TUNNEL.md` |
+| Hosting | Docker Compose on the host box (backend + Postgres), fronted by cloudflared at `dusu.ranabrothers.online` (legacy `dusu.ruralrootcloud.com` still served) | `docker-compose.yml`, `cloudflare/TUNNEL.md` |
 
 **DB tables** (`db.py`): `users` (id=Google sub, email, name, picture, status, mode), `profiles` (onboarded, goal, comfort, practice_time, CEFR level, scores JSONB, weak_areas), `progress` (xp, coins, streak_days, sessions_today, daily_goal, badges, journey JSONB), `memory` (single JSONB `facts` doc — the emotional layer), `conversations` (one summary row per finished session), plus a key/value `settings` table.
 

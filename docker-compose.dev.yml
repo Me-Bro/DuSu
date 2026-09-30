@@ -3,7 +3,7 @@
 # It is deliberately NOT named docker-compose.override.yml. An override file is
 # auto-merged by a bare `docker compose up`, which meant the plain command every
 # doc gives would silently turn the LIVE deployment (this box serves
-# dusu.ruralrootcloud.com through cloudflared) into a dev container running
+# dusu.ranabrothers.online through cloudflared) into a dev container running
 # whatever is currently in ./backend. Production is the default now; dev is opt-in:
 #
 #   docker compose up -d --build                              # PRODUCTION (default)
