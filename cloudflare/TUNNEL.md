@@ -1,12 +1,18 @@
-# DuSu — Cloudflare Tunnel (dusu.ruralrootcloud.com)
+# DuSu — Cloudflare Tunnel
 
-DuSu is exposed at `https://dusu.ruralrootcloud.com` through **this box's existing
+> **Two public hostnames, on purpose.** `https://dusu.ranabrothers.online` is the
+> canonical one (Rana Brothers brand); `https://dusu.ruralrootcloud.com` is the legacy one
+> and stays live so nothing that already points at it breaks. Both are public hostnames on
+> the SAME tunnel, both hit the same container. See `DUSU_DOMAIN_CUTOVER.md`.
+
+DuSu is exposed through **this box's existing
 host-level cloudflared** — the same way `rooted-prod` (RootEd) and the SSH tunnel
 already run here. There is **no cloudflared container in `docker-compose.yml`**; the
 tunnel is infrastructure that lives outside this repo, on the host.
 
 ```
-users → https://dusu.ruralrootcloud.com
+users → https://dusu.ranabrothers.online   (canonical)
+     └── https://dusu.ruralrootcloud.com   (legacy, still served)
               │
               ▼
       cloudflared (systemd service "cloudflared", already running,
@@ -30,14 +36,16 @@ local `config.yml`:
 
 1. Cloudflare Zero Trust dashboard → **Networks → Tunnels** → open the tunnel behind
    this host's `cloudflared` systemd service.
-2. **Public Hostname** tab → **Add a public hostname**:
-   - Subdomain: `dusu`
-   - Domain: `ruralrootcloud.com`
-   - Service: `HTTP` → `localhost:3878` (or whatever `BACKEND_PORT` is set to — see
-     root `.env.example`)
+2. **Public Hostname** tab → **Add a public hostname**, once per hostname:
+   - Subdomain: `dusu` · Domain: `ranabrothers.online`  ← canonical
+   - Subdomain: `dusu` · Domain: `ruralrootcloud.com`   ← legacy, keep
+   - Service (both): `HTTP` → `localhost:3878` (or whatever `BACKEND_PORT` is set to —
+     see root `.env.example`)
 
-   This also creates the DNS record for `dusu.ruralrootcloud.com` — no manual DNS
-   step needed. WebSocket upgrade (`/ws/interview`) passes through automatically.
+   Adding a hostname also creates its DNS record — no manual DNS step needed. WebSocket
+   upgrade (`/ws/interview`) passes through automatically. Adding a hostname does not
+   touch the other tunnels on this box (`rooted-prod`, the SSH tunnel) or any other
+   record on either zone.
 
 No systemd/service changes needed on the host — `cloudflared.service` is already
 running; it just picks up the new route.
@@ -47,9 +55,10 @@ running; it just picks up the new route.
 `backend/.env` needs the usual LLM keys + `SESSION_SECRET`. Leave `DATABASE_URL`
 empty: the database is this stack's own `db` service, and `docker compose` builds the
 URL from the `POSTGRES_*` vars in the root `.env` and injects it (overriding
-`backend/.env`). `GOOGLE_CLIENT_ID`'s OAuth client must list
-`https://dusu.ruralrootcloud.com` under **Authorized JavaScript origins**
-(Google Cloud Console → Credentials) or sign-in will fail on this hostname.
+`backend/.env`). `GOOGLE_CLIENT_ID`'s OAuth client must list **every** hostname DuSu is served on
+under **Authorized JavaScript origins** (Google Cloud Console → Credentials) —
+currently `https://dusu.ranabrothers.online` *and* `https://dusu.ruralrootcloud.com`.
+A hostname missing from that list fails sign-in with `origin_mismatch`.
 
 ## 3. Run it
 
@@ -70,7 +79,8 @@ Verify:
 
 ```bash
 curl -s http://localhost:3878/health        # backend directly
-curl -s https://dusu.ruralrootcloud.com/health   # through the tunnel, once step 1 is done
+curl -s https://dusu.ranabrothers.online/health  # through the tunnel, once step 1 is done
+curl -s https://dusu.ruralrootcloud.com/health   # legacy hostname, must keep working
 ```
 
 Logs: `docker compose logs -f backend` (app) and `journalctl -u cloudflared -f`
@@ -81,4 +91,4 @@ Logs: `docker compose logs -f backend` (app) and `journalctl -u cloudflared -f`
 - If `BACKEND_PORT` is ever changed, update the Public Hostname route's target port to
   match (dashboard, step 1) — the two aren't linked automatically.
 - Cost: cloudflared already runs on this host for other projects, so DuSu adds $0
-  beyond the `ruralrootcloud.com` domain itself.
+  beyond the domains themselves.
