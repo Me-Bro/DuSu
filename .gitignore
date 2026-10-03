@@ -14,3 +14,6 @@ backend/users.db
 .DS_Store
 Thumbs.db
 DuSu.apk
+
+# PII - tester lists, never commit
+playstore-testers.csv

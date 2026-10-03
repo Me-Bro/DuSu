@@ -962,8 +962,8 @@
   .rep-head { text-align:center; margin-bottom:24px; }
   .score-ring { position:relative; width:150px; height:150px; margin:6px auto 12px; }
   .score-ring svg{ transform:rotate(-90deg); }
-  .score-ring .val { position:absolute; inset:0; display:grid; place-items:center; font-family:var(--font-d);
-                     font-weight:700; }
+  .score-ring .val { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+                     justify-content:center; font-family:var(--font-d); font-weight:700; }
   .score-ring .val b { font-size:44px; } .score-ring .val small{ font-size:12px; color:var(--ink-faint);
                        display:block; text-transform:uppercase; letter-spacing:.14em; }
   .metrics { display:grid; grid-template-columns:1fr 1fr; gap:14px 22px; margin:22px 0; }
@@ -1271,6 +1271,8 @@
   .ach-card.earned .ic{filter:none;opacity:1}
   .ach-card .name{font-size:12px;color:var(--ink-dim);margin-top:6px;line-height:1.35}
   .ach-card.earned .name{color:var(--ink)}
+  .ir-detail{display:none}
+  .ir-detail.on{display:block}
 
   /* ---- Weekly Missions (§7 item 9), compact Home card ---- */
   .sr-missions{width:min(340px,92vw);margin:14px auto 0;padding:12px 16px;border-radius:16px;
@@ -2205,8 +2207,21 @@
     <div class="card better"><h4>✨ Stronger answer</h4><div class="q" id="repQ"></div><div class="imp" id="repImp"></div></div>
     <div class="controls">
       <button class="btn ghost" id="shareBtn">Share</button>
+      <button class="btn ghost" id="pastReportsBtn">📈 Past Reports</button>
       <button class="btn primary" id="againBtn">Back to home</button>
     </div>
+  </section>
+
+  <!-- ===================== INTERVIEW REPORTS HISTORY ===================== -->
+  <section id="interviewReports" class="screen">
+    <div class="sess-head">
+      <button class="back" id="irBack" title="Home">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div><div class="sess-title">📈 Interview Reports</div><div class="sess-sub" id="irSub">Your past scores</div></div>
+    </div>
+    <div id="irList"></div>
+    <p class="sr-ai-note">Scores are AI-estimated, not an exact measurement.</p>
   </section>
 
   <!-- ===================== SESSION RESULT (Daily Talk / Face-to-Face, §7 item 3) =====================
@@ -2238,6 +2253,7 @@
   <button class="mrow" data-more="help"><span class="mi">💌</span><span><span class="mt">Help &amp; Feedback</span><br><span class="msub">Reach out — feedback or a problem</span></span></button>
   <button class="mrow" data-more="confidence"><span class="mi">🎯</span><span><span class="mt">Confidence Check</span><br><span class="msub">A 2-minute check — see how you've grown</span></span></button>
   <button class="mrow" data-more="achievements"><span class="mi">🏅</span><span><span class="mt">Achievements</span><br><span class="msub">Your DUSU badge collection</span></span></button>
+  <button class="mrow" data-more="interview-reports"><span class="mi">📈</span><span><span class="mt">Interview Reports</span><br><span class="msub">Your past interview scores</span></span></button>
   <button class="mrow" data-more="rewards"><span class="mi">🎁</span><span><span class="mt">How rewards work</span><br><span class="msub">Rank, League, Missions, Awards — explained</span></span></button>
   <button class="mrow" data-more="subscribe"><span class="mi">⭐</span><span><span class="mt">Subscribe</span><br><span class="msub">Unlock more — pick a plan</span></span></button>
   <button class="mrow" data-more="signout"><span class="mi">🚪</span><span><span class="mt">Sign out</span><br><span class="msub">See you soon 👋</span></span></button>
@@ -2523,7 +2539,7 @@ function show(id, pathOverride){
 // ---- Bottom navigation: which tab lights up per screen; nav hidden only on login/onboarding ----
 const NAV_TAB = { home:"home", journey:"journey", daily:"daily", practice:"practice",
   learning:"practice", session:"practice", setup:"practice", lesson:"practice", report:"practice",
-  leaderboard:"leaderboard", profile:"more", keys:"more", admin:"more", help:"more", career:"home", league:"leaderboard", achievements:"more" };
+  leaderboard:"leaderboard", profile:"more", keys:"more", admin:"more", help:"more", career:"home", league:"leaderboard", achievements:"more", interviewReports:"more" };
 const PATH_TAB = { "/profile":"more", "/keys":"more", "/more":"more" };
 function syncNav(id, pathOverride){
   const nav = $("bnav"); if(nav) nav.classList.toggle("hide", id === "login" || id === "assessment");
@@ -2577,6 +2593,7 @@ document.querySelectorAll(".mrow").forEach(r => r.onclick = () => {
   else if(a === "help") openHelp();
   else if(a === "confidence") startConfidenceCheck();
   else if(a === "achievements") navTo("/achievements");
+  else if(a === "interview-reports") navTo("/interview-reports");
   else if(a === "rewards") toggleRewardsGuide(true);
   else if(a === "subscribe") navTo("/subscribe");
   else if(a === "signout") logout();
@@ -2648,6 +2665,7 @@ const ROUTES = {
   "/career-path":      { enter: () => openCareerPath() },
   "/league":           { enter: () => openLeague() },
   "/achievements":     { enter: () => openAchievements() },
+  "/interview-reports":{ enter: () => openInterviewReports() },
   "/subscribe":        { enter: () => openSubscribePage() },
   "/superadmin":       { enter: () => openSuperadmin(), noAuth:true },   // its own cred gate
 };
@@ -2663,6 +2681,7 @@ function pathForScreen(id){
     learning:"/learn", journey:"/learning-journey", lesson:"/learning-journey", report:"/interview",
     leaderboard:"/leaderboard", keys:"/keys", admin:"/more", help:"/more", profile:"/profile",
     career:"/career-path", league:"/league", achievements:"/achievements",
+    interviewReports:"/interview-reports",
     superadmin:"/superadmin", subscribe:"/subscribe", login:"/", assessment:"/test" })[id] || null;
 }
 function syncUrl(id, pathOverride){
@@ -3492,7 +3511,15 @@ function sparkle(host){
 
 function showReport(d){
   show("report"); running = false; lastReport = d;
-  if(!d || d.error){ $("ovVal").textContent = "—"; return; }
+  if(!d || d.error){
+    $("ovVal").textContent = "—";
+    $("metrics").innerHTML = "";
+    $("repFillers").innerHTML = "";
+    $("repStrengths").innerHTML = "<li>Scoring is temporarily unavailable — your interview was saved. Please try another interview shortly.</li>";
+    $("repFixes").innerHTML = "<li>—</li>";
+    $("repQ").textContent = ""; $("repImp").textContent = "";
+    return;
+  }
   const ov = d.overall || 0;
   (function countUp(){                                   // animate 0 → score
     let n = 0; const step = Math.max(1, Math.round(ov/40));
@@ -4602,6 +4629,8 @@ function renderLeague(d){
 }
 if($("leagueBack")) $("leagueBack").onclick = () => goHome();
 if($("achBack")) $("achBack").onclick = () => goHome();
+if($("irBack")) $("irBack").onclick = () => goHome();
+if($("pastReportsBtn")) $("pastReportsBtn").onclick = () => navTo("/interview-reports");
 function openAchievements(){
   show("achievements");
   const earned = new Set(((userState && userState.progress && userState.progress.badges) || []));
@@ -4650,6 +4679,40 @@ async function loadConfidenceHistory(){
       </div>`;
     }).join("");
   }catch(_){ $("ccHistoryWrap").hidden = true; }
+}
+async function openInterviewReports(){
+  show("interviewReports");
+  const list = $("irList");
+  list.innerHTML = `<div class="spin" style="margin:30px auto"></div>`;
+  try{
+    const r = await fetch(`/interview/reports?token=${encodeURIComponent(authToken||"")}`,
+      { headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} });
+    const d = await r.json();
+    const reports = (d.reports || []).slice().reverse();
+    if(!reports.length){
+      list.innerHTML = `<p class="sr-ai-note">No interview reports yet — finish an interview to see it here.</p>`;
+      return;
+    }
+    list.innerHTML = reports.map((rp, i) => {
+      const id = `irDetail${i}`;
+      const metrics = Object.keys(METRIC_LABELS).map(k =>
+        `<div class="metric"><div class="m-top"><b>${METRIC_LABELS[k]}</b><span>${(rp.scores||{})[k] ?? 0}</span></div><div class="bar"><i style="width:${(rp.scores||{})[k] ?? 0}%"></i></div></div>`
+      ).join("");
+      const strengths = (rp.strengths||[]).map(s=>`<li>${esc(s)}</li>`).join("") || "<li>—</li>";
+      const fixes = (rp.fixes||[]).map(s=>`<li>${esc(s)}</li>`).join("") || "<li>—</li>";
+      return `<div class="ach-card earned" style="text-align:left;margin-bottom:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="document.getElementById('${id}').classList.toggle('on')">
+          <div><div style="font-size:12px;color:var(--ink-dim)">${esc(rp.date||"")}${rp.role ? " · " + esc(rp.role) : ""}</div></div>
+          <div style="font-size:16px;color:var(--ink);font-weight:700">${rp.overall ?? 0}</div>
+        </div>
+        <div id="${id}" class="ir-detail">
+          <div class="metrics" style="margin:14px 0">${metrics}</div>
+          <div class="card good"><h4>✅ Strengths</h4><ul>${strengths}</ul></div>
+          <div class="card fix"><h4>🛠 Fixes</h4><ul>${fixes}</ul></div>
+        </div>
+      </div>`;
+    }).join("");
+  }catch(_){ list.innerHTML = `<p class="sr-ai-note">Couldn't load your reports — try again shortly.</p>`; }
 }
 async function loadSeasonAwards(){
   try{

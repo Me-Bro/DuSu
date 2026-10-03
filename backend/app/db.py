@@ -1119,6 +1119,41 @@ async def get_confidence_check_history(user_id: str) -> list[dict]:
         return list((mem.facts or {}).get("confidence_check_history") or []) if mem else []
 
 
+_MAX_INTERVIEW_REPORTS = 20
+
+
+async def save_interview_report(user_id: str, role: str, data: dict) -> None:
+    """Per-attempt interview scorecard history, for the user's own improvement tracking.
+    Same lightweight pattern as confidence_check_history above — small, per-user, no
+    cross-user query needed, so it lives in Memory.facts rather than a new SQL table."""
+    if not db_enabled or not isinstance(data, dict) or data.get("error"):
+        return
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        entry = {
+            "date": _now().date().isoformat(), "role": role or "",
+            "overall": data.get("overall", 0), "scores": data.get("scores", {}) or {},
+            "filler_words": data.get("filler_words", []) or [],
+            "strengths": data.get("strengths", []) or [], "fixes": data.get("fixes", []) or [],
+            "better_answer": data.get("better_answer", {}) or {},
+        }
+        history = list(f.get("interview_reports") or [])
+        history.append(entry)
+        f["interview_reports"] = history[-_MAX_INTERVIEW_REPORTS:]
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+
+
+async def get_interview_reports(user_id: str) -> list[dict]:
+    if not db_enabled:
+        return []
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await s.get(Memory, user_id)
+        return list((mem.facts or {}).get("interview_reports") or []) if mem else []
+
+
 async def personal_best(user_id: str) -> dict:
     """§14 Personal Best — a competition against your own history, not strangers.
     Two of the four locked sub-metrics (longest streak, longest conversation) already

@@ -304,6 +304,17 @@ def _is_quota(e) -> bool:
     return any(k in s for k in ("429", "quota", "exhaust", "rate limit", "insufficient", "402"))
 
 
+async def _safe_build_report(session) -> dict:
+    """build_report() only raises when every provider/model in the chain fails on the
+    scoring call. Never let that leave the client stuck on a dead session screen with
+    no report ever arriving — always return something sendable."""
+    try:
+        return await session.build_report()
+    except Exception as e:
+        print(f"[report] scoring failed: {type(e).__name__}: {e}")
+        return {"error": "scoring_unavailable"}
+
+
 @app.on_event("startup")
 async def _startup():
     await db.init_db()   # create tables if a database is configured (no-op otherwise)
@@ -682,6 +693,21 @@ async def confidence_check_history(token: str = "", authorization: str | None = 
     except Exception as e:
         print(f"[confidence_check_history] failed: {type(e).__name__}: {e}")
         return {"history": []}
+
+
+@app.get("/interview/reports")
+async def interview_reports(token: str = "", authorization: str | None = Header(None)):
+    """Per-attempt interview scorecard history, for the user's own improvement tracking."""
+    claims = auth.read_session(_bearer(authorization, token))
+    if not claims:
+        raise HTTPException(401, "Not signed in")
+    if not db.db_enabled:
+        return {"reports": []}
+    try:
+        return {"reports": await db.get_interview_reports(claims["sub"])}
+    except Exception as e:
+        print(f"[interview_reports] failed: {type(e).__name__}: {e}")
+        return {"reports": []}
 
 
 class KeysIn(BaseModel):
@@ -1989,12 +2015,10 @@ async def interview_ws(ws: WebSocket):
                 await _send(ws, type="ai_text", text=line, streamed=spoke_any)
                 if session.done:  # interview mode only
                     await _send(ws, type="interview_done")
-                    try:
-                        await _send(ws, type="report", data=await session.build_report())
-                    except Exception as e:
-                        print(f"[report] scoring failed: {type(e).__name__}: {e}")
-                        await _send(ws, type="error", msg="Could not score the interview — please try End again.")
-                        continue
+                    report_data = await _safe_build_report(session)
+                    await _send(ws, type="report", data=report_data)
+                    if uid and db.db_enabled and not report_data.get("error"):
+                        await db.save_interview_report(uid, session.role, report_data)
                     await _persist_session()
                 elif session.capped:  # conversation hit its turn cap
                     await _send(ws, type="limit",
@@ -2006,14 +2030,11 @@ async def interview_ws(ws: WebSocket):
                     continue
                 if session.mode == "interview":
                     await _send(ws, type="status", msg="scoring")
-                    try:
-                        report_data = await session.build_report()
-                    except Exception as e:
-                        print(f"[report] scoring failed: {type(e).__name__}: {e}")
-                        if _is_quota(e): await _send(ws, type="quota", msg="Your API keys hit their limit. Add or replace a key in Settings.")
-                        else: await _send(ws, type="error", msg="Could not score the interview — please try again.")
-                        continue
+                    await _send(ws, type="interview_done")
+                    report_data = await _safe_build_report(session)
                     await _send(ws, type="report", data=report_data)
+                    if uid and db.db_enabled and not report_data.get("error"):
+                        await db.save_interview_report(uid, session.role, report_data)
                     await _persist_session()   # remember this conversation
                 else:
                     # Speaker Progression (§7 item 3): _persist_session() sends
