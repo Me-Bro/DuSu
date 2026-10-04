@@ -452,8 +452,8 @@
     margin:2px auto 8px; max-width:420px; opacity:0; animation:fadeUp .6s ease .05s forwards; min-height:28px; }
   /* loader while the AI greeting is being fetched */
   .mload { display:inline-flex; gap:7px; vertical-align:middle; }
-  .mload i { width:9px; height:9px; border-radius:50%; background:var(--gold-lt); animation:bnc 1.2s ease-in-out infinite; }
-  .mload i:nth-child(2){ animation-delay:.15s; } .mload i:nth-child(3){ animation-delay:.3s; }
+  .mload i { width:9px; height:9px; border-radius:50%; background:var(--grad); box-shadow:0 0 10px rgba(111,140,255,.55); animation:thDot 1.25s ease-in-out infinite; }
+  .mload i:nth-child(2){ animation-delay:.16s; } .mload i:nth-child(3){ animation-delay:.32s; }
   .mload-t { display:block; margin-top:10px; font-size:14px; color:var(--ink-dim); font-style:italic; }
   .daily-loader { display:flex; flex-direction:column; align-items:center; gap:2px; margin:10px 0 16px; }
   .dc-tip { margin-top:12px; padding:10px 13px; border-radius:12px; font-size:13px; line-height:1.5;
@@ -648,8 +648,12 @@
     background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent; }
   .level-cap { font-size:13px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.16em; margin-bottom:20px; }
   .reveal-msg { color:var(--ink); font-size:15.5px; line-height:1.6; max-width:460px; margin:0 auto 26px; }
-  .spin { width:44px; height:44px; margin:20px auto; border:3px solid var(--glass-brd);
-    border-top-color:var(--gold); border-radius:50%; animation:spin 0.9s linear infinite; }
+  /* generic spinner = the same comet-ring language as the orb's "thinking" state */
+  .spin { width:44px; height:44px; margin:20px auto; border-radius:50%;
+    background:conic-gradient(from 0deg, rgba(111,140,255,0) 0%, rgba(111,140,255,0) 30%, #6f8cff 64%, #9db4ff 84%, #f0a952 100%);
+    -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+            mask:radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+    animation:spin 1s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
   /* Post-login gate. Sign-in used to drop straight onto Home and THEN async-route to
      the keys screen, so a user needing keys saw Home flash and got yanked away. This
@@ -921,10 +925,25 @@
 
   .orb-wrap.thinking .dots{ display:flex; }
   .orb-wrap.thinking .orb{ box-shadow: inset 0 0 40px rgba(0,0,0,.4), 0 0 40px -6px rgba(240,169,82,.42); }
-  .orb-wrap.thinking .r1{ opacity:1; border-color:rgba(240,169,82,.34); animation:spin 3s linear infinite; }
+
+  /* "DuSu is thinking" / connecting: a comet of light orbiting the face (blue→violet tail, amber
+     head — amber is this app's established "thinking" colour) over a softly breathing halo.
+     The ring used to be ONE uniform circle: turning a circle changes nothing you can see, so
+     "thinking" read as frozen. A masked conic-gradient arc makes the motion unmistakable. */
+  .orb-wrap.thinking::before, .orb-wrap.connecting::before{ content:""; position:absolute; inset:2%; border-radius:50%;
+    background:radial-gradient(circle, rgba(111,140,255,.26) 0%, rgba(122,92,240,.12) 45%, transparent 68%);
+    animation:thHalo 2.4s ease-in-out infinite; pointer-events:none; }
+  .orb-wrap.thinking .ring, .orb-wrap.connecting .ring{ inset:11%; border:0; opacity:1;
+    -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+            mask:radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px)); }
+  .orb-wrap.thinking .r1, .orb-wrap.connecting .r1{
+    background:conic-gradient(from 0deg, rgba(111,140,255,0) 0%, rgba(111,140,255,0) 32%, #6f8cff 64%, #9db4ff 84%, #f0a952 100%);
+    animation:spin 1.6s linear infinite; }
+  .orb-wrap.thinking .r2, .orb-wrap.connecting .r2{ inset:6%;
+    background:conic-gradient(from 180deg, rgba(122,92,240,0) 0%, rgba(122,92,240,0) 56%, rgba(122,92,240,.8) 100%);
+    animation:spin 2.9s linear infinite reverse; }
 
   .orb-wrap.idle .idleg{ display:grid; } .orb-wrap.connecting .idleg{ display:grid; }
-  .orb-wrap.connecting .r1{ opacity:1; border-color:rgba(212,175,55,.4); animation:spin 1.2s linear infinite; }
   .orb-wrap.idle .orb { animation:breathe 4.5s ease-in-out infinite; }
   @keyframes breathe { 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.03); } }
 
@@ -945,6 +964,78 @@
   .msg.user .bubble { background:linear-gradient(135deg,rgba(212,175,55,.2),rgba(184,134,11,.14));
                       border:1px solid rgba(212,175,55,.3); border-bottom-right-radius:5px; }
   .sysmsg { text-align:center; font-size:12px; color:var(--ink-faint); padding:4px; }
+
+  /* ───── "DuSu is thinking" — one loader language for every mode ─────
+     Orb: comet ring (above). Feeds: a typing bubble. Learn: a pill. Spinners/.mload: same palette. */
+  @keyframes thDot { 0%,70%,100%{ transform:translateY(0) scale(.7); opacity:.45; } 35%{ transform:translateY(-5px) scale(1); opacity:1; } }
+  @keyframes thShimmer { from{ background-position:120% 0; } to{ background-position:-120% 0; } }
+  @keyframes thSheen { 0%{ transform:translateX(-100%); } 60%,100%{ transform:translateX(100%); } }
+  @keyframes thAv { 0%,100%{ box-shadow:0 0 0 0 rgba(111,140,255,0); } 50%{ box-shadow:0 0 0 5px rgba(111,140,255,.22); } }
+  @keyframes thHalo { 0%,100%{ transform:scale(.92); opacity:.55; } 50%{ transform:scale(1.06); opacity:1; } }
+  @keyframes thFade { 0%,100%{ opacity:.35; } 50%{ opacity:1; } }
+  .msg.thinking .bubble{ position:relative; overflow:hidden; display:flex; align-items:center; gap:11px; padding:11px 16px 11px 14px; }
+  .msg.thinking .bubble::after{ content:""; position:absolute; inset:0; pointer-events:none;
+    background:linear-gradient(105deg, transparent 30%, rgba(157,180,255,.16) 50%, transparent 70%);
+    transform:translateX(-100%); animation:thSheen 2.4s ease-in-out infinite; }
+  .msg.thinking .av{ animation:thAv 1.8s ease-in-out infinite; }
+  .th-dots{ display:inline-flex; gap:5px; align-items:center; flex:none; }
+  .th-dots i{ width:8px; height:8px; border-radius:50%; background:var(--grad);
+    box-shadow:0 0 9px rgba(111,140,255,.6); animation:thDot 1.25s ease-in-out infinite; }
+  .th-dots i:nth-child(2){ animation-delay:.16s; } .th-dots i:nth-child(3){ animation-delay:.32s; }
+  .th-txt{ font-size:13px; line-height:1.4; }
+  .th-txt, .mload-t{ color:var(--ink-dim); font-style:italic; }
+  @supports ((-webkit-background-clip:text) or (background-clip:text)){
+    .th-txt, .mload-t{ color:transparent; -webkit-background-clip:text; background-clip:text;
+      background-image:linear-gradient(90deg, var(--ink-faint) 0%, var(--gold-lt) 42%, #fff 50%, var(--gold-lt) 58%, var(--ink-faint) 100%);
+      background-size:240% 100%; animation:thShimmer 2.6s linear infinite; }
+  }
+  .msg.thinking.stalled .th-dots{ display:none; }
+  .th-pill{ display:inline-flex; align-items:center; gap:11px; padding:10px 18px; border-radius:999px;
+    background:var(--glass); border:1px solid var(--glass-brd); animation:fade .35s both; }
+  .th-slot{ margin-top:12px; display:flex; justify-content:center; }
+  @media (prefers-reduced-motion: reduce){
+    .orb-wrap.thinking .r1, .orb-wrap.thinking .r2, .orb-wrap.connecting .r1, .orb-wrap.connecting .r2,
+    .spin { animation:thFade 2s ease-in-out infinite !important; }
+    .orb-wrap.thinking::before, .orb-wrap.connecting::before, .msg.thinking .bubble::after, .msg.thinking .av,
+    .th-txt, .mload-t { animation:none !important; }
+    .th-dots i, .mload i { animation:thFade 1.4s ease-in-out infinite !important; }
+    .th-dots i:nth-child(2), .mload i:nth-child(2){ animation-delay:.2s !important; }
+    .th-dots i:nth-child(3), .mload i:nth-child(3){ animation-delay:.4s !important; }
+  }
+
+  /* ───── DAILY TALK: the visible conversation ───── */
+  /* top padding = the fade zone, so the first bubble is fully opaque until the chat scrolls under it */
+  #daily .dfeed{ width:100%; max-width:560px; margin:0 auto 14px; padding:22px 2px 2px; text-align:left;
+    max-height:clamp(110px, 24vh, 280px);
+    -webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 22px);
+            mask-image:linear-gradient(to bottom, transparent 0, #000 22px); }
+  #daily .dfeed:empty{ display:none; }
+  #daily #dailyQ{ display:none; }   /* the chat shows DuSu's lines now; this would only repeat the last one */
+  .bubble .b-hi{ font-size:15px; line-height:1.55; }
+  .bubble .b-en{ margin-top:9px; padding-top:9px; display:flex; align-items:center; gap:10px;
+    border-top:1px dashed color-mix(in srgb,var(--gold) 35%, transparent); }
+  .b-col{ flex:1; min-width:0; }
+  .b-lbl{ display:block; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint); }
+  .b-t{ display:block; margin-top:2px; font-family:var(--font-d); font-size:19px; font-weight:600; line-height:1.3;
+    background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .b-play{ flex:none; width:38px; height:38px; border-radius:50%; display:grid; place-items:center; cursor:pointer;
+    font-size:15px; color:var(--ink-dim); background:var(--glass); border:1px solid var(--glass-brd);
+    transition:transform .2s, border-color .2s; }
+  .b-play:hover{ border-color:var(--gold); transform:translateY(-1px); }
+  .b-tip{ margin-top:9px; font-size:12.5px; line-height:1.5; color:var(--gold-lt); }
+  /* the old "You said / In English / tip" card text now lives in the chat; the card keeps its two actions */
+  #dailyCard{ background:none; border:0; padding:0; margin-top:6px; }
+  #dailyCard .tc-label, #dailyCard .tc-hindi, #dailyCard .tc-eng, #dailyCard .dc-tip{ display:none !important; }
+  #dailyCard .dc-actions{ margin-top:0; }
+  /* the fixed bottom nav overlays this scroller on phones: scroll-into-view must stop short of it */
+  #dailyState, #dailyCard{ scroll-margin-bottom:calc(76px + env(safe-area-inset-bottom) + 12px); }
+  /* phones/tablets: a smaller face so the chat AND the mic both fit on one screen */
+  @media (max-width:1199px){
+    #daily .orb-wrap{ width:176px; height:176px; }
+    #daily .orb{ width:124px; height:124px; }
+    #daily .orb .wface{ width:98px; height:98px; }
+  }
+  @media (min-width:1200px){ #dailyState, #dailyCard{ scroll-margin-bottom:24px; } }   /* nav is a side rail there */
 
   .controls { display:flex; justify-content:center; gap:12px; margin-top:22px; flex-wrap:wrap; }
   .btn { font:inherit; font-weight:600; cursor:pointer; border:none; padding:13px 22px; border-radius:14px;
@@ -2228,6 +2319,7 @@
       </button>
       <div class="mic-label">🎤 Tap to Speak</div>
       <div class="learn-state" id="learnState"></div>
+      <div class="th-slot" id="learnThink" hidden></div>
 
       <div class="trans-card" id="transCard" hidden>
         <div class="tc-label">You said</div>
@@ -2289,6 +2381,7 @@
           </div>
         </div>
       </div>
+      <div class="feed dfeed" id="dailyFeed" role="log" aria-label="Your conversation with DuSu"></div>
       <div class="daily-loader" id="dailyLoader" hidden>
         <span class="mload"><i></i><i></i><i></i></span>
         <span class="mload-t">DuSu is getting ready…</span>
@@ -2860,7 +2953,7 @@ function scrollShellTop(){
 }
 // Kill BOTH voice loops (conversation + daily): stop mic, cancel speech, drop the socket.
 function stopAllVoice(){
-  running = false; aiSpeaking = false;
+  running = false; aiSpeaking = false; thinkHide();
   clearTimeout(_ccTimer); _confidenceCheckMode = false;               // an abandoned Confidence Check must not force-end whatever session runs next
   try{ if(typeof currentLesson !== "undefined") currentLesson = null; }catch(_){}   // an abandoned roadmap lesson must not get credited to whatever session runs next (leave()'s own explicit-completion path already clears it before this ever runs)
   speakEpoch++;                                                       // abort any in-flight speak chain
@@ -3482,6 +3575,52 @@ function addMsg(text, who){
 function addSys(text){ const d=document.createElement("div"); d.className="sysmsg"; d.textContent=text;
   $("feed").appendChild(d); $("feed").scrollTop=$("feed").scrollHeight; }
 
+/* ---- "DuSu is thinking" indicator ---------------------------------------------------------------
+   One implementation for every mode. While the model works the user sees (1) a chat bubble with
+   breathing gradient dots and a shimmering label (Daily Talk, Talk, Interview) — or the same thing
+   as a pill (Learn) — and (2) the orb's orbiting comet ring (pure CSS, driven by the .thinking
+   state). The label escalates when the model is slow, so a long wait never looks like a freeze. */
+const THINK_STEPS = {
+  think:     [[0,"DuSu is thinking…"], [6000,"Finding the right words…"], [14000,"Still on it — thanks for waiting 🙏"],
+              [26000,"Taking longer than usual — check your connection, or go back and try again.", true]],
+  start:     [[0,"DuSu is getting ready…"], [7000,"Warming up…"], [16000,"Almost there — thanks for waiting 🙏"]],
+  scoring:   [[0,"Scoring your interview…"], [8000,"Writing your feedback…"], [20000,"Almost done — thanks for waiting 🙏"]],
+  wrap:      [[0,"Wrapping up…"], [8000,"Saving your progress…"]],
+  translate: [[0,"Translating…"], [6000,"Finding the natural English…"], [14000,"Almost there — thanks for waiting 🙏"]],
+};
+// Server messages that mean the wait is over (or has failed): a loader must never outlive one of them.
+const THINK_ENDERS = new Set(["ai_text","daily_turn","daily_question","translation","translate_error","report",
+  "interview_done","ended","limit","quota","quota_exceeded","keys_required","auth_error","error","speaker_progress","ready"]);
+let _thinkNode = null, _thinkTimers = [];
+function thinkHide(){
+  _thinkTimers.forEach(clearTimeout); _thinkTimers = [];
+  if(_thinkNode){ try{ _thinkNode.remove(); }catch(_){} _thinkNode = null; }
+  const slot = $("learnThink"); if(slot) slot.hidden = true;
+}
+function thinkShow(kind){
+  thinkHide();
+  const screen = currentScreen();
+  const host = screen === "daily" ? $("dailyFeed") : screen === "session" ? $("feed") : screen === "learning" ? $("learnThink") : null;
+  if(!host) return;
+  const node = document.createElement("div");
+  node.setAttribute("role", "status");
+  const inner = '<span class="th-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="th-txt"></span>';
+  if(screen === "learning"){ node.className = "th-pill"; node.innerHTML = inner; host.hidden = false; }
+  else { node.className = "msg ai thinking"; node.innerHTML = '<div class="av">Du</div><div class="bubble">' + inner + '</div>'; }
+  host.appendChild(node);
+  _thinkNode = node;
+  const toEnd = () => { if(host.classList.contains("feed")) host.scrollTop = host.scrollHeight; };
+  toEnd();
+  const txt = node.querySelector(".th-txt");
+  (THINK_STEPS[kind] || THINK_STEPS.think).forEach(([ms, label, stalled]) => {
+    if(!ms){ txt.textContent = label; return; }
+    _thinkTimers.push(setTimeout(() => {
+      if(_thinkNode !== node) return;
+      txt.textContent = label; if(stalled) node.classList.add("stalled"); toEnd();
+    }, ms));
+  });
+}
+
 // Interview needs a role first → show setup; conversation starts immediately.
 function chooseMode(mode){
   if(guardKeys()) return;
@@ -3670,7 +3809,7 @@ function startSession(mode){
     return;
   }
   currentMode = mode;
-  $("feed").innerHTML = "";
+  $("feed").innerHTML = ""; thinkHide();
   $("sessTitle").textContent = mode === "interview" ? "Interview Prep" : "Confidence Talk";
   $("sessSub").textContent = mode === "interview" ? "with DuSu · " + ($("role").value || "general") : "with DuSu";
   $("endBtn").textContent = mode === "interview" ? "End & get report" : "End";
@@ -3678,6 +3817,7 @@ function startSession(mode){
   show("session");
   orb("connecting", "DuSu is getting ready…", "one moment");
   addSys("🎧 Tip: use headphones so DuSu's voice isn't picked up by your mic.");
+  thinkShow("start");   // until DuSu's opening line arrives
 
   ws = new WebSocket(WS_URL);
   ws.onopen = () => {
@@ -3689,11 +3829,11 @@ function startSession(mode){
   };
   ws.onmessage = onMessage;
   ws.onclose = () => {
-    running = false; stopListening();
+    running = false; stopListening(); thinkHide();
     if(window.speechSynthesis) window.speechSynthesis.cancel();
     FACE.stopTalking(); Assistant.stopTalking();
   };
-  ws.onerror = () => orb("idle", "Connection error", "Is the server running?");
+  ws.onerror = () => { thinkHide(); orb("idle", "Connection error", "Is the server running?"); };
 }
 
 function leave(){
@@ -3730,20 +3870,25 @@ $("endBtn").onclick = () => {
   if(window.speechSynthesis) window.speechSynthesis.cancel();
   ws && ws.send(JSON.stringify({ type:"end" }));
   orb("thinking", currentMode==="interview" ? "Scoring your interview…" : "Wrapping up…", "");
+  thinkShow(currentMode==="interview" ? "scoring" : "wrap");
 };
 
 function onMessage(ev){
   const m = JSON.parse(ev.data);
+  if(THINK_ENDERS.has(m.type)) thinkHide();   // the wait is over (or failed) — never leave a loader behind
   switch(m.type){
     case "ready": greetLearn(); break;
     case "translation": handleTranslation(m.hindi, m.text); break;
     case "daily_question": greetDaily(m.question); break;
     case "daily_turn": handleDailyTurn(m.hindi, m.english, m.reply, m.tip, m.next_question); break;
     case "translate_error":
+      // The server sends this for a failed Daily turn too — it used to poke the Learn screen's
+      // controls and leave Daily stuck on "thinking" with a dead mic.
+      if(currentMode === "daily"){ dailyFail("DuSu couldn't answer that one — tap the mic and try again."); break; }
       say("Translation unavailable. Please try again.", ENG_NORM());
       learnState("Translation failed — tap the mic to try again."); micEnable(true); break;
     case "ai_text": addMsg(m.text, "ai"); speak(m.text); break;
-    case "interview_done": addSys("Interview complete"); break;
+    case "interview_done": addSys("Interview complete"); thinkShow("scoring"); break;
     case "report": showReport(m.data);
       if(currentLesson && currentLesson.type === "interview"){ const cl = currentLesson; currentLesson = null; completeLesson(cl.level, cl.id, "interview"); }
       break;
@@ -3775,7 +3920,11 @@ function onMessage(ev){
       if((currentMode === "conversation" || currentMode === "daily") && currentScreen() === "sessionResult") break;
       leave(); break;
     case "limit": running=false; stopListening(); addSys("⏸ " + m.msg); orb("idle","Session limit", m.msg); break;
-    case "quota": running=false; try{stopListening();}catch(_){}; showNotif(m.msg || "Your API keys hit their limit — add or replace a key in Settings."); break;
+    case "quota": running=false; try{stopListening();}catch(_){}; showNotif(m.msg || "Your API keys hit their limit — add or replace a key in Settings.");
+      // …and bring the orb out of "thinking", or its comet ring would orbit forever
+      if(currentMode === "daily"){ dailyOrb("idle"); dState("Your keys hit their limit — add or replace a key in Settings."); }
+      else if(currentScreen() === "session") orb("idle", "Paused", "add or replace a key in Settings");
+      break;
     case "quota_update":   // live: server sends remaining requests after each turn
       if(userState){ userState.requests_left = m.left; if(m.limit!=null) userState.request_limit = m.limit; }
       try{ updateReqChip(); }catch(_){}
@@ -3791,7 +3940,9 @@ function onMessage(ev){
       if(useMode!=="office"){ useMode="office"; localStorage.setItem("dusu_usemode","office"); }
       show("keys"); loadKeysUI(); if($("keysStatus")) $("keysStatus").innerHTML = "🔒 " + (m.msg||"Add your own API keys to use DuSu."); break;
     case "auth_error": running=false; try{ws.close();}catch(_){}; logout(); break;
-    case "error": orb("idle", "Error", m.msg); break;
+    case "error":
+      if(currentMode === "daily"){ dailyFail(m.msg || "Something went wrong — please try again."); break; }
+      orb("idle", "Error", m.msg); break;
   }
 }
 
@@ -3884,7 +4035,8 @@ function startListening(){
       pushThink((performance.now() - _lisT0) / 1000);   // S6 — thinking speed
       addMsg(text, "user");
       orb("thinking", "DuSu is thinking", "");
-      if(ws && ws.readyState === 1) ws.send(JSON.stringify({ type:"user_text", text }));
+      if(ws && ws.readyState === 1){ thinkShow("think"); ws.send(JSON.stringify({ type:"user_text", text })); }
+      else orb("idle", "Connection lost", "go back and try again");
     }
   };
   recog.onerror = (e) => {
@@ -4113,7 +4265,7 @@ function startLearning(){
   if(overLimit()){
     showNotif(`You've reached today's limit of ${MAX_SESSIONS} sessions. Come back tomorrow 🙂`); return;
   }
-  currentMode = "learning"; lastEnglish = "";
+  currentMode = "learning"; lastEnglish = ""; thinkHide();
   $("transCard").hidden = true; $("tcHindi").textContent = ""; $("tcEng").textContent = "";
   learnState("Connecting…"); micEnable(false); micActive(false);
   show("learning");
@@ -4139,8 +4291,9 @@ function startHindiListen(){
   let got = false;
   lrec.onresult = (e) => {
     const t = e.results[0][0].transcript.trim();
-    if(t && !got){ got = true; $("tcHindi").textContent = t; learnState("Translating…"); micActive(false);
-      if(ws && ws.readyState === 1) ws.send(JSON.stringify({ type:"user_text", text:t })); }
+    if(t && !got){ got = true; $("tcHindi").textContent = t; micActive(false);
+      if(ws && ws.readyState === 1){ learnState(""); thinkShow("translate"); ws.send(JSON.stringify({ type:"user_text", text:t })); }
+      else learnState("Connection lost — go back and try again."); }
   };
   lrec.onerror = () => {};
   lrec.onend = async () => {
@@ -4162,6 +4315,7 @@ async function handleTranslation(hindi, english){
   $("replayBtn").disabled = false; micEnable(true);
 }
 function stopLearn(){
+  thinkHide();
   speakEpoch++;                                                       // abort any in-flight speak chain
   try{ if(lrec){ lrec.onend = null; lrec.stop(); lrec = null; } }catch(_){}
   if(window.speechSynthesis) window.speechSynthesis.cancel();
@@ -4178,21 +4332,94 @@ $("learnBack").onclick = () => { running = false; stopLearn(); try{ ws && ws.clo
 
 /* ================= Daily Talk (AI companion) ================= */
 let drec = null, dLastEng = "", dLastNext = "", dailyTurns = [], dailyFrom = "", dailyInputs = 0;
-// Resume: keep the recent turns in localStorage so the chat can continue later.
+let dailyChat = [], dailyPendingMe = null;   // the on-screen conversation (UI only — the server only ever gets dailyTurns)
+// Resume: keep the recent turns (and the on-screen conversation) in localStorage so the chat can continue later.
 // (Full history/summaries still go to the DB on session end, as before.)
 function saveDailyResume(){
   try{ localStorage.setItem("dusu_daily_resume",
-    JSON.stringify({ date: todayStr(), turns: dailyTurns.slice(-12), lastQuestion: dLastNext })); }catch(_){}
+    JSON.stringify({ date: todayStr(), turns: dailyTurns.slice(-12), lastQuestion: dLastNext,
+      chat: dailyChat.slice(-24).map(c => ({ w:c.w, t:c.t, en:c.en || "", tip:c.tip || "" })) })); }catch(_){}
 }
-function loadDailyResume(){
+function readDailyResume(){
   try{
     const r = JSON.parse(localStorage.getItem("dusu_daily_resume") || "null");
-    if(!r || !Array.isArray(r.turns) || !r.turns.length) return [];
+    if(!r || !Array.isArray(r.turns) || !r.turns.length) return null;
     // resume only if recent (<= 2 days old); otherwise start fresh
     const age = (new Date(todayStr()) - new Date(r.date)) / 86400000;
-    if(!(age >= 0 && age <= 2)) { localStorage.removeItem("dusu_daily_resume"); return []; }
-    return r.turns;
-  }catch(_){ return []; }
+    if(!(age >= 0 && age <= 2)) { localStorage.removeItem("dusu_daily_resume"); return null; }
+    return r;
+  }catch(_){ return null; }
+}
+function loadDailyResume(){ const r = readDailyResume(); return r ? r.turns : []; }
+// The saved conversation for the chat. Blobs saved before the chat existed only carry `turns` — rebuild from those.
+function loadDailyChat(){
+  const r = readDailyResume(); if(!r) return [];
+  const src = Array.isArray(r.chat) && r.chat.length ? r.chat
+            : r.turns.map(t => ({ w: t && t.role === "user" ? "me" : "ai", t: t && t.content }));
+  return src.filter(c => c && typeof c.t === "string" && c.t.trim())
+            .map(c => ({ w: c.w === "me" ? "me" : "ai", t: c.t, en: c.en || "", tip: c.tip || "" }));
+}
+
+/* ---- Daily Talk: the visible conversation ----------------------------------------------------
+   DuSu's greeting/replies used to be SPOKEN ONLY — the screen showed just "You said / In English",
+   so nobody could see what DuSu had asked. Everything is rendered with textContent (LLM text). */
+function dailyBubbleFill(b, it){
+  b.textContent = "";
+  const hi = document.createElement("div"); hi.className = "b-hi"; hi.textContent = it.t; b.appendChild(hi);
+  if(it.w !== "me") return;
+  if(it.en){
+    const row = document.createElement("div"); row.className = "b-en";
+    const col = document.createElement("div"); col.className = "b-col";
+    const lbl = document.createElement("span"); lbl.className = "b-lbl"; lbl.textContent = "In English";
+    const t = document.createElement("span"); t.className = "b-t"; t.textContent = it.en;
+    col.appendChild(lbl); col.appendChild(t);
+    const play = document.createElement("button"); play.type = "button"; play.className = "b-play";
+    play.setAttribute("aria-label", "Hear this in English"); play.textContent = "🔊";
+    play.onclick = () => { if(window.speechSynthesis) window.speechSynthesis.cancel(); say(it.en, ENG_SLOW()); };
+    row.appendChild(col); row.appendChild(play); b.appendChild(row);
+  }
+  if(it.tip){ const tp = document.createElement("div"); tp.className = "b-tip"; tp.textContent = "💡 " + it.tip; b.appendChild(tp); }
+}
+function dailyChatScroll(){ const f = $("dailyFeed"); if(f) f.scrollTop = f.scrollHeight; }
+// With a conversation on screen the controls can sit below the fold on a phone — bring them into view
+// (only if they aren't already; the CSS scroll-margin keeps them clear of the bottom nav).
+function dailyReveal(el){
+  if(!el) return;
+  requestAnimationFrame(() => { try{
+    el.scrollIntoView({ block:"nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }catch(_){} });
+}
+function dailyChatAdd(it, quiet){
+  dailyChat.push(it);
+  const f = $("dailyFeed"); if(!f) return it;
+  const m = document.createElement("div"); m.className = "msg " + (it.w === "me" ? "user" : "ai");
+  const av = document.createElement("div"); av.className = "av"; av.textContent = it.w === "me" ? "🙂" : "Du";
+  const b = document.createElement("div"); b.className = "bubble";
+  m.appendChild(av); m.appendChild(b); dailyBubbleFill(b, it);
+  it.el = m;
+  // new lines go ABOVE the typing bubble, which always stays last
+  if(_thinkNode && _thinkNode.parentNode === f) f.insertBefore(m, _thinkNode); else f.appendChild(m);
+  if(!quiet) dailyChatScroll();
+  return it;
+}
+function dailyChatUpdate(it){ if(it.el){ dailyBubbleFill(it.el.querySelector(".bubble"), it); dailyChatScroll(); } }
+function dailyChatSys(text){
+  const f = $("dailyFeed"); if(!f) return;
+  const d = document.createElement("div"); d.className = "sysmsg"; d.textContent = text;
+  f.appendChild(d); dailyChatScroll();
+}
+function dailyChatReset(){   // start of a Daily session: show the last conversation (≤2 days old), if any
+  dailyChat = []; dailyPendingMe = null;
+  const f = $("dailyFeed"); if(f) f.textContent = "";
+  loadDailyChat().forEach(it => dailyChatAdd(it, true));
+  dailyChatScroll();
+}
+// A Daily turn failed (or the model errored): end "thinking", say so in the chat, hand the mic back.
+function dailyFail(msg){
+  thinkHide(); dailyPendingMe = null;
+  dailyOrb("idle"); dMicActive(false);
+  dailyChatSys(msg);
+  dState("Tap the mic and try again."); dMic(true);
 }
 function dState(t){ $("dailyState").textContent = t || ""; }
 function dMic(on){ $("dailyMic").disabled = !on; }
@@ -4219,6 +4446,7 @@ function startDaily(from){
   dailyFrom = from || "";
   dailyInputs = 0;   // count THIS session's inputs (resumed history must not trigger the reminder)
   currentMode = "daily"; dLastEng = ""; dLastNext = "";
+  thinkHide(); dailyChatReset();   // show the last conversation straight away, even while connecting
   $("dailyCard").hidden = true; $("dcHindi").textContent = ""; $("dcEng").textContent = "";
   $("dailyQ").textContent = ""; if($("dailyLoader")) $("dailyLoader").hidden = false;   // show loader while connecting
   dState(""); dMic(false); dailyOrb("connecting");
@@ -4281,11 +4509,13 @@ async function greetDaily(question){
   if($("dailyLoader")) $("dailyLoader").hidden = true;   // connected → hide loader
   dLastNext = question;
   dailyTurns.push({ role:"assistant", content: question });
+  dailyChatAdd({ w:"ai", t:question });
   saveDailyResume();
   $("dailyQ").textContent = question;
   await sayFace(question, HI());
   if(ep !== speakEpoch) return;   // finished/left during the greeting → don't enable mic
   dState("Tap the mic and answer in Hindi."); dMic(true);
+  dailyReveal($("dailyState"));
 }
 function startDailyListen(){
   if(!running) return;
@@ -4295,8 +4525,12 @@ function startDailyListen(){
   let got = false;
   drec.onresult = (e) => {
     const t = e.results[0][0].transcript.trim();
-    if(t && !got){ got = true; $("dcHindi").textContent = t; dState("Thinking…"); dMicActive(false); dailyOrb("thinking");
-      if(ws && ws.readyState === 1) ws.send(JSON.stringify({ type:"user_text", text:t })); }
+    if(t && !got){ got = true; $("dcHindi").textContent = t; dMicActive(false);
+      if(ws && ws.readyState === 1){
+        dailyPendingMe = dailyChatAdd({ w:"me", t });          // your words appear at once…
+        dState(""); dailyOrb("thinking"); thinkShow("think");   // …with DuSu's loader right under them
+        ws.send(JSON.stringify({ type:"user_text", text:t }));
+      } else { dailyOrb("idle"); dState("Connection lost — go back and try again."); } }
   };
   drec.onerror = () => {};
   drec.onend = async () => { dMicActive(false);
@@ -4309,8 +4543,14 @@ async function handleDailyTurn(hindi, english, reply, tip, nextQ){
   $("dcHindi").textContent = hindi; $("dcEng").textContent = english || "—";
   setDailyTip(tip);
   $("dailyCard").hidden = false; $("dcReplay").disabled = !english; dState("");
+  dailyReveal($("dailyCard"));   // Reply is the way to continue — never leave it hidden under the nav
   // record this turn up-front (learner's Hindi + DuSu's reply) so resume works even if speech is cut
   const dusuReply = (reply && reply.trim()) || (nextQ && nextQ.trim()) || "अच्छा! आज का सबसे अच्छा पल कौन-सा था?";
+  // the conversation on screen: your bubble gains its English line (+ tip), then DuSu's reply appears
+  const me = dailyPendingMe || dailyChatAdd({ w:"me", t:hindi });
+  dailyPendingMe = null;
+  me.en = (english || "").trim(); me.tip = (tip || "").trim(); dailyChatUpdate(me);
+  dailyChatAdd({ w:"ai", t:dusuReply });
   dailyTurns.push({ role:"user", content: hindi });
   dailyTurns.push({ role:"assistant", content: dusuReply });
   saveDailyResume();
@@ -4344,6 +4584,7 @@ function setDailyTip(tip){
   else { el.hidden = true; el.textContent = ""; }
 }
 function stopDaily(){
+  thinkHide();
   speakEpoch++;                                                       // abort any in-flight speak chain
   try{ if(drec){ drec.onend = null; drec.stop(); drec = null; } }catch(_){}
   if(window.speechSynthesis) window.speechSynthesis.cancel();
