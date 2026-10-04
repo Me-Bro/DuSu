@@ -1061,7 +1061,9 @@
   .kvid{ flex:1 1 auto; display:flex; flex-direction:column; gap:7px; min-width:0; padding:6px 6px 9px;
     border-radius:14px; background:var(--glass); border:1px solid var(--glass-brd);
     color:var(--ink); font:inherit; text-align:left; cursor:pointer; -webkit-tap-highlight-color:transparent }
-  .kvid.rec:not(.on){ border-color:color-mix(in srgb,var(--gold) 45%,var(--glass-brd)) }
+  /* NOT ".rec": that name already carries the Companion Moment recommendation-card styling
+     (overflow:hidden, shadow, a translateY entrance animation, hover lift) and it leaked in. */
+  .kvid.kvid-best:not(.on){ border-color:color-mix(in srgb,var(--gold) 45%,var(--glass-brd)) }
   .kvid.on{ border-color:var(--gold); box-shadow:0 0 0 1px color-mix(in srgb,var(--gold) 40%,transparent) inset }
   .kvid:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:2px }
   .kvid-thumb{ position:relative; display:block; aspect-ratio:16/9; border-radius:10px; overflow:hidden; background:#000 }
@@ -1075,11 +1077,11 @@
   .kvid.on .kvid-play svg{ display:none }
   .kvid.on .kvid-play::after{ content:"\2715"; font-size:15px; line-height:1 }
   /* "Best for you" sits on the card's top border, NOT on the thumbnail — the thumbnails carry
-     their own headline text (e.g. "MOBILE से") and a pill over it hid that. It is a SIBLING of
-     the button, not a child: a <button> clips anything positioned outside its own box. */
+     their own headline text (e.g. "MOBILE से") and a pill over it hid that. It is a sibling of
+     the button rather than a child so nothing on the button can ever clip a pill that pokes out. */
   .kvid-tag{ display:none; position:absolute; top:-12px; right:10px; padding:3px 7px; border-radius:999px;
     font-style:normal; font-size:10px; font-weight:700; line-height:1; background:var(--gold); color:#0b0f1e }
-  .kvid.rec + .kvid-tag{ display:block }
+  .kvid.kvid-best + .kvid-tag{ display:block }
   .kvid-lbl{ display:flex; flex-direction:column; gap:1px; padding:0 3px }
   .kvid-lbl b{ font-size:13.5px; font-weight:600 }
   .kvid-lbl small{ font-size:11px; line-height:1.35; color:var(--ink-faint) }
@@ -3232,7 +3234,7 @@ function paintKeysCards(){
   const mine = matchMedia("(max-width:767px), (hover:none) and (pointer:coarse)").matches ? "phone" : "laptop";
   keysCards().forEach(b => {
     const v = TUTORIAL_VIDEOS[b.dataset.vid], img = b.querySelector("img");
-    b.classList.toggle("rec", b.dataset.vid === mine);
+    b.classList.toggle("kvid-best", b.dataset.vid === mine);
     if(v && img && !img.getAttribute("src")) img.src = "https://i.ytimg.com/vi/" + v.id + "/hqdefault.jpg";
   });
 }

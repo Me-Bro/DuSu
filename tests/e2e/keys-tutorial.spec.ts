@@ -60,6 +60,14 @@ async function open(page: Page): Promise<Net> {
   await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => { show('keys'); loadKeysUI(); });
   await expect(page.locator('#keys')).toHaveClass(/\bon\b/);
+  // Screens fade/slide in (translateY 10px → 0, 0.45s). Geometry read mid-slide is off by up to
+  // 10px — slow networks made that visible — so let every FINITE animation finish first
+  // (the endlessly drifting background blobs are excluded: their endTime is Infinity).
+  await page.evaluate(() => Promise.all(
+    document.getAnimations()
+      .filter(a => Number.isFinite(a.effect!.getComputedTiming().endTime as number))
+      .map(a => a.finished.catch(() => undefined))
+  ));
   return net;
 }
 
@@ -100,8 +108,8 @@ test.describe('phone (390×844, touch)', () => {
     await expect(card(page, 'laptop').locator('img')).toHaveAttribute('src', new RegExp(`/vi/${LAPTOP_ID}/`));
 
     // device match → "recommended" on the phone card only
-    await expect(card(page, 'phone')).toHaveClass(/\brec\b/);
-    await expect(card(page, 'laptop')).not.toHaveClass(/\brec\b/);
+    await expect(card(page, 'phone')).toHaveClass(/\bkvid-best\b/);
+    await expect(card(page, 'laptop')).not.toHaveClass(/\bkvid-best\b/);
 
     // data-saving contract: no player, no YouTube request until a tap
     await expect(frame(page)).not.toHaveAttribute('src', /.+/);
@@ -143,6 +151,22 @@ test.describe('phone (390×844, touch)', () => {
     expect(net.errors).toEqual([]);
   });
 
+  test('cards pick up no styling from other components (global class collisions)', async ({ page }) => {
+    await open(page);
+    // The recommended card once carried the Companion Moment's `.rec` rule: a translateY entrance
+    // animation, overflow:hidden and a drop shadow. Neither card may animate or clip.
+    for (const which of ['phone', 'laptop'] as const) {
+      const s = await card(page, which).evaluate(el => {
+        const cs = getComputedStyle(el);
+        return { anim: cs.animationName, overflow: cs.overflow, shadow: cs.boxShadow, opacity: cs.opacity };
+      });
+      expect(s, `${which} card computed style`).toEqual({ anim: 'none', overflow: 'visible', shadow: 'none', opacity: '1' });
+    }
+    const animated = await page.evaluate(() =>
+      document.getAnimations().some(a => !!(a.effect as KeyframeEffect).target?.closest('.kvid-item')));
+    expect(animated, 'nothing inside the cards may be animating').toBe(false);
+  });
+
   test('"Best for you" is fully painted, sits on the card border and never covers the thumbnail', async ({ page }) => {
     await open(page);
     const tagOf = (which: 'phone' | 'laptop') => page.locator(`#keysTutorial .kvid-item:has(.kvid[data-vid="${which}"]) .kvid-tag`);
@@ -151,8 +175,8 @@ test.describe('phone (390×844, touch)', () => {
     const t = (await tag.boundingBox())!;
     const thumb = (await card(page, 'phone').locator('.kvid-thumb').boundingBox())!;
     expect(t.y + t.height, 'pill must end above the thumbnail').toBeLessThanOrEqual(thumb.y + 0.5);
-    // Painted, not clipped: a <button> clips children that poke outside its box (that is exactly how
-    // the pill first shipped — a sliver). Its own top edge must hit-test as the pill itself.
+    // Painted, not clipped: the pill first shipped as a sliver because a global `.rec` rule
+    // (overflow:hidden) leaked onto the card. Its own top edge must hit-test as the pill itself.
     const painted = await tag.evaluate(el => {
       const r = el.getBoundingClientRect();
       return document.elementFromPoint(r.left + r.width / 2, r.top + 2) === el;
@@ -296,8 +320,8 @@ test.describe('desktop (1440×900)', () => {
 
   test('laptop guide recommended; both cards side by side in the left column, form on the right', async ({ page }) => {
     const net = await open(page);
-    await expect(card(page, 'laptop')).toHaveClass(/\brec\b/);
-    await expect(card(page, 'phone')).not.toHaveClass(/\brec\b/);
+    await expect(card(page, 'laptop')).toHaveClass(/\bkvid-best\b/);
+    await expect(card(page, 'phone')).not.toHaveClass(/\bkvid-best\b/);
     const p = (await card(page, 'phone').boundingBox())!;
     const l = (await card(page, 'laptop').boundingBox())!;
     expect(Math.abs(p.y - l.y), 'cards share a row').toBeLessThan(4);
