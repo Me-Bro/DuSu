@@ -1043,8 +1043,47 @@
   .mode-opt.on{ border-color:var(--gold); color:var(--gold-lt); box-shadow:0 0 0 1px color-mix(in srgb,var(--gold) 40%,transparent) inset }
   .keys-note{ font-size:12.5px; color:var(--ink-dim); margin:4px 0 14px; line-height:1.5 }
   .keys-tutorial{ margin:6px 0 16px }
-  .keys-tutorial-frame{ position:relative; width:100%; padding-top:56.25%; border-radius:14px; overflow:hidden; background:#000 }
-  .keys-tutorial-frame iframe{ position:absolute; inset:0; width:100%; height:100% }
+  /* scroll-margin: on a phone the bottom nav is position:fixed OVER this scroller (76px + safe area),
+     so scrollIntoView() must stop short of it or the player's bottom edge ends up underneath.
+     (The desktop block below swaps this for the sticky-header margin — there the nav is a side rail.) */
+  .keys-tutorial-frame{ position:relative; width:100%; aspect-ratio:16/9; border-radius:14px; overflow:hidden; background:#000; margin-bottom:6px;
+    scroll-margin-top:12px; scroll-margin-bottom:calc(76px + env(safe-area-inset-bottom) + 12px) }
+  .keys-tutorial-frame iframe{ position:absolute; inset:0; width:100%; height:100%; border:0 }
+  /* The mobile guide is a PORTRAIT phone recording (measured 9:20). In a 16:9 box it shrinks to a
+     ~90px-wide strip nobody can read, so it gets a tall box of its own shape — height-capped so
+     the whole player fits a phone screen, and centred. */
+  .keys-tutorial-frame.tall{ aspect-ratio:9/20; width:min(100%, calc(min(78vh, 680px) * .45)); margin:0 auto 6px }
+  /* Both guides (mobile + laptop) are ALWAYS on screen as thumbnail cards, 2-up and phone-first.
+     One shared player appears under them only after a tap, so nothing is fetched from YouTube
+     (a ~1 MB player) until someone actually wants to watch — kind to budget-Android data. */
+  .kvid-pick{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:18px 0 10px }
+  .kvid-item{ position:relative; display:flex; min-width:0 }
+  .kvid{ flex:1 1 auto; display:flex; flex-direction:column; gap:7px; min-width:0; padding:6px 6px 9px;
+    border-radius:14px; background:var(--glass); border:1px solid var(--glass-brd);
+    color:var(--ink); font:inherit; text-align:left; cursor:pointer; -webkit-tap-highlight-color:transparent }
+  .kvid.rec:not(.on){ border-color:color-mix(in srgb,var(--gold) 45%,var(--glass-brd)) }
+  .kvid.on{ border-color:var(--gold); box-shadow:0 0 0 1px color-mix(in srgb,var(--gold) 40%,transparent) inset }
+  .kvid:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:2px }
+  .kvid-thumb{ position:relative; display:block; aspect-ratio:16/9; border-radius:10px; overflow:hidden; background:#000 }
+  /* hqdefault is 4:3 with black bars baked in; cover-cropping it into 16:9 trims exactly those bars */
+  .kvid-thumb img{ display:block; width:100%; height:100%; object-fit:cover }
+  .kvid-play{ position:absolute; inset:0; margin:auto; width:38px; height:38px; box-sizing:border-box;
+    display:grid; place-items:center; padding-left:2px; border-radius:50%; background:rgba(0,0,0,.6); color:#fff }
+  /* the selected card's ▶ becomes ✕ — tapping it again closes the player (the Hide button is
+     deliberately absent while keys are still required, so this is the way to collapse it) */
+  .kvid.on .kvid-play{ padding-left:0 }
+  .kvid.on .kvid-play svg{ display:none }
+  .kvid.on .kvid-play::after{ content:"\2715"; font-size:15px; line-height:1 }
+  /* "Best for you" sits on the card's top border, NOT on the thumbnail — the thumbnails carry
+     their own headline text (e.g. "MOBILE से") and a pill over it hid that. It is a SIBLING of
+     the button, not a child: a <button> clips anything positioned outside its own box. */
+  .kvid-tag{ display:none; position:absolute; top:-12px; right:10px; padding:3px 7px; border-radius:999px;
+    font-style:normal; font-size:10px; font-weight:700; line-height:1; background:var(--gold); color:#0b0f1e }
+  .kvid.rec + .kvid-tag{ display:block }
+  .kvid-lbl{ display:flex; flex-direction:column; gap:1px; padding:0 3px }
+  .kvid-lbl b{ font-size:13.5px; font-weight:600 }
+  .kvid-lbl small{ font-size:11px; line-height:1.35; color:var(--ink-faint) }
+  .keys-yt{ display:block; margin:2px 0 8px; text-align:center; font-size:12px; color:var(--gold-lt); text-decoration:none }
   /* Numbered walkthrough — keys are mandatory now, so the setup page has to teach a
      first-time user the whole path, not just present four password boxes. */
   .keys-steps{ margin:2px 0 18px; padding:14px 16px; border-radius:14px;
@@ -1592,6 +1631,8 @@
     #keys .keys-wrap > #keysTutorial{ grid-column:1; grid-row:3; }
     #keys .keys-wrap > #keysSteps{ grid-column:1; grid-row:4; }
     #keys .keys-wrap > #keysForm{ grid-column:2; grid-row:2 / span 3; }
+    /* sticky header on top, and the nav is a left rail here — not a bottom bar */
+    #keys .keys-tutorial-frame{ scroll-margin-top:84px; scroll-margin-bottom:24px; }
 
     /* ---------- FORM-LIKE SCREENS (never stretch a form to 1120px) ---------- */
     #profile, #help, #subscribe, #superadmin{ max-width:760px; margin:0 auto; }
@@ -1855,12 +1896,35 @@
       </div>
       <p class="keys-note" id="officeNote" hidden>🏢 Office access is added by your admin.</p>
       <div id="keysTutorial" class="keys-tutorial" hidden>
-        <p class="keys-note" style="margin-bottom:8px">🎬 Watch this 2-minute guide — it shows the whole thing.</p>
-        <div class="keys-tutorial-frame">
-          <iframe id="keysTutorialFrame" width="100%" height="100%" src="" title="How to get your free AI keys"
-            frameborder="0" loading="lazy" allow="encrypted-media; picture-in-picture" allowfullscreen></iframe>
+        <p class="keys-note" style="margin-bottom:0">🎬 Watch the guide for your device</p>
+        <div class="kvid-pick" role="group" aria-label="Choose your guide video">
+          <div class="kvid-item">
+            <button type="button" class="kvid" data-vid="phone" aria-pressed="false">
+              <span class="kvid-thumb">
+                <img alt="" width="480" height="270" decoding="async" referrerpolicy="no-referrer">
+                <i class="kvid-play" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor"/></svg></i>
+              </span>
+              <span class="kvid-lbl"><b>📱 On mobile</b><small>Add keys on your phone</small></span>
+            </button>
+            <em class="kvid-tag">Best for you</em>
+          </div>
+          <div class="kvid-item">
+            <button type="button" class="kvid" data-vid="laptop" aria-pressed="false">
+              <span class="kvid-thumb">
+                <img alt="" width="480" height="270" decoding="async" referrerpolicy="no-referrer">
+                <i class="kvid-play" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor"/></svg></i>
+              </span>
+              <span class="kvid-lbl"><b>💻 On laptop</b><small>Add keys on a computer</small></span>
+            </button>
+            <em class="kvid-tag">Best for you</em>
+          </div>
         </div>
-        <button class="btn ghost" id="keysTutorialHide" style="width:100%;margin-top:8px">Hide video</button>
+        <div class="keys-tutorial-frame" id="keysTutorialStage" hidden>
+          <iframe id="keysTutorialFrame" width="100%" height="100%" title="How to add your free AI keys"
+            referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>
+        </div>
+        <a id="keysTutorialYt" class="keys-yt" href="https://youtu.be/" target="_blank" rel="noopener noreferrer" hidden>Open on YouTube ↗</a>
+        <button class="btn ghost" id="keysTutorialHide" style="width:100%;margin-top:8px">Hide videos</button>
       </div>
 
       <div id="keysSteps" class="keys-steps" hidden>
@@ -2829,6 +2893,8 @@ function show(id, pathOverride){
       try{ stopAllVoice(); }catch(_){}
     }
   }
+  // Leaving the keys screen → stop the guide video, or its audio carries on behind other screens.
+  if(cur === "keys" && id !== "keys"){ try{ stopKeysVideo(); }catch(_){} }
   document.querySelectorAll(".screen").forEach(s=>s.classList.remove("on")); $(id).classList.add("on");
   if(id === "home"){
     // always land on a clean home
@@ -3151,7 +3217,49 @@ function setModeUI(){
   if($("keysForm")) $("keysForm").hidden = !off;
   try{ loadKeysTutorial(); }catch(_){}   // guide follows the form (safe: never calls back into setModeUI)
 }
-const TUTORIAL_VIDEO_ID = "Oe0bYdxG6sg";   // "how to get your free AI keys" walkthrough
+// "How to add your free AI keys" walkthroughs. BOTH are always offered (thumbnail cards on
+// the keys screen) so a phone user and a laptop user each get a guide made for their device.
+// Re-recorded a video? Change its id here — nothing else needs to move.
+// `tall` = portrait video (measured: phone guide is a 9:20 screen recording, laptop guide is 16:9).
+const TUTORIAL_VIDEOS = {
+  phone:  { id:"vVcqXxnxmko", tall:true,  title:"How to add your free AI keys — on mobile" },
+  laptop: { id:"Oe0bYdxG6sg", tall:false, title:"How to add your free AI keys — on laptop" }
+};
+function keysCards(){ return document.querySelectorAll("#keysTutorial .kvid"); }
+// Thumbnails + the "Best for you" mark. Set from here (not in the markup) so the ids live in
+// one place, and only once the box is actually shown — nothing is requested while it's hidden.
+function paintKeysCards(){
+  const mine = matchMedia("(max-width:767px), (hover:none) and (pointer:coarse)").matches ? "phone" : "laptop";
+  keysCards().forEach(b => {
+    const v = TUTORIAL_VIDEOS[b.dataset.vid], img = b.querySelector("img");
+    b.classList.toggle("rec", b.dataset.vid === mine);
+    if(v && img && !img.getAttribute("src")) img.src = "https://i.ytimg.com/vi/" + v.id + "/hqdefault.jpg";
+  });
+}
+// The single shared player. Called only from a tap, so autoplay is expected (and allowed).
+// rel=0 keeps "more videos" to this channel; playsinline stops iOS jumping to fullscreen.
+function playKeysVideo(which){
+  const v = TUTORIAL_VIDEOS[which], f = $("keysTutorialFrame"), stage = $("keysTutorialStage");
+  if(!v || !f || !stage) return;
+  f.title = v.title;
+  f.setAttribute("src", "https://www.youtube-nocookie.com/embed/" + v.id + "?autoplay=1&rel=0&playsinline=1");
+  stage.classList.toggle("tall", !!v.tall);
+  stage.hidden = false;
+  keysCards().forEach(b => { const on = b.dataset.vid === which; b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false"); });
+  const yt = $("keysTutorialYt"); if(yt){ yt.href = "https://youtu.be/" + v.id; yt.hidden = false; }
+  // player sits just under the cards — make sure it's in view (no animation if the user asked for none)
+  try{ stage.scrollIntoView({ block:"nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); }catch(_){}
+}
+// Back to the cards-only state: unload the player (stops the audio) and clear the selection.
+function stopKeysVideo(){
+  const f = $("keysTutorialFrame"), stage = $("keysTutorialStage"), yt = $("keysTutorialYt");
+  // Remove the ATTRIBUTE: that unloads the frame (the spec asserts no YouTube frame survives).
+  // src="" would do the opposite — an empty src resolves to this page's own URL and loads it.
+  if(f) f.removeAttribute("src");
+  if(stage) stage.hidden = true;
+  if(yt) yt.hidden = true;
+  keysCards().forEach(b => { b.classList.remove("on"); b.setAttribute("aria-pressed", "false"); });
+}
 function loadKeysTutorial(){
   const box = $("keysTutorial"), steps = $("keysSteps");
   if(!box) return;
@@ -3166,20 +3274,21 @@ function loadKeysTutorial(){
   if(steps) steps.hidden = !show;
   // The dismiss button is pointless (and a trap) while setup is still required.
   if($("keysTutorialHide")) $("keysTutorialHide").style.display = mustSetUp ? "none" : "";
-  const f = $("keysTutorialFrame");
-  // Check the ATTRIBUTE, not the .src IDL property: an iframe with src="" resolves
-  // .src to the current document URL, so `!f.src` was never true and the video
-  // never loaded — the tutorial box has been showing an empty frame all along.
-  if(show && f && !f.getAttribute("src")) f.src = "https://www.youtube-nocookie.com/embed/" + TUTORIAL_VIDEO_ID;
-  if(!show && f) f.removeAttribute("src");
+  // Called on every mode toggle / key-form refresh, so while the box stays visible it must
+  // leave a video that is already playing alone.
+  if(show) paintKeysCards(); else stopKeysVideo();
 }
+// A card is a toggle: tap to watch, tap the selected one again to close the player. Bound on the
+// wrapper so a tap on the "Best for you" pill (a sibling of the button) counts as a tap on the card.
+document.querySelectorAll("#keysTutorial .kvid-item").forEach(it => it.onclick = () => {
+  const b = it.querySelector(".kvid");
+  if(b.classList.contains("on")) stopKeysVideo(); else playKeysVideo(b.dataset.vid);
+});
 if($("keysTutorialHide")) $("keysTutorialHide").onclick = () => {
   localStorage.setItem("dusu_tutorial_seen", "1");
   if($("keysTutorial")) $("keysTutorial").hidden = true;
   if($("keysSteps")) $("keysSteps").hidden = true;
-  // removeAttribute, not src="" — an empty src still resolves to the page URL,
-  // which both keeps a frame loaded and blocks the re-load guard above.
-  const f = $("keysTutorialFrame"); if(f) f.removeAttribute("src");   // stop playback
+  stopKeysVideo();
 };
 function loadKeysUI(){
   loadKeysTutorial();
