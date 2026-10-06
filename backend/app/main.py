@@ -29,6 +29,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .config import settings
+from . import practice
 from .interview.engine import Session
 from .interview.prompts import ASSESS_SYSTEM, LESSON_EVAL_SYSTEM, LEVEL_TEST_SYSTEM, LETTER_SYSTEM, GREETING_SYSTEM, CAREER_ROADMAP_SYSTEM
 from .providers import llm
@@ -157,6 +158,28 @@ async def level_test_on() -> bool:
         return await _cached("level_test", lambda: db.get_setting("level_test", "on")) != "off"
     except Exception:
         return True
+
+
+async def practice_room_mode() -> str:
+    """Practice Room rollout switch (Settings table, no migration). 'off' = the code ships
+    dark and nobody sees it (default); 'owner' = only the owner / unlimited allowlist (the
+    owner's own phone is where the recording spikes have to run — plan §7); 'on' = everyone.
+    A closed-test cohort tier was left out on purpose: the Settings value column is 255 chars,
+    too small for an email list."""
+    try:
+        v = await _cached("practice_room", lambda: db.get_setting("practice_room", "off"))
+        return v if v in ("off", "owner", "on") else "off"
+    except Exception:
+        return "off"
+
+
+async def practice_room_enabled(email: str) -> bool:
+    m = await practice_room_mode()
+    if m == "on":
+        return True
+    if m == "owner":
+        return role_for(email) in ("owner", "unlimited")
+    return False
 
 
 # Profile seeded for accounts that skip the level check (see level_test_on).
@@ -532,11 +555,26 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
             _day_num = await db.signup_day_count(uid) + 1
         except Exception:
             _day_num = 1
+    # Practice Room (flag-gated, plan §5.5): the client only draws its entry points when this is
+    # true. Prefs + "can the server transcribe for me" are computed only for accounts that have it.
+    _pr = await practice_room_enabled(email)
+    _pr_prefs, _pr_server_stt = None, False
+    if _pr:
+        try:
+            _pr_prefs = await db.get_practice_prefs(uid) if uid else None
+        except Exception:
+            _pr_prefs = None
+        try:
+            _ok, _eff, _ = await resolve_keys(email, {}, uid)
+            _pr_server_stt = bool(_ok and _eff is None and settings.groq_api_key)
+        except Exception:
+            _pr_server_stt = False
     common = {"role": _role, "email": email, "office": _office, "office_allowed": _office,
               "unlimited": _unlim, "plan": plan, "requests_left": req_left,
               "request_limit": req_limit, "trial_days_left": trial_days, "trial_over": trial_over,
               "has_keys": _has_keys,
               "day_number": _day_num,
+              "practice_room": _pr, "practice_prefs": _pr_prefs, "practice_server_stt": _pr_server_stt,
               "level_test": await level_test_on(),
               # The public name this user appears as on the leaderboard / league.
               # Boards are alias-only for privacy (§18), so without this the user
@@ -956,7 +994,7 @@ async def admin_overview(token: str = "", authorization: str | None = Header(Non
     claims = _require_owner(token, authorization)
     out = {"you": claims.get("email", ""), "role": "owner", "db": db.db_enabled, "users": [],
            "access_phase": await access_phase(), "level_test": await level_test_on(),
-           "owner_byok": await owner_byok_on()}
+           "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode()}
     if db.db_enabled:
         try:
             users = await db.admin_list_users()
@@ -986,6 +1024,7 @@ class SettingsIn(BaseModel):
     access_phase: str | None = None
     level_test: bool | None = None
     owner_byok: bool | None = None
+    practice_room: str | None = None      # off | owner | on
 
 
 @app.post("/admin/settings")
@@ -1000,9 +1039,11 @@ async def admin_settings(inp: SettingsIn, authorization: str | None = Header(Non
         await db.set_setting("level_test", "on" if inp.level_test else "off")
     if inp.owner_byok is not None:
         await db.set_setting("owner_byok", "on" if inp.owner_byok else "off")
+    if inp.practice_room is not None:
+        await db.set_setting("practice_room", inp.practice_room if inp.practice_room in ("off", "owner", "on") else "off")
     invalidate_access_cache()
     return {"access_phase": await access_phase(), "level_test": await level_test_on(),
-            "owner_byok": await owner_byok_on()}
+            "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode()}
 
 
 class WipeIn(BaseModel):
@@ -1634,6 +1675,345 @@ async def level_test_submit(inp: LevelTestIn):
         except Exception as e:
             print(f"[level-test] db save failed: {type(e).__name__}: {e}")
     return out
+
+
+# =============================================================================================
+# PRACTICE ROOM — rehearse a talk, get a scored report (DUSU_PRACTICE_ROOM_PLAN.md)
+#
+# The recording and the full transcript stay on the student's phone (plan D4). What reaches
+# this server is the transcript + word timestamps for ONE analysis request: it is scored, the
+# scores + report are stored, and the text is dropped — it is never logged. Everything here is
+# behind the `practice_room` switch (off by default), so shipping the code changes nothing for
+# anyone until the owner flips it from the dashboard.
+# =============================================================================================
+class PracticeAnalyzeIn(BaseModel):
+    token: str = ""
+    keys: dict = {}
+    kind: str = "presentation"
+    topic: str = ""
+    lang: str = "en"                 # language of the TALK: en | hi | hinglish
+    feedback_lang: str = ""          # en | hinglish ("" → follows the talk)
+    level: str = "intermediate"
+    goal: str = ""
+    event_date: str = ""             # optional YYYY-MM-DD — "when is it?" → Home banner
+    target_sec: int = 0
+    actual_sec: float = 0
+    pause_sec: float = 0
+    transcript: str = ""
+    words: list = []                 # [[word, start, end], …] from the transcription
+    segments: list = []              # [[start, end, avg_logprob, no_speech_prob], …]
+    attempt_of: int | None = None    # the attempt this one retries / bridges from
+
+
+class PracticeBridgeIn(BaseModel):
+    token: str = ""
+    keys: dict = {}
+    lang: str = "hi"
+    topic: str = ""
+    transcript: str = ""
+    attempt_id: int | None = None
+
+
+class PracticePrefsIn(BaseModel):
+    token: str = ""
+    lang: str | None = None
+    feedback_lang: str | None = None
+    english_invite: str | None = None
+    invite_action: str | None = None   # opened | dismissed | off — the answer to the English invitation card
+    attempt_id: int | None = None
+
+
+class PracticeDeleteIn(BaseModel):
+    token: str = ""
+    id: int
+
+
+def _practice_claims(token: str, authorization: str | None) -> dict:
+    claims = auth.read_session(_bearer(authorization, token))
+    if not claims:
+        raise HTTPException(401, "Not signed in")
+    return claims
+
+
+async def _practice_gate(claims: dict, keys: dict | None = None, need_keys: bool = True):
+    """Flag + blocked-account + BYOK gate shared by the Practice endpoints → (email, uid, keys)."""
+    email, uid = claims.get("email", ""), claims.get("sub")
+    if not await practice_room_enabled(email):
+        raise HTTPException(404, "Practice Room is not available yet")
+    if uid and db.db_enabled:
+        try:
+            if (await db.get_user_flags(uid)).get("status") == "blocked":
+                raise HTTPException(403, "Your access has been paused. Please contact the admin.")
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"[practice] gate: {type(e).__name__}: {e}")
+    eff = None
+    if need_keys:
+        ok, eff, _r = await resolve_keys(email, keys or {}, uid)
+        if not ok:
+            raise HTTPException(402, "keys_required")
+    return email, uid, eff
+
+
+def _safe_err(e) -> str:
+    """Log text for a failed model call: the exception class and a short, brace-stripped head. Provider errors
+    can echo parts of the request body, and the request is a student's transcript — which must never reach a log."""
+    return type(e).__name__ + ": " + re.sub(r"\{.*", "{...}", str(e), flags=re.S)[:100]
+
+
+def _practice_event_date(s: str) -> str:
+    """A usable 'when is it?' date (today … +400 days, IST) or ''."""
+    import datetime as _d
+    try:
+        d = _d.date.fromisoformat((s or "").strip())
+        t = _d.date.fromisoformat(_quota_day())
+    except ValueError:
+        return ""
+    return d.isoformat() if t <= d <= t + _d.timedelta(days=400) else ""
+
+
+@app.post("/practice/analyze")
+async def practice_analyze(inp: PracticeAnalyzeIn, authorization: str | None = Header(None)):
+    claims = _practice_claims(inp.token, authorization)
+    email, uid, eff = await _practice_gate(claims, inp.keys)
+    if inp.kind not in practice.ENABLED_KINDS:
+        raise HTTPException(400, "This practice type is coming soon")
+    topic = practice.clean_text(inp.topic, 200).replace("<", "").replace(">", "")
+    if uid and db.db_enabled:
+        try:
+            today_state = await db.practice_today(uid, topic)
+        except Exception as e:
+            print(f"[practice] today failed: {type(e).__name__}: {e}")
+            today_state = {"count": 0, "topic_invited": False}
+        if today_state["count"] >= practice.DAILY_ATTEMPT_CAP:
+            raise HTTPException(429, "daily_limit")
+    else:
+        today_state = {"count": 0, "topic_invited": False}
+    snap = await charge_request(email, uid, _quota_day())    # ONE request, however many model runs it takes
+    if not snap.get("allowed", True):
+        raise HTTPException(429, "quota")
+    set_active_keys(eff)
+    try:
+        res = await practice.analyze(
+            llm, kind=inp.kind, topic=topic, lang=inp.lang, feedback_lang=inp.feedback_lang, level=inp.level,
+            target_sec=inp.target_sec, actual_sec=inp.actual_sec, transcript=inp.transcript,
+            words=inp.words, segments=inp.segments, goal=inp.goal)
+    except practice.AnalysisUnavailable as e:
+        print(f"[practice] analysis unavailable: {_safe_err(e)}")           # never the transcript
+        if _is_quota(e):
+            raise HTTPException(429, "quota")
+        raise HTTPException(502, "Could not analyse your practice right now — please try again in a minute.")
+    if res.get("too_short"):
+        return res                                                        # nothing stored, no XP
+    english = res["lang"] == "en"
+    cats = {c["key"]: c["score"] for c in res["categories"]}
+
+    # --- the English invitation (Hindi/Hinglish only): one card, built from a scored strength
+    prefs = await db.get_practice_prefs(uid) if (uid and db.db_enabled) else dict(db._PRACTICE_PREF_DEFAULTS)
+    invite = practice.invite_decision(prefs, lang=res["lang"], genuine=res["genuine_effort"], strengths=res["strengths"],
+                                      seen_today=today_state["topic_invited"], today=_quota_day())
+
+    # --- compare with the attempt this one retries / bridges from
+    parent, delta = None, None
+    if uid and db.db_enabled and inp.attempt_of:
+        try:
+            parent = await db.get_practice_parent(uid, inp.attempt_of)
+            if parent:
+                delta = practice.compute_delta(parent, res["overall"], cats, res["lang"])
+        except Exception as e:
+            print(f"[practice] parent lookup failed: {type(e).__name__}: {e}")
+
+    out = dict(res)
+    out.update({"topic": topic, "target_sec": int(inp.target_sec or 0), "delta": delta, "invite": invite,
+                "id": None, "attempt_no": 1, "parent_id": None, "via": "direct",
+                "progress": {}, "mission": None, "new_badges": []})
+    if not (uid and db.db_enabled):
+        return out
+
+    try:
+        saved = await db.save_practice_attempt(uid, {
+            "kind": res["kind"], "topic": topic, "lang": res["lang"], "feedback_lang": res["feedback_lang"],
+            "level": res["level"], "target_sec": inp.target_sec, "actual_sec": res["seconds"],
+            "pause_sec": int(inp.pause_sec or 0), "words": res["words"], "wpm": res["metrics"].get("wpm", 0),
+            "overall": res["overall"], "scores": cats,
+            "report": {k: v for k, v in res.items() if k not in ("too_short",)},
+            "parent_id": inp.attempt_of, "invite": "shown" if invite["show"] else "none",
+            "genuine_effort": res["genuine_effort"]})
+        out.update({"id": saved["id"], "attempt_no": saved["attempt_no"],
+                    "parent_id": saved["parent_id"], "via": saved["via"]})
+    except Exception as e:
+        print(f"[practice] save failed: {type(e).__name__}: {e}")        # the report is still returned
+        return out
+
+    # --- Speaker Progression: XP / streak / league / missions / badges (same pipeline as every other mode)
+    minutes = res["seconds"] / 60.0
+    turns = max(1, res["words"] // 40)                                    # a 3-minute talk qualifies for the streak
+    try:
+        await db.login(claims)
+        scores, unscored = practice.progress_scores(cats, english)
+        sp = await db.award_speaker_progress(uid, res["kind"], minutes=minutes, turns=turns, scores=scores,
+                                             genuine_effort=res["genuine_effort"], unscored=frozenset(unscored))
+        out["progress"] = sp or {}
+        try:
+            mr = await db.update_weekly_missions(uid, res["kind"], minutes, (sp or {}).get("overall", 0))
+            out["mission"] = mr if mr.get("completed") else None
+        except Exception as e:
+            print(f"[practice] missions failed: {type(e).__name__}: {e}")
+    except Exception as e:
+        print(f"[practice] progression failed: {type(e).__name__}: {e}")
+    try:
+        await db.bump_daily_stat(uid, sentences=turns, seconds=int(res["seconds"]))
+        if english and res["genuine_effort"]:
+            await db.add_vocab(uid, inp.transcript.split())                # English vocabulary only
+        if res["genuine_effort"]:
+            lang_label = {"en": "English", "hi": "Hindi", "hinglish": "Hinglish"}[res["lang"]]
+            await db.add_conversation(uid, res["kind"], f"Practised a {max(1, round(minutes))}-minute {res['kind']} "
+                                      f"on '{topic or 'a topic'}' in {lang_label} — scored {res['overall']}.")
+        ev = _practice_event_date(inp.event_date)
+        if ev:
+            await db.merge_facts(uid, {}, [{"type": res["kind"], "date": ev, "note": topic[:80]}])
+        badges = await db.check_practice_badges(uid)
+        out["new_badges"] = list(dict.fromkeys(((out["progress"] or {}).get("new_badges") or []) + badges))
+    except Exception as e:
+        print(f"[practice] post-save steps failed: {type(e).__name__}: {e}")
+    return out
+
+
+@app.post("/practice/bridge")
+async def practice_bridge(inp: PracticeBridgeIn, authorization: str | None = Header(None)):
+    """'Try in English' — an English outline + key phrases built ONLY from what the student
+    said in Hindi/Hinglish. A separate on-demand call, so students who ignore the invitation
+    cost nothing (the analysis call stays small and fast)."""
+    claims = _practice_claims(inp.token, authorization)
+    email, uid, eff = await _practice_gate(claims, inp.keys)
+    if inp.lang not in ("hi", "hinglish"):
+        raise HTTPException(400, "The English bridge is for Hindi / Hinglish talks")
+    snap = await charge_request(email, uid, _quota_day())
+    if not snap.get("allowed", True):
+        raise HTTPException(429, "quota")
+    set_active_keys(eff)
+    try:
+        bridge = await practice.build_bridge(llm, lang=inp.lang, topic=inp.topic, transcript=inp.transcript)
+    except ValueError:
+        raise HTTPException(400, "too_short")
+    except practice.AnalysisUnavailable as e:
+        print(f"[practice] bridge unavailable: {_safe_err(e)}")
+        if _is_quota(e):
+            raise HTTPException(429, "quota")
+        raise HTTPException(502, "Could not build the English version right now — please try again.")
+    except Exception as e:
+        print(f"[practice] bridge failed: {_safe_err(e)}")
+        if _is_quota(e):
+            raise HTTPException(429, "quota")
+        raise HTTPException(502, "Could not build the English version right now — please try again.")
+    if uid and db.db_enabled:
+        try:
+            if inp.attempt_id:
+                await db.mark_practice_invite(uid, inp.attempt_id, "opened")
+            await db.practice_invite_action(uid, "opened")
+        except Exception as e:
+            print(f"[practice] invite mark failed: {type(e).__name__}: {e}")
+    return {"ok": True, **bridge}
+
+
+@app.post("/practice/prefs")
+async def practice_prefs(inp: PracticePrefsIn, authorization: str | None = Header(None)):
+    claims = _practice_claims(inp.token, authorization)
+    email, uid, _ = await _practice_gate(claims, need_keys=False)
+    if not (uid and db.db_enabled):
+        return dict({"lang": "en", "feedback_lang": "", "english_invite": "on"})
+    patch = {k: v for k, v in (("lang", inp.lang), ("feedback_lang", inp.feedback_lang),
+                               ("english_invite", inp.english_invite)) if v is not None}
+    prefs = await db.save_practice_prefs(uid, patch) if patch else await db.get_practice_prefs(uid)
+    if inp.invite_action in ("opened", "dismissed", "off"):
+        prefs = await db.practice_invite_action(uid, inp.invite_action)
+        if inp.attempt_id and inp.invite_action in ("opened", "dismissed"):
+            await db.mark_practice_invite(uid, inp.attempt_id, inp.invite_action)
+    return prefs
+
+
+@app.get("/practice/history")
+async def practice_history(token: str = "", authorization: str | None = Header(None)):
+    claims = _practice_claims(token, authorization)
+    _e, uid, _k = await _practice_gate(claims, need_keys=False)
+    if not (uid and db.db_enabled):
+        return {"attempts": []}
+    try:
+        return {"attempts": await db.list_practice_attempts(uid, 30)}
+    except Exception as e:
+        print(f"[practice] history failed: {type(e).__name__}: {e}")
+        return {"attempts": []}
+
+
+@app.get("/practice/attempt")
+async def practice_attempt(id: int, token: str = "", authorization: str | None = Header(None)):
+    claims = _practice_claims(token, authorization)
+    _e, uid, _k = await _practice_gate(claims, need_keys=False)
+    row = await db.get_practice_attempt(uid, id) if (uid and db.db_enabled) else None
+    if not row:
+        raise HTTPException(404, "Attempt not found")
+    return row
+
+
+@app.post("/practice/delete")
+async def practice_delete(inp: PracticeDeleteIn, authorization: str | None = Header(None)):
+    claims = _practice_claims(inp.token, authorization)
+    _e, uid, _k = await _practice_gate(claims, need_keys=False)
+    ok = await db.delete_practice_attempt(uid, inp.id) if (uid and db.db_enabled) else False
+    return {"ok": ok}
+
+
+_stt_used: dict[str, tuple[str, int]] = {}      # uid → (IST day, calls) — keeps the shared server key from being drained
+_STT_DAILY_CAP = 40
+_STT_MAX_BYTES = 24 * 1024 * 1024               # Groq's free-tier upload limit is 25 MB
+
+
+@app.post("/practice/transcribe")
+async def practice_transcribe(request: Request, lang: str = "en", authorization: str | None = Header(None)):
+    """Server-side transcription for accounts that ride OUR keys (the owner / allowlist) and
+    so have no Groq key of their own in the browser. Everyone with their own Groq key sends the
+    audio straight from the phone to Groq instead — it never touches this server (plan §5.2).
+    The audio is held in memory for the length of the request and never written anywhere."""
+    claims = _practice_claims("", authorization)
+    email, uid, eff = await _practice_gate(claims, {})
+    key = (eff or {}).get("groq") if eff else settings.groq_api_key
+    if not key:
+        raise HTTPException(400, "no_groq_key")
+    day = _quota_day()
+    used_day, n = _stt_used.get(uid or "", (day, 0))
+    n = n if used_day == day else 0
+    if n >= _STT_DAILY_CAP:
+        raise HTTPException(429, "daily_limit")
+    data = await request.body()
+    if not data:
+        raise HTTPException(400, "empty audio")
+    if len(data) > _STT_MAX_BYTES:
+        raise HTTPException(413, "recording too large")
+    _stt_used[uid or ""] = (day, n + 1)
+    import httpx
+    form = {"model": "whisper-large-v3-turbo", "response_format": "verbose_json", "temperature": "0",
+            "timestamp_granularities[]": ["word", "segment"]}
+    if lang in ("en", "hi", "hinglish"):
+        form["language"] = "en" if lang == "en" else "hi"
+    try:
+        async with httpx.AsyncClient(timeout=120) as c:
+            r = await c.post("https://api.groq.com/openai/v1/audio/transcriptions",
+                             headers={"Authorization": f"Bearer {key}"},
+                             files={"file": ("practice.webm", data, request.headers.get("content-type") or "audio/webm")},
+                             data=form)
+    except Exception as e:
+        print(f"[practice] transcribe request failed: {type(e).__name__}")
+        raise HTTPException(502, "Could not reach the transcription service")
+    if r.status_code in (401, 403):
+        print("[practice] transcribe: the server's Groq key was rejected")
+        raise HTTPException(502, "server_key_unavailable")
+    if r.status_code == 429:
+        raise HTTPException(429, "quota")
+    if r.status_code >= 400:
+        print(f"[practice] transcribe upstream {r.status_code}")
+        raise HTTPException(502, "Transcription failed — please try again")
+    return JSONResponse(r.json())
 
 
 @app.get("/")

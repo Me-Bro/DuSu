@@ -18,7 +18,7 @@
 </head>
 <body>
   <h1>Privacy Policy</h1>
-  <div class="sub">DuSu — "Speak with Confidence" · Last updated 2026-08-19</div>
+  <div class="sub">DuSu — "Speak with Confidence" · Last updated 2026-10-06</div>
 
   <p>DuSu is a voice-first AI English-speaking coach. This page explains what data DuSu collects, why, and how to have it deleted.</p>
 
@@ -34,6 +34,7 @@
     <li><b>Practice content</b> — the text of what you say (transcribed by your browser, not by us) and DuSu's replies, so DuSu can hold a conversation and remember context across sessions (nickname, interests, progress, goals).</li>
     <li><b>Your own AI provider keys (if you add them)</b> — DuSu lets you bring your own free API keys (Gemini, Groq, OpenRouter, GitHub Models) instead of relying on a shared quota. These are stored on our server, obfuscated, associated only with your account, and used only to make requests on your behalf.</li>
     <li><b>Usage &amp; progress data</b> — streaks, XP, badges, level, session counts — used to run the app's coaching/gamification features.</li>
+    <li><b>Practice Room results (optional feature)</b> — if you use Practice Room, DuSu stores for each attempt the topic you typed, the language you chose, how long it took, your scores, and the written feedback (which can quote up to three short sentences from your talk). <b>Your recording and the full transcript are not kept on our servers</b> — they stay on your phone until you delete them.</li>
   </ul>
 
   <div class="card">
@@ -41,20 +42,27 @@
   </div>
 
   <h2>Who we share data with</h2>
-  <p>To generate DuSu's spoken replies, the text of your conversation is sent to whichever AI provider is active for your account — Google Gemini, Groq, OpenRouter, or GitHub Models. This is a pass-through to generate a response; DuSu does not use your conversations to train any model.</p>
+  <p>To generate DuSu's spoken replies, the text of your conversation is sent to whichever AI provider is active for your account — Google Gemini, Groq, OpenRouter, or GitHub Models. This is a pass-through to generate a response; DuSu does not use your conversations to train any model. If you use Practice Room, the <i>transcript</i> of your talk is also sent to that AI provider so it can be scored — it is used for that one request and is not stored by DuSu — and your recording is sent to <b>Groq</b> to be turned into text (see "How speech is handled").</p>
 
   <h2>How speech is handled</h2>
-  <p>DuSu does not record, receive or store your voice. Speech-to-text and text-to-speech are performed by your browser's own speech features, and only the resulting <i>text</i> is ever sent to DuSu's servers. Note that most browsers (including Chrome on Android) carry out speech recognition using their vendor's online speech service, which means your audio may be processed by your browser vendor under their own privacy policy — that step happens between you and your browser, and DuSu has no access to it.</p>
+  <p><b>Talk modes (Daily Talk, Face-to-Face, Interview, Learn):</b> DuSu does not record, receive or store your voice. Speech-to-text and text-to-speech are performed by your browser's own speech features, and only the resulting <i>text</i> is ever sent to DuSu's servers. Note that most browsers (including Chrome on Android) carry out speech recognition using their vendor's online speech service, which means your audio may be processed by your browser vendor under their own privacy policy — that step happens between you and your browser, and DuSu has no access to it.</p>
+  <p><b>Practice Room (optional, separate):</b> unlike the talk modes, Practice Room <i>does</i> record your voice, so here is exactly where it goes:</p>
+  <ul>
+    <li>Recording starts only when you tap <b>Start</b>, shows a visible recording indicator, and pauses if you switch apps. It never records in the background.</li>
+    <li>The recording is saved <b>on your phone</b> (in DuSu's local browser storage) so you can listen back. It stays there until you delete it (Practice Room → report → "Delete this recording from my phone"), clear the app's data, or delete your account in the app.</li>
+    <li>To turn the recording into text, it is sent <b>directly from your phone to Groq</b> (a speech-to-text provider) using the free API key you added to DuSu. DuSu's servers do not receive or store that audio, and Groq handles it under its own privacy policy. (An account that uses a DuSu-provided key instead — for example the app owner's — has the audio pass through DuSu's server, in memory, for the length of that one request, only to forward it to Groq. It is never written to disk.)</li>
+    <li>The transcript and word timings are then sent to DuSu's server and to the AI provider to be scored, and are discarded afterwards; only the scores and written feedback are stored.</li>
+  </ul>
 
   <h2>How your data is protected</h2>
   <p>All traffic between your device and DuSu's server is encrypted in transit (HTTPS/WSS). Your stored AI provider keys are obfuscated at rest so they are not stored as plain text in the database.</p>
 
   <h2>Account &amp; data deletion</h2>
   <p>You can permanently delete your account and all associated data at any time — from inside the app (Profile → Delete my account) or without installing the app at all, via our
-    <a href="/account-deletion">account deletion page</a>.</p>
+    <a href="/account-deletion">account deletion page</a>. This also deletes your Practice Room scores and reports from our servers. Recordings and transcripts live on your own device: deleting your account in the app clears them from that phone too; on any other phone you used, delete them inside Practice Room or clear the app's data.</p>
 
   <h2>Children</h2>
-  <p>DuSu is not directed at children and is not designed for users under 13.</p>
+  <p>DuSu is not directed at children and is not designed for users under 13. Practice Room, which records audio, is intended for adults (18 and over) — college and university students and working professionals.</p>
 
   <h2>Changes to this policy</h2>
   <p>If this policy changes materially, the "Last updated" date above will change. Continued use of DuSu after an update means you accept the revised policy.</p>

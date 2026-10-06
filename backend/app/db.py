@@ -21,7 +21,7 @@ import json
 import os
 
 from cryptography.fernet import Fernet, InvalidToken
-from sqlalchemy import String, Integer, Boolean, DateTime, Date, Text, ForeignKey, select, desc, func, delete
+from sqlalchemy import String, Integer, Boolean, DateTime, Date, Text, ForeignKey, select, desc, func, delete, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -248,12 +248,45 @@ class SessionScore(Base):
     xp_earned: Mapped[int] = mapped_column(Integer, default=0)
     confidence: Mapped[int] = mapped_column(Integer, default=0)
     continuity: Mapped[int] = mapped_column(Integer, default=0)
-    vocabulary: Mapped[int] = mapped_column(Integer, default=0)
-    grammar_trend: Mapped[int] = mapped_column(Integer, default=0)
+    # NULL = "this session had no signal for it" (a Hindi Practice Room talk has no English
+    # vocabulary/grammar) — NOT zero. init_db drops the NOT NULL on existing databases.
+    # No Python-side default on purpose: SQLAlchemy treats an explicit None as "not provided" and would
+    # silently insert the default (0) instead of NULL — found by running a Hindi attempt end to end.
+    vocabulary: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    grammar_trend: Mapped[int | None] = mapped_column(Integer, nullable=True)
     depth: Mapped[int] = mapped_column(Integer, default=0)
     overall: Mapped[int] = mapped_column(Integer, default=0)
     thoughts_translated: Mapped[int] = mapped_column(Integer, default=0)   # Daily Talk's unique metric, 0 elsewhere
     genuine_effort: Mapped[bool] = mapped_column(Boolean, default=True, index=True)   # §2.1/§2.2/§13/§20
+
+
+class PracticeAttempt(Base):
+    """One Practice Room rehearsal (DUSU_PRACTICE_ROOM_PLAN.md §5.4). Scores + the report
+    only: the recording and the full transcript stay ON THE DEVICE (plan decision D4) — the
+    report keeps at most three quoted sentences (the grammar fixes). A brand-new table, so
+    create_all makes it; no ALTER needed."""
+    __tablename__ = "practice_attempts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(16), default="presentation")     # presentation | viva | speech | seminar | discussion | custom
+    topic: Mapped[str] = mapped_column(String(200), default="")
+    lang: Mapped[str] = mapped_column(String(12), default="en")               # en | hi | hinglish  (language of the TALK)
+    feedback_lang: Mapped[str] = mapped_column(String(12), default="en")      # en | hinglish
+    level: Mapped[str] = mapped_column(String(16), default="intermediate")
+    target_sec: Mapped[int] = mapped_column(Integer, default=0)
+    actual_sec: Mapped[int] = mapped_column(Integer, default=0)
+    pause_sec: Mapped[int] = mapped_column(Integer, default=0)
+    words: Mapped[int] = mapped_column(Integer, default=0)
+    wpm: Mapped[int] = mapped_column(Integer, default=0)
+    overall: Mapped[int] = mapped_column(Integer, default=0)
+    scores: Mapped[dict] = mapped_column(JSONB, default=dict)                 # category → 0-100
+    report: Mapped[dict] = mapped_column(JSONB, default=dict)                 # the full report, re-openable from History
+    attempt_no: Mapped[int] = mapped_column(Integer, default=1)
+    parent_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)   # the attempt this one retries / bridges from
+    via: Mapped[str] = mapped_column(String(12), default="direct")            # direct | retry | bridge  (decided by the SERVER)
+    invite: Mapped[str] = mapped_column(String(12), default="none")           # English invitation: none | shown | opened | dismissed
+    genuine_effort: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
 
 
 class WeeklyStat(Base):
@@ -293,6 +326,12 @@ async def init_db() -> None:
         await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_session_scores_user_mode_created ON session_scores (user_id, mode, created_at DESC)"))
         await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_weekly_stats_week_xp ON weekly_stats (week_start, xp_earned DESC)"))
         await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_weekly_stats_week_level_xp ON weekly_stats (week_start, journey_level, xp_earned DESC)"))
+        # Practice Room: a Hindi/Hinglish attempt has no vocabulary/grammar signal, which must
+        # be stored as NULL (not 0). create_all never relaxes an existing column → explicit,
+        # idempotent. (practice_attempts itself is a new table, so create_all covers it.)
+        await conn.execute(_text("ALTER TABLE session_scores ALTER COLUMN vocabulary DROP NOT NULL"))
+        await conn.execute(_text("ALTER TABLE session_scores ALTER COLUMN grammar_trend DROP NOT NULL"))
+        await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_practice_attempts_user_created ON practice_attempts (user_id, created_at DESC)"))
 
 
 def _state(user: User, prof: Profile, prog: Progress, mem: "Memory | None" = None) -> dict:
@@ -607,7 +646,11 @@ async def leaderboard(me_id: str, limit: int = 20) -> dict:
 
 _SPEAKER_RANKS = [("starter", 0), ("speaker", 750), ("confident_speaker", 2000),
                   ("fluent_communicator", 4500), ("english_pro", 9000)]   # §4, exact thresholds
-_MODE_BONUS = {"daily": 10, "conversation": 15, "interview": 25}   # §2.1 ("conversation" = Face-to-Face, §6)
+_MODE_BONUS = {"daily": 10, "conversation": 15, "interview": 25,   # §2.1 ("conversation" = Face-to-Face, §6)
+               # Practice Room kinds (plan §6). An UNKNOWN mode is silently logged as
+               # "conversation" below, which would count a rehearsal toward the Face-to-Face
+               # achievements — so every kind the Practice Room can send must be listed here.
+               "presentation": 25, "viva": 25, "speech": 20, "seminar": 20, "discussion": 15, "custom": 15}
 _SESSION_XP_CAP = 300     # §2.1 anti-gaming cap
 _DAILY_XP_CAP = 600       # §2.1 anti-gaming cap
 _STREAK_MIN_MINUTES = 3   # §4 streak-qualifying floor
@@ -694,12 +737,17 @@ def _ist_week_start(d: dt.date | None = None) -> dt.date:
 
 async def award_speaker_progress(user_id: str, mode: str, minutes: float, turns: int,
                                   scores: dict, genuine_effort: bool,
-                                  thoughts_translated: int = 0) -> dict:
+                                  thoughts_translated: int = 0, unscored=frozenset()) -> dict:
     """Called once per finished speaking session (daily/conversation/interview) from
-    main.py's _persist_session(). Computes the §2.1 XP formula, persists a
-    SessionScore fact row, updates Progress.speaker_xp/speaker_rank + the shared
-    streak (gated by §4's qualifying-day rule), and rolls WeeklyStat forward (§6/§8).
-    Returns what was actually awarded, for the post-session screen (§7)."""
+    main.py's _persist_session(), and per Practice Room attempt. Computes the §2.1 XP
+    formula, persists a SessionScore fact row, updates Progress.speaker_xp/speaker_rank +
+    the shared streak (gated by §4's qualifying-day rule), and rolls WeeklyStat forward
+    (§6/§8). Returns what was actually awarded, for the post-session screen (§7).
+
+    `unscored`: component names this session had NO signal for (e.g. {"vocabulary",
+    "grammar_trend"} for a Hindi talk). They are stored as NULL and left out of `overall`,
+    which is renormalised over the rest. Existing callers never pass it, so for them
+    nothing changes."""
     if not db_enabled:
         return {}
     mode = mode if mode in _MODE_BONUS else "conversation"
@@ -723,15 +771,25 @@ async def award_speaker_progress(user_id: str, mode: str, minutes: float, turns:
         # not the full session_xp clamped for display — DB and UI never need to disagree.
         xp_to_award = max(0, min(session_xp, _DAILY_XP_CAP - int(awarded_today)))
 
-        overall = round(0.30 * _clamp100(scores.get("confidence")) + 0.25 * _clamp100(scores.get("continuity"))
-                         + 0.20 * _clamp100(scores.get("vocabulary")) + 0.15 * _clamp100(scores.get("grammar_trend"))
-                         + 0.10 * _clamp100(scores.get("depth")))
+        if unscored:
+            # Leave unscored components OUT and renormalise — counting them as 0 would
+            # silently drop up to 35% of the weight and make the attempt look like a
+            # regression in "delta vs last 5" and Before-vs-Now (plan §13.7).
+            comp = (("confidence", 0.30), ("continuity", 0.25), ("vocabulary", 0.20),
+                    ("grammar_trend", 0.15), ("depth", 0.10))
+            live = [(k, w) for k, w in comp if k not in unscored]
+            overall = round(sum(w * _clamp100(scores.get(k)) for k, w in live) / sum(w for _k, w in live))
+        else:
+            overall = round(0.30 * _clamp100(scores.get("confidence")) + 0.25 * _clamp100(scores.get("continuity"))
+                             + 0.20 * _clamp100(scores.get("vocabulary")) + 0.15 * _clamp100(scores.get("grammar_trend"))
+                             + 0.10 * _clamp100(scores.get("depth")))
 
         j = prog.journey if isinstance(prog.journey, dict) else {}
         row = SessionScore(
             user_id=user_id, mode=mode, minutes=minutes, xp_earned=xp_to_award,
             confidence=_clamp100(scores.get("confidence")), continuity=_clamp100(scores.get("continuity")),
-            vocabulary=_clamp100(scores.get("vocabulary")), grammar_trend=_clamp100(scores.get("grammar_trend")),
+            vocabulary=None if "vocabulary" in unscored else _clamp100(scores.get("vocabulary")),
+            grammar_trend=None if "grammar_trend" in unscored else _clamp100(scores.get("grammar_trend")),
             depth=_clamp100(scores.get("depth")), overall=_clamp100(overall),
             thoughts_translated=thoughts_translated, genuine_effort=genuine_effort,
         )
@@ -2202,7 +2260,7 @@ async def admin_wipe_users(keep_emails: set[str]) -> int:
         if not del_ids:
             return 0
         for tbl in (Conversation, Memory, Progress, Profile, UserKey, Feedback, UsageDaily,
-                    SessionScore, WeeklyStat, SeasonAward):
+                    SessionScore, WeeklyStat, SeasonAward, PracticeAttempt):
             await s.execute(delete(tbl).where(tbl.user_id.in_(del_ids)))
         await s.execute(delete(User).where(User.id.in_(del_ids)))
         await s.commit()
@@ -2215,7 +2273,7 @@ async def delete_user(user_id: str) -> bool:
         return False
     async with _Session() as s:               # type: ignore[misc]
         for tbl in (Conversation, Memory, Progress, Profile, UserKey, Feedback, UsageDaily,
-                    SessionScore, WeeklyStat, SeasonAward):
+                    SessionScore, WeeklyStat, SeasonAward, PracticeAttempt):
             await s.execute(delete(tbl).where(tbl.user_id == user_id))
         u = await s.get(User, user_id)
         if u:
@@ -2365,3 +2423,224 @@ async def get_my_season_awards(user_id: str) -> list[dict]:
         return [{"season_id": r.season_id, "award_key": r.award_key,
                   "label": _SEASON_AWARD_LABELS.get(r.award_key, r.award_key),
                   "stats": r.stats} for r in rows]
+
+
+# ===================== PRACTICE ROOM (DUSU_PRACTICE_ROOM_PLAN.md §5.4, §6, §13.8) =====================
+# Recordings and full transcripts never reach this module — they stay on the device. What is
+# stored: scores + the report (≤3 quoted sentences) per attempt, and the student's language /
+# English-invitation preferences inside Memory.facts (schemaless JSONB → no migration).
+_PRACTICE_KEEP = 200                      # attempts kept per user (oldest pruned) — bounds table growth
+_PRACTICE_PREF_DEFAULTS = {"lang": "en", "feedback_lang": "", "english_invite": "on",
+                           "invite_dismissals": 0, "invite_snooze_until": ""}
+_PRACTICE_SNOOZE_DAYS = 14                # two "Not now" in a row → no invitation for this long
+
+
+def _practice_row(r: "PracticeAttempt", full: bool = False) -> dict:
+    out = {"id": r.id, "kind": r.kind, "topic": r.topic, "lang": r.lang, "feedback_lang": r.feedback_lang,
+           "level": r.level, "target_sec": r.target_sec, "actual_sec": r.actual_sec, "words": r.words,
+           "wpm": r.wpm, "overall": r.overall, "scores": r.scores or {}, "attempt_no": r.attempt_no,
+           "parent_id": r.parent_id, "via": r.via, "invite": r.invite, "genuine_effort": r.genuine_effort,
+           "created_at": r.created_at.isoformat() if r.created_at else None}
+    if full:
+        out["report"] = r.report or {}
+    return out
+
+
+async def get_practice_prefs(user_id: str) -> dict:
+    out = dict(_PRACTICE_PREF_DEFAULTS)
+    if not db_enabled:
+        return out
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await s.get(Memory, user_id)
+        saved = ((mem.facts or {}).get("practice_prefs") if mem else None) or {}
+    if isinstance(saved, dict):
+        out.update({k: saved[k] for k in _PRACTICE_PREF_DEFAULTS if k in saved})
+    return out
+
+
+def _clean_practice_prefs(p: dict) -> dict:
+    """Allow-list + coerce — the client is never trusted to write arbitrary keys into Memory."""
+    out = {}
+    if p.get("lang") in ("en", "hi", "hinglish"):
+        out["lang"] = p["lang"]
+    if p.get("feedback_lang") in ("", "en", "hinglish"):
+        out["feedback_lang"] = p["feedback_lang"]
+    if p.get("english_invite") in ("on", "off"):
+        out["english_invite"] = p["english_invite"]
+    return out
+
+
+async def save_practice_prefs(user_id: str, patch: dict) -> dict:
+    clean = _clean_practice_prefs(patch or {})
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        prefs = {**_PRACTICE_PREF_DEFAULTS, **(f.get("practice_prefs") or {}), **clean}
+        if clean.get("english_invite") == "on":          # turning it back on clears any snooze
+            prefs["invite_dismissals"], prefs["invite_snooze_until"] = 0, ""
+        f["practice_prefs"] = {k: prefs[k] for k in _PRACTICE_PREF_DEFAULTS}
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+        return f["practice_prefs"]
+
+
+async def practice_invite_action(user_id: str, action: str) -> dict:
+    """The student's answer to the English invitation card. opened → resets the dismiss
+    counter; dismissed ("Not now") → after two in a row, snooze for 14 days; off → permanent
+    (until switched back on in Setup)."""
+    if action not in ("opened", "dismissed", "off"):
+        return await get_practice_prefs(user_id)
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        prefs = {**_PRACTICE_PREF_DEFAULTS, **(f.get("practice_prefs") or {})}
+        if action == "opened":
+            prefs["invite_dismissals"] = 0
+        elif action == "dismissed":
+            n = int(prefs.get("invite_dismissals") or 0) + 1
+            if n >= 2:
+                prefs["invite_snooze_until"] = (_ist_now().date() + dt.timedelta(days=_PRACTICE_SNOOZE_DAYS)).isoformat()
+                n = 0
+            prefs["invite_dismissals"] = n
+        else:
+            prefs["english_invite"] = "off"
+        f["practice_prefs"] = {k: prefs[k] for k in _PRACTICE_PREF_DEFAULTS}
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+        return f["practice_prefs"]
+
+
+async def practice_today(user_id: str, topic: str) -> dict:
+    """{count: attempts today (IST), topic_invited: was the English invitation already shown
+    for this topic today}. Feeds the daily cap and the 'once per topic per day' nag guard."""
+    if not db_enabled:
+        return {"count": 0, "topic_invited": False}
+    day_start = _ist_day_start_utc(_ist_now().date())
+    async with _Session() as s:               # type: ignore[misc]
+        cnt = (await s.execute(
+            select(func.count()).select_from(PracticeAttempt)
+            .where(PracticeAttempt.user_id == user_id, PracticeAttempt.created_at >= day_start)
+        )).scalar() or 0
+        invited = (await s.execute(
+            select(func.count()).select_from(PracticeAttempt)
+            .where(PracticeAttempt.user_id == user_id, PracticeAttempt.created_at >= day_start,
+                   func.lower(PracticeAttempt.topic) == (topic or "").lower(),
+                   PracticeAttempt.invite.in_(("shown", "opened", "dismissed")))
+        )).scalar() or 0
+    return {"count": int(cnt), "topic_invited": invited > 0}
+
+
+async def get_practice_parent(user_id: str, attempt_id: int | None) -> dict | None:
+    """The earlier attempt this one retries / bridges from (ownership-checked), or None."""
+    if not db_enabled or not attempt_id:
+        return None
+    async with _Session() as s:               # type: ignore[misc]
+        r = await s.get(PracticeAttempt, int(attempt_id))
+        return _practice_row(r, full=False) if (r is not None and r.user_id == user_id) else None
+
+
+async def save_practice_attempt(user_id: str, data: dict) -> dict:
+    """Insert one attempt. `via` is decided HERE, never taken from the client: an English
+    attempt whose parent was a Hindi/Hinglish one is a 'bridge'; any other child is a 'retry'."""
+    async with _Session() as s:               # type: ignore[misc]
+        attempt_no, parent_id, via = 1, None, "direct"
+        pid = data.get("parent_id")
+        if pid:
+            parent = await s.get(PracticeAttempt, int(pid))
+            if parent is not None and parent.user_id == user_id:
+                parent_id, attempt_no = parent.id, (parent.attempt_no or 1) + 1
+                via = "bridge" if (data.get("lang") == "en" and parent.lang in ("hi", "hinglish")) else "retry"
+        row = PracticeAttempt(
+            user_id=user_id, kind=data.get("kind", "presentation"), topic=(data.get("topic") or "")[:200],
+            lang=data.get("lang", "en"), feedback_lang=data.get("feedback_lang", "en"),
+            level=data.get("level", "intermediate"), target_sec=int(data.get("target_sec") or 0),
+            actual_sec=int(data.get("actual_sec") or 0), pause_sec=int(data.get("pause_sec") or 0),
+            words=int(data.get("words") or 0), wpm=int(data.get("wpm") or 0), overall=_clamp100(data.get("overall")),
+            scores=data.get("scores") or {}, report=data.get("report") or {}, attempt_no=attempt_no,
+            parent_id=parent_id, via=via, invite=data.get("invite", "none"),
+            genuine_effort=bool(data.get("genuine_effort", True)),
+        )
+        s.add(row)
+        await s.flush()
+        # bound the table: keep each user's newest _PRACTICE_KEEP attempts
+        old = (await s.execute(
+            select(PracticeAttempt.id).where(PracticeAttempt.user_id == user_id)
+            .order_by(desc(PracticeAttempt.created_at), desc(PracticeAttempt.id)).offset(_PRACTICE_KEEP)
+        )).scalars().all()
+        if old:
+            await s.execute(delete(PracticeAttempt).where(PracticeAttempt.id.in_(old)))
+        await s.commit()
+        return {"id": row.id, "attempt_no": attempt_no, "parent_id": parent_id, "via": via,
+                "created_at": row.created_at.isoformat() if row.created_at else None}
+
+
+async def list_practice_attempts(user_id: str, limit: int = 30) -> list[dict]:
+    if not db_enabled:
+        return []
+    async with _Session() as s:               # type: ignore[misc]
+        rows = (await s.execute(
+            select(PracticeAttempt).where(PracticeAttempt.user_id == user_id)
+            .order_by(desc(PracticeAttempt.created_at), desc(PracticeAttempt.id)).limit(limit)
+        )).scalars().all()
+        return [_practice_row(r) for r in rows]
+
+
+async def get_practice_attempt(user_id: str, attempt_id: int) -> dict | None:
+    if not db_enabled:
+        return None
+    async with _Session() as s:               # type: ignore[misc]
+        r = await s.get(PracticeAttempt, int(attempt_id))
+        return _practice_row(r, full=True) if (r is not None and r.user_id == user_id) else None
+
+
+async def delete_practice_attempt(user_id: str, attempt_id: int) -> bool:
+    """User-initiated: remove one attempt's scores/report. XP already earned stays earned."""
+    if not db_enabled:
+        return False
+    async with _Session() as s:               # type: ignore[misc]
+        r = await s.get(PracticeAttempt, int(attempt_id))
+        if r is None or r.user_id != user_id:
+            return False
+        await s.execute(update(PracticeAttempt).where(PracticeAttempt.parent_id == r.id, PracticeAttempt.user_id == user_id)
+                        .values(parent_id=None))          # don't leave children pointing at a deleted parent
+        await s.delete(r)
+        await s.commit()
+        return True
+
+
+async def mark_practice_invite(user_id: str, attempt_id: int, state: str) -> None:
+    if not db_enabled or state not in ("shown", "opened", "dismissed"):
+        return
+    async with _Session() as s:               # type: ignore[misc]
+        r = await s.get(PracticeAttempt, int(attempt_id))
+        if r is not None and r.user_id == user_id:
+            r.invite = state
+            await s.commit()
+
+
+async def check_practice_badges(user_id: str) -> list[str]:
+    """Practice Room achievements. 'Bridge Builder' = an English attempt that came from a
+    Hindi/Hinglish one (decided server-side in save_practice_attempt) — it carries NO XP, so
+    nothing pays a student to leave Hindi (plan §13.7)."""
+    if not db_enabled:
+        return []
+    async with _Session() as s:               # type: ignore[misc]
+        rows = (await s.execute(
+            select(PracticeAttempt.kind, PracticeAttempt.overall, PracticeAttempt.lang, PracticeAttempt.via)
+            .where(PracticeAttempt.user_id == user_id, PracticeAttempt.genuine_effort.is_(True))
+        )).all()
+    pres = [r for r in rows if r.kind == "presentation"]
+    ids: list[str] = []
+    if pres:
+        ids.append("first_presentation")
+    if len(pres) >= 10:
+        ids.append("presentation_10")
+    if any(r.overall >= 80 for r in pres):
+        ids.append("presentation_80")
+    if any(r.overall >= 90 for r in pres):
+        ids.append("presentation_90")
+    if any(r.via == "bridge" and r.lang == "en" for r in rows):
+        ids.append("bridge_builder")
+    return await award_badges(user_id, ids)

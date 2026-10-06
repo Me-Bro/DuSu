@@ -166,7 +166,8 @@ def _mark_cooldown(name: str, err: str) -> None:
     _cooldown[name] = time.time() + (1800 if daily else 90)
 
 
-async def _complete(messages: list[dict], max_tokens: int, prefer_fast: bool = False) -> str:
+async def _complete(messages: list[dict], max_tokens: int, prefer_fast: bool = False,
+                    temperature: float = 0.7) -> str:
     """Walk the provider chain → each provider's models → until one answers.
     Skips providers on cooldown; if every provider is cooling down, tries them
     anyway rather than failing.
@@ -175,7 +176,12 @@ async def _complete(messages: list[dict], max_tokens: int, prefer_fast: bool = F
     of the chain — for latency-sensitive per-turn chat calls (conversation/
     interview/daily turns). One-shot heavy generations (career roadmap, full
     assessments) keep the default gemini-first order, where quality-per-call
-    matters more than shaving latency (DUSU_SPEAKER_PROGRESSION_PLAN.md §9/§18)."""
+    matters more than shaving latency (DUSU_SPEAKER_PROGRESSION_PLAN.md §9/§18).
+
+    `temperature` defaults to the conversational 0.7 every existing caller relies on.
+    SCORING callers (Practice Room) pass a low value: measured on the same speech,
+    0.7 moved a weak talk's overall score by up to 15 points between runs, 0.2 by
+    up to 12 — so a re-score at 0.7 is mostly noise (DUSU_PRACTICE_ROOM_PLAN.md §4.3)."""
     last_err = None
     chain = _active_chain.get() or settings.providers()   # Office keys if set, else default
     if prefer_fast:
@@ -203,7 +209,7 @@ async def _complete(messages: list[dict], max_tokens: int, prefer_fast: bool = F
                         model=model,
                         messages=messages,
                         max_tokens=max_tokens,
-                        temperature=0.7,
+                        temperature=temperature,
                         extra_body=p.get("extra") or {},
                     )
                     choice = resp.choices[0]
@@ -332,7 +338,17 @@ def _recent(transcript: list[dict]) -> list[dict]:
 
 
 def _extract_json(text: str) -> dict:
-    """Models don't always return clean JSON — strip code fences, pull the {...} block."""
+    """Models don't always return clean JSON — strip code fences, pull the {...} block.
+
+    Measured 2026-10-06 on Gemini flash-lite: ~1 reply in 9 was syntactically broken at
+    the very end although the model had finished normally (finish_reason=stop, ~190
+    tokens — NOT truncation). Two shapes were captured:
+      * the root object closed early, then more keys followed:  …]}\n "genuine_effort":true}
+      * a stray extra closing brace after the root object.
+    json.loads and the greedy {...} regex both fail on either, so a perfectly good
+    scorecard was thrown away. The first COMPLETE object is parsed with raw_decode and
+    any trailing "key": value pairs are merged back in. Genuine truncation (no closing
+    brace at all) still fails, as it should."""
     t = (text or "").strip()
     if t.startswith("```"):                       # ```json ... ``` fences
         t = re.sub(r"^```(?:json)?\s*", "", t)
@@ -340,12 +356,27 @@ def _extract_json(text: str) -> dict:
     try:
         return json.loads(t)
     except json.JSONDecodeError:
-        m = re.search(r"\{.*\}", t, re.DOTALL)     # greedy → to the last closing brace
-        if m:
-            try:
-                return json.loads(m.group(0))
-            except json.JSONDecodeError:
-                pass
+        pass
+    i = t.find("{")
+    if i >= 0:
+        try:
+            obj, end = json.JSONDecoder().raw_decode(t[i:])
+        except json.JSONDecodeError:
+            obj = None
+        if isinstance(obj, dict):
+            rest = t[i + end:].strip()
+            if re.match(r'^"[^"]+"\s*:', rest):       # root closed early, more pairs follow
+                try:
+                    obj.update(json.loads("{" + rest))
+                except json.JSONDecodeError:
+                    pass
+            return obj
+    m = re.search(r"\{.*\}", t, re.DOTALL)         # greedy → to the last closing brace
+    if m:
+        try:
+            return json.loads(m.group(0))
+        except json.JSONDecodeError:
+            pass
     return {"error": "scoring_parse_failed", "raw": text[:500]}
 
 
@@ -381,12 +412,14 @@ class OpenRouterLLM:
                     {"role": "user", "content": prompt}]
         return await _complete(messages, max_tokens=max_tokens)
 
-    async def assess(self, system: str, payload: str, max_tokens: int = 700, prefer_fast: bool = False) -> dict:
+    async def assess(self, system: str, payload: str, max_tokens: int = 700, prefer_fast: bool = False,
+                     temperature: float = 0.7) -> dict:
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": payload + "\n\nReturn ONLY the JSON object."},
         ]
-        return _extract_json(await _complete(messages, max_tokens=max_tokens, prefer_fast=prefer_fast))
+        return _extract_json(await _complete(messages, max_tokens=max_tokens, prefer_fast=prefer_fast,
+                                             temperature=temperature))
 
     async def score(self, system: str, transcript: list[dict]) -> dict:
         convo = "\n".join(f"{m['role']}: {m['content']}" for m in transcript)

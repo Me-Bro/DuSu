@@ -1348,6 +1348,22 @@ Secrets in `backend/.env` (never committed); DB credentials live in the root `.e
 
 ## Quick command reference
 
+## 9. Practice Room (flag-gated, built 2026-10-06 — design in `DUSU_PRACTICE_ROOM_PLAN.md`)
+
+Rehearse a presentation → record on the phone → transcribe → scored report → listen back → retry. Hindi, Hinglish or English (plan §13). **Dark by default:** `settings.practice_room` = `off` (default) / `owner` / `on`, flipped from the owner dashboard (More → Dashboard → Access → Practice Room); the client reads it as `/me.practice_room` and draws no entry point while it is off.
+
+| Piece | Where |
+|---|---|
+| Scoring | `backend/app/practice.py` — measured metrics from word timestamps (pace, pauses, restarts, pace variance, time, recogniser confidence) + LLM judgements; English weights 20/15/5/10/20/10/10/10, Hindi/Hinglish 25/30/15/15/15 (no Grammar/Vocabulary/Clarity — plan §13.6); median of `RUNS`; quote verification; `compute_delta` (changes under 5 points are noise); `invite_decision` (the English-invitation nag guard); `build_bridge` |
+| Prompts | `interview/prompts.py` → `practice_analysis_system()`, `practice_bridge_system()` |
+| Endpoints (`main.py`) | `POST /practice/analyze` · `/practice/bridge` · `/practice/prefs` · `/practice/delete` · `/practice/transcribe` (server proxy, only for accounts on DuSu's own keys) · `GET /practice/history` · `/practice/attempt?id=` |
+| Data (`db.py`) | table `practice_attempts` (scores + report only — **recordings and transcripts never reach the server**); `session_scores.vocabulary/grammar_trend` are NULLable ("not scored" ≠ 0, migration in `init_db`); prefs in `memory.facts.practice_prefs`; `award_speaker_progress(..., unscored=)`; new modes in `_MODE_BONUS` (an unknown mode is silently logged as "conversation") |
+| Client (`test_client.html`) | the `PR` module near the end of the script + `#pr*` sections / `.pr-*` CSS. Recording = `MediaRecorder` → 10 s chunks mirrored to IndexedDB `dusu-practice` (crash recovery) → Groq Whisper **straight from the phone with the student's own key** (`savedKeys().groq`); takes are tagged with the account and wiped on account deletion |
+
+**Gotchas:** `llm.assess(..., temperature=)` — scoring runs at 0.2 (the default 0.7 re-scores the same speech up to 15 points apart). `_extract_json` now repairs the two broken-brace shapes Gemini-lite emits (~1 reply in 9), so gate fields (`genuine_effort`) are also computed server-side. Never log a transcript (`_safe_err`). Because the server's Groq key is dead, accounts on DuSu's keys cannot transcribe until it is replaced — BYOK users with their own Groq key are unaffected. Not yet verified on a physical phone/TWA: recording permission, Wake Lock, battery, Whisper on Hindi/Hinglish (plan §7 spikes S1/S2b/S3b).
+
+---
+
 ```powershell
 # Local run — from repo root, backend served on 127.0.0.1:8000
 cd "C:\Personal Work\English Specking\backend"
