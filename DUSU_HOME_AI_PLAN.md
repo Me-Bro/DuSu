@@ -1,6 +1,6 @@
 # DUSU — Home Page 2.0, "AI Companion First" — Plan + status
 
-> **Status 2026-10-10: audited, designed, then built in the same pass** (owner: "make full solid plan and implement, push code, SSH, test end to end").
+> **Status 2026-10-11: BUILT, TESTED, PUSHED AND DEPLOYED (commit `8efebf4`)** - audited, designed, then built in the same pass (owner: "make full solid plan and implement, push code, SSH, test end to end").
 > Ships behind `settings.home_ai` = off / **owner (default)** / on (dashboard → Access → "Home AI companion"). **Switch OFF = today's Home, byte for byte.**
 > Status, verification and what is *not* verified: §10. Also covers the Android "browser X + URL bar" bug: §9.
 
@@ -71,5 +71,22 @@ Model JSON glitches (~1 in 9 on the lite model) → one retry + keyword fallback
 
 **Not verified:** a Play-installed build losing its bar (needs the fingerprint above and a phone).
 
-## 10. Status — built, tested and deployed 2026-10-10
-Filled in at the end of the build (see CLAUDE.md §12 for the code map, gotchas and the verification record).
+## 10. Status - built, tested, pushed and deployed 2026-10-10/11 (commit `8efebf4`)
+
+**Live** on `dusu.ranabrothers.online` and `dusu.ruralrootcloud.com` (one container), behind `settings.home_ai` = **owner (default)** - the owner and the unlimited account see Home 2.0 on their next load; everyone else sees today's Home. To open it up: dashboard (More -> Dashboard) -> Access -> **Home AI companion** -> *Everyone* (its progress answers also need *DuSu knows your progress* on). Switch it *Off* and Home is exactly what it was. Pushed to both GitHub remotes (also carries the earlier unpushed commits: Practice Room, DuSu-knows-your-data, the Goals plan, Hindi/English modes).
+
+| Spec / request | Built |
+|---|---|
+| Time-aware greeting, natural **Hinglish** ("Good morning", never सुप्रभात) | client-side greeting, 4 time segments x 3 variants + new-learner + English sets; the model prompt forbids the stiff words and `soften()` rewrites any that slip - also on Daily Talk / Face-to-Face for learners with the switch on |
+| Assistant speaks first on Start Speaking; text / voice / suggested actions | greeting spoken at once, mic opens after it; chips, type box, suggestion buttons; text mode, mic-denied and no-recogniser fallbacks, interrupt, restart, End |
+| Separate **Know About DuSu** page; Daily Talk and the nav untouched | `/about` from one registry; Goals & Daily Planning shown as *Coming soon*, no link; Daily Talk tab/route unchanged |
+| AI never invents tasks / goals / memories / features; validated intents, user in control | no planner -> "no saved tasks", nothing promised; numbers only from the database; memory only as written; ids validated server-side, DuSu only suggests, the learner taps |
+| Privacy | greeting has no private data; a switch on the Know About page turns memory + numbers off for Home |
+| Push, SSH deploy, test end to end | pushed (`cdcbcd9..8efebf4`, both remotes), deployed over SSH, verified live |
+| Android browser X + URL bar | cause measured; owner tooling built (section 9); **needs the owner's Play fingerprint** |
+
+**Verified:** 127 logic checks - 117 browser checks (also run against the DEPLOYED HTML bytes) - **35 real end-to-end checks** (real Chromium -> real WebSocket -> the new code in a throwaway container with a scratch DB -> the real model) - 93 scratch-DB server checks with the real model - flag-off parity (old HEAD vs new: prompts + model inputs byte-identical, client 17 + 55 observations identical) - regression suites for Hindi/English modes (all pass but one stochastic Hindi-interview threshold) and DuSu-knows-your-data (one failure, **identical on the old HEAD**, so not from this change) - live read-only smoke on both hostnames (new client served, `/home/*` and `/admin/applink*` refuse anonymous callers, assetlinks unchanged, deep links work).
+
+**Not verified (needs the owner's phone):** Hindi TTS voice and `hi-IN` recogniser accuracy on Hinglish, the sticky input row with the on-screen keyboard, a Play-installed build losing its browser bar.
+
+**Owner to-do:** (1) paste the Play *App signing key certificate* SHA-256 (section 9) - the only way to fix the bar on Play installs; (2) try Home 2.0 on your phone, then flip the switch to *Everyone*; (3) say "go" on the Goals plan when you want the planner - Home already knows how to plug it in (CLAUDE.md section 12).
