@@ -2668,6 +2668,25 @@ async def save_lang_pref(user_id: str, lang: str | None = None, learn: str | Non
         return out
 
 
+# ===================== HOME 2.0 PRIVACY CHOICE (home_content.py, CLAUDE.md §12) =====================
+async def save_home_prefs(user_id: str, personal: bool | None = None) -> dict:
+    """Whether DuSu may use what it remembers about the learner (name, goals, progress, past chats) in the Home chat.
+    Default True - the same as Talk / Daily Talk. Lives in Memory.facts["home_prefs"] (schemaless - no migration).
+    Only the keys passed are changed."""
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        cur = f.get("home_prefs") if isinstance(f.get("home_prefs"), dict) else {}
+        out = {"personal": bool(cur.get("personal", True))}
+        if personal is not None:
+            out["personal"] = bool(personal)
+        f["home_prefs"] = out
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+        return out
+
+
 # ===================== LIFE CONTEXT (life.py — "DuSu knows your data", CLAUDE.md §10) =====================
 async def life_snapshot(user_id: str) -> dict:
     """Everything life.py needs about one learner, read in ONE session: profile, progress and the

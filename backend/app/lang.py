@@ -15,7 +15,8 @@ DEFAULT_LANG = "hi"
 
 # What "bilingual switch OFF" means per WS mode - exactly today's behaviour: Face-to-Face and Interview were
 # English-only; Daily Talk and Learn were Hindi-in. main.py falls back to this when the switch is off for a user.
-LEGACY = {"conversation": "en", "interview": "en", "daily": "hi", "learning": "hi"}
+LEGACY = {"conversation": "en", "interview": "en", "daily": "hi", "learning": "hi",
+          "home": "hi"}   # Home 2.0 (home_content.py): the companion is Hinglish by default, with or without the switch
 
 
 def norm(v, default: str = DEFAULT_LANG) -> str:

@@ -286,6 +286,110 @@
   .reveal-link:hover { color:var(--ink); border-color:color-mix(in srgb,var(--gold) 45%,transparent);
     background:rgba(255,255,255,.04); transform:translateY(-1px); }
 
+  /* ===== Home 2.0 - AI companion first (CLAUDE.md §12, DUSU_HOME_AI_PLAN.md). Every rule below is inert unless #home carries
+     .hm-on, which only a learner with the Home AI switch on ever gets - so with the switch off none of it matches anything
+     visible. Classes are hm-* / ab-* (this file's class names are global). ===== */
+  #home.hm-on .htitle, #home.hm-on .hsub { display:none; }
+  #home.hm-on .hstage > * { order:20; }
+  #home.hm-on .hstage > .hchar { order:0; }
+  #home.hm-on .hstage > #hmLabel { order:1; }
+  #home.hm-on .hstage > #welcomeMsg { order:2; }
+  #home.hm-on .hstage > #hmChips { order:3; }
+  #home.hm-on .hstage > #startSpeak { order:4; }
+  #home.hm-on .hstage > #hmAbout { order:5; }
+  #home.hm-on .hstage > #hmType { order:6; }
+  #home.hm-on .hstage > .lg-row { order:7; margin-top:14px; }
+  .hm-label { font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-faint); font-weight:600;
+    margin:18px 0 0; line-height:1.6; }
+  .hm-label b { color:var(--gold-lt); font-weight:700; }
+  #home.hm-on #welcomeMsg { font-family:var(--font-b); font-weight:500; font-size:20.5px; line-height:1.55; color:var(--ink); max-width:340px; margin:10px auto 16px; }
+  @media (max-height:760px){
+    #home.hm-on .hchar { width:118px; height:118px; }
+    #home.hm-on .hchar .wface { width:132px !important; height:132px !important; }
+    #home.hm-on #welcomeMsg { font-size:19px; margin:6px auto 12px; }
+    .hm-chips { margin-bottom:14px; }
+  }
+  .hm-chips { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; width:min(360px,94vw); margin:0 auto 20px; }
+  .hm-chip, .hm-act { font:inherit; font-size:13.5px; line-height:1.4; min-height:44px; padding:10px 15px; border-radius:999px; cursor:pointer;
+    color:var(--ink); background:var(--glass); border:1px solid var(--glass-brd); transition:transform .15s, border-color .2s, background .2s; }
+  .hm-chip:hover, .hm-act:hover { transform:translateY(-1px); border-color:color-mix(in srgb,var(--gold) 55%,transparent); background:rgba(255,255,255,.07); }
+  .hm-chip:active, .hm-act:active { transform:scale(.97); }
+  .hm-chip:focus-visible, .hm-act:focus-visible, .hm-about:focus-visible, .hm-mic:focus-visible, .hm-send:focus-visible
+    { outline:2px solid var(--gold-lt); outline-offset:2px; }
+  .hm-act { color:var(--gold-lt); border-color:color-mix(in srgb,var(--gold) 45%,transparent); }
+  .hm-about { font:inherit; font-size:14px; line-height:1.4; min-height:44px; margin:14px auto 0; padding:10px 22px; border-radius:999px; cursor:pointer;
+    color:var(--gold-lt); background:none; border:1px solid color-mix(in srgb,var(--gold) 38%,transparent); transition:background .2s, transform .15s; }
+  .hm-about:hover { background:color-mix(in srgb,var(--gold) 10%,transparent); }
+  .hm-about:active { transform:scale(.97); }
+  .hm-type, .hm-form { display:flex; gap:8px; align-items:center; }
+  .hm-type { width:min(340px,92vw); margin:14px auto 0; }
+  .hm-type input, .hm-form input { flex:1; min-width:0; min-height:44px; font:inherit; font-size:14px; color:var(--ink); background:var(--glass);
+    border:1px solid var(--glass-brd); border-radius:999px; padding:10px 16px; }
+  .hm-type input::placeholder, .hm-form input::placeholder { color:var(--ink-faint); }
+  .hm-type input:focus-visible, .hm-form input:focus-visible { outline:2px solid var(--gold-lt); outline-offset:1px; }
+  .hm-send, .hm-mic { flex:0 0 44px; width:44px; height:44px; border-radius:50%; cursor:pointer; font:inherit; font-size:17px; line-height:1;
+    color:var(--ink); background:var(--glass); border:1px solid var(--glass-brd); display:grid; place-items:center; }
+  .hm-send { background:var(--grad); color:#0b1020; border-color:transparent; }
+  .hm-mic.on { background:var(--grad); color:#0b1020; border-color:transparent; }
+  /* the live chat (inside #session, only while currentMode === "home") */
+  .hm-live { display:flex; flex-direction:column; gap:10px; margin:12px 0 2px; }
+  #session.hm-chat .hm-live { position:sticky; bottom:calc(76px + env(safe-area-inset-bottom) + 4px); z-index:5; padding:10px 0 6px; margin:8px 0 0;
+    background:linear-gradient(to bottom, rgba(7,10,20,0), rgba(7,10,20,.98) 14px, rgba(7,10,20,.98) calc(100% - 8px), rgba(7,10,20,0)); }
+  @media (max-width:1199px) and (max-height:760px){
+    #session.hm-chat .orb-wrap { width:140px; height:140px; }
+    #session.hm-chat .orb { width:100px; height:100px; }
+    #session.hm-chat #face { width:100px; height:100px; }
+    #session.hm-chat .state-hint { display:none; }
+  }
+  @media (max-width:1199px){
+    #session.hm-chat .stage { padding-top:8px; }
+    #session.hm-chat .orb-wrap { width:176px; height:176px; }
+    #session.hm-chat .orb { width:124px; height:124px; }
+    #session.hm-chat #face { width:124px; height:124px; }
+    #session.hm-chat .state-label { margin-top:10px; }
+    #session.hm-chat .feed { margin-top:12px; }
+  }
+  .hm-acts { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+  .hm-acts:empty { display:none; }
+  .hm-notice { font-size:12.5px; line-height:1.55; color:var(--ink-dim); text-align:center; background:var(--glass); border:1px solid var(--glass-brd);
+    border-radius:12px; padding:8px 12px; }
+  /* Know About DuSu */
+  #about { max-width:640px; margin:0 auto; }
+  .ab-intro { color:var(--ink-dim); font-size:15px; line-height:1.65; margin:6px 0 4px; }
+  .ab-sec { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint); font-weight:600; margin:24px 0 10px; line-height:1.6; }
+  .ab-card { display:flex; gap:14px; align-items:flex-start; text-align:left; padding:15px 16px; margin:0 0 10px; border-radius:16px;
+    background:var(--glass); border:1px solid var(--glass-brd); }
+  .ab-ic { flex:0 0 40px; width:40px; height:40px; border-radius:12px; display:grid; place-items:center; font-size:20px;
+    background:color-mix(in srgb,var(--gold) 14%,transparent); }
+  .ab-body { flex:1; min-width:0; }
+  .ab-ttl { font-family:var(--font-d); font-size:19px; font-weight:600; color:var(--ink); line-height:1.3; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .ab-desc { font-size:13.5px; line-height:1.6; color:var(--ink-dim); margin:4px 0 0; }
+  .ab-best { font-size:12.5px; line-height:1.55; color:var(--ink-faint); margin:6px 0 0; }
+  .ab-try { font:inherit; font-size:13px; min-height:40px; margin-top:10px; padding:8px 16px; border-radius:999px; cursor:pointer;
+    color:var(--gold-lt); background:none; border:1px solid color-mix(in srgb,var(--gold) 40%,transparent); }
+  .ab-try:hover { background:color-mix(in srgb,var(--gold) 10%,transparent); }
+  .ab-card.soon { opacity:.78; border-style:dashed; }
+  .ab-badge { font-family:var(--font-b); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; padding:3px 9px; border-radius:999px;
+    color:var(--amber); border:1px solid color-mix(in srgb,var(--amber) 55%,transparent); font-weight:600; }
+  .ab-step { display:flex; gap:12px; align-items:flex-start; text-align:left; margin:0 0 12px; }
+  .ab-n { flex:0 0 28px; width:28px; height:28px; border-radius:50%; display:grid; place-items:center; font-size:13px; font-weight:700;
+    color:#0b1020; background:var(--grad); }
+  .ab-step b { display:block; color:var(--ink); font-size:14.5px; line-height:1.4; }
+  .ab-step span { display:block; color:var(--ink-dim); font-size:13.5px; line-height:1.6; }
+  .ab-priv { display:flex; gap:12px; align-items:center; justify-content:space-between; text-align:left; padding:14px 16px; margin:8px 0 0; border-radius:16px;
+    background:var(--glass); border:1px solid var(--glass-brd); font-size:13px; line-height:1.55; color:var(--ink-dim); }
+  .ab-priv b { color:var(--ink); display:block; font-size:14px; margin-bottom:2px; }
+  .ab-priv input { flex:0 0 auto; width:22px; height:22px; }
+  .ab-cta { display:block; margin:26px auto 8px; }
+  .ab-err { text-align:center; color:var(--ink-dim); font-size:14px; line-height:1.6; padding:30px 8px; }
+  @media (min-width:1200px){
+    #session.on > .hm-live { grid-column:2; grid-row:4; margin-top:10px; }
+    #session.hm-chat .hm-live { position:static; background:none; padding:0; }
+    #home.hm-on #welcomeMsg { font-size:26px; max-width:520px; }
+    .hm-chips { width:min(560px,94vw); }
+    .hm-type { width:min(440px,92vw); }
+  }
+  @media (prefers-reduced-motion: reduce){ .hm-chip, .hm-act, .hm-about, .ab-try { transition:none !important; } }
   #moreHome { animation:fade .5s ease; scroll-margin-top:20px; }
   @media (prefers-reduced-motion: reduce){
     .halo,.hpart i,.hbtn,.hbubble,.htitle,.hsub,.reveal-link,.hjourney{ animation:none !important; opacity:1 !important; transform:none !important; }
@@ -2026,6 +2130,14 @@
       <!-- §7a Q4: "Where do I stand?" — this week's League position -->
       <button class="sr-league" id="leagueChip" hidden></button>
       <button class="hbtn" id="startSpeak">Start Speaking</button>
+      <!-- Home 2.0 (CLAUDE.md §12): hidden until userState.home_ai; HM.render() fills + shows them, CSS .hm-on orders them -->
+      <div class="hm-label" id="hmLabel" hidden></div>
+      <div class="hm-chips" id="hmChips" hidden></div>
+      <button class="hm-about" id="hmAbout" type="button" hidden></button>
+      <form class="hm-type" id="hmType" autocomplete="off" hidden>
+        <input id="hmTypeIn" type="text" maxlength="400" enterkeyhint="send" aria-label="Type to DuSu" />
+        <button type="submit" class="hm-send" id="hmTypeGo" aria-label="Send">&#10148;</button>
+      </form>
       <button class="hgoal" id="homeGoal" hidden></button>
       <div class="cp-home" id="homeCareer" hidden></div>
       <div class="sr-missions" id="homeMissions" hidden></div>
@@ -2842,6 +2954,17 @@
     </div>
   </section>
 
+  <!-- ===================== KNOW ABOUT DUSU (Home 2.0, CLAUDE.md §12) ===================== -->
+  <section id="about" class="screen">
+    <div class="sess-head">
+      <button class="back" id="abBack" title="Home" aria-label="Home">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div><div class="sess-title" id="abTitle">Know About DuSu</div><div class="sess-sub" id="abSub"></div></div>
+    </div>
+    <div id="abBody"></div>
+  </section>
+
   <!-- ===================== SESSION ===================== -->
   <section id="session" class="screen">
     <div class="sess-head">
@@ -2932,8 +3055,20 @@
 
     <div class="feed" id="feed"></div>
 
+    <!-- Home 2.0 companion chat: suggested actions, type-or-speak row, new chat. Shown only while currentMode === "home". -->
+    <div class="hm-live" id="hmLive" hidden>
+      <div class="hm-notice" id="hmNotice" role="status" hidden></div>
+      <div class="hm-acts" id="hmActs"></div>
+      <form class="hm-form" id="hmForm" autocomplete="off">
+        <button type="button" class="hm-mic" id="hmMic" aria-pressed="false">&#127908;</button>
+        <input id="hmInput" type="text" maxlength="400" enterkeyhint="send" />
+        <button type="submit" class="hm-send" id="hmSend" aria-label="Send">&#10148;</button>
+      </form>
+    </div>
+
     <div class="controls">
       <button class="btn danger" id="endBtn">End</button>
+      <button type="button" class="btn ghost" id="hmRestart" hidden></button>
     </div>
   </section>
 
@@ -3395,7 +3530,7 @@ const LG_STATIC = [
 
 const LG = (function(){
   const K_LANG = "dusu_lang", K_DIR = "dusu_learn_dir";
-  const LEGACY = { conversation:"en", interview:"en", daily:"hi", learning:"hi" };
+  const LEGACY = { conversation:"en", interview:"en", daily:"hi", learning:"hi", home:"hi" };   // home = Home 2.0 (Hinglish with or without the switch)
   const ok = v => v === "hi" || v === "en";
   const rd = k => { try{ const v = localStorage.getItem(k); return ok(v) ? v : ""; }catch(_){ return ""; } };
   const wr = (k, v) => { try{ localStorage.setItem(k, v); }catch(_){} };
@@ -3410,7 +3545,8 @@ const LG = (function(){
   const voice = l => l === "hi" ? HI() : ENG_NORM();                    // DuSu's voice for a line written in `l`
 
   function tr(key, vars){
-    const L = on() ? cur() : "legacy";
+    let L = on() ? cur() : "legacy";
+    if(L === "legacy"){ try{ if(currentMode === "home" && currentScreen() === "session" && HM.enabled()) L = "hi"; }catch(_){} }   // Home 2.0 chat = Hinglish
     let v = I18N[L] ? I18N[L][key] : undefined;
     if(v === undefined) v = I18N.en[key];
     if(v === undefined) return key;
@@ -3461,6 +3597,7 @@ const LG = (function(){
   }
   // Face-to-Face / Interview header + End button (depend on the mode being run)
   function applySession(){
+    if(currentMode === "home"){ try{ HM.sessionChrome(); }catch(_){} return; }   // Home 2.0 draws its own header
     const iv = currentMode === "interview";
     setText("#sessTitle", tr(iv ? "sessIntTitle" : "sessTalkTitle"));
     const role = ($("role") && $("role").value) || "general";
@@ -3479,6 +3616,7 @@ const LG = (function(){
     applyLearn();
     if(currentScreen() === "session") applySession();
     try{ if($("dailyRecs") && $("dailyRecs").children.length) renderDailyRecs(); }catch(_){}
+    try{ HM.render(); }catch(_){}   // Home 2.0: greeting + chips follow the language
   }
 
   // After a change while a live session is open: tell the server, stop what is in flight in the OLD language, say so,
@@ -3619,20 +3757,22 @@ function show(id, pathOverride){
     // always land on a clean home
     try{ renderHomeJourney(); }catch(_){}
     try{ renderHomeExtras2(); }catch(_){}   // paint chips + Today's-goal instantly from cached state
+    try{ HM.render(); }catch(_){}           // Home 2.0 (a no-op unless the switch is on for this learner)
   }
+  if(id === "session"){ try{ HM.onSessionShown(); }catch(_){} }   // the Home companion's chat controls
   try{ syncNav(id, pathOverride); }catch(_){}
   try{ syncUrl(id, pathOverride); }catch(_){}   // keep the browser URL mirroring the visible screen (override for shared screens)
   try{ window.PR && PR.syncEntries(); }catch(_){}   // Practice Room entry points (hidden until the owner switches it on)
 }
 // ---- Bottom navigation: which tab lights up per screen; nav hidden only on login/onboarding ----
-const NAV_TAB = { home:"home", journey:"journey", daily:"daily", practice:"practice",
+const NAV_TAB = { about:"home", home:"home", journey:"journey", daily:"daily", practice:"practice",
   learning:"practice", session:"practice", setup:"practice", lesson:"practice", report:"practice",
   leaderboard:"leaderboard", profile:"more", keys:"more", admin:"more", help:"more", career:"home", league:"leaderboard", achievements:"more", interviewReports:"more",
   prHub:"practice", prSetup:"practice", prLive:"practice", prWork:"practice", prReport:"practice", prBridge:"practice" };
 const PATH_TAB = { "/profile":"more", "/keys":"more", "/more":"more" };
 function syncNav(id, pathOverride){
   const nav = $("bnav"); if(nav) nav.classList.toggle("hide", id === "login" || id === "assessment");
-  const t = (pathOverride && PATH_TAB[pathOverride]) || NAV_TAB[id];
+  const t = (pathOverride && PATH_TAB[pathOverride]) || (id === "session" && currentMode === "home" ? "home" : NAV_TAB[id]);
   document.querySelectorAll(".btab").forEach(b => b.classList.toggle("active", !!t && b.dataset.tab === t));
 }
 // The nav starts hidden in the markup and is only ever revealed by syncNav(). That
@@ -3765,12 +3905,12 @@ function runGuards(route){
 }
 // visible screen → canonical path (session is shared by conversation + interview)
 function pathForScreen(id){
-  if(id === "session") return currentMode === "interview" ? "/interview" : "/face-to-face";
+  if(id === "session") return currentMode === "interview" ? "/interview" : currentMode === "home" ? "/home-chat" : "/face-to-face";
   return ({ home:"/", practice:"/practice", daily:"/daily-talk", setup:"/interview",
     learning:"/learn", journey:"/learning-journey", lesson:"/learning-journey", report:"/interview",
     leaderboard:"/leaderboard", keys:"/keys", admin:"/more", help:"/more", profile:"/profile",
     career:"/career-path", league:"/league", achievements:"/achievements",
-    interviewReports:"/interview-reports",
+    interviewReports:"/interview-reports", about:"/about",
     // every Practice Room screen shares one URL: a reload mid-take can't resume a live recording anyway, so it lands on the hub
     prHub:"/practice-room", prSetup:"/practice-room", prLive:"/practice-room", prWork:"/practice-room", prReport:"/practice-room", prBridge:"/practice-room",
     superadmin:"/superadmin", subscribe:"/subscribe", login:"/", assessment:"/test" })[id] || null;
@@ -4120,7 +4260,10 @@ async function openAdmin(){
       <select class="pr-sel" id="lifeSel"><option value="off" ${d.life_context === "off" ? "selected" : ""}>Off</option><option value="owner" ${d.life_context === "on" || d.life_context === "off" ? "" : "selected"}>Owner only</option><option value="on" ${d.life_context === "on" ? "selected" : ""}>Everyone</option></select></label>
       <label class="swrow"><span><b>Hindi / English modes</b><br><span class="msub">Talk, Interview and Daily Talk in Hindi (default) or English, switchable mid-chat; Learn also English→Hindi. Off = exactly as before (Talk/Interview English, Daily Hindi). Owner only = just you (default). Everyone = all users.</span></span>
       <select class="pr-sel" id="bilSel"><option value="off" ${d.bilingual === "off" ? "selected" : ""}>Off</option><option value="owner" ${d.bilingual === "on" || d.bilingual === "off" ? "" : "selected"}>Owner only</option><option value="on" ${d.bilingual === "on" ? "selected" : ""}>Everyone</option></select></label>
+      <label class="swrow"><span><b>Home AI companion</b><br><span class="msub">Home becomes "DuSu first": a Hinglish greeting, Start Speaking opens the AI companion (Daily Talk stays its own tab) and a Know About DuSu page. Off = Home is exactly as before. Owner only = just you (default). Everyone = all users. Its answers about progress also need "DuSu knows your progress" above.</span></span>
+      <select class="pr-sel" id="homeSel"><option value="off" ${d.home_ai === "off" ? "selected" : ""}>Off</option><option value="owner" ${d.home_ai === "on" || d.home_ai === "off" ? "" : "selected"}>Owner only</option><option value="on" ${d.home_ai === "on" ? "selected" : ""}>Everyone</option></select></label>
       <button class="uBtn bad" id="wipeBtn" style="width:100%;margin:2px 0 4px">🗑 Reset test users</button>`;
+    h += `<div class="admin-head">Android app link</div><div id="alBox"><div class="spin" style="margin:12px auto"></div></div>`;
     // Office allowlist. NOTE: is_office() in main.py means "must BYOK", NOT free
     // access — resolve_keys() demands own keys for anyone on this list. The old
     // "Free access (our keys)" label claimed the opposite and invited the mistake
@@ -4161,7 +4304,55 @@ async function openAdmin(){
     wireOffice();
   }catch(e){ el.innerHTML='<p class="keys-note" style="text-align:center">Failed to load.</p>'; }
 }
+// Android app link (the "browser X + address bar" bug): list/add/remove the signing fingerprints served in
+// /.well-known/assetlinks.json and ask Google's Digital Asset Links checker whether each host is linked. Owner only.
+async function loadApplink(){
+  const box = $("alBox"); if(!box) return;
+  const H = { "Content-Type":"application/json", Authorization:"Bearer " + authToken };
+  let d = null;
+  try{ const r = await fetch("/admin/applink?token=" + encodeURIComponent(authToken), { headers:H, cache:"no-store" }); if(r.ok) d = await r.json(); }catch(_){}
+  if(!d){ box.innerHTML = '<p class="keys-note">Couldn\'t load the app link settings.</p>'; return; }
+  const paint = (results, msg) => {
+    const res = {}; (results || []).forEach(r => { res[r.host + "|" + r.fp] = r; });
+    const row = f => `<div class="admin-row" style="flex-direction:column;align-items:stretch;gap:4px">`
+      + `<div style="display:flex;gap:8px;align-items:center"><span style="font-size:11.5px;word-break:break-all;flex:1">${esc(f.fp)}</span>`
+      + `<span class="uSt">${f.source === "server" ? "server" : "dashboard"}</span>`
+      + (f.source === "dashboard" ? `<button class="uBtn bad" data-alrm="${esc(f.fp)}">Remove</button>` : "") + `</div>`
+      + (d.hosts || []).map(h => { const r = res[h + "|" + f.fp];
+          return r ? `<div style="font-size:12px;color:var(--ink-dim)">${r.linked === true ? "✅" : r.linked === false ? "❌" : "⚠️"} ${esc(h)} — `
+            + `${r.linked === true ? "linked" : r.linked === false ? "NOT linked" : "couldn't check " + esc(r.error || "")}</div>` : ""; }).join("")
+      + `</div>`;
+    box.innerHTML = `<p class="keys-note" style="margin:0 0 8px">If the installed app shows a browser bar (an X and the address), its signing key isn't listed here yet. `
+      + `A copy installed from Google Play is signed by Google, so add the <b>App signing key certificate</b> SHA-256 from Play Console → Setup → App signing. `
+      + `Package: <b>${esc(d.package || "")}</b>.</p>`
+      + ((d.fingerprints || []).length ? d.fingerprints.map(row).join("") : '<p class="keys-note">No fingerprints listed.</p>')
+      + `<div class="offAdd"><input id="alFp" type="text" placeholder="SHA-256 fingerprint (AA:BB:CC:…)"/><button class="uBtn ok" id="alAdd">Add</button></div>`
+      + `<button class="uBtn" id="alCheck" style="width:100%;margin-top:6px">Check with Google</button>`
+      + `<div id="alMsg" class="keys-note" style="margin-top:6px">${esc(msg || "")}</div>`;
+    const edit = async (action, fingerprint) => {
+      try{
+        const r = await fetch("/admin/applink", { method:"POST", headers:H, body:JSON.stringify({ token:authToken, action, fingerprint }) });
+        const j = await r.json().catch(() => ({}));
+        if(!r.ok){ $("alMsg").textContent = j.detail || "Couldn't save."; return; }
+        d = j; paint(null, action === "add" ? "Added. Google can take a few minutes to notice — use “Check with Google”." : "Removed.");
+      }catch(_){ $("alMsg").textContent = "Couldn't save."; }
+    };
+    box.querySelectorAll("[data-alrm]").forEach(b => b.onclick = () => edit("remove", b.dataset.alrm));
+    $("alAdd").onclick = () => { const v = ($("alFp").value || "").trim(); if(v) edit("add", v); };
+    $("alCheck").onclick = async () => {
+      $("alMsg").textContent = "Asking Google…";
+      try{
+        const r = await fetch("/admin/applink/check", { method:"POST", headers:H, body:JSON.stringify({ token:authToken }) });
+        const j = await r.json();
+        const bad = (j.results || []).filter(x => x.linked !== true).length;
+        paint(j.results || [], bad ? "Some are not linked yet. Google keeps its own cache, so a key added a minute ago can read “not linked” for a little while." : "All linked ✅");
+      }catch(_){ $("alMsg").textContent = "Couldn't reach Google's checker."; }
+    };
+  };
+  paint(null, "");
+}
 function wireOffice(){
+  loadApplink();
   if($("offAddBtn")) $("offAddBtn").onclick = () => officeEmail(($("offEmail").value||"").trim(), "add");
   document.querySelectorAll("[data-off]").forEach(b=>b.onclick=()=>officeEmail(b.dataset.off, "remove"));
   // Both switches POST the full settings object. /admin/settings writes every field it
@@ -4174,9 +4365,10 @@ function wireOffice(){
     const prm = ($("prRoomSel") && $("prRoomSel").value) || "off";
     const lcx = ($("lifeSel") && $("lifeSel").value) || undefined;   // undefined = leave the server value alone
     const bil = ($("bilSel") && $("bilSel").value) || undefined;
+    const hom = ($("homeSel") && $("homeSel").value) || undefined;
     try{ await fetch("/admin/settings",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({token:authToken, access_phase: growth ? "growth" : "quota",
-                           level_test: lvl, owner_byok: obk, practice_room: prm, life_context: lcx, bilingual: bil})}); }catch(_){}
+                           level_test: lvl, owner_byok: obk, practice_room: prm, life_context: lcx, bilingual: bil, home_ai: hom})}); }catch(_){}
   };
   if($("reqKeysSw")) $("reqKeysSw").onchange = saveSettings;
   if($("lvlTestSw")) $("lvlTestSw").onchange = saveSettings;
@@ -4184,6 +4376,7 @@ function wireOffice(){
   if($("prRoomSel")) $("prRoomSel").onchange = saveSettings;
   if($("lifeSel")) $("lifeSel").onchange = saveSettings;
   if($("bilSel")) $("bilSel").onchange = saveSettings;
+  if($("homeSel")) $("homeSel").onchange = saveSettings;
   if($("wipeBtn")) $("wipeBtn").onclick = async () => {
     if(!confirm("Delete ALL users except david, shuhani & free-access emails? This cannot be undone.")) return;
     try{ const r = await fetch("/admin/wipe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:authToken})});
@@ -4273,7 +4466,7 @@ document.querySelectorAll(".mode-card").forEach(c=>{
 });
 // Hero: the one primary action → jump straight into "Talk about your day" (Daily Talk),
 // where DuSu opens the conversation about their day. (Companion Moment kept in code, unused.)
-$("startSpeak").onclick = () => startDaily("speak");
+$("startSpeak").onclick = () => { if(HM.enabled()) HM.go(); else startDaily("speak"); };   // Home 2.0: DuSu first; off = Daily Talk as before
 // Tap the DuSu logo (or collapse) to return to a clean home, any time.
 function goHome(){
   if(window.PR && !PR.guardLeave()) return;   // a Practice Room take that is still recording asks before it is dropped
@@ -4330,7 +4523,8 @@ function dusuGiggle(){
   homeHappy(true);
   if(b){
     if(!_delightT) hc.dataset.prevMsg = b.textContent;   // remember the real greeting
-    b.textContent = _DELIGHT[_delightI++ % _DELIGHT.length];
+    const _dl = (function(){ try{ return HM.enabled() ? HM.delight() : _DELIGHT; }catch(_){ return _DELIGHT; } })();
+    b.textContent = _dl[_delightI++ % _dl.length];
   }
   clearTimeout(_delightT);
   _delightT = setTimeout(() => {
@@ -4510,6 +4704,9 @@ function onMessage(ev){
     case "translation": handleTranslation(m.hindi, m.text, m.dir); break;
     case "daily_question": greetDaily(m.question, m.lang); break;
     case "daily_turn": handleDailyTurn(m.hindi, m.english, m.reply, m.tip, m.next_question, m.lang); break;
+    case "home_ready": try{ HM.onReady(m); }catch(e){ console.warn("HM.onReady", e); } break;   // Home 2.0 companion
+    case "home_turn": try{ HM.onTurn(m); }catch(e){ console.warn("HM.onTurn", e); } break;
+    case "home_error": try{ HM.onError(m); }catch(e){ console.warn("HM.onError", e); } break;
     case "lang_ok": break;   // the server acknowledged a Hindi/English switch — nothing to do, the screen already changed
     case "translate_error":
       // The server sends this for a failed Daily turn too — it used to poke the Learn screen's
@@ -4672,14 +4869,18 @@ function startListening(){
   };
   recog.onerror = (e) => {
     if(e.error === "not-allowed" || e.error === "service-not-allowed"){
-      running = false; orb("idle", lgt("orbMicBlocked"), lgt("orbMicBlockedHint")); return;
+      running = false; orb("idle", lgt("orbMicBlocked"), lgt("orbMicBlockedHint"));
+      if(currentMode === "home"){ try{ HM.micBlocked(); }catch(_){} }   // Home 2.0: carry on in text
+      return;
     }
     // no-speech / audio-capture / network / aborted -> onend retries with backoff
   };
   recog.onend = () => {
     if(sent || !running) return;
     srFails++;
-    if(srFails > 8){ running = false; orb("idle", lgt("orbMicTrouble"), lgt("orbMicTroubleHint")); return; }
+    if(srFails > 8){ running = false; orb("idle", lgt("orbMicTrouble"), lgt("orbMicTroubleHint"));
+      if(currentMode === "home"){ try{ HM.micBlocked(); }catch(_){} }
+      return; }
     setTimeout(() => { if(running && !sent) safeRestart(); }, 250 * Math.min(srFails, 5));  // backoff
   };
   try{ recog.start(); }catch(_){}
@@ -6733,6 +6934,7 @@ function setWelcome(){
   renderGrowth();
   renderTimeline();
   renderHomeExtras2();
+  try{ HM.render(); }catch(_){}   // Home 2.0 overwrites the English welcome line when its switch is on
 }
 // Home hero: stat chips + Today's-goal card (real data; hidden when absent)
 function renderHomeExtras2(){
@@ -7021,6 +7223,7 @@ function renderTimeline(){
 // DuSu speaks a welcome by name (home). Needs a recent user gesture, so we only
 // call it right after a sign-in click or a "back to home" click — not on reload.
 function speakWelcome(){
+  try{ if(HM.enabled()) return; }catch(_){}   // Home 2.0 speaks its own (Hinglish) greeting when Start Speaking is tapped
   const first = authUser ? (authUser.name || "").split(" ")[0] : "";
   const msg = first
     ? `Welcome back, ${first}! Let's keep talking, and get a little better every single day.`
@@ -7984,6 +8187,402 @@ const PR = (function(){
 })();
 window.PR = PR;
 ROUTES["/practice-room"] = { enter: () => PR.open() };
+
+/* ================= HOME 2.0 - AI companion first =================
+   CLAUDE.md §12, DUSU_HOME_AI_PLAN.md. Home becomes one thing: DuSu, a time-aware Hinglish greeting, four things to say,
+   Start Speaking (DuSu speaks first, then listens) and a separate "Know About DuSu" page. The conversation is mode "home"
+   on the existing WebSocket, drawn on the existing #session screen (same voice loop, orb, loaders, language switch).
+   Everything is behind userState.home_ai (the owner's switch): with it off, render() leaves the page exactly as it was and
+   nothing else here runs. The greeting is picked HERE (no network, instant, and it never contains private data - only the
+   first name and the time of day); the server is told what was said so the model does not repeat it. DuSu only ever
+   SUGGESTS (server-validated feature ids, drawn as buttons): she never navigates or changes anything - the learner taps.
+   Copy is Hinglish (Devanagari + English words in Latin, "Good morning", never the stiff textbook words) or English. */
+const HM = (function(){
+  "use strict";
+  const K_LAST = "dusu_hm_last";
+  ["home_ready", "home_turn", "home_error"].forEach(x => THINK_ENDERS.add(x));   // the "DuSu is thinking" loader must never outlive these
+
+  const HELLO = { morning:"Good morning", afternoon:"Good afternoon", evening:"Good evening", night:"Hi" };
+  const T = {
+    hi: {
+      companion:"तुम्हारी AI companion", seg:{ morning:"सुबह", afternoon:"दोपहर", evening:"शाम", night:"रात" },
+      about:"Know About DuSu", typePh:"या यहाँ type करके बताओ…",
+      chips:[ { l:"📅 आज क्या करूँ?", t:"आज मुझे क्या करना चाहिए? मेरा दिन plan करने में मदद करो।" },
+              { l:"🗣️ English practice", t:"मुझे English बोलने की practice करनी है।" },
+              { l:"🎯 Interview prep", t:"मुझे interview की तैयारी करनी है।" },
+              { l:"📈 मेरी progress", t:"मेरी progress कैसी चल रही है?" } ],
+      sessTitle:"DuSu से बात", sessSub:"तुम्हारी AI companion", end:"बात खत्म करें", livePh:"यहाँ type करो…",
+      micOn:"Voice चालू है — बंद करने के लिए दबाओ", micOff:"Voice से बात करने के लिए दबाओ", newChat:"↻ नई बात-चीत", orbIdle:"DuSu",
+      noVoice:"इस browser में voice input नहीं है — कोई बात नहीं, नीचे type करके बात करो।",
+      micBlocked:"Mic की अनुमति नहीं मिली — कोई बात नहीं, नीचे type करके बात करो। अनुमति देने के बाद 🎤 दबाकर फिर बोलो।",
+      textMode:"Text mode चालू है — DuSu के जवाब यहीं दिखेंगे। फिर बोलना हो तो 🎤 दबाओ।",
+      lost:"कनेक्शन टूट गया — “नई बात-चीत” दबाकर फिर शुरू करो।", err:"DuSu इसका जवाब नहीं दे पाई — एक बार फिर कोशिश करो।",
+      abSub:"DuSu क्या-क्या कर सकती है",
+      abIntro:"DuSu तुम्हारी AI companion है। बोलकर बात करो — वो सुनती है, दोस्त की तरह जवाब देती है और बताती है कि आगे क्या try करें।",
+      secCan:"DuSu क्या-क्या कर सकती है", secMore:"और भी", secSoon:"जल्दी आ रहा है", secHow:"DuSu कैसे काम करती है", secPriv:"तुम्हारी privacy",
+      try:"Try करो", soon:"Coming soon",
+      privH:"Home पर याद की हुई बातें use करो",
+      privP:"Home पर बात करते समय DuSu वही use करती है जो उसे तुम्हारे बारे में याद है — नाम, goals, progress। बंद कर दो तो वो तुम्हें नए सिरे से जानेगी। Greeting में कभी private बातें नहीं आतीं।",
+      cta:"Start Speaking", abErr:"Page load नहीं हो पाया।", abRetry:"फिर से try करो",
+      delight:[ "तुम यहाँ हो — यही सबसे मुश्किल हिस्सा होता है। ✨", "मुझे सच में अच्छा लगा कि तुम यहाँ हो।",
+                "तुम्हारी English रोज़ और बहादुर होती जा रही है, मुझे दिखता है।", "चलो, आज का दिन खास बनाएँ। 💪",
+                "तुम + मैं = unstoppable।", "आज के लिए मैंने थोड़ी हिम्मत बचा रखी है। 🫶" ]
+    },
+    en: {
+      companion:"Your AI companion", seg:{ morning:"Morning", afternoon:"Afternoon", evening:"Evening", night:"Night" },
+      about:"Know About DuSu", typePh:"Or type here…",
+      chips:[ { l:"📅 Plan my day", t:"Help me plan my day." },
+              { l:"🗣️ English practice", t:"I want to practise speaking English." },
+              { l:"🎯 Interview prep", t:"I want to prepare for an interview." },
+              { l:"📈 My progress", t:"How is my progress going?" } ],
+      sessTitle:"Talk with DuSu", sessSub:"your AI companion", end:"End chat", livePh:"Type here…",
+      micOn:"Voice is on — tap to turn it off", micOff:"Tap to talk by voice", newChat:"↻ New chat", orbIdle:"DuSu",
+      noVoice:"Voice input isn't available in this browser — no problem, just type below.",
+      micBlocked:"Microphone permission wasn't given — no problem, type below. Allow it later and tap 🎤 to talk again.",
+      textMode:"Text mode is on — DuSu's replies will show here. Tap 🎤 to talk again.",
+      lost:"The connection dropped — tap “New chat” to start again.", err:"DuSu couldn't answer that one — please try again.",
+      abSub:"Everything DuSu can do",
+      abIntro:"DuSu is your AI companion. Just talk — she listens, answers like a friend and suggests what to try next.",
+      secCan:"What DuSu can do", secMore:"And more", secSoon:"Coming soon", secHow:"How DuSu works", secPriv:"Your privacy",
+      try:"Try it", soon:"Coming soon",
+      privH:"Use what DuSu remembers on Home",
+      privP:"When we talk on Home, DuSu uses what she remembers about you — name, goals, progress. Turn it off and she treats you as new. The greeting never contains private details.",
+      cta:"Start Speaking", abErr:"Couldn't load this page.", abRetry:"Try again",
+      delight:[ "You showed up — that's the hard part. ✨", "I'm really glad you're here.", "Your English is getting braver, I can tell.",
+                "Let's make today count. 💪", "You + me = unstoppable.", "I saved a little courage for you today. 🫶" ]
+    }
+  };
+
+  // Greetings: each is (hello, name) => text, where name is "" or " Rahul". Hinglish ≈ 55% Hindi (Devanagari) / 45% English.
+  // Nothing private is ever in one (no tasks, goals, numbers) - it is spoken aloud, maybe with other people around.
+  const G = {
+    hi: {
+      morning: [
+        (h, n) => `Good morning${n}! ☀️ आज का दिन कैसा शुरू हुआ? बताओ, कहाँ से start करें?`,
+        (h, n) => `Good morning${n}! चलो, आज की शुरुआत थोड़ी बातचीत से करें। मूड कैसा है?`,
+        (h, n) => `Hey${n}, Good morning! 😊 आज क्या plan है — थोड़ा practice करें या बस गप्पें मारें?`
+      ],
+      afternoon: [
+        (h, n) => `Good afternoon${n}! 👋 दिन कैसा चल रहा है? कुछ नया सीखें या बस थोड़ी बात करें?`,
+        (h, n) => `Hey${n}, Good afternoon! लंच हो गया? चलो, थोड़ी देर बात करें।`,
+        (h, n) => `Good afternoon${n}! थोड़ा break लो और मुझसे बात करो। आज किस बारे में बात करें?`
+      ],
+      evening: [
+        (h, n) => `Good evening${n}! 🌆 आज का दिन कैसा रहा? आराम से बताओ।`,
+        (h, n) => `Hey${n}, Good evening! पूरे दिन के बाद थोड़ी बात करें? बताओ, आज क्या-क्या हुआ।`,
+        (h, n) => `Good evening${n}! चलो, दिन को एक अच्छे note पर ख़त्म करें — थोड़ा practice या बस गपशप?`
+      ],
+      night: [
+        (h, n) => `Hey${n}! 🌙 रात का वक़्त है — बताओ, आज का दिन कैसा गया?`,
+        (h, n) => `Hello${n}! Late night chat? मुझे तो पसंद है 😊 बताओ, मन में क्या चल रहा है?`,
+        (h, n) => `Hi${n}, दिन भर की भाग-दौड़ के बाद थोड़ा relax करें? बस आराम से बात करें।`
+      ],
+      fresh: [
+        (h, n) => `${h}${n}! मैं DuSu हूँ — तुम्हारी AI companion। 😊 बोलना सीखने में मैं तुम्हारी मदद करूँगी। बताओ, सबसे ज़्यादा किस चीज़ में help चाहिए?`,
+        (h, n) => `${h}${n}! मैं DuSu हूँ। आराम से, बिना डरे बात करो — मैं सुन रही हूँ। शुरू करें?`
+      ]
+    },
+    en: {
+      morning: [
+        (h, n) => `Good morning${n}! ☀️ How is your day starting? Tell me where you'd like to begin.`,
+        (h, n) => `Good morning${n}! Let's start the day with a little conversation. How are you feeling?`,
+        (h, n) => `Hey${n}, good morning! 😊 What's the plan today — some practice, or just a chat?`
+      ],
+      afternoon: [
+        (h, n) => `Good afternoon${n}! 👋 How is your day going? Want to learn something new or just talk?`,
+        (h, n) => `Hey${n}, good afternoon! Had lunch? Let's chat for a bit.`,
+        (h, n) => `Good afternoon${n}! Take a little break and talk to me. What shall we talk about?`
+      ],
+      evening: [
+        (h, n) => `Good evening${n}! 🌆 How was your day? Take your time and tell me.`,
+        (h, n) => `Hey${n}, good evening! A little chat after the long day? Tell me what happened today.`,
+        (h, n) => `Good evening${n}! Let's end the day on a good note — some practice, or just a chat?`
+      ],
+      night: [
+        (h, n) => `Hey${n}! 🌙 It's late — how was your day?`,
+        (h, n) => `Hello${n}! A late-night chat? I like it. 😊 What's on your mind?`,
+        (h, n) => `Hi${n}, after the day's rush, shall we relax a little? Just an easy chat.`
+      ],
+      fresh: [
+        (h, n) => `${h}${n}! I'm DuSu, your AI companion. 😊 I'll help you speak with confidence. What would you like help with first?`,
+        (h, n) => `${h}${n}! I'm DuSu. Talk to me easily, without fear — I'm listening. Shall we start?`
+      ]
+    }
+  };
+
+  const enabled = () => !!(userState && userState.home_ai);
+  const lang = () => (LG.on() ? LG.cur() : "hi");           // Hinglish by default; English only if the learner chose it
+  const seg = h => (h >= 5 && h < 12 ? "morning" : h >= 12 && h < 17 ? "afternoon" : h >= 17 && h < 21 ? "evening" : "night");
+  const personal = () => !(userState && userState.home_personal === false);
+  function firstName(){
+    const f = (typeof memFacts === "function" ? memFacts() : {}) || {};
+    const raw = (personal() && f.nickname) || (authUser && authUser.name) || "";
+    return String(raw).trim().split(/\s+/)[0] || "";
+  }
+  function isNew(){
+    const p = userState && userState.progress;
+    return !(userState && userState.onboarded) || !p || !((p.xp || 0) > 0 || (p.streak_days || 0) > 0);
+  }
+
+  // ---- the greeting: stable for a while (so Home doesn't change under the learner), rotated, never the same twice in a row ----
+  let cur = null;
+  function greeting(){
+    const L = lang(), s = seg(new Date().getHours()), fresh = isNew(), nm = firstName();
+    if(cur && cur.lang === L && cur.seg === s && cur.fresh === fresh && cur.nm === nm && Date.now() - cur.at < 20 * 60 * 1000) return cur;
+    const list = G[L][fresh ? "fresh" : s];
+    const key = (fresh ? "f" : s) + ":" + L + ":";
+    let last = ""; try{ last = localStorage.getItem(K_LAST) || ""; }catch(_){}
+    let i = Math.floor(Math.random() * list.length);
+    if(list.length > 1 && last === key + i) i = (i + 1) % list.length;
+    try{ localStorage.setItem(K_LAST, key + i); }catch(_){}
+    cur = { text: list[i](HELLO[s], nm ? " " + nm : ""), lang: L, seg: s, fresh, nm, at: Date.now() };
+    return cur;
+  }
+
+  // ---- Home ----
+  function render(){
+    const home = $("home"); if(!home) return;
+    const on = enabled();
+    home.classList.toggle("hm-on", on);
+    ["hmLabel", "hmChips", "hmAbout", "hmType"].forEach(id => { const e = $(id); if(e) e.hidden = !on; });
+    if(!on) return;                                              // switch off: the page is exactly what it always was
+    const L = lang(), t = T[L], g = greeting();
+    $("hmLabel").innerHTML = `<b>DuSu</b> · ${esc(t.companion)} · ${esc(t.seg[g.seg])}`;
+    const wm = $("welcomeMsg"); if(wm) wm.textContent = g.text;
+    const ch = $("hmChips"), sig = L + "|" + t.chips.length;
+    if(ch.dataset.sig !== sig){
+      ch.innerHTML = t.chips.map((c, i) => `<button type="button" class="hm-chip" data-i="${i}">${esc(c.l)}</button>`).join("");
+      ch.querySelectorAll(".hm-chip").forEach(b => b.onclick = () => go({ text: T[lang()].chips[+b.dataset.i].t }));
+      ch.dataset.sig = sig;
+    }
+    $("hmAbout").textContent = "💡 " + t.about;
+    $("hmTypeIn").placeholder = t.typePh;
+  }
+
+  // ---- the companion chat ----
+  let textMode = false, greetDone = true, wsReady = false, pendingText = "", thinking = false, next = null, listenT = null;
+  const notice = msg => { const n = $("hmNotice"); if(!n) return; n.textContent = msg || ""; n.hidden = !msg; };
+  function syncMic(){
+    const m = $("hmMic"); if(!m) return;
+    const t = T[lang()], on = !textMode;
+    m.classList.toggle("on", on); m.setAttribute("aria-pressed", on ? "true" : "false");
+    m.title = on ? t.micOn : t.micOff; m.setAttribute("aria-label", m.title);
+  }
+  function sessionChrome(){
+    const t = T[lang()];
+    if($("sessTitle")) $("sessTitle").textContent = t.sessTitle;
+    if($("sessSub")) $("sessSub").textContent = t.sessSub;
+    if($("endBtn")) $("endBtn").textContent = t.end;
+    if($("hmInput")) $("hmInput").placeholder = t.livePh;
+    if($("hmRestart")) $("hmRestart").textContent = t.newChat;
+    syncMic();
+  }
+  function onSessionShown(){
+    const on = currentMode === "home";
+    const l = $("hmLive"); if(l) l.hidden = !on;
+    const r = $("hmRestart"); if(r) r.hidden = !on;
+    const s = $("session"); if(s) s.classList.toggle("hm-chat", on);
+  }
+
+  // Start Speaking / a chip / typed text all arrive here through the router (so the Back button and the URL work).
+  function go(opts){ next = opts || null; navTo("/home-chat"); }
+
+  function start(o){
+    o = o || {};
+    if(!enabled()){ goHome(); return; }
+    if(guardKeys()) return;
+    if(overLimit()){ showNotif(lgt("limitReached", { n: MAX_SESSIONS })); return; }
+    const L = lang(), t = T[L], g = greeting();
+    const speaksFirst = !o.text;                                 // Start Speaking: DuSu says the greeting aloud, at once
+    textMode = !SR || !!o.typed;
+    pendingText = o.text || "";
+    wsReady = false; thinking = false;
+    greetDone = !speaksFirst || textMode;
+    currentMode = "home";
+    $("feed").innerHTML = ""; thinkHide(); renderActs([]);
+    sessionChrome();
+    $("endBtn").className = "btn danger";
+    show("session");
+    notice(!SR ? t.noVoice : (o.typed ? t.textMode : ""));       // typing (or no recogniser) means text mode: say so
+    orb("connecting", t.orbIdle, "");
+    if(!textMode) addSys(lgt("tipPhones"));
+    addMsg(g.text, "ai");                                        // the line on Home is the first line of the chat
+    if(!greetDone) speakGreeting(g.text, L);
+    g.at = 0;                                                    // used: the next visit to Home gets a new one
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+      running = !textMode; srFails = 0; usageInc(); refreshUsage();
+      ws.send(JSON.stringify({ type:"start", mode:"home", name:"", token:authToken, mood:todayMood, hour:new Date().getHours(),
+        day:localDay(), keys:officeKeys(), lang:LG.lang("home"), opening:g.text }));
+    };
+    ws.onmessage = onMessage;                                    // the shared handler hands home_* frames to onReady / onTurn / onError
+    ws.onclose = () => {
+      running = false; stopListening(); thinkHide();
+      try{ if(window.speechSynthesis) window.speechSynthesis.cancel(); }catch(_){}
+      FACE.stopTalking(); Assistant.stopTalking();
+    };
+    ws.onerror = () => { thinkHide(); orb("idle", lgt("connErr"), lgt("connErrHint")); notice(lgt("connErr")); };
+  }
+
+  async function speakGreeting(text, L){
+    if(!window.speechSynthesis){ greetDone = true; return; }
+    const ep = ++speakEpoch;                                     // End / Back / a tap on the orb bumps this and makes the greeting stale
+    aiSpeaking = true; orb("speaking", lgt("orbSpeak"), lgt("orbSpeakHint"));
+    try{ await say(text, Object.assign({}, LG.voice(L), { onStart: () => { FACE.startTalking(); Assistant.startTalking(); } })); }catch(_){}
+    try{ FACE.stopTalking(); Assistant.stopTalking(); }catch(_){}
+    if(ep !== speakEpoch) return;
+    aiSpeaking = false; greetDone = true; maybeListen();
+  }
+
+  // The mic opens once DuSu has finished her opening AND the server has answered "ready" - exactly once.
+  function maybeListen(){
+    if(!running || textMode || !wsReady || !greetDone || aiSpeaking || thinking || currentMode !== "home") return;
+    clearTimeout(listenT);
+    listenT = setTimeout(() => {
+      if(running && !textMode && !aiSpeaking && !thinking && currentMode === "home" && currentScreen() === "session"){ stopListening(); startListening(); }
+    }, LISTEN_DELAY);
+  }
+
+  // keep the newest line (and the input row) in view: the input row is sticky above the bottom nav and would otherwise cover it
+  function toLatest(){ const w = document.querySelector(".wrap"); if(w) requestAnimationFrame(() => w.scrollTo({ top: w.scrollHeight, behavior: "smooth" })); }
+
+  function submit(text){
+    text = (text || "").trim(); if(!text) return false;
+    if(!(ws && ws.readyState === 1)){ notice(T[lang()].lost); return false; }
+    renderActs([]);
+    addMsg(text, "user");
+    toLatest();
+    thinking = true;
+    orb("thinking", lgt("orbThink"), ""); thinkShow("think");
+    ws.send(JSON.stringify({ type:"user_text", text }));
+    return true;
+  }
+
+  function onReady(){
+    wsReady = true; thinkHide();
+    if(pendingText){ const x = pendingText; pendingText = ""; submit(x); }
+    else { if(!aiSpeaking) orb("idle", T[lang()].orbIdle, ""); maybeListen(); }
+  }
+  function onTurn(m){
+    thinking = false;
+    addMsg(m.text || "", "ai");
+    renderActs(m.actions || []);
+    toLatest();
+    if(textMode || !running){ orb("idle", T[lang()].orbIdle, ""); return; }
+    speak(m.text || "", m.lang);                                 // speak() hands the mic back when she finishes
+  }
+  function onError(){
+    thinking = false;
+    addSys(T[lang()].err);
+    orb("idle", T[lang()].orbIdle, "");
+    maybeListen();
+  }
+  function micBlocked(){ textMode = true; running = false; syncMic(); notice(T[lang()].micBlocked); orb("idle", T[lang()].orbIdle, ""); }
+
+  function setTextMode(on){
+    if(on){
+      textMode = true; running = false; clearTimeout(listenT);
+      try{ stopListening(); killSpeech(); }catch(_){}
+      aiSpeaking = false; try{ FACE.stopTalking(); Assistant.stopTalking(); }catch(_){}
+      if(!thinking) orb("idle", T[lang()].orbIdle, "");
+      notice(T[lang()].textMode);
+    } else {
+      if(!SR){ notice(T[lang()].noVoice); return; }
+      if(!(ws && ws.readyState === 1)){ notice(T[lang()].lost); return; }
+      textMode = false; running = true; srFails = 0; notice("");
+      maybeListen();
+    }
+    syncMic();
+  }
+
+  function renderActs(list){
+    const el = $("hmActs"); if(!el) return;
+    el.innerHTML = (list || []).map((a, i) => `<button type="button" class="hm-act" data-i="${i}">${esc(a.label || a.id)} ›</button>`).join("");
+    el.querySelectorAll(".hm-act").forEach(b => b.onclick = () => runAction(list[+b.dataset.i]));
+  }
+  // DuSu names a feature; only the learner's tap opens it. Leaving #session closes the socket, which saves the chat to memory.
+  function runAction(a){ if(a && a.route && ROUTES[a.route]) navTo(a.route); }
+
+  function restart(){ const keep = textMode; stopAllVoice(); start({ typed: keep }); }
+
+  // ---- Know About DuSu ----
+  async function openAbout(){
+    if(!enabled()){ goHome(); return; }
+    show("about");
+    const L = lang(), t = T[L], body = $("abBody");
+    $("abTitle").textContent = t.about; $("abSub").textContent = t.abSub;
+    body.innerHTML = '<div class="spin" style="margin:28px auto"></div>';
+    try{
+      const r = await fetch("/home/features?lang=" + encodeURIComponent(L), { cache:"no-store", headers:{ Authorization:"Bearer " + authToken } });
+      if(!r.ok) throw new Error(String(r.status));
+      const d = await r.json();
+      if(currentScreen() === "about") renderAbout(d);
+    }catch(_){
+      body.innerHTML = `<div class="ab-err">${esc(t.abErr)}<br><button type="button" class="ab-try" id="abRetry">${esc(t.abRetry)}</button></div>`;
+      if($("abRetry")) $("abRetry").onclick = openAbout;
+    }
+  }
+  function renderAbout(d){
+    const t = T[lang()], feats = Array.isArray(d.features) ? d.features : [];
+    const card = f => `<div class="ab-card${f.status === "soon" ? " soon" : ""}"><div class="ab-ic" aria-hidden="true">${esc(f.icon)}</div><div class="ab-body">`
+      + `<div class="ab-ttl">${esc(f.title)}${f.status === "soon" ? `<span class="ab-badge">${esc(t.soon)}</span>` : ""}</div>`
+      + `<p class="ab-desc">${esc(f.desc)}</p><p class="ab-best">${esc(f.best)}</p>`
+      + (f.status === "live" && f.route && ROUTES[f.route] ? `<button type="button" class="ab-try" data-route="${esc(f.route)}">${esc(t.try)} ›</button>` : "")
+      + `</div></div>`;
+    const main = feats.filter(f => f.group === "main"), more = feats.filter(f => f.group === "more"), soon = feats.filter(f => f.status === "soon");
+    const how = (d.how || []).map((s, i) => `<div class="ab-step"><div class="ab-n">${i + 1}</div><div><b>${esc(s.title)}</b><span>${esc(s.text)}</span></div></div>`).join("");
+    $("abBody").innerHTML = `<p class="ab-intro">${esc(t.abIntro)}</p>`
+      + `<div class="ab-sec">${esc(t.secCan)}</div>` + main.map(card).join("")
+      + (more.length ? `<div class="ab-sec">${esc(t.secMore)}</div>` + more.map(card).join("") : "")
+      + (soon.length ? `<div class="ab-sec">${esc(t.secSoon)}</div>` + soon.map(card).join("") : "")
+      + `<div class="ab-sec">${esc(t.secHow)}</div>` + how
+      + `<div class="ab-sec">${esc(t.secPriv)}</div>`
+      + `<label class="ab-priv"><span><b>${esc(t.privH)}</b>${esc(t.privP)}</span><input type="checkbox" id="abPersonal"${personal() ? " checked" : ""}></label>`
+      + `<button type="button" class="hbtn ab-cta" id="abStart">${esc(t.cta)}</button>`;
+    $("abBody").querySelectorAll(".ab-try[data-route]").forEach(b => b.onclick = () => navTo(b.dataset.route));
+    $("abStart").onclick = () => go();
+    $("abPersonal").onchange = e => {
+      const v = !!e.target.checked;
+      if(userState){ userState.home_personal = v; try{ localStorage.setItem("dusu_state", JSON.stringify(userState)); }catch(_){} }
+      try{
+        fetch("/home/prefs", { method:"POST", headers:{ "Content-Type":"application/json", Authorization:"Bearer " + authToken },
+          body: JSON.stringify({ token:authToken, personal:v }) }).catch(() => {});
+      }catch(_){}
+      cur = null; render();                                       // the first name in the greeting follows the choice
+    };
+  }
+
+  // ---- wiring ----
+  if($("hmAbout")) $("hmAbout").onclick = () => navTo("/about");
+  if($("abBack")) $("abBack").onclick = () => navTo("/");
+  if($("hmType")) $("hmType").addEventListener("submit", e => {
+    e.preventDefault();
+    const v = ($("hmTypeIn").value || "").trim(); if(!v) return;
+    $("hmTypeIn").value = ""; go({ text: v, typed: true });
+  });
+  if($("hmForm")) $("hmForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const v = ($("hmInput").value || "").trim(); if(!v) return;
+    if(!textMode) setTextMode(true);                              // typing means "I can't talk right now": no voice in, none out
+    if(submit(v)) $("hmInput").value = "";
+  });
+  if($("hmMic")) $("hmMic").onclick = () => setTextMode(!textMode);
+  if($("hmRestart")) $("hmRestart").onclick = restart;
+  // Tap the orb while DuSu is talking to interrupt her: she stops and the mic opens.
+  if($("orb")) $("orb").addEventListener("click", () => {
+    if(currentMode !== "home" || currentScreen() !== "session" || !aiSpeaking) return;
+    killSpeech(); try{ FACE.stopTalking(); Assistant.stopTalking(); }catch(_){}
+    aiSpeaking = false; greetDone = true;
+    if(!thinking) orb("idle", T[lang()].orbIdle, "");
+    maybeListen();
+  });
+  ROUTES["/home-chat"] = { enter: () => { const o = next; next = null; start(o || {}); }, guards:[gQuota] };
+  ROUTES["/about"] = { enter: () => openAbout() };
+
+  return { enabled, lang, render, go, start, onReady, onTurn, onError, micBlocked, openAbout, onSessionShown, sessionChrome,
+           delight: () => T[lang()].delight };
+})();
+window.HM = HM;
 
 if($("assessExit")) $("assessExit").onclick = skipAssessment;
 try{ LG.mount(); }catch(e){ console.warn("LG.mount", e); }   // Hindi/English controls (hidden until the switch is on for this learner)

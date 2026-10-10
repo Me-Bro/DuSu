@@ -5,6 +5,8 @@ Modes:
   - "conversation"  : DuSu is a friendly partner; never ends, no report.
   - "daily"         : Daily Talk, a close-friend chat (one JSON call per turn).
   - "learning"      : Learn, a one-sentence translator.
+  - "home"          : Home 2.0 - the AI companion on the Home screen (one JSON call per turn: reply + intent + suggested
+                      features; home_content.py holds what it may mention). Never scored, never pays XP.
 
 Every mode also has a language (`Session.lang`, DUSU_BILINGUAL_PLAN.md): "hi" or "en" - what the learner speaks and what
 DuSu answers in (for Learn: the language the learner speaks, i.e. the translation direction). With the bilingual switch
@@ -17,14 +19,15 @@ here later; the interface stays the same.
 """
 
 from .. import lang as L
+from .. import home_content as hc
 from ..providers import llm
 from ..config import settings
 from .prompts import (interviewer_system, conversation_system, scorer_system,
                       TRANSLATE_SYSTEM, TRANSLATE_SYSTEM_EN2HI, SESSION_MEMORY_SYSTEM,
-                      DAILY_TURN_SYSTEM, DAILY_TURN_SYSTEM_EN)
+                      DAILY_TURN_SYSTEM, DAILY_TURN_SYSTEM_EN, home_system)
 
 END_MARKER = "INTERVIEW_COMPLETE:"
-MODES = ("interview", "conversation", "learning", "daily")
+MODES = ("interview", "conversation", "learning", "daily", "home")
 # Free-tier models occasionally return a lazy dead-end line ("Hi!", "How are you?")
 # instead of a real reactive follow-up. One retry with a sharper nudge, same spirit
 # as the retry-on-parse-failure pattern already used for /assessment. (The per-language
@@ -36,7 +39,9 @@ class Session:
     def __init__(self, mode: str, name: str, role: str, facts_summary: str = "", mood: str = "",
                  profession: str = "", time_of_day: str = "", level: str = "", daily_context: str = "",
                  career_goal: str = "", past_interview_count: int = 0, past_interview_avg: float | None = None,
-                 lang: str | None = None, bilingual: bool = False):
+                 lang: str | None = None, bilingual: bool = False,
+                 home_flags: dict | None = None, home_personal: bool = True, new_learner: bool = False, hour=None,
+                 polish: bool = False):
         self.mode = mode if mode in MODES else "interview"
         self.name = name or "there"
         self.role = role or "general"
@@ -53,6 +58,15 @@ class Session:
         self.lang = L.norm(lang, L.LEGACY.get(self.mode, "en")) if lang else L.LEGACY.get(self.mode, "en")
         self.bilingual = bilingual           # the switch is on for this learner (affects scoring rules only)
         self._switch_note = False            # the next model call carries a one-off "learner switched language" note
+        # Home 2.0 only: which optional features exist for this learner, whether they allow their saved info to be used, and
+        # whether they are brand new (home_content.py / prompts.home_system).
+        self.home_flags = home_flags or {}
+        self.home_personal = home_personal
+        self.new_learner = new_learner
+        self.hour = hour
+        # Voice polish (Home 2.0): Hindi replies in Daily Talk / Face-to-Face lose the stiff textbook words ("सुप्रभात" -> "Good morning").
+        # Only for learners who have the Home AI switch on; False = every reply is passed through untouched, as before.
+        self.polish = polish
         self.thoughts_translated = 0   # Daily Talk's unique metric (§5) — counted deterministically below, never LLM-inferred
         self._build_system()
         self.transcript: list[dict] = []  # {role: "user"|"assistant", content}
@@ -68,7 +82,7 @@ class Session:
                                               past_interview_avg=self.past_interview_avg, lang=self.lang)
         elif self.mode == "conversation":
             self.system = conversation_system(self.name, self.facts_summary, self.mood, lang=self.lang)
-        else:  # learning + daily: no static chat persona (daily uses per-turn assess)
+        else:  # learning + daily + home: no static chat persona (each builds its prompt per turn)
             self.system = ""
 
     def set_lang(self, lang: str) -> bool:
@@ -79,7 +93,7 @@ class Session:
             return False
         self.lang = new
         self._build_system()
-        self._switch_note = self.mode in ("conversation", "interview") and bool(self.transcript)
+        self._switch_note = self.mode in ("conversation", "interview", "home") and bool(self.transcript)
         return True
 
     def _transcript_for_call(self) -> list[dict]:
@@ -121,6 +135,8 @@ class Session:
         elif self.mode == "conversation" and self.turns >= settings.conversation_max_turns:
             self.capped = True
             spoken = L.line(self.lang, "convo_cap")
+        elif self.polish and self.mode == "conversation" and self.lang == "hi":
+            spoken = hc.soften(spoken)
         self.transcript.append({"role": "assistant", "content": spoken})
         return spoken
 
@@ -136,7 +152,7 @@ class Session:
             # Hold back the marker line itself — it's a control token, never spoken.
             if self.mode == "interview" and END_MARKER in piece:
                 continue
-            yield piece
+            yield hc.soften(piece) if (self.polish and self.mode == "conversation" and self.lang == "hi") else piece
         self._switch_note = False
         raw = " ".join(parts).strip()
         spoken = raw
@@ -148,6 +164,8 @@ class Session:
                 self.done = True
         elif self.mode == "conversation" and self.turns >= settings.conversation_max_turns:
             self.capped = True
+        elif self.polish and self.mode == "conversation" and self.lang == "hi":
+            spoken = hc.soften(spoken)
         if spoken:
             self.transcript.append({"role": "assistant", "content": spoken})
         self._last_spoken = spoken
@@ -200,11 +218,50 @@ class Session:
             # mode `english` is the learner's own line polished, not a thought they translated.
             if hi and (data.get("english") or "").strip():
                 self.thoughts_translated += 1
+        if self.polish:   # soften() only touches Devanagari stiff words, so an English session passes through unchanged
+            for k in ("reply_hindi", "next_question_hindi"):
+                if isinstance(data.get(k), str):
+                    data[k] = hc.soften(data[k])
         # keep the richer reply in memory (falls back to the bare question)
         reply = (data.get("reply_hindi") or data.get("next_question_hindi") or "").strip()
         if reply:
             self.transcript.append({"role": "assistant", "content": reply})
         return data
+
+    async def home_turn(self, answer: str) -> dict:
+        """Home 2.0: ONE model call -> {reply, intent, suggest}. The reply is what DuSu says; `intent` is one of
+        home_content.INTENTS; `suggest` holds feature ids, which are checked against what exists for THIS learner before
+        any of them reaches the screen (the AI names, the learner taps - it never navigates or changes anything).
+        A broken JSON reply is retried once; after that the learner still gets a true, useful line and sensible buttons
+        from the deterministic keyword fallback, never a silent failure. A call that raises (quota, all providers down)
+        propagates to the caller, same as every other mode."""
+        system = home_system(self.name, self.lang, self.time_of_day, self.hour, self.facts_summary if self.home_personal else "",
+                             self.home_personal, self.new_learner, hc.catalog(self.home_flags), hc.INTENTS, self.mood)
+        convo = "\n".join(f"{m['role']}: {m['content']}" for m in self.transcript[-14:])
+        note = (L.line(self.lang, "switch_note") + "\n\n") if self._switch_note else ""
+        payload = (f"{note}conversation so far:\n{convo or '(nothing yet)'}\n\n"
+                   f"learner just said{' (in Hindi/Hinglish)' if self.lang != 'en' else ''}: {answer}")
+        data: dict = {}
+        for attempt in (0, 1):
+            ask = payload if attempt == 0 else (payload + "\n\n(Your last reply was not a valid JSON object with a non-empty "
+                                                           '"reply". Return exactly the JSON object described above.)')
+            d = await llm.assess(system, ask, max_tokens=700, prefer_fast=True, temperature=0.6)
+            if isinstance(d, dict) and not d.get("error") and isinstance(d.get("reply"), str) and d["reply"].strip():
+                data = d
+                break
+        self._switch_note = False
+        if data:
+            reply = hc.soften(data["reply"].strip())[:700]
+            intent = data.get("intent") if data.get("intent") in hc.INTENTS else hc.detect_intent(answer)
+            ids = data.get("suggest")
+        else:
+            intent = hc.detect_intent(answer)
+            reply = hc.fallback_reply(intent, self.lang)
+            ids = hc.default_suggest(intent)
+        self.transcript.append({"role": "user", "content": answer})
+        self.turns += 1
+        self.transcript.append({"role": "assistant", "content": reply})
+        return {"text": reply, "intent": intent, "actions": hc.actions(ids, self.home_flags, self.lang), "fallback": not data}
 
     async def build_report(self) -> dict:
         """Only interview mode is scored. Conversation returns nothing."""
@@ -227,7 +284,14 @@ class Session:
             return {}
         convo = f"learner's stated English level: {self.level or 'A1'}\n\n" + \
             "\n".join(f"{m['role']}: {m['content']}" for m in self.transcript)
-        if self.bilingual and self.lang == "hi":
+        if self.mode == "home":
+            # A Home chat is the companion guiding / chatting, not English practice: nothing in it is scored (main.py skips
+            # the whole scoring + XP block for it), so just keep the model from inventing scores or badges for it.
+            convo = ("NOTE: this was a chat with the DuSu companion on the Home screen (guidance and small talk), not an "
+                     "English-practice session. Return 0 for vocabulary and grammar_trend, and set no_hindi and "
+                     "asked_question to false. The memory fields (summary, facts, events, next_hook) are what matter.\n\n"
+                     + convo)
+        elif self.bilingual and self.lang == "hi":
             # A Hindi session says nothing about English vocabulary/grammar: main.py stores those two as NULL (unscored)
             # whatever comes back, so just keep the model from penalising the learner for speaking Hindi.
             convo = ("NOTE: this session was held in HINDI. The vocabulary and grammar_trend rubrics don't apply - "

@@ -31,6 +31,7 @@ from pydantic import BaseModel
 from .config import settings
 from . import practice
 from . import life
+from . import home_content
 from . import lang as langmod
 from .interview.engine import Session
 from .interview.prompts import ASSESS_SYSTEM, LESSON_EVAL_SYSTEM, LEVEL_TEST_SYSTEM, LETTER_SYSTEM, GREETING_SYSTEM, CAREER_ROADMAP_SYSTEM
@@ -219,6 +220,26 @@ async def bilingual_mode() -> str:
 
 async def bilingual_enabled(email: str) -> bool:
     m = await bilingual_mode()
+    if m == "on":
+        return True
+    if m == "owner":
+        return role_for(email) in ("owner", "unlimited")
+    return False
+
+
+async def home_ai_mode() -> str:
+    """Home 2.0 rollout switch (Settings table, no migration; CLAUDE.md §12, DUSU_HOME_AI_PLAN.md). It changes what Start Speaking
+    does (the AI companion instead of Daily Talk), so it is staged like the other three: 'off' = Home is exactly as before;
+    'owner' = only the owner / unlimited allowlist (the DEFAULT - the owner tries it first); 'on' = everyone."""
+    try:
+        v = await _cached("home_ai", lambda: db.get_setting("home_ai", "owner"))
+        return v if v in ("off", "owner", "on") else "owner"
+    except Exception:
+        return "owner"
+
+
+async def home_ai_enabled(email: str) -> bool:
+    m = await home_ai_mode()
     if m == "on":
         return True
     if m == "owner":
@@ -441,13 +462,46 @@ async def account_deletion_page():
 _TWA_PACKAGE = os.getenv("ANDROID_TWA_PACKAGE", "com.dusu.app")
 
 
+_APPLINK_HOSTS = ("dusu.ranabrothers.online", "dusu.ruralrootcloud.com")   # the two public hostnames of the one system
+_MAX_EXTRA_FPS = 3                                                          # Settings.value is 255 chars: 3 x 64 hex + commas
+
+
+def _fp_compact(v: str) -> str:
+    """Any spelling of a SHA-256 fingerprint (colons, spaces, lower case) -> 64 upper-case hex, or fewer if it is not one."""
+    return re.sub(r"[^0-9A-Fa-f]", "", v or "").upper()
+
+
+def _fp_colon(c: str) -> str:
+    return ":".join(c[i:i + 2] for i in range(0, len(c), 2))
+
+
+def _env_fps() -> list[str]:
+    raw = os.getenv("ANDROID_CERT_SHA256", "")
+    return [c for c in (_fp_compact(x) for x in raw.replace("\n", ",").split(",")) if len(c) == 64]
+
+
+async def _extra_fps() -> list[str]:
+    """Fingerprints the owner added from the dashboard (Settings table) - so the Play App Signing key can be added
+    without editing .env on the host. Compact hex, at most _MAX_EXTRA_FPS."""
+    try:
+        v = await _cached("android_cert_extra", lambda: db.get_setting("android_cert_extra", ""))
+    except Exception:
+        return []
+    return [c for c in (_fp_compact(x) for x in str(v or "").split(",")) if len(c) == 64][:_MAX_EXTRA_FPS]
+
+
+async def _all_fps() -> list[str]:
+    env = _env_fps()
+    return env + [c for c in await _extra_fps() if c not in env]
+
+
 @app.get("/.well-known/assetlinks.json")
 async def assetlinks():
     """Digital Asset Links — proves the DuSu site trusts the TWA app so it runs
-    full-screen (no browser chrome). Set ANDROID_CERT_SHA256 to the app's signing
-    SHA-256 (comma-separated for multiple, e.g. upload + Play App Signing keys)."""
-    raw = os.getenv("ANDROID_CERT_SHA256", "")
-    fps = [f.strip().upper() for f in raw.replace("\n", ",").split(",") if f.strip()]
+    full-screen (no browser chrome). ANDROID_CERT_SHA256 (env) holds the app's signing
+    SHA-256 (comma-separated for multiple); the owner can add more - e.g. the Play App Signing key, which is
+    what a Play-installed copy is really signed with - from the dashboard (Settings table), merged in here."""
+    fps = [_fp_colon(c) for c in await _all_fps()]
     statements = [{
         "relation": ["delegate_permission/common.handle_all_urls"],
         "target": {
@@ -624,6 +678,9 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
               # saved prefs below once the state is loaded.
               "bilingual": await bilingual_enabled(email), "lang": langmod.DEFAULT_LANG,
               "learn_dir": langmod.DEFAULT_LANG,
+              # Home 2.0 (DUSU_HOME_AI_PLAN.md): the AI-companion Home. `home_personal` = may DuSu use what it remembers about
+              # the learner on Home (default yes); overridden from the saved prefs once the state is loaded.
+              "home_ai": await home_ai_enabled(email), "home_personal": True,
               "level_test": await level_test_on(),
               # The public name this user appears as on the leaderboard / league.
               # Boards are alias-only for privacy (§18), so without this the user
@@ -649,6 +706,9 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
             if isinstance(_lp, dict):
                 state["lang"] = langmod.norm(_lp.get("lang"))
                 state["learn_dir"] = langmod.norm(_lp.get("learn"))
+            _hp = (state.get("memory") or {}).get("home_prefs")
+            if isinstance(_hp, dict):
+                state["home_personal"] = bool(_hp.get("personal", True))
         if isinstance(state, dict) and state.get("onboarded"):
             try:
                 uid_ = claims["sub"]
@@ -1048,7 +1108,8 @@ async def admin_overview(token: str = "", authorization: str | None = Header(Non
     out = {"you": claims.get("email", ""), "role": "owner", "db": db.db_enabled, "users": [],
            "access_phase": await access_phase(), "level_test": await level_test_on(),
            "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode(),
-           "life_context": await life_context_mode(), "bilingual": await bilingual_mode()}
+           "life_context": await life_context_mode(), "bilingual": await bilingual_mode(),
+           "home_ai": await home_ai_mode()}
     if db.db_enabled:
         try:
             users = await db.admin_list_users()
@@ -1081,6 +1142,7 @@ class SettingsIn(BaseModel):
     practice_room: str | None = None      # off | owner | on
     life_context: str | None = None       # off | owner | on  ("DuSu knows your data", CLAUDE.md §10)
     bilingual: str | None = None          # off | owner | on  (Hindi / English modes, CLAUDE.md §11)
+    home_ai: str | None = None            # off | owner | on  (Home 2.0 - the AI companion Home, CLAUDE.md §12)
 
 
 @app.post("/admin/settings")
@@ -1101,10 +1163,13 @@ async def admin_settings(inp: SettingsIn, authorization: str | None = Header(Non
         await db.set_setting("life_context", inp.life_context if inp.life_context in ("off", "owner", "on") else "owner")
     if inp.bilingual is not None:
         await db.set_setting("bilingual", inp.bilingual if inp.bilingual in ("off", "owner", "on") else "owner")
+    if inp.home_ai is not None:
+        await db.set_setting("home_ai", inp.home_ai if inp.home_ai in ("off", "owner", "on") else "owner")
     invalidate_access_cache()
     return {"access_phase": await access_phase(), "level_test": await level_test_on(),
             "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode(),
-            "life_context": await life_context_mode(), "bilingual": await bilingual_mode()}
+            "life_context": await life_context_mode(), "bilingual": await bilingual_mode(),
+            "home_ai": await home_ai_mode()}
 
 
 class WipeIn(BaseModel):
@@ -1125,6 +1190,87 @@ async def admin_wipe(inp: WipeIn, authorization: str | None = Header(None)):
         pass
     n = await db.admin_wipe_users(keep)
     return {"deleted": n, "kept": sorted(keep)}
+
+
+# ----- Android app link (the "browser X + URL bar" bug) ------------------------------------------------------------
+# A Trusted Web Activity shows Chrome's close button and address bar when Digital Asset Links verification fails for the
+# signing certificate of the INSTALLED app. A copy installed from Google Play is re-signed by Google (Play App Signing), so
+# its certificate is NOT the upload key the build uses - that fingerprint (Play Console > Setup > App signing > "App signing
+# key certificate" SHA-256) has to be listed in /.well-known/assetlinks.json too. These endpoints let the owner add it and
+# verify the link against Google's own checker, with no SSH. Only the owner can read or change any of it.
+async def _applink_state() -> dict:
+    env = _env_fps()
+    extra = [c for c in await _extra_fps() if c not in env]
+    return {"package": _TWA_PACKAGE, "hosts": list(_APPLINK_HOSTS), "max_extra": _MAX_EXTRA_FPS,
+            "fingerprints": [{"fp": _fp_colon(c), "source": "server"} for c in env]
+                            + [{"fp": _fp_colon(c), "source": "dashboard"} for c in extra]}
+
+
+@app.get("/admin/applink")
+async def admin_applink(token: str = "", authorization: str | None = Header(None)):
+    _require_owner(token, authorization)
+    return await _applink_state()
+
+
+class ApplinkIn(BaseModel):
+    token: str = ""
+    action: str = ""          # add | remove
+    fingerprint: str = ""     # SHA-256, any spelling (colons / spaces / case)
+
+
+@app.post("/admin/applink")
+async def admin_applink_edit(inp: ApplinkIn, authorization: str | None = Header(None)):
+    _require_owner(inp.token, authorization)
+    if not db.db_enabled:
+        raise HTTPException(400, "Database required")
+    c = _fp_compact(inp.fingerprint)
+    extra = await _extra_fps()
+    if inp.action == "add":
+        if len(c) != 64:
+            raise HTTPException(400, "A SHA-256 fingerprint is 64 hex characters (32 pairs - colons are fine).")
+        if c not in _env_fps() and c not in extra:
+            if len(extra) >= _MAX_EXTRA_FPS:
+                raise HTTPException(400, f"At most {_MAX_EXTRA_FPS} dashboard fingerprints - remove one first.")
+            extra.append(c)
+    elif inp.action == "remove":
+        extra = [x for x in extra if x != c]
+    else:
+        raise HTTPException(400, "Unknown action")
+    await db.set_setting("android_cert_extra", ",".join(extra))
+    invalidate_access_cache()
+    return await _applink_state()
+
+
+class TokenOnlyIn(BaseModel):
+    token: str = ""
+
+
+@app.post("/admin/applink/check")
+async def admin_applink_check(inp: TokenOnlyIn, authorization: str | None = Header(None)):
+    """Ask Google's Digital Asset Links checker - the same service Chrome relies on - whether each hostname is linked to the
+    app for each listed fingerprint. Google keeps its own cache of the file, so a fingerprint added a minute ago can read
+    "not linked" for a short while."""
+    _require_owner(inp.token, authorization)
+    import httpx
+    state = await _applink_state()
+    results = []
+    async with httpx.AsyncClient(timeout=8.0) as client:
+        for host in state["hosts"]:
+            for item in state["fingerprints"]:
+                row = {"host": host, "fp": item["fp"], "linked": None, "error": ""}
+                try:
+                    r = await client.get("https://digitalassetlinks.googleapis.com/v1/assetlinks:check", params={
+                        "source.web.site": f"https://{host}",
+                        "relation": "delegate_permission/common.handle_all_urls",
+                        "target.androidApp.packageName": state["package"],
+                        "target.androidApp.certificate.sha256Fingerprint": item["fp"]})
+                    row["linked"] = bool(r.json().get("linked")) if r.status_code == 200 else None
+                    if r.status_code != 200:
+                        row["error"] = f"HTTP {r.status_code}"
+                except Exception as e:
+                    row["error"] = type(e).__name__
+                results.append(row)
+    return {"package": state["package"], "results": results}
 
 
 class SeasonAwardsIn(BaseModel):
@@ -1488,6 +1634,67 @@ async def set_lang_pref(inp: LangIn, authorization: str | None = Header(None)):
         print(f"[lang] save failed: {type(e).__name__}: {e}")
         raise HTTPException(500, "Could not save")
     return {"lang": prefs["lang"], "learn_dir": prefs["learn"]}
+
+
+# ===================== HOME 2.0 - AI companion first (home_content.py, CLAUDE.md §12) =====================
+async def _home_flags(email: str) -> dict:
+    """Which optional features exist for this learner (feeds home_content: the Know About page, the model's catalogue and
+    the validation of the ids it suggests - one source, so they cannot disagree)."""
+    return {"practice_room": await practice_room_enabled(email), "bilingual": await bilingual_enabled(email)}
+
+
+def _home_tod(hour) -> str:
+    """Four time-of-day segments for the Home companion (the other modes use three): 5-11 morning, 12-16 afternoon,
+    17-20 evening, 21-4 night. `hour` is the client's local hour; anything else gives ''."""
+    if not isinstance(hour, (int, float)) or isinstance(hour, bool) or not 0 <= hour <= 23:
+        return ""
+    h = int(hour)
+    return "morning" if 5 <= h < 12 else "afternoon" if 12 <= h < 17 else "evening" if 17 <= h < 21 else "night"
+
+
+def _clean_opening(text) -> str:
+    """The greeting the app already spoke on Home, which the client sends so the model knows what it said. It becomes an
+    assistant line in the transcript (and may reach the saved memory tail), so it is capped, stripped of control
+    characters and of anything that looks like markup."""
+    t = re.sub(r"[\x00-\x1f\x7f<>{}\[\]`]+", " ", str(text or ""))
+    return re.sub(r"\s+", " ", t).strip()[:300]
+
+
+@app.get("/home/features")
+async def home_features(lang: str = "", token: str = "", authorization: str | None = Header(None)):
+    """What the Know About DuSu page draws: the features that really exist for THIS learner (plus the ones marked
+    "coming soon"), in their language, and the three-step "how DuSu works". 404 while the Home AI switch is off for them."""
+    claims = auth.read_session(_bearer(authorization, token))
+    if auth.auth_enabled and not claims:
+        raise HTTPException(401, "Not signed in")
+    email = claims.get("email", "") if claims else ""
+    if not await home_ai_enabled(email):
+        raise HTTPException(404, "Not available")
+    return home_content.page(await _home_flags(email), langmod.norm(lang))
+
+
+class HomePrefsIn(BaseModel):
+    token: str = ""
+    personal: bool | None = None   # may DuSu use what it remembers about me (name, goals, progress) in the Home chat?
+
+
+@app.post("/home/prefs")
+async def home_prefs(inp: HomePrefsIn, authorization: str | None = Header(None)):
+    """Save the learner's Home privacy choice. Default is ON (like Talk and Daily Talk); turning it off removes their memory and
+    numbers from the Home chat's prompt. The greeting itself never contains private data either way."""
+    claims = auth.read_session(_bearer(authorization, inp.token))
+    if not claims:
+        raise HTTPException(401, "Not signed in")
+    if not await home_ai_enabled(claims.get("email", "")):
+        raise HTTPException(404, "Not available")
+    if not db.db_enabled:
+        return {"personal": True if inp.personal is None else bool(inp.personal)}
+    try:
+        prefs = await db.save_home_prefs(claims["sub"], personal=inp.personal)
+    except Exception as e:
+        print(f"[home] prefs save failed: {type(e).__name__}: {e}")
+        raise HTTPException(500, "Could not save")
+    return {"personal": prefs["personal"]}
 
 
 @app.post("/checkin")
@@ -2175,7 +2382,7 @@ def _facts_summary(facts: dict, summaries: list[str]) -> str:
         if tail:
             last_mode = rturns[-1].get("mode") or ""
             label = {"daily": "Daily Talk (Hindi)", "conversation": "English Talk",
-                     "interview": "Interview"}.get(last_mode, "your last chat")
+                     "interview": "Interview", "home": "your Home chat"}.get(last_mode, "your last chat")
             lines.append(f"- Where you left off last time (during {label}) — continue THIS thread "
                          f"naturally, do NOT restart with a fresh greeting: {tail}")
     if lines:
@@ -2236,7 +2443,8 @@ async def interview_ws(ws: WebSocket):
                 await db.add_conversation(uid, session.mode, mem.get("summary", ""))
                 await db.merge_facts(uid, mem.get("facts", {}) or {}, mem.get("events", []) or [])
                 await db.set_next_hook(uid, mem.get("next_hook", ""))   # S5 story continuity
-                await db.add_recent_questions(uid, mem.get("recent_questions", []) or [])
+                if session.mode != "home":   # "questions already asked" is the English-practice dedupe list
+                    await db.add_recent_questions(uid, mem.get("recent_questions", []) or [])
             # Cross-mode thread continuity: keep the raw tail of THIS chat so the next
             # session (any mode) picks up where we left off, not with a cold greeting.
             try:
@@ -2245,6 +2453,10 @@ async def interview_ws(ws: WebSocket):
                 await db.save_recent_turns(uid, tail)
             except Exception as e:
                 print(f"[memory] recent_turns save failed: {type(e).__name__}: {e}")
+            if session.mode == "home":
+                # The Home companion's chat is REMEMBERED (summary, facts, the thread) but never scored or rewarded: no XP, streak,
+                # league, vocabulary, minutes or badges - a guide chat must not be farmable (DUSU_HOME_AI_PLAN.md §2.2).
+                return
             secs = int(time.monotonic() - started_at)
             # A session held in Hindi (bilingual switch on) says nothing about English vocabulary or grammar:
             # those two are stored as NULL ("not scored", overall renormalised - the Practice Room machinery),
@@ -2331,15 +2543,20 @@ async def interview_ws(ws: WebSocket):
                 # seconds before DuSu says its first word; concurrently they cost about
                 # as much as the slowest one. The quota lookup is paid ONCE here too
                 # (see TurnQuota) instead of before every turn.
-                facts_summary = ""; facts = {}; ictx = {}
+                facts_summary = ""; facts = {}; ictx = {}; summaries = []
                 mode = data.get("mode", "interview")
+                # Home 2.0: the AI-companion Home is switched per learner like the other rollouts. A client that asks for it
+                # while it is off for them gets a plain refusal, never a half-working session.
+                if mode == "home" and not await home_ai_enabled(_email):
+                    await _send(ws, type="error", msg="The Home companion is not available for this account yet.")
+                    break
                 _quota_open = asyncio.create_task(turn_quota.open(_email, uid, quota_day))
                 # "DuSu knows your data" (life.py, CLAUDE.md §10): the learner's own numbers, read
-                # alongside the memory reads below and appended to the same text. Talk + Daily Talk only.
+                # alongside the memory reads below and appended to the same text. Talk + Daily Talk + the Home companion.
                 _life_open = None
-                if uid and db.db_enabled and mode in ("conversation", "daily") and await life_context_enabled(_email):
+                if uid and db.db_enabled and mode in ("conversation", "daily", "home") and await life_context_enabled(_email):
                     _life_open = asyncio.create_task(life.build(uid))
-                if uid and db.db_enabled and mode in ("conversation", "interview", "daily"):
+                if uid and db.db_enabled and mode in ("conversation", "interview", "daily", "home"):
                     try:
                         gather_tasks = [db.get_memory(uid), db.recent_summaries(uid, 6), db.relationship_stage(uid)]
                         if mode == "interview":
@@ -2360,6 +2577,16 @@ async def interview_ws(ws: WebSocket):
                     await _quota_open        # already running alongside the reads above
                 except Exception as e:
                     print(f"[quota] open failed, allowing session: {type(e).__name__}: {e}")
+                # Home privacy choice (default: DuSu may use what it remembers). When it is off, nothing the learner has told DuSu
+                # and none of their numbers reach the Home prompt; the name comes from the sign-in only.
+                _home_personal = True
+                if mode == "home" and isinstance(facts.get("home_prefs"), dict):
+                    _home_personal = bool(facts["home_prefs"].get("personal", True))
+                if mode == "home" and not _home_personal:
+                    facts_summary = ""
+                    if _life_open is not None:
+                        _life_open.cancel()
+                        _life_open = None
                 if _life_open is not None:
                     try:
                         _numbers = await asyncio.wait_for(_life_open, timeout=3.0)
@@ -2374,14 +2601,18 @@ async def interview_ws(ws: WebSocket):
                 tod = ""
                 if isinstance(hour, (int, float)):
                     tod = "morning" if hour < 12 else "afternoon" if hour < 17 else "evening"
+                if mode == "home":
+                    tod = _home_tod(hour)   # the Home companion has four segments (night too)
                 # Name: prefer the stored nickname, then the signed-in Google name,
                 # and only then whatever the client sent. Daily Talk sends no `name`
                 # at all, so this used to reach the model empty — and because
                 # DAILY_TURN_SYSTEM tells it to address the learner by their real
                 # name, the model simply INVENTED one (a user signed in as Pratap
                 # Singh was greeted as "Rohit"). Never leave the name blank.
-                _who = (facts.get("nickname") or (claims.get("name", "") if claims else "")
+                _who = ((facts.get("nickname") if _home_personal else "") or (claims.get("name", "") if claims else "")
                         or data.get("name", ""))
+                if mode == "home":   # spoken aloud and said often: the first name, never "Good morning Pratap Singh"
+                    _who = (_who or "").split(" ")[0]
                 # Hindi / English (DUSU_BILINGUAL_PLAN.md): with the switch ON the client's choice rules (default
                 # Hindi); with it OFF every mode keeps what it always did (lang.LEGACY).
                 bilingual_on = await bilingual_enabled(_email)
@@ -2402,8 +2633,21 @@ async def interview_ws(ws: WebSocket):
                     past_interview_avg=ictx.get("past_avg"),
                     lang=_lang,
                     bilingual=bilingual_on,
+                    home_flags=(await _home_flags(_email)) if mode == "home" else None,
+                    home_personal=_home_personal,
+                    new_learner=(mode == "home" and not (summaries or facts.get("facts_learned") or facts.get("recent_turns")
+                                                          or facts.get("nickname"))),
+                    hour=hour,
+                    polish=(mode in ("daily", "conversation") and await home_ai_enabled(_email)),
                 )
-                if session.mode == "daily":
+                if session.mode == "home":
+                    # Home 2.0: nothing to generate on start - the client already spoke the greeting it is showing, so DuSu
+                    # "speaks first" instantly. Record it as the first assistant line so the model knows what it said.
+                    _opening = _clean_opening(data.get("opening"))
+                    if _opening:
+                        session.transcript.append({"role": "assistant", "content": _opening})
+                    await _send(ws, type="home_ready", lang=session.lang)
+                elif session.mode == "daily":
                     # Resume: seed the recent turns the client kept in localStorage so
                     # DuSu picks up the thread instead of opening cold.
                     resume = data.get("resume") or []
@@ -2448,6 +2692,21 @@ async def interview_ws(ws: WebSocket):
                 if not q.get("unlimited") and q.get("limit") is not None:
                     # live header update: tell the client the new remaining count for today
                     await _send(ws, type="quota_update", left=q["left"], limit=q["limit"])
+                if session.mode == "home":
+                    if session.turns >= settings.conversation_max_turns:
+                        await _send(ws, type="limit",
+                                    msg="You've reached the length limit for this chat — start a fresh one anytime.")
+                        continue
+                    await _send(ws, type="status", msg="thinking")
+                    try:
+                        r = await session.home_turn(text[:600])
+                    except Exception as e:
+                        if _is_quota(e): await _send(ws, type="quota", msg="Your API keys hit their limit. Add or replace a key in Settings.")
+                        else: await _send(ws, type="home_error")
+                        continue
+                    await _send(ws, type="home_turn", text=r["text"], lang=session.lang, intent=r["intent"],
+                                actions=r["actions"])
+                    continue
                 if session.mode == "learning":
                     await _send(ws, type="status", msg="translating")
                     try:
