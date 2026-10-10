@@ -1378,6 +1378,30 @@ DuSu's memory block (`main._facts_summary`) holds who the learner IS; it held no
 
 ---
 
+## 11. Hindi ⇄ English modes (built 2026-10-10 — design + status in `DUSU_BILINGUAL_PLAN.md`)
+
+One global language (`hi` — the **default** — or `en`) for **Daily Talk, Face-to-Face Talk and Interview**, switchable before and **during** a session, plus **Learn's own direction** (what the learner SPEAKS: `hi` = Hindi→English, the original; `en` = English→Hindi). Behind `settings.bilingual` = off / **owner (default)** / on (dashboard → Access → "Hindi / English modes"). **Switch OFF = today's behaviour exactly** (Talk/Interview English, Daily Hindi-in, Learn Hindi→English) — proven by diffing the old HEAD against the new code: server = byte-identical prompts, model inputs and fallback lines across 13 model calls; client = 55 observations (text, voice, recogniser locale, wire) identical.
+
+| Mode | Hindi (default) | English |
+|---|---|---|
+| Daily Talk | unchanged (Hindi chat; the learner's line shown *translated*) | NEW English chat; card = "a better way to say it" (their line polished) + English tip; no translation step |
+| Face-to-Face | NEW Hindi chat (mic `hi-IN`, Hindi voice) | unchanged |
+| Interview | NEW Hindi interview; Hindi report with 4 metrics (no English grammar/vocabulary) | unchanged |
+| Learn | Hindi → English | NEW English → Hindi |
+
+| Piece | Where |
+|---|---|
+| Helpers (`LEGACY` = what "switch off" means per mode, fallback lines in both languages, the switch note) | `backend/app/lang.py` |
+| Prompts | `interview/prompts.py`: `conversation_system(lang)`, `interviewer_system(lang)`, `DAILY_TURN_SYSTEM_EN`, `TRANSLATE_SYSTEM_EN2HI`, `SCORER_SYSTEM_HI` + `scorer_system(lang)` |
+| Session | `interview/engine.py`: `Session(lang=, bilingual=)`, `set_lang()` rebuilds the prompt; a one-off "learner switched to X" note rides on the NEXT model call only and is never stored |
+| Wire | WS `start` carries `lang`; frame `{"type":"lang"}` → `lang_ok`; every reply carries `lang` (a late reply after a switch is still spoken with the right voice); `translation.dir` = `hi2en`/`en2hi`. `/me` adds `bilingual`, `lang`, `learn_dir`; `POST /lang` saves them (`memory.facts.lang_pref`, no migration) |
+| Client | `I18N` + `LG` + `lgt()` (one block after `killSpeech`); `LG.lang(mode)`, `LG.stt()`, `LG.voice()`; `LG_STATIC` re-writes static text and **restores the original when the switch is off**; the switches are mounted by JS (header of Talk/Daily/Learn, Interview set-up, Home) and stay `hidden` until `userState.bilingual` |
+
+**Gotchas:** the helper is **`lgt()`, not `t()`** — the script has many local `t` variables. `LG` is a top-level `const`, so it is NOT `window.LG` (a test harness must use `typeof LG`). The JSON keys `reply_hindi` / `next_question_hindi` carry **English** in English Daily Talk (contract stability). A Hindi session is scored with `unscored={"vocabulary","grammar_trend"}` (NULL, `overall` renormalised), grows no spoken-English vocabulary and earns no `courage_no_hindi` / `courage_question`. Hindi text = Devanagari with everyday English words in Latin (~75% Hindi words; romanised Hindi is mispronounced by the voice); DuSu speaks as a woman and the prompt forbids guessing the learner's gender (explicit neutral rewrites given); interview uses आप; तू never. English recogniser stays `en-US`. Interview reports from a Hindi interview are tagged `lang:"hi"` and the client skips metrics that aren't there. Practice Room default talk language is now `hi`. **Default Hindi also applies to Face-to-Face "English" Talk and Interview, as the owner asked; one tap flips it and it sticks.**
+**Verified (2026-10-10):** 62 checks on a scratch DB with the real model (Hindi Talk, mid-chat switch both ways, Hindi interview + Hindi report, English Daily with a polished line + English tip, English→Hindi Learn, flag-off parity, /me, /lang, persistence rules) and 42 browser checks in Chromium with a fake socket/recogniser/voice (default Hindi, switching, per-mode voices and recogniser locales, late-reply voice, Hindi report, Learn direction, flag-off restore) + screenshots on phone and desktop. **Not verified:** a real phone — Hindi voice availability/quality on Android, recogniser accuracy on Hinglish, Devanagari font rendering on the owner's handset. **Not translated yet (second pass):** Home hero copy, Journey, Ranks, Profile, Keys, Settings, More sheet, Help, Practice Room screens, My Day.
+
+---
+
 ## Quick command reference
 
 ```powershell

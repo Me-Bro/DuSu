@@ -1190,7 +1190,7 @@ async def save_interview_report(user_id: str, role: str, data: dict) -> None:
         mem = await _get_or_make_memory(s, user_id)
         f = dict(mem.facts or {})
         entry = {
-            "date": _now().date().isoformat(), "role": role or "",
+            "date": _now().date().isoformat(), "role": role or "", "lang": data.get("lang", "en"),
             "overall": data.get("overall", 0), "scores": data.get("scores", {}) or {},
             "filler_words": data.get("filler_words", []) or [],
             "strengths": data.get("strengths", []) or [], "fixes": data.get("fixes", []) or [],
@@ -2430,7 +2430,7 @@ async def get_my_season_awards(user_id: str) -> list[dict]:
 # stored: scores + the report (≤3 quoted sentences) per attempt, and the student's language /
 # English-invitation preferences inside Memory.facts (schemaless JSONB → no migration).
 _PRACTICE_KEEP = 200                      # attempts kept per user (oldest pruned) — bounds table growth
-_PRACTICE_PREF_DEFAULTS = {"lang": "en", "feedback_lang": "", "english_invite": "on",
+_PRACTICE_PREF_DEFAULTS = {"lang": "hi", "feedback_lang": "", "english_invite": "on",
                            "invite_dismissals": 0, "invite_snooze_until": ""}
 _PRACTICE_SNOOZE_DAYS = 14                # two "Not now" in a row → no invitation for this long
 
@@ -2644,6 +2644,28 @@ async def check_practice_badges(user_id: str) -> list[str]:
     if any(r.via == "bridge" and r.lang == "en" for r in rows):
         ids.append("bridge_builder")
     return await award_badges(user_id, ids)
+
+
+# ===================== HINDI / ENGLISH CHOICE (lang.py, CLAUDE.md §11) =====================
+async def save_lang_pref(user_id: str, lang: str | None = None, learn: str | None = None) -> dict:
+    """The learner's language choice: `lang` = Face-to-Face / Interview / Daily Talk, `learn` = what they SPEAK in Learn
+    (hi = Hindi -> English, en = English -> Hindi). Hindi until they choose. Lives in Memory.facts["lang_pref"]
+    (schemaless - no migration). Only the keys passed are changed; anything but hi/en is ignored."""
+    async with _Session() as s:               # type: ignore[misc]
+        mem = await _get_or_make_memory(s, user_id)
+        f = dict(mem.facts or {})
+        cur = f.get("lang_pref") if isinstance(f.get("lang_pref"), dict) else {}
+        out = {"lang": cur.get("lang") if cur.get("lang") in ("hi", "en") else "hi",
+               "learn": cur.get("learn") if cur.get("learn") in ("hi", "en") else "hi"}
+        if lang in ("hi", "en"):
+            out["lang"] = lang
+        if learn in ("hi", "en"):
+            out["learn"] = learn
+        f["lang_pref"] = out
+        mem.facts = f
+        flag_modified(mem, "facts")
+        await s.commit()
+        return out
 
 
 # ===================== LIFE CONTEXT (life.py — "DuSu knows your data", CLAUDE.md §10) =====================

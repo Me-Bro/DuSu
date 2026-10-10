@@ -381,30 +381,33 @@ def _extract_json(text: str) -> dict:
 
 
 class OpenRouterLLM:
-    async def next_question(self, system: str, transcript: list[dict]) -> str:
+    async def next_question(self, system: str, transcript: list[dict], seed: str | None = None) -> str:
         messages = [{"role": "system", "content": system}, *_recent(transcript)]
         # Some providers (Gemini) reject a system-only request — DuSu speaks first
-        # with an empty transcript, so seed a user turn to kick it off.
+        # with an empty transcript, so seed a user turn to kick it off. `seed` lets a
+        # non-English session open in its own language (default = the original English line).
         if not any(m["role"] == "user" for m in messages[1:]):
             messages.append({"role": "user",
-                             "content": "Let's begin. Greet me and ask your first question."})
+                             "content": seed or "Let's begin. Greet me and ask your first question."})
         # 420 (was 320): the persona asks for 2-4 spoken sentences and a follow-up
         # question; 320 clipped the longer, more interesting turns mid-word.
         return await _complete(messages, max_tokens=420, prefer_fast=True)   # per-turn chat (§9)
 
-    async def next_question_stream(self, system: str, transcript: list[dict]):
+    async def next_question_stream(self, system: str, transcript: list[dict], seed: str | None = None):
         """Same as next_question, but yields whole sentences as they're written."""
         messages = [{"role": "system", "content": system}, *_recent(transcript)]
         if not any(m["role"] == "user" for m in messages[1:]):
             messages.append({"role": "user",
-                             "content": "Let's begin. Greet me and ask your first question."})
+                             "content": seed or "Let's begin. Greet me and ask your first question."})
         async for s in stream_sentences(messages, max_tokens=420, prefer_fast=True):
             yield s
 
-    async def translate(self, system: str, text: str) -> str:
+    async def translate(self, system: str, text: str, max_tokens: int = 120) -> str:
+        # Devanagari costs several times the tokens of the same sentence in English, so the
+        # English->Hindi direction asks for a bigger budget (the default is unchanged).
         messages = [{"role": "system", "content": system},
                     {"role": "user", "content": text}]
-        return await _complete(messages, max_tokens=120)
+        return await _complete(messages, max_tokens=max_tokens)
 
     async def generate(self, system: str, prompt: str, max_tokens: int = 500) -> str:
         """Free-form prose (weekly letters, session summaries). Returns raw text."""
@@ -421,10 +424,10 @@ class OpenRouterLLM:
         return _extract_json(await _complete(messages, max_tokens=max_tokens, prefer_fast=prefer_fast,
                                              temperature=temperature))
 
-    async def score(self, system: str, transcript: list[dict]) -> dict:
+    async def score(self, system: str, transcript: list[dict], max_tokens: int = 1200) -> dict:
         convo = "\n".join(f"{m['role']}: {m['content']}" for m in transcript)
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": convo + "\n\nReturn ONLY the JSON object."},
         ]
-        return _extract_json(await _complete(messages, max_tokens=1200))
+        return _extract_json(await _complete(messages, max_tokens=max_tokens))

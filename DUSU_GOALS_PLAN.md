@@ -43,7 +43,7 @@
 | D9 | Limits: 10 active goals · 500 open tasks · 30 habits · 20 AI calls/day · 100 user-created reminders/day · 5 push devices | Abuse + free-LLM-quota protection |
 | D10 | `pywebpush==1.14.1` + `tzdata`; **do not bump `cryptography`** | §0 fact 4 |
 | D11 | Scheduler lives in the web process; revisit only if uvicorn ever gets multiple workers (it is `SKIP LOCKED`-safe anyway) | No new infra on a shared box |
-| D12 | UI English; the AI parser accepts English / Hindi / Hinglish input (Latin or Devanagari) and answers in English | Matches the product's audience without a second UI language |
+| D12 | **Hindi (default) and English, switchable anywhere** — the module uses the same `LG` / `I18N` layer and the same `हिंदी \| English` switch as Talk, Interview, Daily and Learn (`DUSU_BILINGUAL_PLAN.md`, CLAUDE.md §11). Every string is added to the dictionary in both languages from the first screen; push/reminder fixed text, the AI planner's wording, the preview card and dates follow the learner's language; **their own task/goal titles are never translated**. The AI parser accepts English / Hindi / Hinglish input (Latin or Devanagari) | Owner request 2026-10-10: "these new modules — the user can switch Hindi ⇄ English, default Hindi" |
 | D13 | iOS is **not targeted** (Android-first product; iOS web push needs Add-to-Home-Screen) | Scope |
 | D14 | Condition reminders ("when I finish trading…") get an optional **fallback time** ("…or at 9:30 PM anyway") so they can never silently never fire | Your spec makes "tap *Trading finished*" the MVP trigger; without a fallback a forgotten tap = a forgotten reminder |
 
@@ -134,6 +134,14 @@ Every line is a testable statement; §12 maps each to a verification tier.
 
 ### G. DuSu knowledge — see §10
 - **AD1** With both switches on, DuSu answers "what's on my plate today?", "what's overdue?", "how's my lemon-water habit?" from the data, never claims to have created or changed anything, and doesn't nag.
+
+### I. Language (Hindi ⇄ English — added 2026-10-10)
+- **AL1** Every screen, button, empty state, error and sheet of the module exists in **Hindi (default) and English**, in the learner's current language (`LG.cur()`); the switch is in the module header and in Settings; changing it re-renders at once, no reload, nothing lost.
+- **AL2** **Push and in-app reminders**: the fixed text (the action buttons Done / Later / Skip, "You have a reminder", the briefing/review headings) is sent in the learner's language — the server reads it from the saved `lang_pref`; the learner's own task title is shown as typed.
+- **AL3** **AI planner**: `parse`, `goal_draft`, `replan` and `split` get a `language` argument; milestone/task titles the model writes are in that language, Devanagari with English loanwords for Hindi (same script rule as the voice modes: romanised Hindi is not used). The preview card shows resolved dates in words in that language (`Intl` with `hi-IN` / `en-IN`).
+- **AL4** The quick-add microphone uses the matching recogniser (`hi-IN` / `en-US`) and works with Hinglish; typing in either script is accepted whatever the UI language is.
+- **AL5** DuSu's plan lines (§10.1) stay language-neutral — the persona's own language rule (Hindi/English per mode) decides how DuSu says them.
+- **AL6** Verification: a key-parity check (every key in `en` and `hi`), the browser look in both languages on 360 px, and the AI prompts run in Hindi, English and Hinglish.
 
 ### H. Settings & data rights
 - **AS1** Timezone (auto + editable) · quiet hours · follow-ups · snooze default · briefing/review toggles · push on/off **with the live permission state** · hide-details toggle · **"Send me a test reminder"** · pause everything · **export JSON** · **delete all my planner data**.
@@ -439,7 +447,7 @@ Every phase ends deployed **dark** (switch off → zero behaviour change, checke
 | ID | Ticket | Files | Dep |
 |---|---|---|---|
 | PL-0.1 | `pywebpush==1.14.1`, `tzdata` in requirements; import check in the container | `requirements.txt` | — |
-| PL-0.2 | package skeleton; `planner_mode()` / `planner_enabled()`; `/me.planner`; dashboard select; overview stub | `planner/__init__.py`, `main.py`, `test_client.html` | — |
+| PL-0.2 | package skeleton; `planner_mode()` / `planner_enabled()`; `/me.planner`; dashboard select; overview stub; **the module's `I18N` keys (en + hi) wired into the existing `LG` layer** | `planner/__init__.py`, `main.py`, `test_client.html` | — |
 | PL-0.3 | `timeutil.py` (tz, recurrence, DST) + `rules.py` (status, progress, limits) + tier-1 checks | `planner/timeutil.py`, `rules.py` | — |
 | PL-0.4 | models + `init_db` indexes (explicit partial unique indexes) + migration check on a scratch DB | `planner/models.py`, `db.py` | 0.2 |
 | PL-0.5 | add the tables to `delete_user` / `admin_wipe_users`; export skeleton | `db.py`, `planner/service.py` | 0.4 |
@@ -452,7 +460,7 @@ Every phase ends deployed **dark** (switch off → zero behaviour change, checke
 | PL-1.1 | task service: create/edit/complete/skip/reopen/reschedule/pin/delete, derived status, ownership, idempotency, events, limits | P0 |
 | PL-1.2 | goals + milestones CRUD, progress, pause/resume/archive | P0 |
 | PL-1.3 | `/planner/today`, `/tasks`, `/goals` endpoints + gate | 1.1, 1.2 |
-| PL-1.4 | client `PL` module: routes, Home card, More row, ＋ Add sheet (manual forms), Today, Tasks, Goals; `pl-` CSS | 1.3 |
+| PL-1.4 | client `PL` module: routes, Home card, More row, ＋ Add sheet (manual forms), Today, Tasks, Goals; `pl-` CSS; **every string through `lgt()` in Hindi + English** | 1.3 |
 | PL-1.5 | life-lines provider + "Ask DuSu about my day" | 1.3, Part 1 |
 | PL-1.6 | "due now / overdue" banner on Today computed from tasks (no reminder rows yet) | 1.4 |
 

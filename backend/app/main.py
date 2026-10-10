@@ -31,6 +31,7 @@ from pydantic import BaseModel
 from .config import settings
 from . import practice
 from . import life
+from . import lang as langmod
 from .interview.engine import Session
 from .interview.prompts import ASSESS_SYSTEM, LESSON_EVAL_SYSTEM, LEVEL_TEST_SYSTEM, LETTER_SYSTEM, GREETING_SYSTEM, CAREER_ROADMAP_SYSTEM
 from .providers import llm
@@ -197,6 +198,27 @@ async def life_context_mode() -> str:
 
 async def life_context_enabled(email: str) -> bool:
     m = await life_context_mode()
+    if m == "on":
+        return True
+    if m == "owner":
+        return role_for(email) in ("owner", "unlimited")
+    return False
+
+
+async def bilingual_mode() -> str:
+    """Hindi / English switch rollout (Settings table, no migration; CLAUDE.md §11, DUSU_BILINGUAL_PLAN.md). It changes the
+    language of every Face-to-Face, Interview and Daily Talk conversation (default Hindi) and adds a Hindi direction to
+    Learn, so it is staged like the Practice Room: 'off' = every mode behaves exactly as before the switch existed;
+    'owner' = only the owner / unlimited allowlist (the DEFAULT - the owner tries it first); 'on' = everyone."""
+    try:
+        v = await _cached("bilingual", lambda: db.get_setting("bilingual", "owner"))
+        return v if v in ("off", "owner", "on") else "owner"
+    except Exception:
+        return "owner"
+
+
+async def bilingual_enabled(email: str) -> bool:
+    m = await bilingual_mode()
     if m == "on":
         return True
     if m == "owner":
@@ -597,6 +619,11 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
               "has_keys": _has_keys,
               "day_number": _day_num,
               "practice_room": _pr, "practice_prefs": _pr_prefs, "practice_server_stt": _pr_server_stt,
+              # Hindi / English switch (DUSU_BILINGUAL_PLAN.md): `bilingual` = is it on for this learner; `lang` is
+              # their saved language (Hindi until they choose), `learn_dir` Learn's direction. Overridden from the
+              # saved prefs below once the state is loaded.
+              "bilingual": await bilingual_enabled(email), "lang": langmod.DEFAULT_LANG,
+              "learn_dir": langmod.DEFAULT_LANG,
               "level_test": await level_test_on(),
               # The public name this user appears as on the leaderboard / league.
               # Boards are alias-only for privacy (§18), so without this the user
@@ -618,6 +645,10 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
                 print(f"[me] auto-onboard failed: {type(e).__name__}: {e}")
         if isinstance(state, dict):
             state.update(common)
+            _lp = (state.get("memory") or {}).get("lang_pref")
+            if isinstance(_lp, dict):
+                state["lang"] = langmod.norm(_lp.get("lang"))
+                state["learn_dir"] = langmod.norm(_lp.get("learn"))
         if isinstance(state, dict) and state.get("onboarded"):
             try:
                 uid_ = claims["sub"]
@@ -1017,7 +1048,7 @@ async def admin_overview(token: str = "", authorization: str | None = Header(Non
     out = {"you": claims.get("email", ""), "role": "owner", "db": db.db_enabled, "users": [],
            "access_phase": await access_phase(), "level_test": await level_test_on(),
            "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode(),
-           "life_context": await life_context_mode()}
+           "life_context": await life_context_mode(), "bilingual": await bilingual_mode()}
     if db.db_enabled:
         try:
             users = await db.admin_list_users()
@@ -1049,6 +1080,7 @@ class SettingsIn(BaseModel):
     owner_byok: bool | None = None
     practice_room: str | None = None      # off | owner | on
     life_context: str | None = None       # off | owner | on  ("DuSu knows your data", CLAUDE.md §10)
+    bilingual: str | None = None          # off | owner | on  (Hindi / English modes, CLAUDE.md §11)
 
 
 @app.post("/admin/settings")
@@ -1067,10 +1099,12 @@ async def admin_settings(inp: SettingsIn, authorization: str | None = Header(Non
         await db.set_setting("practice_room", inp.practice_room if inp.practice_room in ("off", "owner", "on") else "off")
     if inp.life_context is not None:
         await db.set_setting("life_context", inp.life_context if inp.life_context in ("off", "owner", "on") else "owner")
+    if inp.bilingual is not None:
+        await db.set_setting("bilingual", inp.bilingual if inp.bilingual in ("off", "owner", "on") else "owner")
     invalidate_access_cache()
     return {"access_phase": await access_phase(), "level_test": await level_test_on(),
             "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode(),
-            "life_context": await life_context_mode()}
+            "life_context": await life_context_mode(), "bilingual": await bilingual_mode()}
 
 
 class WipeIn(BaseModel):
@@ -1431,6 +1465,29 @@ class TokenIn(BaseModel):
 class FutureMeIn(BaseModel):
     token: str
     text: str
+
+
+class LangIn(BaseModel):
+    token: str = ""
+    lang: str | None = None     # hi | en - Face-to-Face / Interview / Daily Talk
+    learn: str | None = None    # hi | en - what the learner SPEAKS in Learn (hi = Hindi -> English)
+
+
+@app.post("/lang")
+async def set_lang_pref(inp: LangIn, authorization: str | None = Header(None)):
+    """Save the learner's Hindi / English choice (and Learn's direction). Hindi until they choose; sticky across
+    devices. The client only calls this when the switch is on for them (userState.bilingual)."""
+    claims = auth.read_session(_bearer(authorization, inp.token))
+    if not claims:
+        raise HTTPException(401, "Not signed in")
+    if not db.db_enabled:
+        return {"lang": langmod.norm(inp.lang), "learn_dir": langmod.norm(inp.learn)}
+    try:
+        prefs = await db.save_lang_pref(claims["sub"], lang=inp.lang, learn=inp.learn)
+    except Exception as e:
+        print(f"[lang] save failed: {type(e).__name__}: {e}")
+        raise HTTPException(500, "Could not save")
+    return {"lang": prefs["lang"], "learn_dir": prefs["learn"]}
 
 
 @app.post("/checkin")
@@ -2148,6 +2205,7 @@ async def interview_ws(ws: WebSocket):
     await ws.accept()
     session: Session | None = None
     uid: str | None = None
+    bilingual_on = False   # the Hindi/English switch is on for this learner (set on `start`)
     started_at = time.monotonic()
     persisted = False
     _email = ""
@@ -2188,6 +2246,12 @@ async def interview_ws(ws: WebSocket):
             except Exception as e:
                 print(f"[memory] recent_turns save failed: {type(e).__name__}: {e}")
             secs = int(time.monotonic() - started_at)
+            # A session held in Hindi (bilingual switch on) says nothing about English vocabulary or grammar:
+            # those two are stored as NULL ("not scored", overall renormalised - the Practice Room machinery),
+            # spoken-English vocabulary isn't grown from it, and the two English-only courage badges aren't
+            # awarded. XP, streak, missions and the rest work the same in both languages. With the switch OFF
+            # this is False and every line below behaves exactly as before.
+            hi_session = bool(getattr(session, "bilingual", False)) and session.lang == "hi"
             if session.mode == "daily":
                 await db.record_practice(uid, seconds=secs, sentences=session.turns, xp=20)
             else:
@@ -2205,6 +2269,7 @@ async def interview_ws(ws: WebSocket):
                     uid, session.mode, minutes=secs / 60.0, turns=session.turns,
                     scores=scores, genuine_effort=genuine_effort,
                     thoughts_translated=getattr(session, "thoughts_translated", 0),
+                    unscored=(frozenset({"vocabulary", "grammar_trend"}) if hi_session else frozenset()),
                 )
                 if sp:
                     await _send(ws, type="speaker_progress", data=sp)
@@ -2219,13 +2284,13 @@ async def interview_ws(ws: WebSocket):
             # S6 — grow spoken vocabulary from what the learner actually said
             try:
                 said = " ".join(m["content"] for m in session.transcript if m.get("role") == "user")
-                if said:
+                if said and not hi_session:
                     await db.add_vocab(uid, said.split())
             except Exception:
                 pass
             badges = []
-            if mem.get("no_hindi"):       badges.append("courage_no_hindi")
-            if mem.get("asked_question"): badges.append("courage_question")
+            if mem.get("no_hindi") and not hi_session:       badges.append("courage_no_hindi")
+            if mem.get("asked_question") and not hi_session: badges.append("courage_question")
             if secs >= 300:               badges.append("courage_5min")
             if session.mode in ("conversation", "daily"): badges.append("courage_first_convo")
             if badges:
@@ -2317,6 +2382,11 @@ async def interview_ws(ws: WebSocket):
                 # Singh was greeted as "Rohit"). Never leave the name blank.
                 _who = (facts.get("nickname") or (claims.get("name", "") if claims else "")
                         or data.get("name", ""))
+                # Hindi / English (DUSU_BILINGUAL_PLAN.md): with the switch ON the client's choice rules (default
+                # Hindi); with it OFF every mode keeps what it always did (lang.LEGACY).
+                bilingual_on = await bilingual_enabled(_email)
+                _lang = (langmod.norm(data.get("lang")) if bilingual_on
+                         else langmod.LEGACY.get(mode, "en"))
                 session = Session(
                     mode,
                     _who,
@@ -2330,6 +2400,8 @@ async def interview_ws(ws: WebSocket):
                     career_goal=ictx.get("career_goal", ""),
                     past_interview_count=ictx.get("past_count", 0),
                     past_interview_avg=ictx.get("past_avg"),
+                    lang=_lang,
+                    bilingual=bilingual_on,
                 )
                 if session.mode == "daily":
                     # Resume: seed the recent turns the client kept in localStorage so
@@ -2343,10 +2415,10 @@ async def interview_ws(ws: WebSocket):
                         session.turns = sum(1 for m in session.transcript if m["role"] == "user")
                     opening = await session.daily_turn("", first=True)
                     q = (opening.get("reply_hindi") or opening.get("next_question_hindi")
-                         or "आज आपका दिन कैसा रहा?")
-                    await _send(ws, type="daily_question", question=q)
+                         or langmod.line(session.lang, "daily_fallback_q"))
+                    await _send(ws, type="daily_question", question=q, lang=session.lang)
                 elif session.mode == "learning":
-                    await _send(ws, type="ready")   # client greets in Hindi
+                    await _send(ws, type="ready", lang=session.lang)   # client greets (Hindi by default)
                 else:
                     await _send(ws, type="status", msg="starting")
                     # Companion Moment: if the user already answered DuSu's greeting out loud,
@@ -2355,7 +2427,7 @@ async def interview_ws(ws: WebSocket):
                     if seed and session.mode == "conversation":
                         session.add_user(seed)
                     greeting = await session.next_ai_turn()  # DuSu speaks first (or replies to seed)
-                    await _send(ws, type="ai_text", text=greeting)
+                    await _send(ws, type="ai_text", text=greeting, lang=session.lang)
 
             elif mtype == "user_text":
                 if session is None:
@@ -2384,7 +2456,10 @@ async def interview_ws(ws: WebSocket):
                         if _is_quota(e): await _send(ws, type="quota", msg="Your API keys hit their limit. Add or replace a key in Settings.")
                         else: await _send(ws, type="translate_error")
                         continue
-                    await _send(ws, type="translation", hindi=text, text=english)
+                    # hindi = what the learner said, text = the translation (the keys keep their old names);
+                    # dir says which way it went so the client picks the right voice and labels.
+                    await _send(ws, type="translation", hindi=text, text=english,
+                                dir=("en2hi" if session.lang == "en" else "hi2en"))
                     continue
                 if session.mode == "daily":
                     await _send(ws, type="status", msg="thinking")
@@ -2396,7 +2471,8 @@ async def interview_ws(ws: WebSocket):
                         continue
                     await _send(ws, type="daily_turn", hindi=text,
                                 english=d.get("english", ""), reply=d.get("reply_hindi", ""),
-                                tip=d.get("tip", ""), next_question=d.get("next_question_hindi", ""))
+                                tip=d.get("tip", ""), next_question=d.get("next_question_hindi", ""),
+                                lang=session.lang)
                     if uid and db.db_enabled:
                         try:
                             ctx = d.get("context", {}) or {}
@@ -2431,7 +2507,7 @@ async def interview_ws(ws: WebSocket):
                     if _is_quota(e): await _send(ws, type="quota", msg="Your API keys hit their limit. Add or replace a key in Settings.")
                     else: await _send(ws, type="error", msg="Could not get a reply — please try again.")
                     continue
-                await _send(ws, type="ai_text", text=line, streamed=spoke_any)
+                await _send(ws, type="ai_text", text=line, streamed=spoke_any, lang=session.lang)
                 if session.done:  # interview mode only
                     await _send(ws, type="interview_done")
                     report_data = await _safe_build_report(session)
@@ -2442,6 +2518,14 @@ async def interview_ws(ws: WebSocket):
                 elif session.capped:  # conversation hit its turn cap
                     await _send(ws, type="limit",
                                 msg="You've reached the length limit for this chat — start a fresh conversation anytime.")
+
+            elif mtype == "lang":
+                # Mid-session Hindi <-> English switch. The socket, the transcript and the turn count are untouched;
+                # only the prompt (and Learn's direction) changes. Ignored when the switch is off for this learner.
+                if session is None or not bilingual_on:
+                    continue
+                changed = session.set_lang(langmod.norm(data.get("lang"), session.lang))
+                await _send(ws, type="lang_ok", lang=session.lang, changed=changed)
 
             elif mtype == "end":
                 if session is None:

@@ -1879,6 +1879,29 @@
     #prRepBody > .pr-half{ grid-column:auto; }
     #prRepBody .card{ height:100%; }
   }
+  /* ===== Hindi / English switch (DUSU_BILINGUAL_PLAN.md) — every control stays [hidden] until userState.bilingual ===== */
+  .lg-sw{ display:inline-flex; flex:none; border:1px solid var(--glass-brd); border-radius:999px; overflow:hidden; background:var(--glass); }
+  .lg-sw[hidden]{ display:none; }
+  .lg-sw button{ font:inherit; font-size:13px; line-height:1.3; padding:7px 13px; min-height:34px; color:var(--ink-dim); background:transparent; border:0; cursor:pointer; }
+  .lg-sw button.on{ background:var(--gold); color:#0d1020; font-weight:600; }
+  .lg-sw button:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:-2px; }
+  .sess-head .lg-sw{ margin-left:auto; }
+  .lg-row{ display:flex; justify-content:center; margin:0 0 14px; }
+  .lg-row[hidden]{ display:none; }
+  .lg-setup{ display:flex; justify-content:center; margin:0 0 14px; }
+  .lg-setup[hidden]{ display:none; }
+  .lg-dir{ display:flex; gap:8px; justify-content:center; margin:0 0 14px; flex-wrap:wrap; }
+  .lg-dir[hidden]{ display:none; }
+  .lg-dir button{ font:inherit; font-size:13px; line-height:1.3; padding:7px 14px; min-height:34px; border-radius:999px; cursor:pointer;
+    color:var(--ink-dim); background:var(--glass); border:1px solid var(--glass-brd); }
+  .lg-dir button.on{ color:#0d1020; background:var(--gold); border-color:transparent; font-weight:600; }
+  .lg-dir button:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:2px; }
+  /* Devanagari carries its marks above and below the line: give Hindi text room so matras are never clipped */
+  html[lang="hi"] .sess-title, html[lang="hi"] .sess-sub, html[lang="hi"] .prac-h, html[lang="hi"] .mode-card h3,
+  html[lang="hi"] .btab span, html[lang="hi"] .learn-instr, html[lang="hi"] .learn-state, html[lang="hi"] .mic-label,
+  html[lang="hi"] .state-label, html[lang="hi"] .state-hint, html[lang="hi"] .tc-label, html[lang="hi"] .th-txt,
+  html[lang="hi"] .bubble, html[lang="hi"] .sysmsg, html[lang="hi"] .btn, html[lang="hi"] .card h4,
+  html[lang="hi"] .m-top, html[lang="hi"] .sr-row, html[lang="hi"] .sr-next{ line-height:1.55; }
 </style>
 </head>
 <body>
@@ -3208,6 +3231,341 @@ const VOICE_SCREENS = new Set(["session","daily","learning"]);
 // let the NEXT line speak. Fixes "Finish / switch tab but DuSu keeps talking".
 let speakEpoch = 0;
 function killSpeech(){ speakEpoch++; try{ if(window.speechSynthesis) window.speechSynthesis.cancel(); }catch(_){} }
+
+/* ================= Hindi / English language modes (DUSU_BILINGUAL_PLAN.md · CLAUDE.md §11) =================
+   ONE global language (hi | en, Hindi until the learner chooses) for Daily Talk, Face-to-Face and Interview — switchable
+   before AND during a session — plus Learn's own direction (what the learner SPEAKS: hi = Hindi→English, the original).
+   Everything here is inert until userState.bilingual is true. With the switch OFF, LG.lang(mode) returns what each mode
+   always did (Talk/Interview English, Daily/Learn Hindi) and t() returns the ORIGINAL wording (I18N.legacy, then I18N.en),
+   so nothing on screen or in the voice changes. Hindi copy is Devanagari with English words kept in Latin (as the level
+   check already does); DuSu is "she" in Hindi, and the learner's gender is never assumed. */
+const I18N = {
+  en: {
+    lgAria:"Language", home:"Home", back:"Back",
+    switchSay:"Sure, let's continue in English.", switchSys:"Language: English",
+    needChrome:"Voice input needs Chrome or Edge (Web Speech API).", needChromeShort:"Voice needs Chrome or Edge.",
+    limitReached:"You've reached today's limit of {n} sessions. Come back tomorrow 🙂",
+    connErr:"Connection error", connErrHint:"Is the server running?", connLost:"Connection lost", connLostHint:"go back and try again",
+    navHome:"Home", navJourney:"Journey", navDaily:"Daily", navPractice:"Practice", navRanks:"Ranks", navMore:"More",
+    hubTitle:"Practice", hubLearnH:"Convey your thoughts in English", hubTalkH:"Face to Face English Talk", hubIntH:"Get Ready for Interview",
+    hubLearnT:"Learn", hubTalkT:"Talk", hubIntT:"Interview", hubSoon:"More modes coming soon 🔜",
+    setH1a:"Your interviewer is", setH1b:"waiting…", setP:"Step into the room. Which role are you here for today?",
+    setLabel:"Interview role", setPh:"e.g. Frontend Developer", setStart:"Start interview",
+    sessTalkTitle:"Confidence Talk", sessIntTitle:"Interview Prep", sessSubTalk:"with DuSu", sessSubInt:"with DuSu · {role}",
+    endBtn:"End", endBtnInt:"End & get report",
+    tipPhones:"🎧 Tip: use headphones so DuSu's voice isn't picked up by your mic.",
+    orbReady:"DuSu is getting ready…", orbReadyHint:"one moment", orbReady2:"DuSu is getting ready to talk…", orbReady2Hint:"warming up",
+    orbListen:"Listening", orbListenHint:"speak, then pause", orbThink:"DuSu is thinking", orbSpeak:"DuSu is speaking", orbSpeakHint:"listen…",
+    orbMicBlocked:"Microphone blocked", orbMicBlockedHint:"allow mic access, then retry",
+    orbMicTrouble:"Mic trouble", orbMicTroubleHint:"tap End and try again",
+    orbScoring:"Scoring your interview…", orbWrap:"Wrapping up…", orbPaused:"Paused", orbPausedHint:"add or replace a key in Settings",
+    sysInterviewDone:"Interview complete", keysLimit:"Your API keys hit their limit — add or replace a key in Settings.",
+    th_think:[[0,"DuSu is thinking…"],[6000,"Finding the right words…"],[14000,"Still on it — thanks for waiting 🙏"],[26000,"Taking longer than usual — check your connection, or go back and try again.",true]],
+    th_start:[[0,"DuSu is getting ready…"],[7000,"Warming up…"],[16000,"Almost there — thanks for waiting 🙏"]],
+    th_scoring:[[0,"Scoring your interview…"],[8000,"Writing your feedback…"],[20000,"Almost done — thanks for waiting 🙏"]],
+    th_wrap:[[0,"Wrapping up…"],[8000,"Saving your progress…"]],
+    th_translate:[[0,"Translating…"],[6000,"Finding the natural English…"],[14000,"Almost there — thanks for waiting 🙏"]],
+    th_translate2:[[0,"Translating…"],[6000,"Finding the natural Hindi…"],[14000,"Almost there — thanks for waiting 🙏"]],
+    repKicker:"Interview report", repOverall:"overall", repNote:"These scores are AI-estimated, not an exact measurement.",
+    repStrengthsH:"✅ Strengths", repFixesH:"🛠 Fixes", repBetterH:"✨ Stronger answer", repShare:"Share", repCopied:"Copied ✓",
+    repPast:"📈 Past Reports", repHome:"Back to home", repFillers:"👂 Filler words", repQ:"Q: ",
+    repUnavail:"Scoring is temporarily unavailable — your interview was saved. Please try another interview shortly.",
+    m_grammar:"Grammar", m_fluency:"Fluency", m_confidence:"Confidence", m_communication:"Communication", m_vocabulary:"Vocabulary", m_professionalism:"Professionalism",
+    shareTitle:"DuSu Interview",
+    shareText:"I just practiced an interview on DuSu 🎙️\nOverall: {overall}/100\nStrengths: {strengths}\nWorking on: {fixes}\nSpeak with confidence — DuSu.",
+    srKicker:"Session complete", srContinue:"Continue", srSpoke:"You spoke for", srXp:"XP earned", srScore:"Speaking Score",
+    srThoughts:"Thoughts in English", srStreak:"Streak", srLeague:"League", srBadge:"🏅 New achievement", srSaved:"Session saved.",
+    srAiNote:"Speaking Score is AI-estimated, not an exact measurement.", srToRank:"{n} XP to {rank}",
+    srPro:"English Pro — keep building your Personal Best.", srKeep:"Keep going — every session counts.",
+    dTitle:"Daily Talk with DuSu", dSub:"I've been wondering how your day went…", dLoader:"DuSu is getting ready…",
+    dMicLabel:"🎤 Answer in English", dTap:"Tap the mic and answer in English.", dListening:"Listening…", dReplyReady:"💬 Reply when you're ready",
+    dcYou:"You said", dcEngLbl:"A better way to say it", dBubbleLbl:"Better way", dBubbleAria:"Hear this in English",
+    dcReplyBtn:"Reply", dFinish:"Finish talk", dNudge:"✨ What next?", dcReplayTitle:"Replay", dcReplayAria:"Replay slowly",
+    dConnErr:"Connection error. Is the server running?", dConnLost:"Connection lost — go back and try again.",
+    dFailGeneric:"Something went wrong — please try again.", dFailAnswer:"DuSu couldn't answer that one — tap the mic and try again.",
+    dTryAgain:"Tap the mic and try again.", dKeysLimit:"Your keys hit their limit — add or replace a key in Settings.",
+    dNoSpeech:"Sorry, I didn't catch that. Please say it again.",
+    dRemind:"By the way, when you're ready you can continue your learning below — or just keep chatting here.",
+    dFallbackReply:"Nice! What was the best part of your day?", dTalk:"Talk", dLearn:"Learn",
+    lTitle:"Learning Mode", lSubH2E:"Speak Hindi → hear natural English", lSubE2H:"Speak English → hear natural Hindi",
+    lInstrH2E:"Speak in Hindi. DuSu will translate it into natural English and help you practice speaking.",
+    lInstrE2H:"Speak in English. DuSu will translate it into natural Hindi so you can check how it sounds.",
+    lMicLabel:"🎤 Tap to Speak", lConnecting:"Connecting…", lTapH:"Tap the mic and speak in Hindi.", lTapE:"Tap the mic and speak in English.",
+    lListening:"Listening…", lAfter:"Your turn — 🔊 to hear it again, or the mic for a new sentence.",
+    lFail:"Translation failed — tap the mic to try again.", lUnavail:"Translation unavailable. Please try again.",
+    lConnErr:"Connection error. Is the server running?", lConnLost:"Connection lost — go back and try again.",
+    lcYou:"You said", lcInEn:"In English", lcInHi:"In Hindi", lReplay:"🔊 Replay (slow)", lContinue:"Continue →",
+    lDirH2E:"Hindi → English", lDirE2H:"English → Hindi"
+  },
+  hi: {
+    lgAria:"भाषा", home:"होम", back:"वापस",
+    switchSay:"ठीक है, अब हम हिंदी में बात करते हैं।", switchSys:"भाषा: हिंदी",
+    needChrome:"Voice के लिए Chrome या Edge चाहिए।", needChromeShort:"Voice के लिए Chrome या Edge चाहिए।",
+    limitReached:"आज की {n} sessions की सीमा पूरी हो गई। कल फिर आइए 🙂",
+    connErr:"कनेक्शन में दिक्कत", connErrHint:"क्या सर्वर चल रहा है?", connLost:"कनेक्शन टूट गया", connLostHint:"वापस जाकर फिर कोशिश करें",
+    navHome:"होम", navJourney:"सफ़र", navDaily:"डेली", navPractice:"प्रैक्टिस", navRanks:"रैंक", navMore:"और",
+    hubTitle:"प्रैक्टिस", hubLearnH:"अपनी बात English में कहना सीखें", hubTalkH:"आमने-सामने बातचीत", hubIntH:"Interview की तैयारी",
+    hubLearnT:"सीखें", hubTalkT:"बातचीत", hubIntT:"Interview", hubSoon:"और modes जल्दी आ रहे हैं 🔜",
+    setH1a:"आपके interviewer", setH1b:"इंतज़ार कर रहे हैं…", setP:"कमरे में आइए। आज आप किस role के लिए आए हैं?",
+    setLabel:"Interview का role", setPh:"जैसे Frontend Developer", setStart:"Interview शुरू करें",
+    sessTalkTitle:"आमने-सामने बातचीत", sessIntTitle:"Interview की तैयारी", sessSubTalk:"DuSu के साथ", sessSubInt:"DuSu के साथ · {role}",
+    endBtn:"खत्म करें", endBtnInt:"खत्म करें और रिपोर्ट पाएँ",
+    tipPhones:"🎧 सुझाव: headphones लगाइए, ताकि DuSu की आवाज़ आपके mic में न जाए।",
+    orbReady:"DuSu तैयार हो रही है…", orbReadyHint:"एक पल", orbReady2:"DuSu बात करने के लिए तैयार हो रही है…", orbReady2Hint:"ज़रा रुकिए",
+    orbListen:"सुन रही हूँ", orbListenHint:"बोलिए, फिर रुकिए", orbThink:"DuSu सोच रही है", orbSpeak:"DuSu बोल रही है", orbSpeakHint:"सुनिए…",
+    orbMicBlocked:"Microphone बंद है", orbMicBlockedHint:"mic की अनुमति दीजिए, फिर दोबारा कोशिश कीजिए",
+    orbMicTrouble:"Mic में दिक्कत", orbMicTroubleHint:"'खत्म करें' दबाकर फिर कोशिश कीजिए",
+    orbScoring:"आपका interview score हो रहा है…", orbWrap:"DuSu बात समेट रही है…", orbPaused:"रुका हुआ", orbPausedHint:"Settings में key जोड़ें या बदलें",
+    sysInterviewDone:"Interview पूरा हुआ", keysLimit:"आपकी API keys की सीमा पूरी हो गई — Settings में key जोड़ें या बदलें।",
+    th_think:[[0,"DuSu सोच रही है…"],[6000,"सही शब्द ढूँढ रही है…"],[14000,"बस थोड़ा और — इंतज़ार के लिए शुक्रिया 🙏"],[26000,"आज ज़्यादा समय लग रहा है — connection जाँचिए, या वापस जाकर फिर कोशिश कीजिए।",true]],
+    th_start:[[0,"DuSu तैयार हो रही है…"],[7000,"बस शुरू करने वाली है…"],[16000,"लगभग हो गया — इंतज़ार के लिए शुक्रिया 🙏"]],
+    th_scoring:[[0,"आपका interview score हो रहा है…"],[8000,"Feedback लिखा जा रहा है…"],[20000,"लगभग हो गया — इंतज़ार के लिए शुक्रिया 🙏"]],
+    th_wrap:[[0,"DuSu बात समेट रही है…"],[8000,"आपकी progress save हो रही है…"]],
+    th_translate:[[0,"अनुवाद हो रहा है…"],[6000,"Natural English ढूँढ रही है…"],[14000,"लगभग हो गया — इंतज़ार के लिए शुक्रिया 🙏"]],
+    th_translate2:[[0,"अनुवाद हो रहा है…"],[6000,"Natural हिंदी ढूँढ रही है…"],[14000,"लगभग हो गया — इंतज़ार के लिए शुक्रिया 🙏"]],
+    repKicker:"Interview रिपोर्ट", repOverall:"कुल", repNote:"ये scores AI के अनुमान हैं, सटीक माप नहीं।",
+    repStrengthsH:"✅ ताक़तें", repFixesH:"🛠 सुधार", repBetterH:"✨ बेहतर जवाब", repShare:"शेयर करें", repCopied:"कॉपी हो गया ✓",
+    repPast:"📈 पिछली रिपोर्ट", repHome:"होम पर वापस", repFillers:"👂 Filler शब्द", repQ:"सवाल: ",
+    repUnavail:"Scoring अभी उपलब्ध नहीं है — आपका interview save हो गया है। कृपया थोड़ी देर बाद फिर कोशिश कीजिए।",
+    m_grammar:"व्याकरण", m_fluency:"प्रवाह", m_confidence:"आत्मविश्वास", m_communication:"संवाद", m_vocabulary:"शब्दावली", m_professionalism:"प्रोफ़ेशनलिज़्म",
+    shareTitle:"DuSu Interview",
+    shareText:"मैंने अभी DuSu पर interview की practice की 🎙️\nकुल score: {overall}/100\nताक़तें: {strengths}\nसुधार: {fixes}\nआत्मविश्वास से बोलिए — DuSu।",
+    srKicker:"Session पूरा हुआ", srContinue:"आगे बढ़ें", srSpoke:"आपने बात की", srXp:"XP मिले", srScore:"Speaking Score",
+    srThoughts:"English में कहे विचार", srStreak:"Streak", srLeague:"League", srBadge:"🏅 नई उपलब्धि", srSaved:"Session save हो गया।",
+    srAiNote:"Speaking Score AI का अनुमान है, सटीक माप नहीं।", srToRank:"{rank} के लिए {n} XP",
+    srPro:"English Pro — अपना Personal Best बढ़ाते रहिए।", srKeep:"आगे बढ़ते रहिए — हर session मायने रखता है।",
+    dTitle:"DuSu के साथ Daily Talk", dSub:"सोच रही थी कि आज आपका दिन कैसा रहा…", dLoader:"DuSu तैयार हो रही है…",
+    dMicLabel:"🎤 हिंदी में जवाब दीजिए", dTap:"Mic दबाइए और हिंदी में जवाब दीजिए।", dListening:"सुन रही हूँ…", dReplyReady:"💬 जब तैयार हों, तब Reply दबाइए",
+    dcYou:"आपने कहा", dcEngLbl:"English में", dBubbleLbl:"English में", dBubbleAria:"इसे English में सुनिए",
+    dcReplyBtn:"जवाब दें", dFinish:"बात खत्म करें", dNudge:"✨ आगे क्या करें?", dcReplayTitle:"दोबारा सुनिए", dcReplayAria:"धीरे से दोबारा सुनिए",
+    dConnErr:"कनेक्शन में दिक्कत है। क्या सर्वर चल रहा है?", dConnLost:"कनेक्शन टूट गया — वापस जाकर फिर कोशिश कीजिए।",
+    dFailGeneric:"कुछ गड़बड़ हो गई — कृपया फिर कोशिश कीजिए।", dFailAnswer:"DuSu इसका जवाब नहीं दे पाई — mic दबाकर फिर कोशिश कीजिए।",
+    dTryAgain:"Mic दबाकर फिर कोशिश कीजिए।", dKeysLimit:"आपकी keys की सीमा पूरी हो गई — Settings में key जोड़ें या बदलें।",
+    dNoSpeech:"मुझे समझ नहीं आया। कृपया दोबारा बोलिए।",
+    dRemind:"वैसे, जब तुम ready हो तो नीचे अपनी learning आगे बढ़ा सकते हो — या यहीं बात continue करो।",
+    dFallbackReply:"अच्छा! आज का सबसे अच्छा पल कौन-सा था?", dTalk:"बातचीत", dLearn:"सीखें",
+    lTitle:"सीखने का मोड", lSubH2E:"हिंदी बोलिए → natural English सुनिए", lSubE2H:"English बोलिए → natural हिंदी सुनिए",
+    lInstrH2E:"हिंदी में बोलिए। DuSu उसे natural English में बदलेगी और बोलने की practice में आपकी मदद करेगी।",
+    lInstrE2H:"English में बोलिए। DuSu उसे natural हिंदी में बदलेगी, ताकि आप जाँच सकें कि वह कैसी लगती है।",
+    lMicLabel:"🎤 बोलने के लिए दबाइए", lConnecting:"कनेक्ट हो रहा है…", lTapH:"Mic दबाइए और हिंदी में बोलिए।", lTapE:"Mic दबाइए और English में बोलिए।",
+    lListening:"सुन रही हूँ…", lAfter:"अब आप बोलिए — 🔊 दोबारा सुनने के लिए, या नए वाक्य के लिए mic।",
+    lFail:"अनुवाद नहीं हो पाया — mic दबाकर फिर कोशिश कीजिए।", lUnavail:"अनुवाद अभी उपलब्ध नहीं है। कृपया फिर कोशिश कीजिए।",
+    lConnErr:"कनेक्शन में दिक्कत है। क्या सर्वर चल रहा है?", lConnLost:"कनेक्शन टूट गया — वापस जाकर फिर कोशिश कीजिए।",
+    lcYou:"आपने कहा", lcInEn:"English में", lcInHi:"हिंदी में", lReplay:"🔊 दोबारा सुनें (धीरे)", lContinue:"आगे →",
+    lDirH2E:"हिंदी → English", lDirE2H:"English → हिंदी"
+  },
+  // Only the keys whose ORIGINAL wording differs from the new English one (a few Hinglish lines in Daily Talk / Learn,
+  // where "legacy" means Daily Talk is Hindi). Everything else falls through to I18N.en, which IS the original wording.
+  legacy: {
+    dMicLabel:"🎤 Answer in Hindi", dTap:"Tap the mic and answer in Hindi.", dReplyReady:"💬 Reply jab tum ready ho",
+    dcEngLbl:"In English", dBubbleLbl:"In English", dNudge:"✨ Aage kya karein?", dcReplayTitle:"Dobara suno",
+    dNoSpeech:"मुझे समझ नहीं आया। कृपया दोबारा बोलिए।",
+    dRemind:"वैसे, जब तुम ready हो तो नीचे अपनी learning आगे बढ़ा सकते हो — या यहीं बात continue करो।",
+    dFallbackReply:"अच्छा! आज का सबसे अच्छा पल कौन-सा था?",
+    lAfter:"Ab aap boliye — 🔊 dobara sunne ke liye, ya mic naye vaakya ke liye."
+  }
+};
+
+// Spoken lines in Learn depend on the DIRECTION (what the learner speaks), not on the screen language.
+const LEARN_SAY = {
+  hi: { greet:"नमस्ते! आपके लिए क्या translate करूँ? नीचे दिए गए button को दबाकर बोलिए।", intro:"English में ऐसे बोलते हैं।", noSpeech:"मुझे समझ नहीं आया। कृपया दोबारा बोलिए।" },
+  en: { greet:"Hello! What should I translate into Hindi? Tap the button below and speak.", intro:"हिंदी में ऐसे कहते हैं।", noSpeech:"Sorry, I didn't catch that. Please say it again." }
+};
+
+// [selector, key, attribute?] — static text the switch re-writes. The original is remembered on first touch and put back
+// if the switch is off, so flag-off is exact. (Texts that depend on the mode or the Learn direction are set in code.)
+const LG_STATIC = [
+  [".btab[data-tab=home] span","navHome"], [".btab[data-tab=journey] span","navJourney"], [".btab[data-tab=daily] span","navDaily"],
+  [".btab[data-tab=practice] span","navPractice"], [".btab[data-tab=leaderboard] span","navRanks"], [".btab[data-tab=more] span","navMore"],
+  ["#practice > .sec-label","hubTitle"], ["#practice .prac-block.learn .prac-h","hubLearnH"], ["#practice .prac-block.talk .prac-h","hubTalkH"],
+  ["#practice .prac-block.interview .prac-h","hubIntH"], ["#practice .mode-card.learn h3","hubLearnT"], ["#practice .mode-card.talk h3","hubTalkT"],
+  ["#practice .mode-card.interview h3","hubIntT"], ["#prSoon","hubSoon"],
+  ["#setup h1 + p","setP"], ["#setup .field label","setLabel"], ["#role","setPh","placeholder"], ["#setupBack","back"], ["#startInterview","setStart"],
+  ["#backBtn span","home"], ["#dailyBack span","home"], ["#learnBack span","home"],
+  ["#report .rep-head .sess-sub","repKicker"], ["#report .score-ring .val small","repOverall"], ["#report .sr-ai-note","repNote"],
+  ["#report .card.good h4","repStrengthsH"], ["#report .card.fix h4","repFixesH"], ["#report .card.better h4","repBetterH"],
+  ["#shareBtn","repShare"], ["#pastReportsBtn","repPast"], ["#againBtn","repHome"],
+  ["#sessionResult .rep-head .sess-sub","srKicker"], ["#srDone","srContinue"],
+  ["#daily .sess-title","dTitle"], ["#daily .sess-sub","dSub"], ["#dailyLoader .mload-t","dLoader"], ["#daily .mic-label","dMicLabel"],
+  ["#dailyCard .tc-label:not(.tc-top)","dcYou"], ["#dailyCard .tc-top","dcEngLbl"], ["#dcNext span","dcReplyBtn"], ["#dailyFinish","dFinish"],
+  ["#dailyNudge","dNudge"], ["#dcReplay","dcReplayTitle","title"], ["#dcReplay","dcReplayAria","aria-label"],
+  ["#learning .sess-title","lTitle"], ["#learning .mic-label","lMicLabel"], ["#transCard .tc-label:not(.tc-top)","lcYou"],
+  ["#replayBtn","lReplay"], ["#continueBtn","lContinue"]
+];
+
+const LG = (function(){
+  const K_LANG = "dusu_lang", K_DIR = "dusu_learn_dir";
+  const LEGACY = { conversation:"en", interview:"en", daily:"hi", learning:"hi" };
+  const ok = v => v === "hi" || v === "en";
+  const rd = k => { try{ const v = localStorage.getItem(k); return ok(v) ? v : ""; }catch(_){ return ""; } };
+  const wr = (k, v) => { try{ localStorage.setItem(k, v); }catch(_){} };
+  let pref = rd(K_LANG), dirPref = rd(K_DIR);     // cached copy of the saved choice (the server is the source of truth)
+
+  const on  = () => !!(userState && userState.bilingual);
+  const cur = () => pref || (userState && ok(userState.lang) ? userState.lang : "") || "hi";
+  const dir = () => dirPref || (userState && ok(userState.learn_dir) ? userState.learn_dir : "") || "hi";
+  // The language a mode runs in. Switch OFF => exactly what it always was.
+  const lang = mode => { const m = mode || currentMode; return on() ? (m === "learning" ? dir() : cur()) : (LEGACY[m] || "en"); };
+  const stt  = l => l === "hi" ? "hi-IN" : "en-US";                     // speech recogniser locale (English stays on the proven en-US)
+  const voice = l => l === "hi" ? HI() : ENG_NORM();                    // DuSu's voice for a line written in `l`
+
+  function tr(key, vars){
+    const L = on() ? cur() : "legacy";
+    let v = I18N[L] ? I18N[L][key] : undefined;
+    if(v === undefined) v = I18N.en[key];
+    if(v === undefined) return key;
+    if(typeof v === "string" && vars) v = v.replace(/\{(\w+)\}/g, (_, k) => vars[k] != null ? vars[k] : "");
+    return v;
+  }
+
+  function save(body){
+    if(!authToken || !on()) return;
+    try{ fetch("/lang", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(Object.assign({ token:authToken }, body)) }).catch(()=>{}); }catch(_){}
+  }
+
+  function applyStatic(enabled){
+    LG_STATIC.forEach(([sel, key, attr]) => {
+      document.querySelectorAll(sel).forEach(el => {
+        if(attr){
+          const k = "i18nOrig_" + attr.replace(/-/g, "_");
+          if(el.dataset[k] === undefined) el.dataset[k] = el.getAttribute(attr) || "";
+          el.setAttribute(attr, enabled ? tr(key) : el.dataset[k]);
+        } else {
+          if(el.dataset.i18nOrig === undefined) el.dataset.i18nOrig = el.textContent;
+          el.textContent = enabled ? tr(key) : el.dataset.i18nOrig;
+        }
+      });
+    });
+    // the Interview set-up heading is two runs of text (the second is gold)
+    const h1 = document.querySelector("#setup h1");
+    if(h1){
+      if(h1.dataset.i18nOrig === undefined) h1.dataset.i18nOrig = h1.innerHTML;
+      h1.innerHTML = enabled ? esc(tr("setH1a")) + ' <span class="g">' + esc(tr("setH1b")) + "</span>" : h1.dataset.i18nOrig;
+    }
+  }
+  function setText(sel, text){
+    const el = document.querySelector(sel); if(!el) return;
+    if(el.dataset.i18nOrig === undefined) el.dataset.i18nOrig = el.textContent;
+    el.textContent = text === null ? el.dataset.i18nOrig : text;
+  }
+  // Learn: sub-line, instruction and the result card's second label follow the DIRECTION.
+  function applyLearn(){
+    const e = on() && dir() === "en";
+    setText("#learning .sess-sub", on() ? tr(e ? "lSubE2H" : "lSubH2E") : null);
+    setText("#learning .learn-instr", on() ? tr(e ? "lInstrE2H" : "lInstrH2E") : null);
+    setText("#transCard .tc-top", on() ? tr(e ? "lcInHi" : "lcInEn") : null);
+    document.querySelectorAll("[data-lg-dir] button[data-d]").forEach(b => {
+      b.textContent = tr(b.dataset.d === "en" ? "lDirE2H" : "lDirH2E");
+      b.classList.toggle("on", b.dataset.d === dir());
+    });
+  }
+  // Face-to-Face / Interview header + End button (depend on the mode being run)
+  function applySession(){
+    const iv = currentMode === "interview";
+    setText("#sessTitle", tr(iv ? "sessIntTitle" : "sessTalkTitle"));
+    const role = ($("role") && $("role").value) || "general";
+    setText("#sessSub", iv ? tr("sessSubInt", { role }) : tr("sessSubTalk"));
+    const eb = $("endBtn"); if(eb) eb.textContent = tr(iv ? "endBtnInt" : "endBtn");
+  }
+
+  function applyUI(){
+    const enabled = on();
+    try{ document.documentElement.lang = enabled ? cur() : "en"; }catch(_){}
+    document.querySelectorAll("[data-lg-sw]").forEach(el => { el.hidden = !enabled; });
+    document.querySelectorAll("[data-lg-sw] button[data-l]").forEach(b => b.classList.toggle("on", enabled && b.dataset.l === cur()));
+    document.querySelectorAll("[data-lg-dir]").forEach(el => { el.hidden = !enabled; });
+    document.querySelectorAll(".lg-sw").forEach(el => el.setAttribute("aria-label", tr("lgAria")));
+    applyStatic(enabled);
+    applyLearn();
+    if(currentScreen() === "session") applySession();
+    try{ if($("dailyRecs") && $("dailyRecs").children.length) renderDailyRecs(); }catch(_){}
+  }
+
+  // After a change while a live session is open: tell the server, stop what is in flight in the OLD language, say so,
+  // and carry on in the NEW one. The socket, the conversation and the turn count are untouched.
+  function live(kind, l){
+    const scr = currentScreen();
+    const wsOpen = !!(ws && ws.readyState === 1 && running);
+    if(kind === "lang" && (scr === "session" || scr === "daily")){
+      if(wsOpen){ try{ ws.send(JSON.stringify({ type:"lang", lang:l })); }catch(_){} }
+      if(scr === "session"){
+        stopListening(); killSpeech();
+        applySession(); addSys(tr("switchSys"));
+        if(wsOpen) speak(tr("switchSay"), l);     // speak() hands the mic back when it finishes
+      } else {
+        killSpeech();
+        try{ if(drec){ drec.onend = null; drec.stop(); drec = null; } }catch(_){}
+        dMicActive(false); dailyChatSys(tr("switchSys")); dState("");
+        if(wsOpen){
+          say(tr("switchSay"), voice(l)).then(() => { if(running){ dState(tr("dTap")); dMic(true); } });
+        }
+      }
+    } else if(kind === "dir" && scr === "learning"){
+      if(wsOpen){ try{ ws.send(JSON.stringify({ type:"lang", lang:l })); }catch(_){} }
+      killSpeech();
+      try{ if(lrec){ lrec.onend = null; lrec.stop(); lrec = null; } }catch(_){}
+      micActive(false); $("transCard").hidden = true;
+      learnState(tr(l === "en" ? "lTapE" : "lTapH")); micEnable(true);
+    }
+  }
+
+  function set(l){
+    if(!ok(l)) return;
+    const was = cur(); pref = l; wr(K_LANG, l);
+    if(userState) userState.lang = l;
+    save({ lang:l });
+    applyUI();
+    if(was !== l) live("lang", l);
+  }
+  function setDir(d){
+    if(!ok(d)) return;
+    const was = dir(); dirPref = d; wr(K_DIR, d);
+    if(userState) userState.learn_dir = d;
+    save({ learn:d });
+    applyUI();
+    if(was !== d) live("dir", d);
+  }
+
+  // The server's saved choice wins on every /me (so it follows the learner across devices); localStorage is a cache
+  // that makes the first paint right.
+  function syncFromState(){
+    if(userState && ok(userState.lang)){ pref = userState.lang; wr(K_LANG, pref); }
+    if(userState && ok(userState.learn_dir)){ dirPref = userState.learn_dir; wr(K_DIR, dirPref); }
+    applyUI();
+  }
+  function clear(){ pref = ""; dirPref = ""; try{ localStorage.removeItem(K_LANG); localStorage.removeItem(K_DIR); }catch(_){} }
+
+  // The controls are built here (not in the markup) so the page is untouched until the switch is on.
+  function pill(wrap){
+    const mk = cls => { const d = document.createElement("div"); d.className = cls; return d; };
+    const sw = mk("lg-sw"); sw.setAttribute("role", "group");
+    sw.innerHTML = '<button type="button" data-l="hi">हिंदी</button><button type="button" data-l="en">English</button>';
+    sw.querySelectorAll("button").forEach(b => b.onclick = () => set(b.dataset.l));
+    if(!wrap){ sw.setAttribute("data-lg-sw", ""); sw.hidden = true; return sw; }
+    const w = mk(wrap); w.setAttribute("data-lg-sw", ""); w.hidden = true; w.appendChild(sw); return w;
+  }
+  function mount(){
+    ["#session", "#daily", "#learning"].forEach(sel => { const h = document.querySelector(sel + " .sess-head"); if(h && !h.querySelector(".lg-sw")) h.appendChild(pill()); });
+    const hs = $("hsub"); if(hs && hs.parentNode && !document.querySelector(".lg-row")) hs.parentNode.insertBefore(pill("lg-row"), hs.nextSibling);
+    const f = document.querySelector("#setup .field"); if(f && f.parentNode && !document.querySelector(".lg-setup")) f.parentNode.insertBefore(pill("lg-setup"), f);
+    const li = document.querySelector("#learning .learn-instr");
+    if(li && li.parentNode && !document.querySelector("[data-lg-dir]")){
+      const d = document.createElement("div"); d.className = "lg-dir"; d.setAttribute("data-lg-dir", ""); d.hidden = true;
+      d.innerHTML = '<button type="button" data-d="hi"></button><button type="button" data-d="en"></button>';
+      d.querySelectorAll("button").forEach(b => b.onclick = () => setDir(b.dataset.d));
+      li.parentNode.insertBefore(d, li.nextSibling);
+    }
+  }
+
+  return { on, cur, dir, lang, stt, voice, t:tr, set, setDir, applyUI, applySession, applyLearn, syncFromState, clear, mount, save };
+})();
+function lgt(key, vars){ return LG.t(key, vars); }
+function thinkSteps(kind){
+  const k = (kind === "translate" && LG.on() && LG.dir() === "en") ? "th_translate2" : "th_" + kind;
+  const v = lgt(k);
+  return Array.isArray(v) ? v : lgt("th_think");
+}
+
 function currentScreen(){ const el = document.querySelector(".screen.on"); return el ? el.id : ""; }
 // Scrolling lives in .wrap, not the document — body is overflow:hidden so the bottom
 // nav can't scroll away. window.scrollTo() is a no-op here and must not be used.
@@ -3760,6 +4118,8 @@ async function openAdmin(){
       <select class="pr-sel" id="prRoomSel"><option value="off" ${d.practice_room === "on" || d.practice_room === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.practice_room === "owner" ? "selected" : ""}>Owner only</option><option value="on" ${d.practice_room === "on" ? "selected" : ""}>Everyone</option></select></label>
       <label class="swrow"><span><b>DuSu knows your progress</b><br><span class="msub">In Talk and Daily Talk, DuSu can answer "what's my streak / level / last score?" from the database. Off = DuSu only remembers who you are. Owner only = just you (default). Everyone = all users.</span></span>
       <select class="pr-sel" id="lifeSel"><option value="off" ${d.life_context === "off" ? "selected" : ""}>Off</option><option value="owner" ${d.life_context === "on" || d.life_context === "off" ? "" : "selected"}>Owner only</option><option value="on" ${d.life_context === "on" ? "selected" : ""}>Everyone</option></select></label>
+      <label class="swrow"><span><b>Hindi / English modes</b><br><span class="msub">Talk, Interview and Daily Talk in Hindi (default) or English, switchable mid-chat; Learn also English→Hindi. Off = exactly as before (Talk/Interview English, Daily Hindi). Owner only = just you (default). Everyone = all users.</span></span>
+      <select class="pr-sel" id="bilSel"><option value="off" ${d.bilingual === "off" ? "selected" : ""}>Off</option><option value="owner" ${d.bilingual === "on" || d.bilingual === "off" ? "" : "selected"}>Owner only</option><option value="on" ${d.bilingual === "on" ? "selected" : ""}>Everyone</option></select></label>
       <button class="uBtn bad" id="wipeBtn" style="width:100%;margin:2px 0 4px">🗑 Reset test users</button>`;
     // Office allowlist. NOTE: is_office() in main.py means "must BYOK", NOT free
     // access — resolve_keys() demands own keys for anyone on this list. The old
@@ -3813,15 +4173,17 @@ function wireOffice(){
     const obk = !!($("ownerByokSw") && $("ownerByokSw").checked);
     const prm = ($("prRoomSel") && $("prRoomSel").value) || "off";
     const lcx = ($("lifeSel") && $("lifeSel").value) || undefined;   // undefined = leave the server value alone
+    const bil = ($("bilSel") && $("bilSel").value) || undefined;
     try{ await fetch("/admin/settings",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({token:authToken, access_phase: growth ? "growth" : "quota",
-                           level_test: lvl, owner_byok: obk, practice_room: prm, life_context: lcx})}); }catch(_){}
+                           level_test: lvl, owner_byok: obk, practice_room: prm, life_context: lcx, bilingual: bil})}); }catch(_){}
   };
   if($("reqKeysSw")) $("reqKeysSw").onchange = saveSettings;
   if($("lvlTestSw")) $("lvlTestSw").onchange = saveSettings;
   if($("ownerByokSw")) $("ownerByokSw").onchange = saveSettings;
   if($("prRoomSel")) $("prRoomSel").onchange = saveSettings;
   if($("lifeSel")) $("lifeSel").onchange = saveSettings;
+  if($("bilSel")) $("bilSel").onchange = saveSettings;
   if($("wipeBtn")) $("wipeBtn").onclick = async () => {
     if(!confirm("Delete ALL users except david, shuhani & free-access emails? This cannot be undone.")) return;
     try{ const r = await fetch("/admin/wipe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:authToken})});
@@ -3859,14 +4221,7 @@ function addSys(text){ const d=document.createElement("div"); d.className="sysms
    breathing gradient dots and a shimmering label (Daily Talk, Talk, Interview) — or the same thing
    as a pill (Learn) — and (2) the orb's orbiting comet ring (pure CSS, driven by the .thinking
    state). The label escalates when the model is slow, so a long wait never looks like a freeze. */
-const THINK_STEPS = {
-  think:     [[0,"DuSu is thinking…"], [6000,"Finding the right words…"], [14000,"Still on it — thanks for waiting 🙏"],
-              [26000,"Taking longer than usual — check your connection, or go back and try again.", true]],
-  start:     [[0,"DuSu is getting ready…"], [7000,"Warming up…"], [16000,"Almost there — thanks for waiting 🙏"]],
-  scoring:   [[0,"Scoring your interview…"], [8000,"Writing your feedback…"], [20000,"Almost done — thanks for waiting 🙏"]],
-  wrap:      [[0,"Wrapping up…"], [8000,"Saving your progress…"]],
-  translate: [[0,"Translating…"], [6000,"Finding the natural English…"], [14000,"Almost there — thanks for waiting 🙏"]],
-};
+// The loader wording lives in I18N (th_think, th_start, th_scoring, th_wrap, th_translate, th_translate2) — see thinkSteps().
 // Server messages that mean the wait is over (or has failed): a loader must never outlive one of them.
 const THINK_ENDERS = new Set(["ai_text","daily_turn","daily_question","translation","translate_error","report",
   "interview_done","ended","limit","quota","quota_exceeded","keys_required","auth_error","error","speaker_progress","ready"]);
@@ -3891,7 +4246,7 @@ function thinkShow(kind){
   const toEnd = () => { if(host.classList.contains("feed")) host.scrollTop = host.scrollHeight; };
   toEnd();
   const txt = node.querySelector(".th-txt");
-  (THINK_STEPS[kind] || THINK_STEPS.think).forEach(([ms, label, stalled]) => {
+  thinkSteps(kind).forEach(([ms, label, stalled]) => {
     if(!ms){ txt.textContent = label; return; }
     _thinkTimers.push(setTimeout(() => {
       if(_thinkNode !== node) return;
@@ -4083,29 +4438,27 @@ $("toTop").onclick = scrollShellTop;
 
 function startSession(mode){
   if(guardKeys()) return;   // no verified own keys → keys screen (covers direct callers, not just chooseMode)
-  if(!SR){ showNotif("Voice input needs Chrome or Edge (Web Speech API)."); return; }
+  if(!SR){ showNotif(lgt("needChrome")); return; }
   if(overLimit()){
-    showNotif(`You've reached today's limit of ${MAX_SESSIONS} sessions. Come back tomorrow 🙂`);
+    showNotif(lgt("limitReached", { n: MAX_SESSIONS }));
     return;
   }
   currentMode = mode;
   $("feed").innerHTML = ""; thinkHide();
-  $("sessTitle").textContent = mode === "interview" ? "Interview Prep" : "Confidence Talk";
-  $("sessSub").textContent = mode === "interview" ? "with DuSu · " + ($("role").value || "general") : "with DuSu";
-  $("endBtn").textContent = mode === "interview" ? "End & get report" : "End";
+  LG.applySession();   // title / sub-line / End button for this mode, in the learner's language
   $("endBtn").className = mode === "interview" ? "btn primary" : "btn danger";
   show("session");
-  orb("connecting", "DuSu is getting ready…", "one moment");
-  addSys("🎧 Tip: use headphones so DuSu's voice isn't picked up by your mic.");
+  orb("connecting", lgt("orbReady"), lgt("orbReadyHint"));
+  addSys(lgt("tipPhones"));
   thinkShow("start");   // until DuSu's opening line arrives
 
   ws = new WebSocket(WS_URL);
   ws.onopen = () => {
     running = true; srFails = 0;
     usageInc(); refreshUsage();   // count the session now that it actually started
-    ws.send(JSON.stringify({ type:"start", mode, name:$("name").value, role:$("role").value, token:authToken, mood:todayMood, hour:new Date().getHours(), day:localDay(), seed:_convSeed, keys:officeKeys() }));
+    ws.send(JSON.stringify({ type:"start", mode, name:$("name").value, role:$("role").value, token:authToken, mood:todayMood, hour:new Date().getHours(), day:localDay(), seed:_convSeed, keys:officeKeys(), lang:LG.lang(mode) }));
     _convSeed = "";   // one-shot: the Companion Moment's spoken answer seeds turn 1
-    orb("connecting", "DuSu is getting ready to talk…", "warming up");
+    orb("connecting", lgt("orbReady2"), lgt("orbReady2Hint"));
   };
   ws.onmessage = onMessage;
   ws.onclose = () => {
@@ -4113,7 +4466,7 @@ function startSession(mode){
     if(window.speechSynthesis) window.speechSynthesis.cancel();
     FACE.stopTalking(); Assistant.stopTalking();
   };
-  ws.onerror = () => { thinkHide(); orb("idle", "Connection error", "Is the server running?"); };
+  ws.onerror = () => { thinkHide(); orb("idle", lgt("connErr"), lgt("connErrHint")); };
 }
 
 function leave(){
@@ -4134,14 +4487,10 @@ $("againBtn").onclick = () => { try{ ws && ws.close(); }catch(_){} show("home");
 
 $("shareBtn").onclick = () => {
   const d = lastReport || {};
-  const txt = `I just practiced an interview on DuSu 🎙️\n`
-    + `Overall: ${d.overall ?? "-"}/100\n`
-    + `Strengths: ${(d.strengths||[]).join("; ")}\n`
-    + `Working on: ${(d.fixes||[]).join("; ")}\n`
-    + `Speak with confidence — DuSu.`;
-  if(navigator.share){ navigator.share({ title:"DuSu Interview", text:txt }).catch(()=>{}); }
+  const txt = lgt("shareText", { overall: d.overall ?? "-", strengths: (d.strengths||[]).join("; "), fixes: (d.fixes||[]).join("; ") });
+  if(navigator.share){ navigator.share({ title:lgt("shareTitle"), text:txt }).catch(()=>{}); }
   else { navigator.clipboard.writeText(txt).then(()=>{
-    $("shareBtn").textContent = "Copied ✓"; setTimeout(()=> $("shareBtn").textContent = "Share", 1600);
+    $("shareBtn").textContent = lgt("repCopied"); setTimeout(()=> $("shareBtn").textContent = lgt("repShare"), 1600);
   }); }
 };
 
@@ -4149,7 +4498,7 @@ $("endBtn").onclick = () => {
   stopListening(); FACE.stopTalking();
   if(window.speechSynthesis) window.speechSynthesis.cancel();
   ws && ws.send(JSON.stringify({ type:"end" }));
-  orb("thinking", currentMode==="interview" ? "Scoring your interview…" : "Wrapping up…", "");
+  orb("thinking", currentMode==="interview" ? lgt("orbScoring") : lgt("orbWrap"), "");
   thinkShow(currentMode==="interview" ? "scoring" : "wrap");
 };
 
@@ -4158,17 +4507,18 @@ function onMessage(ev){
   if(THINK_ENDERS.has(m.type)) thinkHide();   // the wait is over (or failed) — never leave a loader behind
   switch(m.type){
     case "ready": greetLearn(); break;
-    case "translation": handleTranslation(m.hindi, m.text); break;
-    case "daily_question": greetDaily(m.question); break;
-    case "daily_turn": handleDailyTurn(m.hindi, m.english, m.reply, m.tip, m.next_question); break;
+    case "translation": handleTranslation(m.hindi, m.text, m.dir); break;
+    case "daily_question": greetDaily(m.question, m.lang); break;
+    case "daily_turn": handleDailyTurn(m.hindi, m.english, m.reply, m.tip, m.next_question, m.lang); break;
+    case "lang_ok": break;   // the server acknowledged a Hindi/English switch — nothing to do, the screen already changed
     case "translate_error":
       // The server sends this for a failed Daily turn too — it used to poke the Learn screen's
       // controls and leave Daily stuck on "thinking" with a dead mic.
-      if(currentMode === "daily"){ dailyFail("DuSu couldn't answer that one — tap the mic and try again."); break; }
-      say("Translation unavailable. Please try again.", ENG_NORM());
-      learnState("Translation failed — tap the mic to try again."); micEnable(true); break;
-    case "ai_text": addMsg(m.text, "ai"); speak(m.text); break;
-    case "interview_done": addSys("Interview complete"); thinkShow("scoring"); break;
+      if(currentMode === "daily"){ dailyFail(lgt("dFailAnswer")); break; }
+      say(lgt("lUnavail"), LG.on() ? LG.voice(LG.cur()) : ENG_NORM());
+      learnState(lgt("lFail")); micEnable(true); break;
+    case "ai_text": addMsg(m.text, "ai"); speak(m.text, m.lang); break;   // m.lang = the language this reply was WRITTEN in
+    case "interview_done": addSys(lgt("sysInterviewDone")); thinkShow("scoring"); break;
     case "report": showReport(m.data);
       if(currentLesson && currentLesson.type === "interview"){ const cl = currentLesson; currentLesson = null; completeLesson(cl.level, cl.id, "interview"); }
       break;
@@ -4200,10 +4550,10 @@ function onMessage(ev){
       if((currentMode === "conversation" || currentMode === "daily") && currentScreen() === "sessionResult") break;
       leave(); break;
     case "limit": running=false; stopListening(); addSys("⏸ " + m.msg); orb("idle","Session limit", m.msg); break;
-    case "quota": running=false; try{stopListening();}catch(_){}; showNotif(m.msg || "Your API keys hit their limit — add or replace a key in Settings.");
+    case "quota": running=false; try{stopListening();}catch(_){}; showNotif(m.msg || lgt("keysLimit"));
       // …and bring the orb out of "thinking", or its comet ring would orbit forever
-      if(currentMode === "daily"){ dailyOrb("idle"); dState("Your keys hit their limit — add or replace a key in Settings."); }
-      else if(currentScreen() === "session") orb("idle", "Paused", "add or replace a key in Settings");
+      if(currentMode === "daily"){ dailyOrb("idle"); dState(lgt("dKeysLimit")); }
+      else if(currentScreen() === "session") orb("idle", lgt("orbPaused"), lgt("orbPausedHint"));
       break;
     case "quota_update":   // live: server sends remaining requests after each turn
       if(userState){ userState.requests_left = m.left; if(m.limit!=null) userState.request_limit = m.limit; }
@@ -4221,7 +4571,7 @@ function onMessage(ev){
       show("keys"); loadKeysUI(); if($("keysStatus")) $("keysStatus").innerHTML = "🔒 " + (m.msg||"Add your own API keys to use DuSu."); break;
     case "auth_error": running=false; try{ws.close();}catch(_){}; logout(); break;
     case "error":
-      if(currentMode === "daily"){ dailyFail(m.msg || "Something went wrong — please try again."); break; }
+      if(currentMode === "daily"){ dailyFail(m.msg || lgt("dFailGeneric")); break; }
       orb("idle", "Error", m.msg); break;
   }
 }
@@ -4278,14 +4628,15 @@ document.querySelectorAll(".vbtn").forEach(b => {
   };
 });
 
-function speak(text){
+function speak(text, lang){   // lang = the language the line was written in (the server tags every reply); omitted → the mode's own
   stopListening();          // mic OFF while DuSu talks — kills the echo loop
   aiSpeaking = true;
-  orb("speaking", "DuSu is speaking", "listen…");
+  orb("speaking", lgt("orbSpeak"), lgt("orbSpeakHint"));
   if(!window.speechSynthesis){ aiSpeaking=false; delayedListen(); return; }
   const u = new SpeechSynthesisUtterance(speakable(text));
   u.rate = 1.0; u.pitch = 1.0;
-  if(pickedVoice) u.voice = pickedVoice;
+  if((lang || LG.lang(currentMode)) === "hi"){ u.lang = "hi-IN"; u.rate = 0.95; if(hindiVoice) u.voice = hindiVoice; }   // Hindi line → Hindi voice
+  else if(pickedVoice) u.voice = pickedVoice;
   u.onstart = () => { FACE.startTalking(); Assistant.startTalking(); };   // mouth starts WITH the voice, not before
   u.onboundary = () => { FACE.boundary(); Assistant.boundary(); };   // sync mouth to each spoken word
   let finished = false;
@@ -4304,9 +4655,9 @@ function delayedListen(){ setTimeout(() => { if(running && !aiSpeaking) startLis
 function startListening(){
   if(!SR || !running) return;
   recog = new SR();
-  recog.lang = "en-US"; recog.interimResults = false; recog.maxAlternatives = 1;
+  recog.lang = LG.stt(LG.lang(currentMode)); recog.interimResults = false; recog.maxAlternatives = 1;   // en-US unless the learner chose Hindi
   let sent = false;
-  recog.onstart = () => { _lisT0 = performance.now(); orb("listening", "Listening", "speak, then pause"); };
+  recog.onstart = () => { _lisT0 = performance.now(); orb("listening", lgt("orbListen"), lgt("orbListenHint")); };
   recog.onresult = (e) => {
     if(aiSpeaking) return;   // echo guard: drop speaker bleed
     const text = e.results[0][0].transcript.trim();
@@ -4314,21 +4665,21 @@ function startListening(){
       sent = true; srFails = 0;
       pushThink((performance.now() - _lisT0) / 1000);   // S6 — thinking speed
       addMsg(text, "user");
-      orb("thinking", "DuSu is thinking", "");
+      orb("thinking", lgt("orbThink"), "");
       if(ws && ws.readyState === 1){ thinkShow("think"); ws.send(JSON.stringify({ type:"user_text", text })); }
-      else orb("idle", "Connection lost", "go back and try again");
+      else orb("idle", lgt("connLost"), lgt("connLostHint"));
     }
   };
   recog.onerror = (e) => {
     if(e.error === "not-allowed" || e.error === "service-not-allowed"){
-      running = false; orb("idle", "Microphone blocked", "allow mic access, then retry"); return;
+      running = false; orb("idle", lgt("orbMicBlocked"), lgt("orbMicBlockedHint")); return;
     }
     // no-speech / audio-capture / network / aborted -> onend retries with backoff
   };
   recog.onend = () => {
     if(sent || !running) return;
     srFails++;
-    if(srFails > 8){ running = false; orb("idle", "Mic trouble", "tap End and try again"); return; }
+    if(srFails > 8){ running = false; orb("idle", lgt("orbMicTrouble"), lgt("orbMicTroubleHint")); return; }
     setTimeout(() => { if(running && !sent) safeRestart(); }, 250 * Math.min(srFails, 5));  // backoff
   };
   try{ recog.start(); }catch(_){}
@@ -4361,7 +4712,7 @@ function showReport(d){
     $("ovVal").textContent = "—";
     $("metrics").innerHTML = "";
     $("repFillers").innerHTML = "";
-    $("repStrengths").innerHTML = "<li>Scoring is temporarily unavailable — your interview was saved. Please try another interview shortly.</li>";
+    $("repStrengths").innerHTML = "<li>" + esc(lgt("repUnavail")) + "</li>";
     $("repFixes").innerHTML = "<li>—</li>";
     $("repQ").textContent = ""; $("repImp").textContent = "";
     return;
@@ -4379,21 +4730,22 @@ function showReport(d){
   const mm = $("metrics"); mm.innerHTML = "";
   const scores = d.scores || {};
   Object.keys(METRIC_LABELS).forEach(k=>{
+    if(d.lang === "hi" && scores[k] == null) return;   // a Hindi interview isn't scored on English grammar/vocabulary — skip, don't show 0
     const v = scores[k] ?? 0;
     const el = document.createElement("div"); el.className = "metric";
-    el.innerHTML = `<div class="m-top"><b>${METRIC_LABELS[k]}</b><span>${v}</span></div><div class="bar"><i></i></div>`;
+    el.innerHTML = `<div class="m-top"><b>${lgt("m_" + k)}</b><span>${v}</span></div><div class="bar"><i></i></div>`;
     mm.appendChild(el);
     setTimeout(()=>{ el.querySelector("i").style.width = v + "%"; }, 120);
   });
 
   const fill = d.filler_words || [];
   $("repFillers").innerHTML = fill.length
-    ? `<div class="card"><h4>👂 Filler words</h4><div class="chips">${fill.map(f=>`<span class="chip">${f}</span>`).join("")}</div></div>` : "";
+    ? `<div class="card"><h4>${esc(lgt("repFillers"))}</h4><div class="chips">${fill.map(f=>`<span class="chip">${esc(f)}</span>`).join("")}</div></div>` : "";
 
   $("repStrengths").innerHTML = (d.strengths||[]).map(s=>`<li>${s}</li>`).join("") || "<li>—</li>";
   $("repFixes").innerHTML = (d.fixes||[]).map(s=>`<li>${s}</li>`).join("") || "<li>—</li>";
   const ba = d.better_answer || {};
-  $("repQ").textContent = ba.question ? "Q: " + ba.question : "";
+  $("repQ").textContent = ba.question ? lgt("repQ") + ba.question : "";
   $("repImp").textContent = ba.improved || "—";
 }
 
@@ -4434,27 +4786,27 @@ function showSessionResult(){
   show("sessionResult");
 }
 function renderSessionResult(sp){
-  if(!sp){ $("srBody").innerHTML = `<p class="sub" style="text-align:center">Session saved.</p>`; return; }
+  if(!sp){ $("srBody").innerHTML = `<p class="sub" style="text-align:center">${esc(lgt("srSaved"))}</p>`; return; }
   $("srDuration").textContent = fmtMin(sp.minutes);
   $("srRing").style.setProperty("--pct", Math.max(0, Math.min(100, sp.overall || 0)));
 
   const rows = [];
-  rows.push(`<div class="sr-row"><span class="lbl">You spoke for</span><span class="val">${fmtMin(sp.minutes)}</span></div>`);
-  rows.push(`<div class="sr-row"><span class="lbl">XP earned</span><span class="val up">+${sp.xp_earned}</span></div>`);
+  rows.push(`<div class="sr-row"><span class="lbl">${esc(lgt("srSpoke"))}</span><span class="val">${fmtMin(sp.minutes)}</span></div>`);
+  rows.push(`<div class="sr-row"><span class="lbl">${esc(lgt("srXp"))}</span><span class="val up">+${sp.xp_earned}</span></div>`);
   const d = sp.overall_delta;
-  rows.push(`<div class="sr-row"><span class="lbl">Speaking Score</span><span class="val ${d>0?"up":d<0?"down":""}">${sp.overall}${d!=null ? ` (${d>0?"+":""}${d})` : ""}</span></div>`);
+  rows.push(`<div class="sr-row"><span class="lbl">${esc(lgt("srScore"))}</span><span class="val ${d>0?"up":d<0?"down":""}">${sp.overall}${d!=null ? ` (${d>0?"+":""}${d})` : ""}</span></div>`);
   if((sp.thoughts_translated || 0) > 0){   // Daily Talk's unique metric (§5) — this row simply doesn't exist for other modes
-    rows.push(`<div class="sr-row"><span class="lbl">Thoughts in English</span><span class="val">${sp.thoughts_translated}</span></div>`);
+    rows.push(`<div class="sr-row"><span class="lbl">${esc(lgt("srThoughts"))}</span><span class="val">${sp.thoughts_translated}</span></div>`);
   }
-  rows.push(`<div class="sr-row"><span class="lbl">Streak</span><span class="val">${sp.streak_days || 0}🔥</span></div>`);
+  rows.push(`<div class="sr-row"><span class="lbl">${esc(lgt("srStreak"))}</span><span class="val">${sp.streak_days || 0}🔥</span></div>`);
   if(sp.league_rank_before != null && sp.league_rank_after != null && sp.league_rank_before !== sp.league_rank_after){
     const up = sp.league_rank_after < sp.league_rank_before;
-    rows.push(`<div class="sr-row"><span class="lbl">League</span><span class="val ${up?"up":"down"}">#${sp.league_rank_before} → #${sp.league_rank_after} ${up?"↑":"↓"}</span></div>`);
+    rows.push(`<div class="sr-row"><span class="lbl">${esc(lgt("srLeague"))}</span><span class="val ${up?"up":"down"}">#${sp.league_rank_before} → #${sp.league_rank_after} ${up?"↑":"↓"}</span></div>`);
   }
-  const newBadges = (sp.new_badges || []).map(b => `<div class="sr-row"><span class="lbl">🏅 New achievement</span><span class="val">${esc(BADGE_LABELS[b] || b)}</span></div>`).join("");
+  const newBadges = (sp.new_badges || []).map(b => `<div class="sr-row"><span class="lbl">${esc(lgt("srBadge"))}</span><span class="val">${esc(BADGE_LABELS[b] || b)}</span></div>`).join("");
   $("srBody").innerHTML = rows.join("") + newBadges +
     `<p class="sr-next">${esc(nextTargetLine(sp))}</p>
-     <p class="sr-ai-note">Speaking Score is AI-estimated, not an exact measurement.</p>`;
+     <p class="sr-ai-note">${esc(lgt("srAiNote"))}</p>`;
 
   if(_confidenceCheckMode){
     _confidenceCheckMode = false;
@@ -4493,9 +4845,9 @@ function renderSessionResult(sp){
 // §15 "next target everywhere" — one line, always something to chase next.
 function nextTargetLine(sp){
   const speaker = (userState && userState.speaker) || {};
-  if(speaker.next_rank) return `${speaker.xp_to_next} XP to ${rankLabel(speaker.next_rank)}`;
-  if(speaker.speaker_rank === "english_pro") return "English Pro — keep building your Personal Best.";
-  return "Keep going — every session counts.";
+  if(speaker.next_rank) return lgt("srToRank", { n: speaker.xp_to_next, rank: rankLabel(speaker.next_rank) });
+  if(speaker.speaker_rank === "english_pro") return lgt("srPro");
+  return lgt("srKeep");
 }
 if($("srDone")) $("srDone").onclick = () => {
   try{ ws && ws.close(); }catch(_){} ws = null;
@@ -4515,7 +4867,7 @@ const HINDI = {
   next:     "अच्छा, अब आपके लिए क्या translate करूँ?",
   noSpeech: "मुझे समझ नहीं आया। कृपया दोबारा बोलिए।"
 };
-let lrec = null, lastEnglish = "";
+let lrec = null, lastEnglish = "", lastLearnE2H = false;
 const HI       = () => ({ lang:"hi-IN", rate:0.95, voice:hindiVoice });
 const ENG_SLOW = () => ({ lang:"en-IN", rate:0.8, voice:pickedVoice });  // Learning: clear, medium pace
 const ENG_NORM = () => ({ lang:"en-US", rate:1.0,  voice:pickedVoice });
@@ -4541,57 +4893,61 @@ function micActive(b){ $("micBtn").classList.toggle("listening", b); }
 
 function startLearning(){
   if(guardKeys()) return;   // no verified own keys → keys screen (covers direct callers, not just chooseMode)
-  if(!SR){ showNotif("Voice needs Chrome or Edge."); return; }
+  if(!SR){ showNotif(lgt("needChromeShort")); return; }
   if(overLimit()){
-    showNotif(`You've reached today's limit of ${MAX_SESSIONS} sessions. Come back tomorrow 🙂`); return;
+    showNotif(lgt("limitReached", { n: MAX_SESSIONS })); return;
   }
   currentMode = "learning"; lastEnglish = ""; thinkHide();
   $("transCard").hidden = true; $("tcHindi").textContent = ""; $("tcEng").textContent = "";
-  learnState("Connecting…"); micEnable(false); micActive(false);
+  learnState(lgt("lConnecting")); micEnable(false); micActive(false);
   show("learning");
   ws = new WebSocket(WS_URL);
+  // lang = what the learner SPEAKS in Learn: "hi" = Hindi → English (the original, and the default), "en" = English → Hindi
   ws.onopen = () => { running = true; usageInc(); refreshUsage();
-    ws.send(JSON.stringify({ type:"start", mode:"learning", token:authToken, hour:new Date().getHours(), day:localDay(), keys:officeKeys() })); };
+    ws.send(JSON.stringify({ type:"start", mode:"learning", token:authToken, hour:new Date().getHours(), day:localDay(), keys:officeKeys(), lang:LG.lang("learning") })); };
   ws.onmessage = onMessage;
   ws.onclose = () => { running = false; stopLearn(); };
-  ws.onerror = () => learnState("Connection error. Is the server running?");
+  ws.onerror = () => learnState(lgt("lConnErr"));
 }
 async function greetLearn(){
   const ep = ++speakEpoch;
-  await say(HINDI.greet, HI());
+  const l = LG.lang("learning");
+  await say(LEARN_SAY[l].greet, l === "hi" ? HI() : ENG_NORM());
   if(ep !== speakEpoch) return;
-  learnState("Tap the mic and speak in Hindi.");
+  learnState(lgt(l === "en" ? "lTapE" : "lTapH"));
   micEnable(true);
 }
 function startHindiListen(){
   if(!running) return;
   if(window.speechSynthesis) window.speechSynthesis.cancel();
-  micEnable(false); micActive(true); learnState("Listening…");
-  lrec = new SR(); lrec.lang = "hi-IN"; lrec.interimResults = false; lrec.maxAlternatives = 1;
+  const l = LG.lang("learning");   // the language the learner speaks ("hi" unless they flipped the direction)
+  micEnable(false); micActive(true); learnState(lgt("lListening"));
+  lrec = new SR(); lrec.lang = LG.stt(l); lrec.interimResults = false; lrec.maxAlternatives = 1;
   let got = false;
   lrec.onresult = (e) => {
     const t = e.results[0][0].transcript.trim();
     if(t && !got){ got = true; $("tcHindi").textContent = t; micActive(false);
       if(ws && ws.readyState === 1){ learnState(""); thinkShow("translate"); ws.send(JSON.stringify({ type:"user_text", text:t })); }
-      else learnState("Connection lost — go back and try again."); }
+      else learnState(lgt("lConnLost")); }
   };
   lrec.onerror = () => {};
   lrec.onend = async () => {
     micActive(false);
-    if(!got && running){ await say(HINDI.noSpeech, HI()); learnState("Tap the mic and speak in Hindi."); micEnable(true); }
+    if(!got && running){ await say(LEARN_SAY[l].noSpeech, l === "hi" ? HI() : ENG_NORM()); learnState(lgt(l === "en" ? "lTapE" : "lTapH")); micEnable(true); }
   };
   try{ lrec.start(); }catch(_){}
 }
-async function handleTranslation(hindi, english){
+async function handleTranslation(hindi, english, dir){   // hindi = what the learner SAID, english = the translation (names kept); dir = "hi2en" | "en2hi"
   const ep = ++speakEpoch;   // Finish/tab-switch bumps epoch → bail out of the chain
-  lastEnglish = english;
+  const e2h = dir === "en2hi";
+  lastEnglish = english; lastLearnE2H = e2h;
   $("tcHindi").textContent = hindi; $("tcEng").textContent = english;
   $("transCard").hidden = false; $("replayBtn").disabled = true; learnState("");
-  await say(HINDI.intro, HI());          // "English mein aise bolte hain."
+  await say(LEARN_SAY[e2h ? "en" : "hi"].intro, HI());   // "English में ऐसे बोलते हैं।" / "हिंदी में ऐसे कहते हैं।" — both in the Hindi voice
   if(ep !== speakEpoch) return;
-  await say(english, ENG_SLOW());        // then the English, said ONCE (no "repeat after me")
+  await say(english, e2h ? HI() : ENG_SLOW());           // then the translation, said ONCE (no "repeat after me")
   if(ep !== speakEpoch) return;
-  learnState("Ab aap boliye — 🔊 dobara sunne ke liye, ya mic naye vaakya ke liye.");
+  learnState(lgt("lAfter"));
   $("replayBtn").disabled = false; micEnable(true);
 }
 function stopLearn(){
@@ -4602,7 +4958,7 @@ function stopLearn(){
   micActive(false);
 }
 $("micBtn").onclick = startHindiListen;
-$("replayBtn").onclick = () => { if(lastEnglish){ if(window.speechSynthesis) window.speechSynthesis.cancel(); say(lastEnglish, ENG_SLOW()); } };
+$("replayBtn").onclick = () => { if(lastEnglish){ if(window.speechSynthesis) window.speechSynthesis.cancel(); say(lastEnglish, lastLearnE2H ? HI() : ENG_SLOW()); } };
 $("continueBtn").onclick = async () => {
   if(window.speechSynthesis) window.speechSynthesis.cancel();
   $("transCard").hidden = true; $("tcHindi").textContent = ""; $("tcEng").textContent = ""; lastEnglish = "";
@@ -4650,11 +5006,11 @@ function dailyBubbleFill(b, it){
   if(it.en){
     const row = document.createElement("div"); row.className = "b-en";
     const col = document.createElement("div"); col.className = "b-col";
-    const lbl = document.createElement("span"); lbl.className = "b-lbl"; lbl.textContent = "In English";
+    const lbl = document.createElement("span"); lbl.className = "b-lbl"; lbl.textContent = lgt("dBubbleLbl");
     const t = document.createElement("span"); t.className = "b-t"; t.textContent = it.en;
     col.appendChild(lbl); col.appendChild(t);
     const play = document.createElement("button"); play.type = "button"; play.className = "b-play";
-    play.setAttribute("aria-label", "Hear this in English"); play.textContent = "🔊";
+    play.setAttribute("aria-label", lgt("dBubbleAria")); play.textContent = "🔊";
     play.onclick = () => { if(window.speechSynthesis) window.speechSynthesis.cancel(); say(it.en, ENG_SLOW()); };
     row.appendChild(col); row.appendChild(play); b.appendChild(row);
   }
@@ -4719,9 +5075,9 @@ async function sayFace(text, opts){
 
 function startDaily(from){
   if(guardKeys()) return;
-  if(!SR){ showNotif("Voice needs Chrome or Edge."); show("home"); return; }
+  if(!SR){ showNotif(lgt("needChromeShort")); show("home"); return; }
   if(overLimit()){
-    showNotif(`You've reached today's limit of ${MAX_SESSIONS} sessions. Come back tomorrow 🙂`); show("home"); return;
+    showNotif(lgt("limitReached", { n: MAX_SESSIONS })); show("home"); return;
   }
   dailyFrom = from || "";
   dailyInputs = 0;   // count THIS session's inputs (resumed history must not trigger the reminder)
@@ -4741,10 +5097,10 @@ function startDaily(from){
   ws.onopen = () => { running = true; usageInc(); refreshUsage();
     dailyTurns = loadDailyResume();   // continue the recent chat if there is one
     ws.send(JSON.stringify({ type:"start", mode:"daily", token:authToken, mood:todayMood,
-      hour:new Date().getHours(), day:localDay(), resume: dailyTurns, keys:officeKeys() })); };
+      hour:new Date().getHours(), day:localDay(), resume: dailyTurns, keys:officeKeys(), lang:LG.lang("daily") })); };
   ws.onmessage = onMessage;
   ws.onclose = () => { running = false; stopDaily(); };
-  ws.onerror = () => { if($("dailyLoader")) $("dailyLoader").hidden = true; dState("Connection error. Is the server running?"); };
+  ws.onerror = () => { if($("dailyLoader")) $("dailyLoader").hidden = true; dState(lgt("dConnErr")); };
 }
 // The 3 options shown under Daily Talk (Start Speaking path). Reuses the Companion Moment recs.
 function dailyRecsData(){
@@ -4762,8 +5118,8 @@ function dailyRecsData(){
 function renderDailyRecs(){
   const el = $("dailyRecs"); if(!el) return;
   const items = [
-    { a:"conversation", ic:"💬", label:"Talk" },   // face-to-face chat
-    { a:"learning",     ic:"🎓", label:"Learn" },  // grad cap
+    { a:"conversation", ic:"💬", label:lgt("dTalk") },   // face-to-face chat
+    { a:"learning",     ic:"🎓", label:lgt("dLearn") },  // grad cap
   ];   // "Day" removed — redundant on this same daily-talk page
   el.className = "daily-icons";
   el.innerHTML = items.map(it =>
@@ -4784,24 +5140,25 @@ function pickDailyRec(action){
   chooseMode(action);                           // learning | conversation | interview
 }
 
-async function greetDaily(question){
+async function greetDaily(question, lang){   // lang = the language the opening line was written in
   const ep = ++speakEpoch;
+  const l = lang || LG.lang("daily");
   if($("dailyLoader")) $("dailyLoader").hidden = true;   // connected → hide loader
   dLastNext = question;
   dailyTurns.push({ role:"assistant", content: question });
   dailyChatAdd({ w:"ai", t:question });
   saveDailyResume();
   $("dailyQ").textContent = question;
-  await sayFace(question, HI());
+  await sayFace(question, l === "hi" ? HI() : ENG_NORM());
   if(ep !== speakEpoch) return;   // finished/left during the greeting → don't enable mic
-  dState("Tap the mic and answer in Hindi."); dMic(true);
+  dState(lgt("dTap")); dMic(true);
   dailyReveal($("dailyState"));
 }
 function startDailyListen(){
   if(!running) return;
   killSpeech();   // stop any lingering reply chain before we listen
-  dMic(false); dMicActive(true); dailyOrb("listening"); dState("Listening…");
-  drec = new SR(); drec.lang = "hi-IN"; drec.interimResults = false; drec.maxAlternatives = 1;
+  dMic(false); dMicActive(true); dailyOrb("listening"); dState(lgt("dListening"));
+  drec = new SR(); drec.lang = LG.stt(LG.lang("daily")); drec.interimResults = false; drec.maxAlternatives = 1;   // hi-IN unless the learner chose English
   let got = false;
   drec.onresult = (e) => {
     const t = e.results[0][0].transcript.trim();
@@ -4810,22 +5167,23 @@ function startDailyListen(){
         dailyPendingMe = dailyChatAdd({ w:"me", t });          // your words appear at once…
         dState(""); dailyOrb("thinking"); thinkShow("think");   // …with DuSu's loader right under them
         ws.send(JSON.stringify({ type:"user_text", text:t }));
-      } else { dailyOrb("idle"); dState("Connection lost — go back and try again."); } }
+      } else { dailyOrb("idle"); dState(lgt("dConnLost")); } }
   };
   drec.onerror = () => {};
   drec.onend = async () => { dMicActive(false);
-    if(!got && running){ await say(HINDI.noSpeech, HI()); dState("Tap the mic and answer in Hindi."); dMic(true); } };
+    if(!got && running){ await say(lgt("dNoSpeech"), LG.voice(LG.lang("daily"))); dState(lgt("dTap")); dMic(true); } };
   try{ drec.start(); }catch(_){}
 }
-async function handleDailyTurn(hindi, english, reply, tip, nextQ){
+async function handleDailyTurn(hindi, english, reply, tip, nextQ, lang){   // lang = the language this turn was written in
   const ep = ++speakEpoch;   // this turn owns the speaker; a Finish/tab-switch bumps it → we bail
+  const hiTurn = (lang || LG.lang("daily")) === "hi";   // Hindi turn: `english` is a TRANSLATION we speak; English turn: it is the learner's line POLISHED (shown, not spoken)
   dLastEng = english || ""; dLastNext = nextQ || "";
   $("dcHindi").textContent = hindi; $("dcEng").textContent = english || "—";
   setDailyTip(tip);
   $("dailyCard").hidden = false; $("dcReplay").disabled = !english; dState("");
   dailyReveal($("dailyCard"));   // Reply is the way to continue — never leave it hidden under the nav
   // record this turn up-front (learner's Hindi + DuSu's reply) so resume works even if speech is cut
-  const dusuReply = (reply && reply.trim()) || (nextQ && nextQ.trim()) || "अच्छा! आज का सबसे अच्छा पल कौन-सा था?";
+  const dusuReply = (reply && reply.trim()) || (nextQ && nextQ.trim()) || lgt("dFallbackReply");
   // the conversation on screen: your bubble gains its English line (+ tip), then DuSu's reply appears
   const me = dailyPendingMe || dailyChatAdd({ w:"me", t:hindi });
   dailyPendingMe = null;
@@ -4836,14 +5194,14 @@ async function handleDailyTurn(hindi, english, reply, tip, nextQ){
   saveDailyResume();
   dailyOrb("speaking");
   // 1) hear YOUR line in English FIRST (learn how to say it)
-  if(english){
+  if(english && hiTurn){
     await say(HINDI.intro, HI());     // "English mein aise bolte hain."
     if(ep !== speakEpoch) return;     // stopped mid-chain → don't speak the next line
     await say(english, ENG_SLOW());   // your sentence, in clear English (said once)
     if(ep !== speakEpoch) return;
   }
   // 2) then DuSu replies like a close friend — NEVER silent (fallback if reply missing)
-  await say(dusuReply, HI());
+  await say(dusuReply, hiTurn ? HI() : ENG_NORM());
   if(ep !== speakEpoch) return;
   dailyOrb("idle");
   // Start Speaking path only: options are already visible; after EVERY 3 inputs DuSu
@@ -4851,12 +5209,12 @@ async function handleDailyTurn(hindi, english, reply, tip, nextQ){
   if(dailyFrom === "speak"){
     dailyInputs++;   // only THIS session's inputs — not resumed history
     if(dailyInputs % 3 === 0){
-      await sayFace("वैसे, जब तुम ready हो तो नीचे अपनी learning आगे बढ़ा सकते हो — या यहीं बात continue करो।", HI());
+      await sayFace(lgt("dRemind"), hiTurn ? HI() : ENG_NORM());
       if(ep !== speakEpoch) return;
       requestAnimationFrame(() => { const d = $("dailyMore"); if(d) d.scrollIntoView({ behavior:"smooth", block:"nearest" }); });
     }
   }
-  dState("💬 Reply jab tum ready ho");
+  dState(lgt("dReplyReady"));
 }
 function setDailyTip(tip){
   const el = $("dcTip"); if(!el) return;
@@ -6681,7 +7039,7 @@ function speakWelcome(){
 }
 
 function logout(){
-  authToken = ""; authUser = null; aActive = false;
+  authToken = ""; authUser = null; aActive = false; try{ LG.clear(); }catch(_){}   // the language choice belongs to the account, not the device
   localStorage.removeItem("dusu_token"); localStorage.removeItem("dusu_user"); localStorage.removeItem("dusu_state"); localStorage.removeItem("dusu_letter"); localStorage.removeItem("dusu_daily_resume"); localStorage.removeItem("dusu_keys_ok"); localStorage.removeItem("dusu_office_keys"); localStorage.removeItem("dusu_keys_owner");
   $("hdrRight").hidden = true; $("tagline").style.display = "";
   try{ ws && ws.close(); }catch(_){}
@@ -6759,6 +7117,7 @@ function refreshMe(initial){
     .then(st => {
       if(!st) return null;
       userState = st;   // full state incl. today / growth / opening / recommendations + access/quota
+      try{ LG.syncFromState(); }catch(_){}   // Hindi/English choice (server-saved, default Hindi) + show/hide the switch
       try{ window.PR && PR.syncEntries(); }catch(_){}   // the owner may have just switched Practice Room on/off
       localStorage.setItem("dusu_onboarded", st.onboarded ? "true" : "false");
       // cache the whole state so the next boot paints mood/note/Continue instantly (no /me wait)
@@ -7627,7 +7986,9 @@ window.PR = PR;
 ROUTES["/practice-room"] = { enter: () => PR.open() };
 
 if($("assessExit")) $("assessExit").onclick = skipAssessment;
+try{ LG.mount(); }catch(e){ console.warn("LG.mount", e); }   // Hindi/English controls (hidden until the switch is on for this learner)
 initAuth();
+try{ LG.applyUI(); }catch(e){ console.warn("LG.applyUI", e); }   // after initAuth() has restored the cached state, so the first paint is already right
 
 // PWA: register the service worker so DuSu is installable / works offline-shell.
 if ("serviceWorker" in navigator) {
