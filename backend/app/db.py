@@ -2644,3 +2644,43 @@ async def check_practice_badges(user_id: str) -> list[str]:
     if any(r.via == "bridge" and r.lang == "en" for r in rows):
         ids.append("bridge_builder")
     return await award_badges(user_id, ids)
+
+
+# ===================== LIFE CONTEXT (life.py — "DuSu knows your data", CLAUDE.md §10) =====================
+async def life_snapshot(user_id: str) -> dict:
+    """Everything life.py needs about one learner, read in ONE session: profile, progress and the
+    memory doc, plus how many scored sessions they have per mode. Includes `last_active`, which
+    _state() leaves out and which is the only way to tell whether a stored streak is still alive
+    (streak_days is reset lazily, on the NEXT activity, so a lapsed streak keeps its old number).
+    Read-only. {} when there is no database or no such user."""
+    if not db_enabled:
+        return {}
+    async with _Session() as s:               # type: ignore[misc]
+        user = await s.get(User, user_id)
+        if user is None:
+            return {}
+        prof = await s.get(Profile, user_id)
+        prog = await s.get(Progress, user_id)
+        mem = await s.get(Memory, user_id)
+        counts = (await s.execute(
+            select(SessionScore.mode, func.count()).where(SessionScore.user_id == user_id)
+            .group_by(SessionScore.mode)
+        )).all()
+    return {
+        "created_at": user.created_at,
+        "profile": {"onboarded": bool(prof and prof.onboarded), "goal": (prof.goal if prof else "") or "",
+                    "level": (prof.level if prof else "") or "", "scores": (prof.scores if prof else None) or {},
+                    "weak_areas": (prof.weak_areas if prof else None) or []},
+        "progress": {"xp": (prog.xp if prog else 0) or 0, "coins": (prog.coins if prog else 0) or 0,
+                     "streak_days": (prog.streak_days if prog else 0) or 0,
+                     "longest_streak_days": (prog.longest_streak_days if prog else 0) or 0,
+                     "last_active": prog.last_active if prog else None,
+                     "sessions_today": (prog.sessions_today if prog else 0) or 0,
+                     "daily_goal": (prog.daily_goal if prog else 5) or 5,
+                     "badges": (prog.badges if prog else None) or [],
+                     "journey": (prog.journey if prog else None) or {},
+                     "speaker_xp": (prog.speaker_xp if prog else 0) or 0,
+                     "speaker_rank": (prog.speaker_rank if prog else "starter") or "starter"},
+        "facts": dict(mem.facts) if mem and mem.facts else {},
+        "session_counts": {(m or ""): int(c) for m, c in counts},
+    }

@@ -3758,6 +3758,8 @@ async function openAdmin(){
       <input type="checkbox" id="ownerByokSw" ${d.owner_byok ? "checked" : ""}></label>
       <label class="swrow"><span><b>Practice Room</b><br><span class="msub">Off = hidden for everyone (the code ships dark). Owner only = just you, to try it on your own phone. Everyone = live for all users.</span></span>
       <select class="pr-sel" id="prRoomSel"><option value="off" ${d.practice_room === "on" || d.practice_room === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.practice_room === "owner" ? "selected" : ""}>Owner only</option><option value="on" ${d.practice_room === "on" ? "selected" : ""}>Everyone</option></select></label>
+      <label class="swrow"><span><b>DuSu knows your progress</b><br><span class="msub">In Talk and Daily Talk, DuSu can answer "what's my streak / level / last score?" from the database. Off = DuSu only remembers who you are. Owner only = just you (default). Everyone = all users.</span></span>
+      <select class="pr-sel" id="lifeSel"><option value="off" ${d.life_context === "off" ? "selected" : ""}>Off</option><option value="owner" ${d.life_context === "on" || d.life_context === "off" ? "" : "selected"}>Owner only</option><option value="on" ${d.life_context === "on" ? "selected" : ""}>Everyone</option></select></label>
       <button class="uBtn bad" id="wipeBtn" style="width:100%;margin:2px 0 4px">🗑 Reset test users</button>`;
     // Office allowlist. NOTE: is_office() in main.py means "must BYOK", NOT free
     // access — resolve_keys() demands own keys for anyone on this list. The old
@@ -3810,14 +3812,16 @@ function wireOffice(){
     const lvl = !!($("lvlTestSw") && $("lvlTestSw").checked);
     const obk = !!($("ownerByokSw") && $("ownerByokSw").checked);
     const prm = ($("prRoomSel") && $("prRoomSel").value) || "off";
+    const lcx = ($("lifeSel") && $("lifeSel").value) || undefined;   // undefined = leave the server value alone
     try{ await fetch("/admin/settings",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({token:authToken, access_phase: growth ? "growth" : "quota",
-                           level_test: lvl, owner_byok: obk, practice_room: prm})}); }catch(_){}
+                           level_test: lvl, owner_byok: obk, practice_room: prm, life_context: lcx})}); }catch(_){}
   };
   if($("reqKeysSw")) $("reqKeysSw").onchange = saveSettings;
   if($("lvlTestSw")) $("lvlTestSw").onchange = saveSettings;
   if($("ownerByokSw")) $("ownerByokSw").onchange = saveSettings;
   if($("prRoomSel")) $("prRoomSel").onchange = saveSettings;
+  if($("lifeSel")) $("lifeSel").onchange = saveSettings;
   if($("wipeBtn")) $("wipeBtn").onclick = async () => {
     if(!confirm("Delete ALL users except david, shuhani & free-access emails? This cannot be undone.")) return;
     try{ const r = await fetch("/admin/wipe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:authToken})});

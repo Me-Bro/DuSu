@@ -30,6 +30,7 @@ from pydantic import BaseModel
 
 from .config import settings
 from . import practice
+from . import life
 from .interview.engine import Session
 from .interview.prompts import ASSESS_SYSTEM, LESSON_EVAL_SYSTEM, LEVEL_TEST_SYSTEM, LETTER_SYSTEM, GREETING_SYSTEM, CAREER_ROADMAP_SYSTEM
 from .providers import llm
@@ -175,6 +176,27 @@ async def practice_room_mode() -> str:
 
 async def practice_room_enabled(email: str) -> bool:
     m = await practice_room_mode()
+    if m == "on":
+        return True
+    if m == "owner":
+        return role_for(email) in ("owner", "unlimited")
+    return False
+
+
+async def life_context_mode() -> str:
+    """'DuSu knows your data' rollout switch (Settings table, no migration; CLAUDE.md §10). It changes
+    what DuSu says in every Talk / Daily Talk conversation, so it is staged like the Practice Room:
+    'off' = nobody; 'owner' = only the owner / unlimited allowlist (the DEFAULT - the owner checks it
+    on their own account first); 'on' = everyone."""
+    try:
+        v = await _cached("life_context", lambda: db.get_setting("life_context", "owner"))
+        return v if v in ("off", "owner", "on") else "owner"
+    except Exception:
+        return "owner"
+
+
+async def life_context_enabled(email: str) -> bool:
+    m = await life_context_mode()
     if m == "on":
         return True
     if m == "owner":
@@ -994,7 +1016,8 @@ async def admin_overview(token: str = "", authorization: str | None = Header(Non
     claims = _require_owner(token, authorization)
     out = {"you": claims.get("email", ""), "role": "owner", "db": db.db_enabled, "users": [],
            "access_phase": await access_phase(), "level_test": await level_test_on(),
-           "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode()}
+           "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode(),
+           "life_context": await life_context_mode()}
     if db.db_enabled:
         try:
             users = await db.admin_list_users()
@@ -1025,6 +1048,7 @@ class SettingsIn(BaseModel):
     level_test: bool | None = None
     owner_byok: bool | None = None
     practice_room: str | None = None      # off | owner | on
+    life_context: str | None = None       # off | owner | on  ("DuSu knows your data", CLAUDE.md §10)
 
 
 @app.post("/admin/settings")
@@ -1041,9 +1065,12 @@ async def admin_settings(inp: SettingsIn, authorization: str | None = Header(Non
         await db.set_setting("owner_byok", "on" if inp.owner_byok else "off")
     if inp.practice_room is not None:
         await db.set_setting("practice_room", inp.practice_room if inp.practice_room in ("off", "owner", "on") else "off")
+    if inp.life_context is not None:
+        await db.set_setting("life_context", inp.life_context if inp.life_context in ("off", "owner", "on") else "owner")
     invalidate_access_cache()
     return {"access_phase": await access_phase(), "level_test": await level_test_on(),
-            "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode()}
+            "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode(),
+            "life_context": await life_context_mode()}
 
 
 class WipeIn(BaseModel):
@@ -2242,6 +2269,11 @@ async def interview_ws(ws: WebSocket):
                 facts_summary = ""; facts = {}; ictx = {}
                 mode = data.get("mode", "interview")
                 _quota_open = asyncio.create_task(turn_quota.open(_email, uid, quota_day))
+                # "DuSu knows your data" (life.py, CLAUDE.md §10): the learner's own numbers, read
+                # alongside the memory reads below and appended to the same text. Talk + Daily Talk only.
+                _life_open = None
+                if uid and db.db_enabled and mode in ("conversation", "daily") and await life_context_enabled(_email):
+                    _life_open = asyncio.create_task(life.build(uid))
                 if uid and db.db_enabled and mode in ("conversation", "interview", "daily"):
                     try:
                         gather_tasks = [db.get_memory(uid), db.recent_summaries(uid, 6), db.relationship_stage(uid)]
@@ -2263,6 +2295,13 @@ async def interview_ws(ws: WebSocket):
                     await _quota_open        # already running alongside the reads above
                 except Exception as e:
                     print(f"[quota] open failed, allowing session: {type(e).__name__}: {e}")
+                if _life_open is not None:
+                    try:
+                        _numbers = await asyncio.wait_for(_life_open, timeout=3.0)
+                        if _numbers:
+                            facts_summary = (facts_summary + "\n\n" if facts_summary else "") + _numbers
+                    except Exception as e:   # the numbers are a bonus - a slow/failed read never blocks the chat
+                        print(f"[life] skipped: {type(e).__name__}: {e}")
                 started_at = time.monotonic()
                 persisted = False
                 # time-of-day from the client's local hour (0-23)

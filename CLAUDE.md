@@ -1346,8 +1346,6 @@ Secrets in `backend/.env` (never committed); DB credentials live in the root `.e
 
 ---
 
-## Quick command reference
-
 ## 9. Practice Room (flag-gated, built 2026-10-06 — design in `DUSU_PRACTICE_ROOM_PLAN.md`)
 
 Rehearse a presentation → record on the phone → transcribe → scored report → listen back → retry. Hindi, Hinglish or English (plan §13). **Dark by default:** `settings.practice_room` = `off` (default) / `owner` / `on`, flipped from the owner dashboard (More → Dashboard → Access → Practice Room); the client reads it as `/me.practice_room` and draws no entry point while it is off.
@@ -1363,6 +1361,24 @@ Rehearse a presentation → record on the phone → transcribe → scored report
 **Gotchas:** `llm.assess(..., temperature=)` — scoring runs at 0.2 (the default 0.7 re-scores the same speech up to 15 points apart). `_extract_json` now repairs the two broken-brace shapes Gemini-lite emits (~1 reply in 9), so gate fields (`genuine_effort`) are also computed server-side. Never log a transcript (`_safe_err`). Because the server's Groq key is dead, accounts on DuSu's keys cannot transcribe until it is replaced — BYOK users with their own Groq key are unaffected. Not yet verified on a physical phone/TWA: recording permission, Wake Lock, battery, Whisper on Hindi/Hinglish (plan §7 spikes S1/S2b/S3b).
 
 ---
+
+## 10. DuSu knows your data (Life Context — built 2026-10-10)
+
+DuSu's memory block (`main._facts_summary`) holds who the learner IS; it held none of their NUMBERS, so "what's my streak?" got an invented answer. `backend/app/life.py` reads what Postgres already has and renders ONE short block that `main.py` appends to `facts_summary` at WS `start` for **conversation + daily** (not interview — a role-play; not learning — a translator). The block is the lines below plus a fixed "how to use" rule: answer from exactly these numbers, say so when something isn't listed, never guess or round up, don't recite stats unprompted, never scold with a number.
+
+| Piece | Where |
+|---|---|
+| Read | `db.life_snapshot(uid)` (profile + progress incl. `last_active` + the memory doc + SessionScore counts per mode, ONE session) · `db.weekly_league(uid, limit=1)` (own rank only) · `db.speaking_trend` · `db.list_practice_attempts(uid, 3)` |
+| Render | `life.render(...)` — pure (no I/O), priority-trimmed to ~1,700 chars. Essentials that never go: level check, streak, today, Speaker rank / XP, roadmap. Dropped first: tenure, badges, missions, confidence check, career, trend |
+| Wire | WS `start`: `life.build(uid)` runs as a task alongside the memory reads, `wait_for(…, 3 s)`; any failure or timeout → the chat opens without numbers |
+| Switch | `settings.life_context` = `off` / **`owner` (default)** / `on`, via `life_context_enabled(email)`; dashboard → Access → "DuSu knows your progress" (`/admin/overview.life_context`, `/admin/settings`). It changes what DuSu says in every Talk, so it is staged like the Practice Room |
+| Extension | `life.EXTRA_LINES` — a module appends `async fn(uid) -> list[str]` (1.5 s each, failures dropped). The Goals planner plugs in here (`DUSU_GOALS_PLAN.md` §10) |
+
+**Gotchas:** `Progress.streak_days` and `sessions_today` are only reset by the NEXT activity, so a lapsed streak keeps its old number — `render` counts the streak as alive only if `last_active` is today or yesterday (IST) and treats `sessions_today` as 0 otherwise. The block is built once per conversation: a lesson finished mid-chat shows up in the next one. Free text (practice topic, role, goal) is flattened to one quote-safe line (`_clean`) because it lands inside a system prompt. Only the caller's own data goes in — the league line is their own rank, never another learner's alias. **Verified 2026-10-10** on a scratch database with the real model: numbers exact in Talk and Daily Talk, an honest "I don't have that" for data that isn't listed, no stats recited in the opening greeting, a second learner's sentinel data never leaks, slow/failing reads never block the chat. **Not covered:** Hindi wording quality beyond one sample, and any provider other than Gemini (the only one alive on the server today).
+
+---
+
+## Quick command reference
 
 ```powershell
 # Local run — from repo root, backend served on 127.0.0.1:8000
