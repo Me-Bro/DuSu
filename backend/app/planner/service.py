@@ -14,6 +14,7 @@ import datetime as dt
 from typing import Any
 
 from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 
 from .. import db
@@ -55,12 +56,17 @@ def _ev(s, uid: str, etype: str, eid: int | None, event: str, meta: dict | None 
 
 
 async def _prefs(s, uid: str) -> PlPrefs:
+    """The learner's My Day settings row, created on first use. NOT check-then-insert: the app opens with several requests at once (Today, the Home
+    card's summary, the due list ...), each one saw "no row yet" and inserted it, and the losers died with `duplicate key ... pl_prefs_pkey` (HTTP 500 -
+    exactly what a second learner's first load did in production). INSERT ... ON CONFLICT DO NOTHING makes the loser wait for the winner's commit and
+    carry on with the row that exists."""
     p = await s.get(PlPrefs, uid)
     if p is None:
-        p = PlPrefs(user_id=uid, tz=tu.DEFAULT_TZ, quiet_on=True, quiet_start="22:00", quiet_end="07:00", followups=1, followup_gap_min=30,
-                    snooze_min=30, push_on=False, hide_details=False, paused_all=False, english_habit=True, english_target_min=15, extra={})
-        s.add(p)
-        await s.flush()
+        await s.execute(pg_insert(PlPrefs).values(user_id=uid, tz=tu.DEFAULT_TZ, quiet_on=True, quiet_start="22:00", quiet_end="07:00", followups=1,
+                                                  followup_gap_min=30, snooze_min=30, push_on=False, hide_details=False, paused_all=False,
+                                                  english_habit=True, english_target_min=15, extra={}, updated_at=_utc())
+                        .on_conflict_do_nothing(index_elements=["user_id"]))
+        p = (await s.execute(select(PlPrefs).where(PlPrefs.user_id == uid).execution_options(populate_existing=True))).scalars().first()
     return p
 
 
@@ -155,8 +161,14 @@ async def _upsert_reminder(s, uid: str, *, entity_type: str, entity_id: int | No
         return r
     r = PlReminder(user_id=uid, entity_type=entity_type, entity_id=entity_id, kind=kind, title=title[:160], body=body[:300], occurrence_key=key,
                    fire_at=fire_at, tz=tz, status=status, meta=meta or {})
-    s.add(r)
-    await s.flush()
+    try:
+        async with s.begin_nested():                       # a savepoint: a concurrent insert of the same moment must not poison the whole request
+            s.add(r)
+            await s.flush()
+    except IntegrityError:
+        r = (await s.execute(select(PlReminder).where(PlReminder.occurrence_key == key))).scalars().first()
+        if r is None or r.user_id != uid:
+            raise Invalid("reminder")
     return r
 
 
@@ -1029,8 +1041,15 @@ async def log_habit(uid: str, hid: int, body: dict) -> dict:
         state = "skipped" if skipped else "logged"
         if row is None:
             if skipped or count > 0:
-                s.add(PlHabitLog(habit_id=h.id, user_id=uid, day=day, count=count, state=state, note=rules.clean_str(body.get("note"), 200)))
-                _ev(s, uid, "habit", h.id, "logged", {"count": count, "skipped": skipped})
+                try:
+                    async with s.begin_nested():               # two quick taps on the first glass of the day: the second must update, not crash
+                        s.add(PlHabitLog(habit_id=h.id, user_id=uid, day=day, count=count, state=state, note=rules.clean_str(body.get("note"), 200)))
+                        await s.flush()
+                    _ev(s, uid, "habit", h.id, "logged", {"count": count, "skipped": skipped})
+                except IntegrityError:
+                    row = (await s.execute(select(PlHabitLog).where(PlHabitLog.habit_id == h.id, PlHabitLog.day == day).with_for_update())).scalars().first()
+                    if row is not None:
+                        row.count, row.state, row.updated_at = count, state, _utc()
         elif row.count != count or row.state != state:
             row.count, row.state, row.updated_at = count, state, _utc()
             if "note" in body:
@@ -1185,6 +1204,12 @@ async def list_reminders(uid: str, view: str = "upcoming") -> dict:
             q = select(PlReminder).where(PlReminder.user_id == uid, PlReminder.status.in_(("done", "skipped", "expired", "sent")),
                                          func.coalesce(PlReminder.sent_at, PlReminder.fire_at, PlReminder.created_at) >= since)\
                 .order_by(func.coalesce(PlReminder.sent_at, PlReminder.fire_at).desc())
+        elif view == "all":
+            # EVERYTHING the learner set that still matters, in day order: what is ahead, what is waiting for a tap, and what was ticked off or missed in
+            # the last two days (a reminder that is ticked off must not vanish - it stays in the list, struck through, until it can be undone or deleted)
+            since = now - dt.timedelta(days=2)
+            q = select(PlReminder).where(PlReminder.user_id == uid, PlReminder.status.in_(("scheduled", "waiting", "sent", "done", "skipped", "expired")),
+                                         func.coalesce(PlReminder.fire_at, PlReminder.created_at) >= since).order_by(PlReminder.fire_at.asc().nulls_last(), PlReminder.id.asc())
         else:
             q = select(PlReminder).where(PlReminder.user_id == uid, PlReminder.status.in_(("waiting", "scheduled"))).order_by(PlReminder.fire_at.asc().nulls_last())
         rows = (await s.execute(q.limit(60))).scalars().all()
@@ -1198,13 +1223,13 @@ async def create_custom_reminder(uid: str, body: dict) -> dict:
         raise Invalid("title")
     async with _S() as s:
         p = await _prefs(s, uid)
-        d = tu.parse_date(body.get("date")) or tu.local_today(p.tz)
         t = tu.parse_hhmm(body.get("time"))
         if t is None:
             raise Invalid("time")
-        fire = tu.to_utc(d, t, p.tz)
         now = _utc()
-        if fire < now - dt.timedelta(minutes=1):
+        try:                                              # a time that already passed today is the next one (tomorrow's), not an error
+            fire, rolled = tu.resolve_fire(tu.parse_date(body.get("date")), t, p.tz, now)
+        except ValueError:
             raise Invalid("past")
         # the same words at the same minute that are already waiting: the learner added it twice (a second tap, a retry, or not sure the
         # first one saved) - hand back the one that exists instead of piling up a copy
@@ -1224,9 +1249,12 @@ async def create_custom_reminder(uid: str, body: dict) -> dict:
         r = await _upsert_reminder(s, uid, entity_type="custom", entity_id=None, kind="time", title=title, body=rules.clean_str(body.get("body"), 300),
                                    key=(f"c:{uid[:24]}:{key}" if key else f"c:{uid[:24]}:{fire:%Y%m%dT%H%M%S}:{abs(hash(title)) % 10**6}")[:96],
                                    fire_at=fire, tz=p.tz, status="scheduled")
-        _ev(s, uid, "custom", r.id, "created")
+        _ev(s, uid, "custom", r.id, "created", {"rolled": True} if rolled else None)
         await s.commit()
-        return reminder_json(r)
+        out = reminder_json(r)
+        if rolled:
+            out["rolled"] = True                           # the app says "that time had passed today, so it is set for tomorrow"
+        return out
 
 
 async def _own_custom_reminder(s, uid: str, rid: int) -> PlReminder:
@@ -1250,7 +1278,7 @@ async def update_custom_reminder(uid: str, rid: int, body: dict) -> dict:
             title = rules.clean_str(body.get("title"), 160)
             if not title:
                 raise Invalid("title")
-        fire = r.fire_at
+        fire, rolled = r.fire_at, False
         if body.get("date") or body.get("time"):
             cur = tu.to_local(r.fire_at, p.tz) if r.fire_at is not None else tu.local_now(p.tz)
             d = tu.parse_date(body.get("date")) if body.get("date") else cur.date()
@@ -1259,9 +1287,12 @@ async def update_custom_reminder(uid: str, rid: int, body: dict) -> dict:
             tm = tu.parse_hhmm(body.get("time")) if body.get("time") else cur.time().replace(second=0, microsecond=0)
             if tm is None:
                 raise Invalid("time")
-            fire = tu.to_utc(d, tm, p.tz)
-            if fire != r.fire_at and fire < _utc() - dt.timedelta(minutes=1):
-                raise Invalid("past")
+            if not (r.fire_at is not None and d == cur.date() and tm == cur.time().replace(second=0, microsecond=0)):   # the day / time really changed
+                try:
+                    fire, rolled = tu.resolve_fire(d, tm, p.tz, _utc())
+                except ValueError:
+                    raise Invalid("past")
+                rolled = rolled and fire != r.fire_at                     # "moved to tomorrow" only when it actually moved
         if title != r.title or fire != r.fire_at:
             r.title = title
             if fire != r.fire_at:
@@ -1271,7 +1302,10 @@ async def update_custom_reminder(uid: str, rid: int, body: dict) -> dict:
                 r.action = ""
             _ev(s, uid, "custom", r.id, "edited")
         await s.commit()
-        return reminder_json(r)
+        out = reminder_json(r)
+        if rolled:
+            out["rolled"] = True
+        return out
 
 
 async def delete_custom_reminder(uid: str, rid: int) -> dict:
@@ -1290,8 +1324,9 @@ async def delete_custom_reminder(uid: str, rid: int) -> dict:
 
 
 async def act_reminder(uid: str, rid: int, action: str, minutes: int | None = None, *, by_token: bool = False) -> dict:
-    """done | later | skip. Idempotent: a repeated or stale action returns the current state and writes no second event."""
-    if action not in ("done", "later", "skip"):
+    """done | later | skip | reopen (undo a tick: the learner's own reminder is waiting again). Idempotent: a repeated or stale action returns the current
+    state and writes no second event."""
+    if action not in ("done", "later", "skip", "reopen"):
         raise Invalid("action")
     async with _S() as s:
         p = await _prefs(s, uid)
@@ -1299,6 +1334,15 @@ async def act_reminder(uid: str, rid: int, action: str, minutes: int | None = No
         if r is None:
             raise NotFound("reminder")
         now = _utc()
+        if action == "reopen":
+            if r.entity_type == "custom" and r.status in ("done", "skipped", "expired"):
+                ahead = r.fire_at is not None and r.fire_at > now
+                r.status, r.acted_at, r.action, r.claimed_at, r.followups_sent = ("scheduled" if ahead else "sent"), None, "", None, 0
+                if not ahead:                                   # its time is past: it is "due now" again, waiting for a tap (no instant follow-up ping)
+                    r.sent_at = now
+                _ev(s, uid, "custom", r.id, "reopened")
+            await s.commit()
+            return reminder_json(r)
         if r.status in ("done", "skipped", "cancelled", "expired") and not (action == "later" and r.status == "expired"):
             await s.commit()
             return reminder_json(r)
@@ -1386,12 +1430,17 @@ async def today(uid: str) -> dict:
                                     .order_by(PlReminder.fire_at.asc()).limit(12))).scalars().all()
         reminders = [reminder_brief(r, p.tz) for r in rem_rows]
         rem_today = sum(1 for x in reminders if x.get("day") == td.isoformat()) + sum(1 for x in due if x.get("entity_type") == "custom")
+        # ticked off today: they stay on the day's list (struck through) instead of vanishing - the learner can undo a tick or delete the reminder
+        rem_done_rows = (await s.execute(select(PlReminder).where(PlReminder.user_id == uid, PlReminder.entity_type == "custom", PlReminder.kind != "test",
+                                                                  PlReminder.status.in_(("done", "skipped")), PlReminder.acted_at >= lo, PlReminder.acted_at < hi)
+                                         .order_by(PlReminder.fire_at.asc()).limit(20))).scalars().all()      # NOT `done_rows`: that is the done TASKS above
+        reminders_done = [reminder_brief(r, p.tz) for r in rem_done_rows]
         await s.commit()
         return {"now": now.isoformat(), "tz": p.tz, "date": td.isoformat(), "dow": td.weekday(), "hour": tu.local_now(p.tz, now).hour,
                 "counts": {"open_today": len(due_today) + len([r for r in pinned if r not in due_today and r not in overdue]), "overdue": len(overdue),
                            "done_today": len(done_rows), "pinned": len(pinned), "reminders_today": rem_today,
                            "habits_done": sum(1 for h in sched_today if h["state_today"] in ("done", "skipped")), "habits_total": len(sched_today)},
-                "due": due, "reminders": reminders, "priorities": [tj(r) for r in prio[:3]], "today": [tj(r) for r in due_today], "overdue": [tj(r) for r in overdue[:20]],
+                "due": due, "reminders": reminders, "reminders_done": reminders_done, "priorities": [tj(r) for r in prio[:3]], "today": [tj(r) for r in due_today], "overdue": [tj(r) for r in overdue[:20]],
                 "done_today": [tj(r) for r in done_rows], "habits": habits, "goals": goals,
                 "next_reminder": ({"title": nxt.title, "fire_at": _iso(nxt.fire_at), "kind": nxt.kind} if nxt else None), "prefs": prefs_json(p)}
 

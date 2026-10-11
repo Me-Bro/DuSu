@@ -84,6 +84,25 @@ def to_utc(day: dt.date, t: dt.time, tz) -> dt.datetime:
     return dt.datetime.combine(day, t, tzinfo=zone(tz)).astimezone(UTC)
 
 
+def resolve_fire(day_in: dt.date | None, t: dt.time, tz, now: dt.datetime | None = None) -> tuple[dt.datetime, bool]:
+    """When a reminder entered as (day, time of day) fires (UTC), and whether it was moved to the next day it comes round. A learner who types 7:00
+    at 15:00 means the NEXT 7:00 - that is not a mistake to refuse (it used to be a 422 "That time has already passed", nine times in one afternoon).
+    So: when the day is today (or missing, or yesterday because the phone is in another zone) and the time has passed, it is the next day's;
+    only an explicit day before that is "past" (ValueError)."""
+    now = now or now_utc()
+    today = local_today(tz, now)
+    d = day_in or today
+    if d < today - dt.timedelta(days=1):
+        raise ValueError("past")
+    fire = to_utc(d, t, tz)
+    if fire >= now - dt.timedelta(minutes=1):
+        return fire, False
+    nd = d + dt.timedelta(days=1)
+    while to_utc(nd, t, tz) < now - dt.timedelta(minutes=1) and nd <= today + dt.timedelta(days=1):
+        nd += dt.timedelta(days=1)
+    return to_utc(nd, t, tz), True
+
+
 def end_of_day_utc(day: dt.date, tz) -> dt.datetime:
     return to_utc(day, END_OF_DAY, tz)
 

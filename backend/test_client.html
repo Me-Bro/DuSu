@@ -2050,6 +2050,20 @@
   .pl-lgrow .lg-sw button{ min-height:40px; }
   .pl-ttl{ font-size:15px; line-height:1.35; color:var(--ink); word-break:break-word; }
   .pl-ttl.done{ color:var(--ink-faint); text-decoration:line-through; text-decoration-color:rgba(255,255,255,.3); }
+  /* every row carries its own Edit and Delete (not hidden behind a tap on the words): two 40 px targets at the right end */
+  .pl-tools{ display:flex; flex:none; gap:0; margin:-4px -8px -4px 0; align-items:center; }
+  .pl-ib{ width:40px; height:44px; flex:none; display:inline-flex; align-items:center; justify-content:center; line-height:1; cursor:pointer; background:none;
+    border:none; border-radius:12px; color:var(--ink-dim); }
+  .pl-ib svg{ width:18px; height:18px; display:block; }
+  .pl-ib:hover, .pl-ib:focus-visible{ background:rgba(255,255,255,.08); color:var(--ink); }
+  .pl-ib.del{ color:#e9a99b; }
+  .pl-hhead .pl-tools{ margin:0 -8px 0 0; }
+  .pl-addrow{ margin:10px 0 2px; }
+  .pl-addrow[hidden]{ display:none; }
+  .pl-addbtn{ width:100%; min-height:46px; font-size:15px; }
+  .pl-gwrap{ position:relative; margin-bottom:10px; }
+  .pl-gwrap .pl-gcard{ margin-bottom:0; padding-right:92px; }
+  .pl-gtools{ position:absolute; top:8px; right:6px; display:flex; }
   .pl-meta{ display:flex; flex-wrap:wrap; gap:6px; margin-top:5px; align-items:center; }
   .pl-chip{ font-size:11.5px; padding:2px 9px; border-radius:999px; background:rgba(255,255,255,.06); color:var(--ink-dim); white-space:nowrap; }
   .pl-chip.amber{ background:rgba(240,169,82,.16); color:var(--amber); }
@@ -2112,8 +2126,13 @@
   .pl-cb:checked::after{ content:"✓"; color:#fff; font-size:17px; font-weight:800; line-height:1; }
   .pl-cb:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:2px; }
   .pl-foot{ display:flex; flex-wrap:wrap; gap:10px; margin-top:8px; }
+  /* the sheet's Save / Cancel (and the refusal message) stay pinned at the bottom of the visible sheet while the form scrolls */
+  .pl-sheet{ padding-bottom:0; }
+  .pl-sticky{ position:sticky; bottom:0; z-index:3; margin:8px -18px 0; padding:12px 18px calc(16px + env(safe-area-inset-bottom)); background:linear-gradient(180deg,rgba(11,16,32,0),#0b1020 24%); }
+  .pl-sticky .pl-err{ flex:1 1 100%; margin:0 0 2px; }
   .pl-foot .btn{ flex:1 1 140px; }
-  .pl-err{ color:#f2c4ba; font-size:13px; margin:0 0 10px; }
+  .pl-err{ color:#ffd7cf; background:rgba(224,138,122,.14); border:1px solid rgba(224,138,122,.45); border-radius:12px; padding:10px 12px; font-size:14px; line-height:1.4; margin:12px 0 4px; }
+  .pl-err[hidden]{ display:none; }
   .pl-ms{ display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.06); }
   .pl-set{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 0; border-bottom:1px solid rgba(255,255,255,.06); font-size:14px; }
   .pl-set:last-child{ border-bottom:none; }
@@ -3287,6 +3306,7 @@
     </div>
     <div class="pl-lgrow" id="plLg" hidden></div>
     <div class="pl-tabs" id="plTabs" role="tablist"></div>
+    <div class="pl-addrow" id="plAddRow" hidden></div>
     <div class="pl-body" id="plBody" aria-live="polite"></div>
   </section>
 </div>
@@ -8882,6 +8902,8 @@ const PL = (function(){
       title:"My Day", sub:"Tasks, habits, goals & reminders", back:"Back", add:"Add", bell:"Reminders", gear:"Settings", close:"Close", loading:"Loading…",
       tToday:"Today", tTasks:"Tasks", tGoals:"Goals", tHabits:"Habits", tReminders:"Reminders",
       secRem:"Reminders", remNone:"No reminders yet. Tap ＋ to set one.", remAllLink:"See all reminders", sumRem:"{n} reminders today", sumRem1:"1 reminder today",
+      addTask:"Add task", addReminder:"Add reminder", addGoal:"Add goal", addHabit:"Add habit", addToday:"Add something", vAll:"All", remsAll:"All", remNow:"Due now",
+      remRolled:"That time had passed today, so it is set for tomorrow: {when}", remUndone:"Back on your list", taskDeleted:"Task deleted", habitDeleted:"Habit deleted", goalDeleted:"Goal deleted",
       savedTask:"Task saved", savedHabit:"Habit saved", savedGoal:"Goal saved", pushHintT:"You will only see these while DuSu is open", pushHintNo:"Not now",
       pushHintB:"Turn on notifications and DuSu can ping this phone when a reminder is due, even if the app is closed. Some phones block that to save battery - the test button in Settings checks yours.",
       editRem:"Edit reminder", remSet:"Reminder set for {when}", remDup:"That reminder is already set for {when}", remDeleted:"Reminder deleted",
@@ -8931,6 +8953,8 @@ const PL = (function(){
       title:"My Day", sub:"Tasks, habits, goals और reminders", back:"वापस", add:"जोड़ो", bell:"Reminders", gear:"Settings", close:"बंद करो", loading:"लोड हो रहा है…",
       tToday:"आज", tTasks:"Tasks", tGoals:"Goals", tHabits:"Habits", tReminders:"Reminders",
       secRem:"Reminders", remNone:"अभी कोई reminder नहीं है। ＋ दबाकर एक लगाओ।", remAllLink:"सारे reminders देखो", sumRem:"आज {n} reminders", sumRem1:"आज 1 reminder",
+      addTask:"Task जोड़ो", addReminder:"Reminder जोड़ो", addGoal:"Goal जोड़ो", addHabit:"Habit जोड़ो", addToday:"कुछ जोड़ो", vAll:"सब", remsAll:"सब", remNow:"अभी का",
+      remRolled:"आज वो समय निकल चुका था, इसलिए ये कल के लिए लगा: {when}", remUndone:"फिर से तुम्हारी list में आ गया", taskDeleted:"Task हट गया", habitDeleted:"Habit हट गई", goalDeleted:"Goal हट गया",
       savedTask:"Task save हो गया", savedHabit:"Habit save हो गई", savedGoal:"Goal save हो गया", pushHintT:"ये तुम्हें सिर्फ़ तभी दिखेंगे जब DuSu खुला हो", pushHintNo:"अभी नहीं",
       pushHintB:"Notifications चालू करो तो reminder के समय DuSu इस phone पर ping कर सकती है, app बंद हो तब भी। कुछ phones battery बचाने के लिए इन्हें रोक देते हैं - Settings का test button तुम्हारे phone पर जाँच लेगा।",
       editRem:"Reminder बदलो", remSet:"{when} के लिए reminder लग गया", remDup:"ये reminder {when} के लिए पहले से लगा है", remDeleted:"Reminder हट गया",
@@ -8986,7 +9010,13 @@ const PL = (function(){
   const A = s => esc(s);
 
   /* ---------- state ---------- */
-  let tab = "today", tview = "today", rview = "upcoming", goalId = null, started = false, timer = null, loadSeq = 0;
+  let tab = "today", tview = "all", rview = "all", goalId = null, started = false, timer = null, loadSeq = 0;   // Tasks and Reminders open on ALL (every open task / every reminder)
+  // the two row tools: a pencil (change it) and a bin (delete it) - drawn, so they look the same on every phone
+  const IC_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14.5 7.5l3 3"/></svg>';
+  const IC_DEL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 7h14M9 7V4.5h6V7M6.5 7l.9 12a2 2 0 0 0 2 1.9h5.2a2 2 0 0 0 2-1.9l.9-12M10 11v6M14 11v6"/></svg>';
+  const toolBtns = (editAct, delAct, id, title) => `<button type="button" class="pl-ib" data-act="${editAct}" data-id="${id}" aria-label="${A(t("edit"))}: ${A(title)}">${IC_EDIT}</button>`
+    + `<button type="button" class="pl-ib del" data-act="${delAct}" data-id="${id}" aria-label="${A(t("del"))}: ${A(title)}">${IC_DEL}</button>`;
+  const tools = (editAct, delAct, id, title) => `<div class="pl-tools">${toolBtns(editAct, delAct, id, title)}</div>`;
   let D = {};                          // the last payload per tab
   let dismissed = new Set();           // reminder ids whose banner the learner closed this session
   let dueCards = [];
@@ -9019,8 +9049,14 @@ const PL = (function(){
   async function api(method, path, body){
     const opt = { method, headers:{ "Authorization":"Bearer " + authToken, "Content-Type":"application/json" }, cache:"no-store" };
     if(body !== undefined) opt.body = JSON.stringify(body);
-    let r;
-    try{ r = await fetch(API + path, opt); }catch(_){ throw { net:true }; }
+    let r = null;
+    // a GET that hit a hiccup (a dropped connection, a 5xx during a restart) is tried once more before the learner ever sees an error
+    for(let i = 0; i < (method === "GET" ? 2 : 1); i++){
+      try{ r = await fetch(API + path, opt); }catch(_){ r = null; }
+      if(r && r.status < 500) break;
+      if(i === 0 && method === "GET") await new Promise(res => setTimeout(res, 500));
+    }
+    if(!r) throw { net:true };
     if(r.status === 401){ try{ logout(); }catch(_){} throw { auth:true }; }
     let j = null; try{ j = await r.json(); }catch(_){}
     if(!r.ok){ const d = j && j.detail; throw { status:r.status, code:(d && typeof d === "object" ? d.error : (typeof d === "string" ? d : "")) || "" }; }
@@ -9080,6 +9116,7 @@ const PL = (function(){
     $("plBack").title = t("back"); $("plBell").setAttribute("aria-label", t("bell")); $("plGear").setAttribute("aria-label", t("gear")); $("plFab").setAttribute("aria-label", t("add"));
     $("plBell").classList.toggle("on", tab === "reminders"); $("plGear").classList.toggle("on", tab === "settings");
     $("plTabs").innerHTML = TABS.map(k => `<button class="pl-tab${tab === k ? " on" : ""}" role="tab" aria-selected="${tab === k}" data-tab="${k}">${A(t("t" + k[0].toUpperCase() + k.slice(1)))}</button>`).join("");
+    paintAdd();
     const lg = $("plLg"); if(lg){
       const on = typeof LG !== "undefined" && LG.on(); lg.hidden = !on;
       if(on && !lg.firstChild){
@@ -9089,6 +9126,17 @@ const PL = (function(){
       lg.querySelectorAll("button[data-l]").forEach(b => b.classList.toggle("on", b.dataset.l === L()));
     }
     syncFab(); paintBanner();
+  }
+  // a plain "＋ Add …" button right under the tabs (the floating ＋ is easy to miss, and can sit behind other things on a small phone)
+  function paintAdd(){
+    const ar = $("plAddRow"); if(!ar) return;
+    const key = { today:"addToday", reminders:"addReminder", tasks:"addTask", goals:"addGoal", habits:"addHabit" }[tab];
+    ar.hidden = !key || (tab === "goals" && !!goalId);
+    if(!ar.hidden) ar.innerHTML = `<button type="button" class="btn primary pl-addbtn" data-act="addnew">＋ ${A(t(key))}</button>`;
+  }
+  function addForTab(){
+    if(!D.goals){ api("GET", "/goals").then(r => { D.goals = r.goals; }).catch(() => {}); }
+    sheetAdd(tab === "habits" ? "habit" : tab === "goals" && !goalId ? "goal" : tab === "reminders" ? "rem" : "task");
   }
   // the ＋ floats over the phone column on the Today / Tasks / Goals / Habits tabs only (it sits outside the screen: see the CSS note)
   function syncFab(){
@@ -9134,6 +9182,7 @@ const PL = (function(){
     const body = $("plBody"); if(!body) return;
     const f = { today:vToday, tasks:vTasks, goals:vGoals, habits:vHabits, reminders:vReminders, settings:vSettings }[tab];
     try{ body.innerHTML = f(); }catch(e){ console.warn("PL.render", e); body.innerHTML = `<div class="pl-empty">${A(t("errGeneric"))}</div>`; }
+    paintAdd();
   }
 
   /* ---------- Today ---------- */
@@ -9153,20 +9202,26 @@ const PL = (function(){
     if(x.rescheduled) chips.push(`<span class="pl-chip">${A(t("rescheduled"))}</span>`);
     const trig = x.trigger && !x.trigger.fired && x.status === "open" ? `<button class="pl-trig" data-act="trig" data-id="${x.id}">${A(t("trigger", { l:x.trigger.label }))}</button>` : "";
     return `<div class="pl-row"><button class="pl-chk${done ? " done" : skp ? " skip" : ""}" data-act="chk" data-id="${x.id}" aria-label="${A(done ? t("reopen") : t("done"))}: ${A(x.title)}">${done ? "<span>✓</span>" : ""}</button>
-      <button class="pl-main" data-act="task" data-id="${x.id}"><div class="pl-ttl${done || skp ? " done" : ""}">${A(x.title)}</div>${chips.length ? `<div class="pl-meta">${chips.join("")}</div>` : ""}</button></div>${trig ? `<div style="margin:-4px 0 8px 43px">${trig}</div>` : ""}`;
+      <button class="pl-main" data-act="task" data-id="${x.id}"><div class="pl-ttl${done || skp ? " done" : ""}">${A(x.title)}</div>${chips.length ? `<div class="pl-meta">${chips.join("")}</div>` : ""}</button>${tools("task", "tdel2", x.id, x.title)}</div>${trig ? `<div style="margin:-4px 0 8px 43px">${trig}</div>` : ""}`;
   }
   function remCard(c){
     const k = c.kind === "test" ? t("remKTest") : t("remKFollow");
     return `<div class="pl-remcard" data-rid="${c.id}"><div class="pl-k">${A(k)}${c.stale ? " · " + A(t("remStale")) : ""}</div><div class="pl-ttl">${A(c.title)}</div>${c.body ? `<div class="pl-note" style="margin:-6px 0 8px">${A(c.body)}</div>` : ""}
       <div class="pl-acts"><button class="pl-act go" data-act="rem" data-id="${c.id}" data-a="done">✓ ${A(t("done"))}</button><button class="pl-act" data-act="rem" data-id="${c.id}" data-a="later">⏰ ${A(t("later"))}</button><button class="pl-act" data-act="rem" data-id="${c.id}" data-a="skip">${A(t("skip"))}</button></div></div>`;
   }
-  // one of the learner's own reminders: a round check (it is done - it will not ring) + the words and the time; tap the words to change or delete it
+  // one of the learner's own reminders, in whatever state it is in: a round check (tick = done, it will not ring; tick again = back on the list), the words
+  // (struck through once done) with the time, and the Edit / Delete tools. A ticked reminder STAYS in the list - it never just vanishes.
   function remRow(x, o){
     o = o || {};
-    const chips = [`<span class="pl-chip">${A((o.day ? dayLabel(x.day) + " · " : "") + fmtTime(x.time))}</span>`];
+    const done = x.status === "done", skp = x.status === "skipped", closed = done || skp;
+    const chips = [];
+    if(x.time) chips.push(`<span class="pl-chip">${A((o.day ? dayLabel(x.day) + " · " : "") + fmtTime(x.time))}</span>`);
     if(x.status === "waiting") chips.push(`<span class="pl-chip gold">${A(t("remWaiting"))}</span>`);
-    return `<div class="pl-row"><button class="pl-chk" data-act="remdone" data-id="${x.id}" aria-label="${A(t("done"))}: ${A(x.title)}"></button>
-      <button class="pl-main" data-act="remedit" data-id="${x.id}" aria-label="${A(t("edit"))}: ${A(x.title)}"><div class="pl-ttl">🔔 ${A(x.title)}</div><div class="pl-meta">${chips.join("")}</div></button></div>`;
+    if(x.status === "sent") chips.push(`<span class="pl-chip gold">${A(t("remNow"))}</span>`);
+    if(x.status === "expired") chips.push(`<span class="pl-chip amber">${A(t("remExpired"))}</span>`);
+    if(skp) chips.push(`<span class="pl-chip">${A(t("remSkipped"))}</span>`);
+    return `<div class="pl-row"><button class="pl-chk${done ? " done" : skp ? " skip" : ""}" data-act="${closed ? "remreopen" : "remdone"}" data-id="${x.id}" aria-label="${A((closed ? t("reopen") : t("done")) + ": " + x.title)}">${done ? "<span>✓</span>" : ""}</button>
+      <button class="pl-main" data-act="remedit" data-id="${x.id}" aria-label="${A(t("edit"))}: ${A(x.title)}"><div class="pl-ttl${closed ? " done" : ""}">🔔 ${A(x.title)}</div><div class="pl-meta">${chips.join("")}</div></button>${tools("remedit", "remdel2", x.id, x.title)}</div>`;
   }
   function habitCard(h, compact){
     const full = h.state_today === "done";
@@ -9181,13 +9236,14 @@ const PL = (function(){
     if(!compact && h.consistency != null) meta.push(A(t("hCons", { n:h.consistency })));
     if(!compact && h.streak > 1) meta.push("🔥 " + A(t("hStreak", { n:h.streak })));
     if(h.state_today === "skipped") meta.push(A(t("skip")));
-    return `<div class="pl-habit"><div class="pl-hhead"><button class="pl-main" ${h.auto ? "disabled" : `data-act="habit" data-id="${h.id}"`}><div class="pl-ttl">${h.auto ? "🗣️ " : ""}${A(h.title)}${full ? " ✓" : ""}</div>${meta.length ? `<div class="pl-meta"><span class="pl-chip">${meta.join(" · ")}</span></div>` : ""}</button></div>${glasses}${dots}${h.auto && !compact ? `<div class="pl-note">${A(t("hAuto"))}</div>` : ""}</div>`;
+    return `<div class="pl-habit"><div class="pl-hhead"><button class="pl-main" ${h.auto ? "disabled" : `data-act="habit" data-id="${h.id}"`}><div class="pl-ttl">${h.auto ? "🗣️ " : ""}${A(h.title)}${full ? " ✓" : ""}</div>${meta.length ? `<div class="pl-meta"><span class="pl-chip">${meta.join(" · ")}</span></div>` : ""}</button>${h.auto ? "" : tools("habit", "hdel2", h.id, h.title)}</div>${glasses}${dots}${h.auto && !compact ? `<div class="pl-note">${A(t("hAuto"))}</div>` : ""}</div>`;
   }
   function goalCard(g){
-    return `<button class="pl-gcard" data-act="goal" data-id="${g.id}"><div class="pl-ttl">${A(g.title)}</div><div class="pl-bar"><i style="width:${g.progress}%"></i></div>
+    return `<div class="pl-gwrap"><button class="pl-gcard" data-act="goal" data-id="${g.id}"><div class="pl-ttl">${A(g.title)}</div><div class="pl-bar"><i style="width:${g.progress}%"></i></div>
       <div class="pl-meta"><span class="pl-chip green">${A(t("gProg", { n:g.progress }))}</span>${g.status === "paused" ? `<span class="pl-chip amber">${A(t("gPaused"))}</span>` : ""}${g.status === "done" ? `<span class="pl-chip green">${A(t("gFinished"))}</span>` : ""}
       ${g.behind_days ? `<span class="pl-chip amber">${A(t("gBehind", { n:g.behind_days }))}</span>` : ""}${g.target_date ? `<span class="pl-chip">🏁 ${A(fmtDate(g.target_date))}</span>` : ""}</div>
-      ${g.next_milestone ? `<div class="pl-note" style="margin-bottom:0">${A(t("gNext", { t:g.next_milestone.title }))}</div>` : (g.next_task ? `<div class="pl-note" style="margin-bottom:0">${A(t("gNext", { t:g.next_task.title }))}</div>` : "")}</button>`;
+      ${g.next_milestone ? `<div class="pl-note" style="margin-bottom:0">${A(t("gNext", { t:g.next_milestone.title }))}</div>` : (g.next_task ? `<div class="pl-note" style="margin-bottom:0">${A(t("gNext", { t:g.next_task.title }))}</div>` : "")}</button>
+      <div class="pl-gtools">${toolBtns("gedit2", "gdel2", g.id, g.title)}</div></div>`;
   }
   function vToday(){
     const d = D.today; if(!d) return "";
@@ -9207,12 +9263,13 @@ const PL = (function(){
       h += `<div class="pl-card pad" style="margin-bottom:12px"><div class="pl-note" style="margin-top:0">${A(t("tzBanner", { dev, cur:d.tz }))}</div><div class="pl-acts"><button class="pl-act go" data-act="tzuse" data-tz="${A(dev)}">${A(t("tzUse", { dev }))}</button><button class="pl-act" data-act="tzkeep" data-tz="${A(dev)}">${A(t("tzKeep", { cur:d.tz }))}</button></div></div>`;
     if(d.due && d.due.length) h += `<div class="pl-sec">${A(t("secDue"))}</div>` + d.due.map(remCard).join("");
     // the learner's own reminders are part of the day: today's are listed right here (the next few when none are left today)
-    if(rems.length){
+    const remsDone = d.reminders_done || [];                   // ticked off today: they stay on the day's list, struck through
+    if(rems.length || remsDone.length){
       const tdIso = d.date, todays = rems.filter(x => x.day === tdIso), shown = todays.length ? todays.slice(0, 6) : rems.slice(0, 3);
-      h += `<div class="pl-sec">${A(t("secRem"))}</div><div class="pl-card">${shown.map(x => remRow(x, { day:x.day !== tdIso })).join("")}</div>`;
+      h += `<div class="pl-sec">${A(t("secRem"))}</div><div class="pl-card">${shown.map(x => remRow(x, { day:x.day !== tdIso })).concat(remsDone.map(x => remRow(x))).join("")}</div>`;
       if(rems.length > shown.length) h += `<button class="pl-more" data-act="remall">${A(t("remAllLink"))} (${rems.length})</button>`;
     }
-    const empty = !d.priorities.length && !d.today.length && !d.overdue.length && !d.done_today.length && !rems.length && !(d.due && d.due.length);
+    const empty = !d.priorities.length && !d.today.length && !d.overdue.length && !d.done_today.length && !rems.length && !remsDone.length && !(d.due && d.due.length);
     if(d.priorities.length) h += `<div class="pl-sec">${A(t("secPrio"))}</div><div class="pl-card">${d.priorities.map(x => taskRow(x)).join("")}</div>`;
     const prioIds = new Set(d.priorities.map(x => x.id));
     const rest = d.today.filter(x => !prioIds.has(x.id)), over = d.overdue.filter(x => !prioIds.has(x.id));
@@ -9229,11 +9286,11 @@ const PL = (function(){
 
   /* ---------- Tasks ---------- */
   function vTasks(){
-    const views = [["today", "vToday"], ["upcoming", "vUpcoming"], ["overdue", "vOverdue"], ["inbox", "vInbox"], ["done", "vDone"], ["repeating", "vRepeat"]];
+    const views = [["all", "vAll"], ["today", "vToday"], ["upcoming", "vUpcoming"], ["overdue", "vOverdue"], ["inbox", "vInbox"], ["done", "vDone"], ["repeating", "vRepeat"]];
     let h = `<div class="pl-chips" role="tablist">${views.map(([k, w]) => `<button class="pl-fchip${tview === k ? " on" : ""}" data-act="tview" data-v="${k}">${A(t(w))}</button>`).join("")}</div>`;
     const list = (D.tasks && D.tasks.tasks) || [];
     if(!list.length) return h + `<div class="pl-empty">${A(tview === "done" ? t("emptyDone") : t("emptyTasks"))}</div>`;
-    if(tview === "repeating") return h + `<div class="pl-card">${list.map(x => `<div class="pl-row"><span style="font-size:20px;line-height:1.3">↻</span><button class="pl-main" data-act="task" data-id="${x.id}"><div class="pl-ttl">${A(x.title)}</div><div class="pl-meta"><span class="pl-chip">${A(ruleText(x.repeat))}</span></div></button></div>`).join("")}</div>`;
+    if(tview === "repeating") return h + `<div class="pl-card">${list.map(x => `<div class="pl-row"><span style="font-size:20px;line-height:1.3">↻</span><button class="pl-main" data-act="task" data-id="${x.id}"><div class="pl-ttl">${A(x.title)}</div><div class="pl-meta"><span class="pl-chip">${A(ruleText(x.repeat))}</span></div></button>${tools("task", "tdel2", x.id, x.title)}</div>`).join("")}</div>`;
     return h + `<div class="pl-card">${list.map(x => taskRow(x, { day:true })).join("")}</div>`;
   }
   function ruleText(r){
@@ -9276,13 +9333,14 @@ const PL = (function(){
 
   /* ---------- Reminders (bell) ---------- */
   function vReminders(){
-    let h = `<div class="pl-chips"><button class="pl-fchip${rview === "upcoming" ? " on" : ""}" data-act="rview" data-v="upcoming">${A(t("remsUp"))}</button><button class="pl-fchip${rview === "history" ? " on" : ""}" data-act="rview" data-v="history">${A(t("remsHist"))}</button></div>`;
+    let h = `<div class="pl-chips"><button class="pl-fchip${rview === "all" ? " on" : ""}" data-act="rview" data-v="all">${A(t("remsAll"))}</button><button class="pl-fchip${rview === "upcoming" ? " on" : ""}" data-act="rview" data-v="upcoming">${A(t("remsUp"))}</button><button class="pl-fchip${rview === "history" ? " on" : ""}" data-act="rview" data-v="history">${A(t("remsHist"))}</button></div>`;
     const list = D.rem || [];
     if(!list.length) return h + `<div class="pl-empty">${A(rview === "history" ? t("emptyRem") : t("remNone"))}</div>`;
     const stat = r => r.status === "waiting" ? t("remWaiting") : r.status === "done" ? t("remDone") : r.status === "skipped" ? t("remSkipped") : r.status === "expired" ? t("remExpired") : r.status === "sent" ? t("remSent") : "";
     const flat = r => `<div class="pl-row"><span style="font-size:20px;line-height:1.3">${r.kind === "test" ? "🧪" : r.entity_type === "habit" ? "🌱" : "🔔"}</span><div class="pl-main" style="cursor:default"><div class="pl-ttl">${A(r.title)}</div>
       <div class="pl-meta">${r.fire_at ? `<span class="pl-chip">${A(fmtInstantDay(r.fire_at))}</span>` : ""}${stat(r) ? `<span class="pl-chip ${r.status === "done" ? "green" : r.status === "expired" ? "amber" : ""}">${A(stat(r))}</span>` : ""}</div></div></div>`;
-    if(rview === "history") return h + `<div class="pl-card">` + list.map(flat).join("") + `</div>`;
+    const mine = r => r.entity_type === "custom" && r.kind !== "test" && r.time;     // the learner's own note-to-self reminders can be ticked, undone, changed, deleted
+    if(rview === "history") return h + `<div class="pl-card">` + list.map(r => mine(r) ? remRow(r, { day:true }) : flat(r)).join("") + `</div>`;
     // reminders only ring inside DuSu until notifications are on: say so once, with the button (the learner can dismiss it)
     const ps = pushState(), hideHint = (() => { try{ return !!localStorage.getItem("dusu_pl_pushhint"); }catch(_){ return false; } })();
     if(ps !== "on" && !hideHint){
@@ -9295,7 +9353,7 @@ const PL = (function(){
     const groups = [];
     list.forEach(r => { const day = r.day || ""; let g = groups[groups.length - 1]; if(!g || g.day !== day){ g = { day, items:[] }; groups.push(g); } g.items.push(r); });
     return h + groups.map(g => `<div class="pl-sec">${A(g.day ? dayLabel(g.day) : t("noDate"))}</div><div class="pl-card">`
-      + g.items.map(r => (r.entity_type === "custom" && r.kind !== "test" && r.time) ? remRow(r) : flat(r)).join("") + `</div>`).join("");
+      + g.items.map(r => mine(r) ? remRow(r) : flat(r)).join("") + `</div>`).join("");
   }
   function fmtInstantDay(iso){
     try{ const d = new Date(iso); return new Intl.DateTimeFormat(loc(), { weekday:"short", day:"numeric", month:"short", hour:"numeric", minute:"2-digit", hour12:true, timeZone:(D.prefs && D.prefs.tz) || (D.today && D.today.tz) || D.remTz || undefined }).format(d); }catch(_){ return ""; }
@@ -9336,15 +9394,27 @@ const PL = (function(){
   /* ---------- sheets (Add / Edit) ---------- */
   let sheet = null;                            // { kind, edit, draft }
   const sheetOpen = () => !!(sheet && !$("plSheet").hidden);
+  // on a phone the on-screen keyboard covers the bottom of the screen: keep the sheet ABOVE it (and scrollable) so Save is never hidden behind the keyboard
+  function fitSheet(){
+    const el = $("plSheet"); if(!el || el.hidden) return;
+    const vv = window.visualViewport;
+    const kb = vv ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0;
+    el.style.bottom = kb ? kb + "px" : "";
+    el.style.maxHeight = kb ? Math.max(220, Math.round(vv.height * 0.94)) + "px" : "";
+  }
+  try{ if(window.visualViewport){ window.visualViewport.addEventListener("resize", fitSheet); window.visualViewport.addEventListener("scroll", fitSheet); } }catch(_){}
+  document.addEventListener("focusin", ev => { if(ev.target && ev.target.closest && ev.target.closest("#plSheet")) setTimeout(() => { try{ ev.target.scrollIntoView({ block:"center" }); }catch(_){} }, 320); });
   function openSheet(html){
-    const el = $("plSheet"); el.innerHTML = '<div class="pl-grip"></div>' + html; el.hidden = false; $("plSheetBg").hidden = false;
+    const el = $("plSheet"); el.innerHTML = '<div class="pl-grip"></div>' + html; el.hidden = false; $("plSheetBg").hidden = false; fitSheet();
     const f = el.querySelector("input[type=text],textarea,.pl-in"); try{ if(f && !f.matches("[type=date],[type=time]")) f.focus({ preventScroll:true }); }catch(_){}
   }
-  function closeSheet(){ sheet = null; const el = $("plSheet"); if(el){ el.hidden = true; el.innerHTML = ""; } const bg = $("plSheetBg"); if(bg) bg.hidden = true; }
+  function closeSheet(){ sheet = null; const el = $("plSheet"); if(el){ el.hidden = true; el.innerHTML = ""; el.style.bottom = ""; el.style.maxHeight = ""; } const bg = $("plSheetBg"); if(bg) bg.hidden = true; }
   const chipRow = (name, opts, cur) => `<div class="pl-chips" data-chips="${name}">${opts.map(([v, l]) => `<button type="button" class="pl-fchip${String(cur) === String(v) ? " on" : ""}" data-v="${v}">${A(l)}</button>`).join("")}</div>`;
   const val = (id) => { const e = $(id); return e ? e.value : ""; };
   const chipVal = (name, dflt) => { const e = $q(`#plSheet [data-chips="${name}"] .on`); return e ? e.dataset.v : dflt; };
 
+  // the refusal / validation message sits RIGHT ABOVE the Save button (where the finger is) - at the top of a tall sheet it was out of sight, and the learner just tapped Save again
+  const ERRBOX = '<div id="plErr" class="pl-err" role="alert" hidden></div>';
   function sheetAdd(kind, keep){
     kind = kind || "task"; keep = keep || {};
     sheet = { kind, edit:null };
@@ -9363,7 +9433,7 @@ const PL = (function(){
       const tt = x ? (series ? (rep.time || "") : (x.due_time || "")) : (keep.time || "");
       const rem = x ? x.remind : "at_due";
       const hasRepeat = series;
-      return `<h3>${A(x ? t("editTask") : t("newTask"))}</h3><div id="plErr" class="pl-err" hidden></div>
+      return `<h3>${A(x ? t("editTask") : t("newTask"))}</h3>
         <div class="pl-f"><label for="plTitle2">${A(t("fTitle"))}</label><input class="pl-in" id="plTitle2" maxlength="160" value="${A(x ? x.title : keep.title || "")}" autocomplete="off" /></div>
         <div class="pl-two"><div class="pl-f"><label for="plDate">${A(t("fDate"))}</label><input class="pl-in" id="plDate" type="date" value="${A(dd)}" /></div>
         <div class="pl-f"><label for="plTime">${A(t("fTime"))}</label><input class="pl-in" id="plTime" type="time" value="${A(tt)}" /></div></div>
@@ -9378,12 +9448,12 @@ const PL = (function(){
           <div class="pl-note">${A(t("fWaitHint"))}</div><div class="pl-f"><input class="pl-in" id="plTrigLbl" maxlength="60" placeholder="${A(t("fWaitLabel"))}" value="${A(x && x.trigger ? x.trigger.label : "")}" /></div>
           <div class="pl-f"><label for="plTrigFb">${A(t("fFallback"))}</label><input class="pl-in" id="plTrigFb" type="time" value="${A(x && x.trigger && x.trigger.fallback_time ? x.trigger.fallback_time : "")}" /></div></details>
         <label class="pl-sw"><input type="checkbox" class="pl-cb" id="plPin" ${x && x.pinned ? "checked" : ""}/><span>📌 ${A(t("fPin"))}</span></label>`}
-        <div class="pl-foot"><button class="btn primary" data-act="save">${A(t("save"))}</button><button class="btn ghost" data-act="cancel">${A(t("cancel"))}</button>
+        <div class="pl-foot pl-sticky">${ERRBOX}<button class="btn primary" data-act="save">${A(t("save"))}</button><button class="btn ghost" data-act="cancel">${A(t("cancel"))}</button>
         ${x ? (x.status === "open" && !series ? `<button class="btn ghost" data-act="tskip" data-id="${x.id}">${A(t("skip"))}</button>` : "") + `<button class="btn danger" data-act="tdel" data-id="${x.id}">${A(t("del"))}</button>` : ""}</div>`;
     }
     if(kind === "habit"){
       const sch = x ? x.schedule : { days:"daily", times:[] }, days = sch.days === "daily" ? "daily" : "pick";
-      return `<h3>${A(x ? t("editHabit") : t("newHabit"))}</h3><div id="plErr" class="pl-err" hidden></div>
+      return `<h3>${A(x ? t("editHabit") : t("newHabit"))}</h3>
         <div class="pl-f"><label for="plTitle2">${A(t("hName"))}</label><input class="pl-in" id="plTitle2" maxlength="100" value="${A(x ? x.title : keep.title || "")}" autocomplete="off" /></div>
         <div class="pl-two"><div class="pl-f"><label for="plHTarget">${A(t("hTarget"))}</label><input class="pl-in" id="plHTarget" type="number" min="1" max="100" value="${x ? x.target : 1}" /></div>
         <div class="pl-f"><label for="plHUnit">${A(t("hUnit"))}</label><input class="pl-in" id="plHUnit" maxlength="24" value="${A(x ? x.unit : "")}" /></div></div>
@@ -9392,23 +9462,23 @@ const PL = (function(){
         <div class="pl-f"><label>${A(t("hTimes"))}</label><div id="plHTimes">${(sch.times || []).map(tt => `<div class="pl-ms"><input class="pl-in" type="time" value="${A(tt)}" style="flex:1" /><button type="button" class="pl-ic" data-act="hrmtime" aria-label="${A(t("del"))}">✕</button></div>`).join("")}</div>
           <button type="button" class="btn ghost" data-act="haddtime" style="margin-top:6px">＋ ${A(t("hAddTime"))}</button></div>
         <label class="pl-sw"><input type="checkbox" class="pl-cb" id="plHPartial" ${!x || x.partial_ok ? "checked" : ""}/><span>${A(t("hPartial"))}</span></label>
-        <div class="pl-foot"><button class="btn primary" data-act="save">${A(t("save"))}</button><button class="btn ghost" data-act="cancel">${A(t("cancel"))}</button>${x ? `<button class="btn danger" data-act="hdel" data-id="${x.id}">${A(t("del"))}</button>` : ""}</div>`;
+        <div class="pl-foot pl-sticky">${ERRBOX}<button class="btn primary" data-act="save">${A(t("save"))}</button><button class="btn ghost" data-act="cancel">${A(t("cancel"))}</button>${x ? `<button class="btn danger" data-act="hdel" data-id="${x.id}">${A(t("del"))}</button>` : ""}</div>`;
     }
     if(kind === "goal"){
-      return `<h3>${A(x ? t("editGoal") : t("newGoal"))}</h3><div id="plErr" class="pl-err" hidden></div>
+      return `<h3>${A(x ? t("editGoal") : t("newGoal"))}</h3>
         <div class="pl-f"><label for="plTitle2">${A(t("gTitle"))}</label><input class="pl-in" id="plTitle2" maxlength="120" value="${A(x ? x.title : keep.title || "")}" autocomplete="off" /></div>
         <div class="pl-f"><label for="plWhy">${A(t("gWhy"))}</label><textarea class="pl-in" id="plWhy" maxlength="500">${A(x ? x.why : "")}</textarea></div>
         <div class="pl-two"><div class="pl-f"><label for="plGDate">${A(t("gTarget"))}</label><input class="pl-in" id="plGDate" type="date" value="${A(x && x.target_date ? x.target_date : "")}" /></div>
         <div class="pl-f"><label for="plGMin">${A(t("gMin"))}</label><input class="pl-in" id="plGMin" type="number" min="5" max="600" step="5" value="${x && x.daily_minutes ? x.daily_minutes : ""}" /></div></div>
         ${x ? "" : `<div class="pl-f"><label for="plGMs">${A(t("gMs"))}</label><textarea class="pl-in" id="plGMs" rows="4"></textarea></div>`}
-        <div class="pl-foot"><button class="btn primary" data-act="save">${A(t("save"))}</button><button class="btn ghost" data-act="cancel">${A(t("cancel"))}</button></div>`;
+        <div class="pl-foot pl-sticky">${ERRBOX}<button class="btn primary" data-act="save">${A(t("save"))}</button><button class="btn ghost" data-act="cancel">${A(t("cancel"))}</button></div>`;
     }
     const now = new Date(); const rd = x ? (x.day || localIso(now)) : (keep.date || localIso(now));
-    return `<h3>${A(x ? t("editRem") : t("newRem"))}</h3><div id="plErr" class="pl-err" hidden></div>
+    return `<h3>${A(x ? t("editRem") : t("newRem"))}</h3>
       <div class="pl-f"><label for="plTitle2">${A(t("fRTitle"))}</label><input class="pl-in" id="plTitle2" maxlength="160" value="${A(x ? x.title : keep.title || "")}" autocomplete="off" /></div>
       <div class="pl-two"><div class="pl-f"><label for="plDate">${A(t("fDate"))}</label><input class="pl-in" id="plDate" type="date" value="${A(rd)}" /></div>
       <div class="pl-f"><label for="plTime">${A(t("fTime"))}</label><input class="pl-in" id="plTime" type="time" value="${A(x ? (x.time || "") : (keep.time || ""))}" /></div></div>
-      <div class="pl-foot"><button class="btn primary" data-act="save">${A(t("save"))}</button><button class="btn ghost" data-act="cancel">${A(t("cancel"))}</button>${x ? `<button class="btn danger" data-act="remdel" data-id="${x.id}">${A(t("del"))}</button>` : ""}</div>`;
+      <div class="pl-foot pl-sticky">${ERRBOX}<button class="btn primary" data-act="save">${A(t("save"))}</button><button class="btn ghost" data-act="cancel">${A(t("cancel"))}</button>${x ? `<button class="btn danger" data-act="remdel" data-id="${x.id}">${A(t("del"))}</button>` : ""}</div>`;
   }
   function fmtLocalTime(iso){
     try{ const parts = new Intl.DateTimeFormat("en-GB", { hour:"2-digit", minute:"2-digit", hour12:false, timeZone:(D.prefs && D.prefs.tz) || (D.today && D.today.tz) || undefined }).format(new Date(iso)); return parts; }catch(_){ return ""; }
@@ -9472,15 +9542,15 @@ const PL = (function(){
     closeSheet();
     if(kind === "rem"){
       // say plainly what happened (it was set / it already existed / it was changed) and show the list it is now part of
-      try{ const when = remSaved && remSaved.fire_at ? fmtInstantDay(remSaved.fire_at) : ""; showNotif(ed ? t("saved") : (remSaved && remSaved.duplicate) ? t("remDup", { when }) : t("remSet", { when })); }catch(_){}
+      try{ const when = remSaved && remSaved.fire_at ? fmtInstantDay(remSaved.fire_at) : ""; showNotif((remSaved && remSaved.rolled) ? t("remRolled", { when }) : ed ? t("saved") : (remSaved && remSaved.duplicate) ? t("remDup", { when }) : t("remSet", { when })); }catch(_){}
       summaryAt = 0;
       if(ed){ await refreshKeep(); return; }               // edited in place: stay where you were
-      tab = "reminders"; rview = "upcoming"; paint(); try{ navTo(PATHS.reminders); }catch(_){ load(); } return;
+      tab = "reminders"; rview = "all"; paint(); try{ navTo(PATHS.reminders); }catch(_){ load(); } return;      // land on ALL: the new one, and everything else
     }
     // a NEW task / habit / goal: confirm it, and (on the Tasks tab) show the view it landed in - a task for tomorrow or with no date is not in "Today"
     if(!ed && savedObj){
       try{ showNotif(t(kind === "task" ? "savedTask" : kind === "habit" ? "savedHabit" : "savedGoal")); }catch(_){}
-      if(kind === "task" && tab === "tasks"){
+      if(kind === "task" && tab === "tasks" && tview !== "all"){
         const dd = savedObj.due_date, td = serverToday();
         tview = savedObj.is_series || savedObj.repeat ? "repeating" : !dd ? "inbox" : dd === td ? "today" : dd < td ? "overdue" : "upcoming";
       }
@@ -9506,6 +9576,14 @@ const PL = (function(){
       else if(a === "remdone"){ await api("POST", "/reminders/" + id + "/act", { action:"done" }); await refreshKeep(); summaryAt = 0; }
       else if(a === "remdel"){ if(confirm(t("delAsk"))){ await api("DELETE", "/reminders/" + id); closeSheet(); try{ showNotif(t("remDeleted")); }catch(_){} await refreshKeep(); summaryAt = 0; } }
       else if(a === "remall"){ navTo(PATHS.reminders); }
+      else if(a === "remreopen"){ await api("POST", "/reminders/" + id + "/act", { action:"reopen" }); try{ showNotif(t("remUndone")); }catch(_){} await refreshKeep(); pollDue(); summaryAt = 0; }
+      // the row tools: delete straight from the list (after the usual "cannot be undone" question), edit opens the same sheet as a tap on the words
+      else if(a === "remdel2"){ if(confirm(t("delAsk"))){ await api("DELETE", "/reminders/" + id); try{ showNotif(t("remDeleted")); }catch(_){} await refreshKeep(); pollDue(); summaryAt = 0; } }
+      else if(a === "tdel2"){ if(confirm(t("delAsk"))){ await api("DELETE", "/tasks/" + id); try{ showNotif(t("taskDeleted")); }catch(_){} await refreshKeep(); pollDue(); summaryAt = 0; } }
+      else if(a === "hdel2"){ if(confirm(t("delAsk"))){ await api("DELETE", "/habits/" + id); try{ showNotif(t("habitDeleted")); }catch(_){} await refreshKeep(); summaryAt = 0; } }
+      else if(a === "gdel2"){ if(confirm(t("delAsk"))){ await api("DELETE", "/goals/" + id); try{ showNotif(t("goalDeleted")); }catch(_){} await refreshKeep(); summaryAt = 0; } }
+      else if(a === "gedit2"){ const g = await api("GET", "/goals/" + id); sheet = { kind:"goal", edit:g }; openSheet(formFor("goal", g)); }   // the list's goal lacks the "why" / minutes: edit the full one
+      else if(a === "addnew"){ addForTab(); }
       else if(a === "hlog"){ const n = +el.dataset.n; const h = findHabit(id); const same = h && h.count_today === n; await api("PUT", "/habits/" + id + "/log", { count: same ? Math.max(0, n - 1) : n }); await refreshKeep(); summaryAt = 0; }
       else if(a === "habit"){ const h = findHabit(id); if(h){ sheet = { kind:"habit", edit:h }; openSheet(formFor("habit", h)); } }
       else if(a === "goal"){ goalId = id; load(); }
@@ -9558,7 +9636,7 @@ const PL = (function(){
     return null;
   }
   function findHabit(id){ for(const p of [D.habits, D.today && D.today.habits]) for(const h of (p || [])) if(h.id === id) return h; return null; }
-  function findRem(id){ for(const p of [D.rem, D.today && D.today.reminders]) for(const r of (p || [])) if(r.id === id) return r; return null; }
+  function findRem(id){ for(const p of [D.rem, D.today && D.today.reminders, D.today && D.today.reminders_done]) for(const r of (p || [])) if(r.id === id) return r; return null; }
 
   /* ---------- the in-app reminder card, the bell, polling ---------- */
   function paintBell(){
@@ -9643,7 +9721,7 @@ const PL = (function(){
   $("plBack").onclick = () => { if(tab === "settings") navTo(PATHS.today); else navTo("/"); };
   $("plBell").onclick = () => navTo(tab === "reminders" ? PATHS.today : PATHS.reminders);
   $("plGear").onclick = () => navTo(tab === "settings" ? PATHS.today : PATHS.settings);
-  $("plFab").onclick = () => { if(!D.goals){ api("GET", "/goals").then(r => { D.goals = r.goals; }).catch(() => {}); } sheetAdd(tab === "habits" ? "habit" : tab === "goals" && !goalId ? "goal" : tab === "reminders" ? "rem" : "task"); };
+  $("plFab").onclick = addForTab;
   if($("plHomeCard")) $("plHomeCard").onclick = () => navTo("/my-day");
   if($("mrowMyDay")) $("mrowMyDay").dataset.more = "myday";
 

@@ -41,14 +41,19 @@ async def _gate(authorization: str | None, token: str = "") -> tuple[dict, str, 
 
 
 async def _run(coro):
+    what = getattr(coro, "__qualname__", "") or "?"
     try:
         return await coro
     except svc.NotFound:
         raise HTTPException(404, "Not found")
     except svc.Invalid as e:
-        raise HTTPException(422, {"error": str(e.args[0]) if e.args else "invalid"})
+        code = str(e.args[0]) if e.args else "invalid"
+        print(f"[planner] 422 {what}: {code}")           # which rule refused it (never the learner's words) - a refused add used to be invisible in the log
+        raise HTTPException(422, {"error": code})
     except svc.LimitReached as e:
-        raise HTTPException(409, {"error": "limit_" + (str(e.args[0]) if e.args else "")})
+        code = str(e.args[0]) if e.args else ""
+        print(f"[planner] 409 {what}: limit_{code}")
+        raise HTTPException(409, {"error": "limit_" + code})
 
 
 def _int(v, default: int = 0) -> int:
@@ -216,7 +221,7 @@ async def due(token: str = "", authorization: str | None = Header(None)):
 @router.get("/reminders")
 async def reminders(view: str = "upcoming", token: str = "", authorization: str | None = Header(None)):
     _c, uid, _e = await _gate(authorization, token)
-    return await _run(svc.list_reminders(uid, "history" if view == "history" else "upcoming"))
+    return await _run(svc.list_reminders(uid, view if view in ("all", "history") else "upcoming"))
 
 
 @router.post("/reminders")
