@@ -96,15 +96,18 @@ FEATURES: list[dict] = [
      "hi": {"title": "Achievements",
             "desc": "तुम्हारे असली milestones के badges - पहली बातचीत, streaks, हिम्मत वाले पल।",
             "best": "किसके लिए: अपनी जीत को celebrate करना।"}},
-    # Not built (DUSU_GOALS_PLAN.md is a plan). Shown as "coming soon", never linked, and the model is told it does not exist.
-    {"id": "goals_planning", "icon": "✅", "route": None, "status": "soon", "needs": None, "group": "soon",
-     "en": {"title": "Goals & Daily Planning",
-            "desc": "Daily tasks, habits and reminders that keep you on track.",
-            "best": "Coming soon.",
-            "say": "saved daily tasks, goals with tasks, habits and reminders"},
-     "hi": {"title": "Goals & Daily Planning",
-            "desc": "रोज़ के tasks, habits और reminders, जो तुम्हें track पर रखें।",
-            "best": "जल्दी आ रहा है।"}},
+    # My Day (DUSU_GOALS_PLAN.md): the learner's tasks, routine, habits, goals and reminders. It exists only for learners who have the
+    # `planner` switch; for everyone else it is honestly "coming soon" (shown without a link, and the model is told it does not exist).
+    {"id": "goals_planning", "icon": "✅", "route": "/my-day", "status": "live", "needs": "planner", "soon_if_off": True, "group": "main",
+     "en": {"title": "My Day",
+            "desc": "Your tasks, daily routine, habits and goals in one place, with reminders at the right time. DuSu can see your plan, so you can just ask her what is on today.",
+            "best": "Best for: planning your day and not forgetting what matters.",
+            "soon": "Coming soon.",
+            "say": "their own tasks, daily routine, habits, goals and reminders (My Day) - DuSu can read the plan but cannot change it from a chat"},
+     "hi": {"title": "My Day",
+            "desc": "तुम्हारे tasks, daily routine, habits और goals एक जगह, सही वक़्त पर reminders के साथ। DuSu तुम्हारा plan देख सकती है, तो बस उससे पूछ लो कि आज क्या है।",
+            "best": "किसके लिए: अपना दिन plan करना और ज़रूरी चीज़ें न भूलना।",
+            "soon": "जल्दी आ रहा है।"}},
 ]
 
 # Shown on the page too (never offered as a chip): the Know About page itself.
@@ -131,8 +134,11 @@ def available(flags: dict | None = None) -> list[dict]:
     return [x for x in FEATURES if x["status"] == "live" and (not x["needs"] or f.get(x["needs"]))]
 
 
-def upcoming() -> list[dict]:
-    return [x for x in FEATURES if x["status"] == "soon"]
+def upcoming(flags: dict | None = None) -> list[dict]:
+    """Features shown as "coming soon": the ones not built at all, plus a feature that exists but is not switched on for THIS learner and
+    is marked `soon_if_off` (My Day). A dark feature without that mark (the Practice Room) is simply absent - never advertised early."""
+    f = _flags(flags)
+    return [x for x in FEATURES if x["status"] == "soon" or (x.get("soon_if_off") and x["needs"] and not f.get(x["needs"]))]
 
 
 def tiles(flags: dict | None = None) -> list[dict]:
@@ -172,12 +178,13 @@ def page(flags: dict | None, lang: str) -> dict:
     """GET /home/features: everything the Know About page draws, for this learner, in their language."""
     lg = "en" if lang == "en" else "hi"
 
-    def card(x: dict) -> dict:
+    def card(x: dict, soon: bool = False) -> dict:
         c = x[lg]
-        return {"id": x["id"], "icon": x["icon"], "title": c["title"], "desc": c["desc"], "best": c["best"],
-                "status": x["status"], "route": x["route"] if x["status"] == "live" else None, "group": x["group"]}
+        return {"id": x["id"], "icon": x["icon"], "title": c["title"], "desc": c["desc"], "best": (c.get("soon") or c["best"]) if soon else c["best"],
+                "status": "soon" if soon else x["status"], "route": None if soon else (x["route"] if x["status"] == "live" else None),
+                "group": "soon" if soon else x["group"]}
     return {"lang": lg,
-            "features": [card(x) for x in available(flags)] + [card(x) for x in upcoming()],
+            "features": [card(x) for x in available(flags)] + [card(x, True) for x in upcoming(flags)],
             "how": [{"title": t, "text": d} for t, d in HOW_IT_WORKS[lg]]}
 
 
@@ -200,7 +207,7 @@ def catalog(flags: dict | None) -> str:
     for x in available(flags):
         lines.append(f"- {x['id']}: {x['en']['title']} - {x['en']['say']}")
     lines.append(f"- {ABOUT['id']}: Know About DuSu - a page that explains everything DuSu can do")
-    soon = upcoming()
+    soon = upcoming(flags)
     if soon:
         lines.append("NOT AVAILABLE YET (no id; if asked, say honestly that it is coming and does not exist today; "
                      "never pretend, never promise a date): "

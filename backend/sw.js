@@ -2,7 +2,7 @@
    Network-first for navigations (always try fresh HTML so deploys show up),
    falling back to cache when offline. WebSocket + API calls are never cached. */
 
-const CACHE = "dusu-v22";   // bumped: language scope (old features pinned) + Home feature icons (v21: Home 2.0; v19: "DuSu knows your progress" switch, v18: Practice Room)
+const CACHE = "dusu-v23";   // bumped: My Day (v22: language scope (old features pinned) + Home feature icons; v21: Home 2.0; v19: "DuSu knows your progress" switch, v18: Practice Room)
 const SHELL = ["/", "/logo.png", "/manifest.webmanifest"];
 // Cache-first is now an ALLOWLIST, not a denylist — every new authenticated GET
 // endpoint added to main.py is safe by default instead of needing a matching
@@ -63,4 +63,42 @@ self.addEventListener("fetch", (event) => {
       }).catch(() => hit)
     )
   );
+});
+
+/* ---------- My Day reminders (Web Push) ----------
+   The server sends an encrypted message; `data.act` carries single-purpose, signed, 24-hour tokens so the notification's buttons (Done / Later /
+   Skip) can act with NO login - a service worker cannot read the app's session. If a DuSu window is visible the in-app reminder card already shows
+   it, so no second alert is raised: the window is just told to refresh. Push is opt-in and best-effort; the in-app card is the guaranteed channel. */
+self.addEventListener("push", (event) => {
+  let d = {};
+  try { d = event.data ? event.data.json() : {}; } catch (_) {}
+  event.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    wins.forEach((w) => { try { w.postMessage({ type: "pl-due" }); } catch (_) {} });
+    if (wins.some((w) => w.visibilityState === "visible")) return;
+    await self.registration.showNotification(d.title || "DuSu", {
+      body: d.body || "", tag: d.tag || "dusu-reminder", data: d.data || {}, actions: (d.actions || []).slice(0, 3),
+      icon: "/logo.png", badge: "/logo.png",
+    });
+  })());
+});
+
+self.addEventListener("notificationclick", (event) => {
+  const n = event.notification, data = n.data || {}, action = event.action;
+  n.close();
+  event.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    if (action && data.act && data.act[action]) {                         // a button: do exactly that one thing
+      try {
+        await fetch("/planner/r/act", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ t: data.act[action] }) });
+      } catch (_) {}
+      wins.forEach((w) => { try { w.postMessage({ type: "pl-due" }); } catch (_) {} });
+      return;
+    }
+    const url = data.url || "/my-day";                                    // the body: open My Day
+    for (const w of wins) {
+      if ("focus" in w) { await w.focus(); try { w.postMessage({ type: "pl-open", url }); } catch (_) {} return; }
+    }
+    if (self.clients.openWindow) await self.clients.openWindow(url);
+  })());
 });

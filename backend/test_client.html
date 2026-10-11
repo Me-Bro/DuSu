@@ -2014,6 +2014,118 @@
   .lg-row[hidden]{ display:none; }
   /* Devanagari carries its marks above and below the line: give the Home chat (the only Hindi surface in a shared screen) room so matras are never clipped */
   #session.hm-chat .bubble, #session.hm-chat .sysmsg, #session.hm-chat .state-label{ line-height:1.55; }
+
+  /* ───── MY DAY (tasks · habits · goals · reminders) — every class is pl-* so nothing here can collide with an old screen ───── */
+  #pl{ padding-bottom:18px; }
+  .pl-top{ flex-wrap:wrap; }
+  .pl-top .pl-gap{ flex:1; }
+  .pl-ic{ position:relative; font:inherit; font-size:18px; width:44px; height:44px; border-radius:14px; cursor:pointer; flex:none;
+    background:var(--glass); border:1px solid var(--glass-brd); color:var(--ink); }
+  .pl-ic.on{ border-color:var(--gold); background:rgba(111,140,255,.18); }
+  .pl-badge{ position:absolute; top:-5px; right:-5px; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--amber);
+    color:#241a08; font-size:11px; font-weight:700; line-height:18px; text-align:center; }
+  .pl-lgrow{ display:flex; justify-content:flex-end; margin:2px 0 0; }
+  .pl-tabs{ display:flex; gap:6px; margin:12px 0 4px; overflow-x:auto; scrollbar-width:none; }
+  .pl-tabs::-webkit-scrollbar{ display:none; }
+  .pl-tab{ flex:1 0 auto; min-height:44px; padding:0 16px; font:inherit; font-size:14px; font-weight:600; border-radius:999px; cursor:pointer;
+    background:var(--glass); border:1px solid var(--glass-brd); color:var(--ink-dim); }
+  .pl-tab.on{ background:linear-gradient(135deg,rgba(111,140,255,.3),rgba(122,92,240,.2)); border-color:var(--gold); color:var(--ink); }
+  .pl-body{ margin-top:10px; padding-bottom:88px; }
+  .pl-hello{ font-family:var(--font-d); font-size:24px; font-weight:600; line-height:1.2; margin:6px 2px 2px; }
+  .pl-sum{ font-size:13.5px; color:var(--ink-dim); margin:0 2px 14px; }
+  .pl-sec{ display:flex; align-items:center; justify-content:space-between; font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--ink-faint); margin:18px 3px 8px; }
+  .pl-card{ background:var(--glass); border:1px solid var(--glass-brd); border-radius:18px; padding:6px 14px; }
+  .pl-card.pad{ padding:14px; }
+  .pl-row{ display:flex; gap:12px; align-items:flex-start; padding:11px 0; border-bottom:1px solid rgba(255,255,255,.06); }
+  .pl-row:last-child{ border-bottom:none; }
+  .pl-chk{ position:relative; flex:none; width:44px; height:44px; margin:-7px -7px -7px -9px; background:none; border:none; cursor:pointer; color:#241a08; }
+  .pl-chk::before{ content:""; position:absolute; inset:7px 7px 7px 9px; border-radius:50%; border:2px solid var(--ink-faint); background:transparent; }
+  .pl-chk.done::before{ background:var(--green); border-color:var(--green); }
+  .pl-chk.skip::before{ border-style:dashed; }
+  .pl-chk span{ position:relative; font-size:15px; font-weight:800; line-height:44px; display:block; }
+  .pl-main{ flex:1; min-width:0; text-align:left; font:inherit; color:inherit; background:none; border:none; cursor:pointer; padding:0; }
+  .pl-row .pl-main, .pl-hhead .pl-main{ min-height:44px; display:flex; flex-direction:column; justify-content:center; }
+  .pl-lgrow .lg-sw button{ min-height:40px; }
+  .pl-ttl{ font-size:15px; line-height:1.35; color:var(--ink); word-break:break-word; }
+  .pl-ttl.done{ color:var(--ink-faint); text-decoration:line-through; text-decoration-color:rgba(255,255,255,.3); }
+  .pl-meta{ display:flex; flex-wrap:wrap; gap:6px; margin-top:5px; align-items:center; }
+  .pl-chip{ font-size:11.5px; padding:2px 9px; border-radius:999px; background:rgba(255,255,255,.06); color:var(--ink-dim); white-space:nowrap; }
+  .pl-chip.amber{ background:rgba(240,169,82,.16); color:var(--amber); }
+  .pl-chip.green{ background:rgba(79,214,160,.14); color:var(--green); }
+  .pl-chip.gold{ background:rgba(111,140,255,.16); color:var(--gold-lt); }
+  .pl-chip.hi{ background:rgba(224,138,122,.14); color:#f2c4ba; }
+  .pl-trig{ margin-top:7px; font:inherit; font-size:13px; font-weight:600; min-height:36px; padding:0 14px; border-radius:999px; cursor:pointer;
+    background:rgba(111,140,255,.16); border:1px solid color-mix(in srgb,var(--gold) 45%,transparent); color:var(--ink); }
+  .pl-empty{ text-align:center; color:var(--ink-faint); font-size:13.5px; line-height:1.55; padding:22px 14px; }
+  .pl-chips{ display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 4px; }
+  .pl-fchip{ font:inherit; font-size:13px; min-height:38px; padding:0 14px; border-radius:999px; cursor:pointer; background:var(--glass);
+    border:1px solid var(--glass-brd); color:var(--ink-dim); }
+  .pl-fchip.on{ background:linear-gradient(135deg,rgba(111,140,255,.3),rgba(122,92,240,.2)); border-color:var(--gold); color:var(--ink); }
+  .pl-remcard{ border:1px solid color-mix(in srgb,var(--amber) 55%,transparent); background:rgba(240,169,82,.08); border-radius:18px; padding:13px 14px; margin-bottom:10px; text-align:left; }
+  .pl-remcard .pl-k{ font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--amber); }
+  .pl-remcard .pl-ttl{ font-size:16px; margin:3px 0 10px; }
+  .pl-acts{ display:flex; flex-wrap:wrap; gap:8px; }
+  .pl-act{ flex:1 1 0; min-width:84px; min-height:44px; font:inherit; font-size:14px; font-weight:600; border-radius:12px; cursor:pointer;
+    background:var(--glass); border:1px solid var(--glass-brd); color:var(--ink); }
+  .pl-act.go{ background:var(--grad); color:#241a08; border-color:transparent; }
+  .pl-bar{ height:8px; border-radius:6px; background:rgba(255,255,255,.08); overflow:hidden; margin:8px 0 4px; }
+  .pl-bar i{ display:block; height:100%; border-radius:6px; background:var(--grad); }
+  .pl-gcard{ display:block; width:100%; text-align:left; font:inherit; color:inherit; cursor:pointer; background:var(--glass);
+    border:1px solid var(--glass-brd); border-radius:18px; padding:14px; margin-bottom:10px; }
+  .pl-gcard .pl-ttl{ font-family:var(--font-d); font-size:19px; font-weight:600; }
+  .pl-habit{ background:var(--glass); border:1px solid var(--glass-brd); border-radius:18px; padding:13px 14px; margin-bottom:10px; }
+  .pl-hhead{ display:flex; align-items:center; gap:10px; }
+  .pl-hhead .pl-main{ flex:1; }
+  .pl-glasses{ display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 2px; align-items:center; }
+  .pl-gl{ width:40px; height:40px; border-radius:50%; cursor:pointer; font:inherit; font-size:13px; font-weight:700; color:var(--ink-dim);
+    background:rgba(255,255,255,.05); border:2px solid var(--ink-faint); }
+  .pl-gl.on{ background:var(--green); border-color:var(--green); color:#241a08; }
+  .pl-gl:disabled{ opacity:.5; cursor:default; }
+  .pl-dots{ display:flex; gap:4px; margin-top:9px; }
+  .pl-dot{ width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,.12); }
+  .pl-dot.done{ background:var(--green); } .pl-dot.partial{ background:var(--amber); } .pl-dot.missed{ background:rgba(255,255,255,.28); }
+  .pl-dot.skipped{ background:transparent; box-shadow:inset 0 0 0 1.5px var(--ink-faint); } .pl-dot.off{ opacity:.25; } .pl-dot.open{ box-shadow:inset 0 0 0 1.5px var(--gold); background:transparent; }
+  .pl-note{ font-size:12.5px; color:var(--ink-faint); line-height:1.5; margin:6px 2px; }
+  .pl-fabwrap{ position:fixed; right:16px; bottom:96px; z-index:30; pointer-events:none; }   /* placeFab() puts it at the content column's corner, above the bottom nav when there is one */
+  .pl-fab{ pointer-events:auto; width:58px; height:58px; border-radius:50%; font:inherit; font-size:30px; line-height:1; cursor:pointer; border:none;
+    background:var(--grad); color:#241a08; box-shadow:var(--gold-glow); }
+  .pl-sheet-bg{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:70; }
+  .pl-sheet{ position:fixed; left:50%; transform:translateX(-50%); bottom:0; width:100%; max-width:440px; max-height:90vh; max-height:90dvh; overflow-y:auto;
+    z-index:71; background:linear-gradient(180deg,#121a33,#0b1020); border:1px solid var(--glass-brd); border-bottom:none; border-radius:24px 24px 0 0;
+    padding:16px 18px calc(24px + env(safe-area-inset-bottom)); box-shadow:0 -20px 60px -10px rgba(0,0,0,.8); }
+  .pl-sheet h3{ font-family:var(--font-d); font-size:22px; font-weight:600; margin:0 0 12px; }
+  .pl-grip{ width:44px; height:4px; border-radius:2px; background:rgba(255,255,255,.2); margin:0 auto 12px; }
+  .pl-f{ margin:0 0 14px; }
+  .pl-f > label, .pl-lab{ display:block; font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-faint); margin:0 0 7px 2px; }
+  .pl-in{ width:100%; min-height:46px; font:inherit; font-size:15px; color:var(--ink); padding:11px 14px; border-radius:14px; color-scheme:dark;
+    background:rgba(255,255,255,.05); border:1px solid var(--glass-brd); outline:none; }
+  .pl-in:focus{ border-color:var(--gold); box-shadow:0 0 0 3px rgba(111,140,255,.2); }
+  textarea.pl-in{ min-height:72px; resize:vertical; }
+  .pl-two{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .pl-sw{ display:flex; align-items:center; gap:12px; font-size:14px; color:var(--ink-dim); line-height:1.4; margin:0 0 14px; cursor:pointer; min-height:44px; }
+  .pl-sw input{ flex:none; }
+  .pl-cb{ -webkit-appearance:none; appearance:none; width:26px; height:26px; flex:none; border-radius:8px; cursor:pointer; display:inline-grid; place-content:center;
+    background:rgba(255,255,255,.05); border:2px solid var(--ink-faint); }
+  .pl-cb:checked{ background:var(--gold); border-color:var(--gold); }
+  .pl-cb:checked::after{ content:"✓"; color:#fff; font-size:17px; font-weight:800; line-height:1; }
+  .pl-cb:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:2px; }
+  .pl-foot{ display:flex; flex-wrap:wrap; gap:10px; margin-top:8px; }
+  .pl-foot .btn{ flex:1 1 140px; }
+  .pl-err{ color:#f2c4ba; font-size:13px; margin:0 0 10px; }
+  .pl-ms{ display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.06); }
+  .pl-set{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 0; border-bottom:1px solid rgba(255,255,255,.06); font-size:14px; }
+  .pl-set:last-child{ border-bottom:none; }
+  .pl-set small{ display:block; color:var(--ink-faint); font-size:12px; line-height:1.4; margin-top:2px; }
+  .pl-set select, .pl-set input[type=time], .pl-set input[type=number]{ min-height:40px; font:inherit; color:var(--ink); background:rgba(255,255,255,.05);
+    border:1px solid var(--glass-brd); border-radius:10px; padding:0 8px; color-scheme:dark; }
+  .pl-banner{ position:fixed; top:8px; left:50%; transform:translateX(-50%); width:min(424px,calc(100% - 16px)); z-index:68;
+    background:linear-gradient(180deg,#1a2342,#10172f); border:1px solid color-mix(in srgb,var(--amber) 60%,transparent); border-radius:18px;
+    padding:12px 14px; box-shadow:0 20px 50px -10px rgba(0,0,0,.85); }
+  .pl-more{ margin-top:8px; width:100%; min-height:40px; font:inherit; font-size:13px; cursor:pointer; background:none; border:1px dashed var(--glass-brd); border-radius:12px; color:var(--ink-dim); }
+  .pl-banner .pl-x{ position:absolute; top:4px; right:4px; width:36px; height:36px; font:inherit; font-size:16px; background:none; border:none; color:var(--ink-faint); cursor:pointer; }
+  .pl-banner .pl-remcard{ border:none; background:none; padding:0; margin:0; }
+  @media (prefers-reduced-motion: reduce){ .pl-sheet, .pl-banner{ animation:none !important; transition:none !important; } }
 </style>
 </head>
 <body>
@@ -2183,6 +2295,11 @@
     <button class="pr-entry" id="prHomeCard" hidden>
       <span class="pr-ic">🎤</span>
       <span><b>Presentation coming up?</b><small>Practise it today in Practice Room — get a scored report.</small></span>
+      <span class="pr-go">→</span>
+    </button>
+    <button class="pr-entry" id="plHomeCard" hidden>
+      <span class="pr-ic">✅</span>
+      <span><b id="plHomeT">My Day</b><small id="plHomeS">Tasks, habits, goals and reminders</small></span>
       <span class="pr-go">→</span>
     </button>
     <div id="letterCard" class="letter-card" hidden></div>
@@ -3157,6 +3274,20 @@
       <button class="btn primary" id="srDone" style="width:100%">Continue</button>
     </div>
   </section>
+
+  <!-- ===================== MY DAY (tasks / habits / goals / reminders) - shown only when /me says `planner` ===================== -->
+  <section id="pl" class="screen">
+    <div class="sess-head pl-top">
+      <button class="back" id="plBack" title="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+      <div><div class="sess-title" id="plTitle">My Day</div><div class="sess-sub" id="plSub"></div></div>
+      <span class="pl-gap"></span>
+      <button class="pl-ic" id="plBell" aria-label="Reminders">🔔<span class="pl-badge" id="plBellN" hidden></span></button>
+      <button class="pl-ic" id="plGear" aria-label="Settings">⚙️</button>
+    </div>
+    <div class="pl-lgrow" id="plLg" hidden></div>
+    <div class="pl-tabs" id="plTabs" role="tablist"></div>
+    <div class="pl-body" id="plBody" aria-live="polite"></div>
+  </section>
 </div>
 
 <!-- ===================== BOTTOM NAV + MORE SHEET ===================== -->
@@ -3164,6 +3295,7 @@
 <div class="msheet" id="msheet">
   <h3>More</h3>
   <button class="mrow" data-more="admin" id="mrowAdmin" hidden><span class="mi">📊</span><span><span class="mt">Dashboard</span><br><span class="msub">Users &amp; activity (owner)</span></span></button>
+  <button class="mrow" data-more="myday" id="mrowMyDay" hidden><span class="mi">✅</span><span><span class="mt">My Day</span><br><span class="msub">Tasks, habits, goals &amp; reminders</span></span></button>
   <button class="mrow" data-more="profile"><span class="mi">👤</span><span><span class="mt">Profile</span><br><span class="msub">Streaks, badges, memories</span></span></button>
   <button class="mrow" data-more="keys"><span class="mi">🔑</span><span><span class="mt">DuSu keys / Mode</span><br><span class="msub">Personal or Office (own keys)</span></span></button>
   <button class="mrow" data-more="leveltest" id="mrowLevelTest"><span class="mi">🧪</span><span><span class="mt">Level check</span><br><span class="msub">Re-check your English level</span></span></button>
@@ -3200,6 +3332,10 @@
   <button class="btab" data-tab="more"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg><span>More</span></button>
 </nav>
 
+<div class="pl-fabwrap" hidden><button class="pl-fab" id="plFab" aria-label="Add">＋</button></div>
+<div class="pl-banner" id="plBanner" hidden role="status"></div>
+<div class="pl-sheet-bg" id="plSheetBg" hidden></div>
+<div class="pl-sheet" id="plSheet" role="dialog" aria-modal="true" hidden></div>
 <div class="notif" id="notifBar" hidden><span id="notifTxt"></span><button id="notifX" aria-label="Dismiss">✕</button></div>
 
 <!-- Post-login gate: held up until we know whether this account needs keys / the level check -->
@@ -3607,6 +3743,7 @@ const LG = (function(){
     pills();                       // <html lang> and every old screen are deliberately left exactly as shipped
     if(currentScreen() === "session") applySession();
     try{ HM.render(); }catch(_){}  // Home greeting + chips + Know About follow the language
+    try{ window.PL && PL.onLang(); }catch(_){}   // My Day (a new feature) follows the same choice
   }
 
   // A change while the Home companion chat is open: tell the server, stop what is in flight in the OLD language, say so, and carry on in the
@@ -3718,13 +3855,15 @@ function show(id, pathOverride){
   try{ syncNav(id, pathOverride); }catch(_){}
   try{ syncUrl(id, pathOverride); }catch(_){}   // keep the browser URL mirroring the visible screen (override for shared screens)
   try{ window.PR && PR.syncEntries(); }catch(_){}   // Practice Room entry points (hidden until the owner switches it on)
+  try{ window.PL && PL.syncEntries(); }catch(_){}   // My Day entry points (hidden until the owner switches it on)
+  if(cur === "pl" && id !== "pl"){ try{ window.PL && PL.leave(); }catch(_){} }
 }
 // ---- Bottom navigation: which tab lights up per screen; nav hidden only on login/onboarding ----
 const NAV_TAB = { about:"home", home:"home", journey:"journey", daily:"daily", practice:"practice",
   learning:"practice", session:"practice", setup:"practice", lesson:"practice", report:"practice",
   leaderboard:"leaderboard", profile:"more", keys:"more", admin:"more", help:"more", career:"home", league:"leaderboard", achievements:"more", interviewReports:"more",
-  prHub:"practice", prSetup:"practice", prTalk:"practice", prLive:"practice", prWork:"practice", prReport:"practice", prBridge:"practice" };
-const PATH_TAB = { "/profile":"more", "/keys":"more", "/more":"more" };
+  prHub:"practice", prSetup:"practice", prTalk:"practice", prLive:"practice", prWork:"practice", prReport:"practice", prBridge:"practice", pl:"more" };
+const PATH_TAB = { "/profile":"more", "/keys":"more", "/more":"more", "/my-day":"more", "/my-day/tasks":"more", "/my-day/goals":"more", "/my-day/habits":"more", "/my-day/reminders":"more", "/my-day/settings":"more" };
 function syncNav(id, pathOverride){
   const nav = $("bnav"); if(nav) nav.classList.toggle("hide", id === "login" || id === "assessment");
   const t = (pathOverride && PATH_TAB[pathOverride]) || (id === "session" && currentMode === "home" ? "home" : NAV_TAB[id]);
@@ -3759,6 +3898,7 @@ function openMore(){
   document.querySelectorAll(".btab").forEach(x=>x.classList.remove("active"));
   const b = document.querySelector('.btab[data-tab="more"]'); if(b) b.classList.add("active");
   const ad = $("mrowAdmin"); if(ad) ad.hidden = !(userState && userState.role === "owner");
+  try{ window.PL && PL.syncEntries(); }catch(_){}   // My Day row (hidden unless /me says planner)
   // Level check hidden entirely while the owner has the assessment switched off.
   const lt = $("mrowLevelTest"); if(lt) lt.hidden = !!(userState && userState.level_test === false);
   // Keys row: office-approved users, users who must BYOK, and anyone already holding
@@ -3776,6 +3916,7 @@ document.querySelectorAll(".mrow").forEach(r => r.onclick = () => {
   else if(a === "admin") openAdmin();
   else if(a === "help") openHelp();
   else if(a === "confidence") startConfidenceCheck();
+  else if(a === "myday") navTo("/my-day");
   else if(a === "achievements") navTo("/achievements");
   else if(a === "interview-reports") navTo("/interview-reports");
   else if(a === "rewards") toggleRewardsGuide(true);
@@ -3868,6 +4009,7 @@ function pathForScreen(id){
     interviewReports:"/interview-reports", about:"/about",
     // every Practice Room screen shares one URL: a reload mid-take can't resume a live recording anyway, so it lands on the hub
     prHub:"/practice-room", prSetup:"/practice-room", prTalk:"/practice-room", prLive:"/practice-room", prWork:"/practice-room", prReport:"/practice-room", prBridge:"/practice-room",
+    pl:(window.PL && PL.path()) || "/my-day",
     superadmin:"/superadmin", subscribe:"/subscribe", login:"/", assessment:"/test" })[id] || null;
 }
 function syncUrl(id, pathOverride){
@@ -4217,6 +4359,9 @@ async function openAdmin(){
       <select class="pr-sel" id="bilSel"><option value="off" ${d.bilingual === "off" ? "selected" : ""}>Off</option><option value="owner" ${d.bilingual === "on" || d.bilingual === "off" ? "" : "selected"}>Owner only</option><option value="on" ${d.bilingual === "on" ? "selected" : ""}>Everyone</option></select></label>
       <label class="swrow"><span><b>Home AI companion</b><br><span class="msub">Home becomes "DuSu first": a Hinglish greeting, Start Speaking opens the AI companion (Daily Talk stays its own tab) and a Know About DuSu page. Off = Home is exactly as before. Owner only = just you (default). Everyone = all users. Its answers about progress also need "DuSu knows your progress" above.</span></span>
       <select class="pr-sel" id="homeSel"><option value="off" ${d.home_ai === "off" ? "selected" : ""}>Off</option><option value="owner" ${d.home_ai === "on" || d.home_ai === "off" ? "" : "selected"}>Owner only</option><option value="on" ${d.home_ai === "on" ? "selected" : ""}>Everyone</option></select></label>
+      <label class="swrow"><span><b>My Day (tasks · habits · goals · reminders)</b><br><span class="msub">Stores each learner's plan and sends reminders, so it ships dark. Off = nobody (default). Owner only = just you. Everyone = all users. Its Hindi / English switch is the one above.</span></span>
+      <select class="pr-sel" id="plSel"><option value="off" ${d.planner === "on" || d.planner === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.planner === "owner" ? "selected" : ""}>Owner only</option><option value="on" ${d.planner === "on" ? "selected" : ""}>Everyone</option></select></label>
+      ${d.planner_health ? `<p class="keys-note" style="margin:-4px 0 8px">Reminders: ${d.planner_health.scheduled} waiting · ${d.planner_health.queue_late} late · ${d.planner_health.sending_stuck} stuck · sent in 24 h ${d.planner_health.sent_24h} (push accepted ${d.planner_health.push_accepted_24h}, failed ${d.planner_health.push_failed_24h}) · ${d.planner_health.push_devices} device(s) · push ${d.planner_health.push_available ? "available" : "UNAVAILABLE (library missing)"}${d.planner_health.last_error ? " · last loop error: " + esc(d.planner_health.last_error) : ""}</p>` : ""}
       <button class="uBtn bad" id="wipeBtn" style="width:100%;margin:2px 0 4px">🗑 Reset test users</button>`;
     h += `<div class="admin-head">Android app link</div><div id="alBox"><div class="spin" style="margin:12px auto"></div></div>`;
     // Office allowlist. NOTE: is_office() in main.py means "must BYOK", NOT free
@@ -4321,9 +4466,10 @@ function wireOffice(){
     const lcx = ($("lifeSel") && $("lifeSel").value) || undefined;   // undefined = leave the server value alone
     const bil = ($("bilSel") && $("bilSel").value) || undefined;
     const hom = ($("homeSel") && $("homeSel").value) || undefined;
+    const pln = ($("plSel") && $("plSel").value) || undefined;
     try{ await fetch("/admin/settings",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({token:authToken, access_phase: growth ? "growth" : "quota",
-                           level_test: lvl, owner_byok: obk, practice_room: prm, life_context: lcx, bilingual: bil, home_ai: hom})}); }catch(_){}
+                           level_test: lvl, owner_byok: obk, practice_room: prm, life_context: lcx, bilingual: bil, home_ai: hom, planner: pln})}); }catch(_){}
   };
   if($("reqKeysSw")) $("reqKeysSw").onchange = saveSettings;
   if($("lvlTestSw")) $("lvlTestSw").onchange = saveSettings;
@@ -4332,6 +4478,7 @@ function wireOffice(){
   if($("lifeSel")) $("lifeSel").onchange = saveSettings;
   if($("bilSel")) $("bilSel").onchange = saveSettings;
   if($("homeSel")) $("homeSel").onchange = saveSettings;
+  if($("plSel")) $("plSel").onchange = saveSettings;
   if($("wipeBtn")) $("wipeBtn").onclick = async () => {
     if(!confirm("Delete ALL users except david, shuhani & free-access emails? This cannot be undone.")) return;
     try{ const r = await fetch("/admin/wipe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:authToken})});
@@ -7204,6 +7351,7 @@ function speakWelcome(){
 
 function logout(){
   authToken = ""; authUser = null; aActive = false; try{ LG.clear(); }catch(_){}   // the language choice belongs to the account, not the device
+  try{ window.PL && PL.reset(); }catch(_){}   // My Day: stop polling, drop the cached plan
   localStorage.removeItem("dusu_token"); localStorage.removeItem("dusu_user"); localStorage.removeItem("dusu_state"); localStorage.removeItem("dusu_letter"); localStorage.removeItem("dusu_daily_resume"); localStorage.removeItem("dusu_keys_ok"); localStorage.removeItem("dusu_office_keys"); localStorage.removeItem("dusu_keys_owner");
   $("hdrRight").hidden = true; $("tagline").style.display = "";
   try{ ws && ws.close(); }catch(_){}
@@ -7283,6 +7431,7 @@ function refreshMe(initial){
       userState = st;   // full state incl. today / growth / opening / recommendations + access/quota
       try{ LG.syncFromState(); }catch(_){}   // Hindi/English choice (server-saved, default Hindi) + show/hide the switch
       try{ window.PR && PR.syncEntries(); }catch(_){}   // the owner may have just switched Practice Room on/off
+      try{ if(window.PL){ PL.syncEntries(); if(PL.enabled()) PL.start(); } }catch(_){}   // My Day: entry points + the in-app reminder poll
       localStorage.setItem("dusu_onboarded", st.onboarded ? "true" : "false");
       // cache the whole state so the next boot paints mood/note/Continue instantly (no /me wait)
       try{ localStorage.setItem("dusu_state", JSON.stringify(st)); }catch(_){}
@@ -8433,7 +8582,8 @@ const HM = (function(){
     practice_room: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/>',
     career_path:   '<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>',
     league:        '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
-    achievements:  '<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>'
+    achievements:  '<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>',
+    goals_planning:'<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>'
   };
   function renderFeats(){
     const nav = $("hmFeats"); if(!nav) return;
@@ -8679,6 +8829,723 @@ const HM = (function(){
            delight: () => T[lang()].delight };
 })();
 window.HM = HM;
+
+/* ================= MY DAY - tasks, habits, goals, reminders (DUSU_GOALS_PLAN.md · DUSU_ALL_FEATURES_PLAN.md W3) =================
+   One screen (#pl) with Today / Tasks / Goals / Habits tabs, a bell (Reminders) and a gear (Settings), an Add sheet (＋), and an in-app reminder
+   card that shows on ANY screen while the app is open (the guaranteed channel - push is a bonus the learner opts into). Entry points exist only
+   when /me says `planner`: until then nothing in the page changes. It is a NEW feature, so it follows the Hindi / English choice (Hindi until
+   the learner picks; their own task titles are never translated). Every class is pl-* and every id #pl*, so nothing collides with old screens. */
+const PL = (function(){
+  "use strict";
+  const API = "/planner";
+  const PATHS = { today:"/my-day", tasks:"/my-day/tasks", goals:"/my-day/goals", habits:"/my-day/habits", reminders:"/my-day/reminders", settings:"/my-day/settings" };
+  const TABS = ["today", "tasks", "goals", "habits"];
+
+  /* ---------- words (Hindi = Devanagari with everyday English words in Latin; DuSu is "she"; the learner's gender is never assumed) ---------- */
+  const TXT = {
+    en: {
+      title:"My Day", sub:"Tasks, habits, goals & reminders", back:"Back", add:"Add", bell:"Reminders", gear:"Settings", close:"Close", loading:"Loading…",
+      tToday:"Today", tTasks:"Tasks", tGoals:"Goals", tHabits:"Habits",
+      gm:"Good morning", ga:"Good afternoon", ge:"Good evening", gn:"Hi",
+      sumLeft:"{n} left today", sumLeft1:"1 left today", sumNone:"Nothing left for today", sumEmpty:"Nothing planned yet", sumHabits:"{a} of {b} habits", sumOver:"{n} overdue",
+      secDue:"Reminders for you", secPrio:"Today's priorities", secToday:"Also today", secOver:"Needs a new plan", secDone:"Done today", secHabits:"Habits", secGoals:"Goals",
+      emptyToday:"Nothing planned for today. Tap ＋ and add one small thing.", ask:"Ask DuSu about my day", askText:"What is on my plate today?",
+      tzBanner:"Your phone is on {dev}, but My Day is set to {cur}.", tzUse:"Use {dev}", tzKeep:"Keep {cur}",
+      vToday:"Today", vUpcoming:"Upcoming", vOverdue:"Overdue", vInbox:"No date", vDone:"Done", vRepeat:"Repeating",
+      emptyList:"Nothing here yet.", emptyTasks:"No tasks here. Tap ＋ to add one.", emptyGoals:"No goals yet. A goal is something bigger - tap ＋ and give it a first small step.",
+      emptyHabits:"No habits yet. Tap ＋ to start a small daily one.", emptyRem:"No reminders.", emptyDone:"Nothing finished in the last two weeks yet.",
+      stOver:"Overdue", stSoon:"Due soon", stSnooze:"Snoozed", pinned:"Pinned", rescheduled:"Moved", dToday:"Today", dTomorrow:"Tomorrow", dYesterday:"Yesterday", noDate:"No date",
+      newTask:"New task", editTask:"Edit task", newHabit:"New habit", editHabit:"Edit habit", newGoal:"New goal", editGoal:"Edit goal", newRem:"New reminder",
+      kTask:"Task", kHabit:"Habit", kGoal:"Goal", kRem:"Reminder",
+      fTitle:"What needs doing?", fNotes:"Notes (optional)", fDate:"Date", fTime:"Time", fPrio:"Priority", pLow:"Low", pNorm:"Normal", pHigh:"High", fMin:"Minutes it takes (optional)",
+      fRemind:"Remind me", rNone:"No reminder", rAtDue:"At the time", r15:"15 min before", r60:"1 hour before", rCustom:"At another time", fRemindAt:"Reminder time",
+      fRepeat:"Repeat", repNone:"Does not repeat", repDaily:"Every day", repWeekly:"Every week", repMonthly:"Every month", fDays:"On which days",
+      fGoal:"Goal", noGoal:"Not part of a goal", fPin:"Pin to today", fWait:"Wait for my tap", fWaitHint:"Nothing happens until you tap the button on the task - then DuSu reminds you.",
+      fWaitLabel:"Button label (for example: Trading finished)", fFallback:"If I forget, remind me at (optional)",
+      hName:"Habit name", hTarget:"How many per day", hUnit:"Unit (glasses, pages, minutes…)", hDays:"Days", hDaily:"Every day", hTimes:"Reminder times (optional)", hAddTime:"Add a time", hPartial:"Partly done counts a little",
+      hCons:"{n}% of the last 14 days", hStreak:"{n}-day streak", hAuto:"Counted automatically from your speaking time with DuSu", hLogged:"{a} of {b}", hMin:"min",
+      gTitle:"Your goal", gWhy:"Why does it matter? (optional)", gTarget:"Target date (optional)", gMin:"Minutes a day (optional)", gMs:"Steps along the way (one per line)", gAddMs:"Add a step",
+      gProg:"{n}% done", gBehind:"about {n} days behind", gNext:"Next step: {t}", gTasks:"{o} open · {d} done", gPause:"Pause", gResume:"Resume", gDone:"Mark goal done", gReopen:"Reopen", gNoMs:"No steps yet.",
+      gPaused:"Paused", gFinished:"Finished", gAddTask:"Add a task for this goal",
+      fRTitle:"What should I remind you about?",
+      save:"Save", cancel:"Cancel", del:"Delete", delAsk:"Delete this? It cannot be undone.", skip:"Skip", reopen:"Reopen", done:"Done", later:"Later",
+      later30:"Later", moveDay:"Move to another day", trigger:"▶ {l}", edit:"Edit", repeats:"Repeats",
+      setTime:"Time and quiet hours", setTz:"Timezone", setTzAuto:"Use my phone's timezone", setQuiet:"Quiet hours", setQuietHint:"No reminders are sent in this window; they wait until it ends.", setFrom:"From", setTo:"To",
+      setRem:"Reminders", setFollow:"If I do nothing, remind me again", setFollowN:"{n} time(s)", setGap:"Wait before the next one", setSnooze:"\"Later\" snoozes for", setMin:"{n} min",
+      setPush:"Notifications when the app is closed", setPushOn:"Turn on notifications", setPushOff:"Turn off", setPushTest:"Send me a test reminder",
+      pushOn:"On for this phone", pushOff:"Off", pushDenied:"Blocked in your browser settings", pushNo:"This browser can't show notifications", pushAsk:"Not asked yet",
+      pushNote:"Reminders always appear inside DuSu. Notifications when the app is closed depend on your phone - some phones stop them to save battery. Use the test button to check.",
+      testSent:"A test reminder will arrive in about a minute.", testWait:"A test was just sent - wait a few minutes.",
+      setPriv:"Privacy", setHide:"Hide details on the lock screen", setHideHint:"Notifications will only say you have a reminder.",
+      setPause:"Pause everything", setPauseHint:"Stops all reminders. Your tasks and habits stay.", setEng:"Show the \"English practice (DuSu)\" habit", setEngTarget:"Daily speaking goal (minutes)",
+      setData:"Your data", setExport:"Download my data", setDelAll:"Delete all my My Day data", setDelAsk:"This permanently deletes every task, goal, habit and reminder in My Day. Continue?",
+      remsUp:"Coming up", remsHist:"History", remNext:"Next: {t}", remWaiting:"Waiting for your tap", remSent:"Sent", remDone:"Done", remSkipped:"Skipped", remExpired:"Missed", remKTest:"Test",
+      remKFollow:"Reminder", remStale:"Late - shown here only",
+      errLimit_tasks:"You have too many open tasks. Finish or delete a few first.", errLimit_goals:"You can keep 10 goals at a time.", errLimit_habits:"You can keep 30 habits.",
+      errLimit_pins:"You can pin 3 tasks a day.", errLimit_reminders:"Too many reminders for now.", errLimit_milestones:"That is the most steps a goal can have.", errLimit_test:"A test was just sent - wait a few minutes.",
+      errTitle:"Please write what it is.", errTime:"Please pick a valid time.", errPast:"That time has already passed.", errDate:"Please pick a valid date.", errTz:"That timezone is not valid.",
+      errNet:"No connection. Try again in a moment.", errGeneric:"Something went wrong. Please try again.", errOff:"My Day isn't available for this account.",
+      saved:"Saved", sheetClosed:"", moreDue:"+{n} more waiting - open My Day",
+      daysShort:["Mon","Tue","Wed","Thu","Fri","Sat","Sun"], dayN:"{n} day(s)"
+    },
+    hi: {
+      title:"My Day", sub:"Tasks, habits, goals और reminders", back:"वापस", add:"जोड़ो", bell:"Reminders", gear:"Settings", close:"बंद करो", loading:"लोड हो रहा है…",
+      tToday:"आज", tTasks:"Tasks", tGoals:"Goals", tHabits:"Habits",
+      gm:"Good morning", ga:"Good afternoon", ge:"Good evening", gn:"Hi",
+      sumLeft:"आज {n} बाक़ी हैं", sumLeft1:"आज 1 बाक़ी है", sumNone:"आज का सब हो गया", sumEmpty:"अभी कुछ plan नहीं है", sumHabits:"{b} में से {a} habits", sumOver:"{n} पिछले बाक़ी",
+      secDue:"तुम्हारे लिए reminders", secPrio:"आज की priorities", secToday:"आज और भी", secOver:"नया plan चाहिए", secDone:"आज हुए", secHabits:"Habits", secGoals:"Goals",
+      emptyToday:"आज के लिए कुछ plan नहीं है। ＋ दबाओ और एक छोटी सी चीज़ जोड़ो।", ask:"DuSu से मेरे दिन के बारे में पूछो", askText:"आज मेरे plan में क्या-क्या है?",
+      tzBanner:"तुम्हारा phone {dev} पर है, पर My Day {cur} पर सेट है।", tzUse:"{dev} पर करो", tzKeep:"{cur} ही रखो",
+      vToday:"आज", vUpcoming:"आगे", vOverdue:"बाक़ी", vInbox:"बिना date", vDone:"हो गए", vRepeat:"दोहराने वाले",
+      emptyList:"यहाँ अभी कुछ नहीं है।", emptyTasks:"यहाँ कोई task नहीं है। ＋ दबाकर जोड़ो।", emptyGoals:"अभी कोई goal नहीं है। Goal कुछ बड़ा होता है - ＋ दबाओ और पहला छोटा step जोड़ो।",
+      emptyHabits:"अभी कोई habit नहीं है। ＋ दबाकर एक छोटी daily habit शुरू करो।", emptyRem:"कोई reminder नहीं है।", emptyDone:"पिछले दो हफ़्तों में अभी कुछ पूरा नहीं हुआ।",
+      stOver:"बाक़ी", stSoon:"जल्द due", stSnooze:"बाद के लिए", pinned:"Pinned", rescheduled:"आगे खिसकाया", dToday:"आज", dTomorrow:"कल", dYesterday:"बीता कल", noDate:"बिना date",
+      newTask:"नया task", editTask:"Task बदलो", newHabit:"नई habit", editHabit:"Habit बदलो", newGoal:"नया goal", editGoal:"Goal बदलो", newRem:"नया reminder",
+      kTask:"Task", kHabit:"Habit", kGoal:"Goal", kRem:"Reminder",
+      fTitle:"क्या करना है?", fNotes:"Notes (चाहो तो)", fDate:"Date", fTime:"Time", fPrio:"Priority", pLow:"कम", pNorm:"Normal", pHigh:"ज़्यादा", fMin:"कितने मिनट लगेंगे (चाहो तो)",
+      fRemind:"Reminder", rNone:"कोई reminder नहीं", rAtDue:"ठीक उसी समय", r15:"15 मिनट पहले", r60:"1 घंटा पहले", rCustom:"किसी और समय", fRemindAt:"Reminder का समय",
+      fRepeat:"दोहराओ", repNone:"दोहराना नहीं", repDaily:"हर दिन", repWeekly:"हर हफ़्ते", repMonthly:"हर महीने", fDays:"किन दिनों में",
+      fGoal:"Goal", noGoal:"किसी goal का हिस्सा नहीं", fPin:"आज के लिए pin करो", fWait:"मेरे tap का इंतज़ार करो", fWaitHint:"जब तक तुम task का button नहीं दबाते, कुछ नहीं होगा - फिर DuSu याद दिलाएगी।",
+      fWaitLabel:"Button का नाम (जैसे: Trading finished)", fFallback:"अगर भूल जाऊँ तो इस समय याद दिलाओ (चाहो तो)",
+      hName:"Habit का नाम", hTarget:"दिन में कितनी बार", hUnit:"Unit (glasses, pages, minutes…)", hDays:"दिन", hDaily:"हर दिन", hTimes:"Reminder के समय (चाहो तो)", hAddTime:"समय जोड़ो", hPartial:"आधा-अधूरा भी थोड़ा गिना जाए",
+      hCons:"पिछले 14 दिनों का {n}%", hStreak:"{n} दिन की streak", hAuto:"DuSu के साथ तुम्हारे बोलने के समय से अपने-आप गिना जाता है", hLogged:"{b} में से {a}", hMin:"मिनट",
+      gTitle:"तुम्हारा goal", gWhy:"ये क्यों ज़रूरी है? (चाहो तो)", gTarget:"Target date (चाहो तो)", gMin:"रोज़ कितने मिनट (चाहो तो)", gMs:"रास्ते के steps (हर लाइन में एक)", gAddMs:"Step जोड़ो",
+      gProg:"{n}% पूरा", gBehind:"लगभग {n} दिन पीछे", gNext:"अगला step: {t}", gTasks:"{o} बाक़ी · {d} हुए", gPause:"रोको", gResume:"फिर शुरू करो", gDone:"Goal पूरा हुआ", gReopen:"फिर खोलो", gNoMs:"अभी कोई step नहीं है।",
+      gPaused:"रुका हुआ", gFinished:"पूरा हुआ", gAddTask:"इस goal के लिए task जोड़ो",
+      fRTitle:"किस बारे में याद दिलाऊँ?",
+      save:"Save करो", cancel:"रहने दो", del:"हटाओ", delAsk:"इसे हटाएँ? ये वापस नहीं आएगा।", skip:"छोड़ो", reopen:"फिर खोलो", done:"हो गया", later:"बाद में",
+      later30:"बाद में", moveDay:"किसी और दिन पर", trigger:"▶ {l}", edit:"बदलो", repeats:"दोहराता है",
+      setTime:"समय और quiet hours", setTz:"Timezone", setTzAuto:"मेरे phone का timezone use करो", setQuiet:"Quiet hours", setQuietHint:"इस समय में कोई reminder नहीं आएगा; वो खत्म होने तक रुका रहेगा।", setFrom:"से", setTo:"तक",
+      setRem:"Reminders", setFollow:"अगर मैं कुछ न करूँ तो दोबारा याद दिलाओ", setFollowN:"{n} बार", setGap:"अगले reminder से पहले इंतज़ार", setSnooze:"\"बाद में\" कितनी देर के लिए", setMin:"{n} मिनट",
+      setPush:"App बंद होने पर notifications", setPushOn:"Notifications चालू करो", setPushOff:"बंद करो", setPushTest:"मुझे test reminder भेजो",
+      pushOn:"इस phone पर चालू", pushOff:"बंद", pushDenied:"Browser settings में blocked है", pushNo:"ये browser notifications नहीं दिखा सकता", pushAsk:"अभी पूछा नहीं गया",
+      pushNote:"Reminders हमेशा DuSu के अंदर दिखते हैं। App बंद होने पर notifications तुम्हारे phone पर निर्भर करते हैं - कुछ phones battery बचाने के लिए उन्हें रोक देते हैं। Test button से जाँच लो।",
+      testSent:"करीब एक मिनट में एक test reminder आएगा।", testWait:"अभी-अभी एक test भेजा था - कुछ मिनट रुको।",
+      setPriv:"Privacy", setHide:"Lock screen पर details छिपाओ", setHideHint:"Notification सिर्फ़ इतना बताएगा कि तुम्हारा एक reminder है।",
+      setPause:"सब कुछ रोक दो", setPauseHint:"सारे reminders बंद हो जाएँगे। तुम्हारे tasks और habits वैसे ही रहेंगे।", setEng:"\"English practice (DuSu)\" habit दिखाओ", setEngTarget:"रोज़ बोलने का लक्ष्य (मिनट)",
+      setData:"तुम्हारा data", setExport:"मेरा data download करो", setDelAll:"My Day का मेरा सारा data हटाओ", setDelAsk:"My Day में हर task, goal, habit और reminder हमेशा के लिए हट जाएगा। आगे बढ़ें?",
+      remsUp:"आने वाले", remsHist:"पुराने", remNext:"अगला: {t}", remWaiting:"तुम्हारे tap का इंतज़ार", remSent:"भेजा गया", remDone:"हो गया", remSkipped:"छोड़ा", remExpired:"छूट गया", remKTest:"Test",
+      remKFollow:"Reminder", remStale:"देर से - सिर्फ़ यहाँ दिख रहा है",
+      errLimit_tasks:"तुम्हारे बहुत सारे tasks खुले हैं। पहले कुछ पूरे करो या हटाओ।", errLimit_goals:"एक समय में 10 goals रख सकते हो।", errLimit_habits:"तुम 30 habits रख सकते हो।",
+      errLimit_pins:"एक दिन में 3 tasks pin हो सकते हैं।", errLimit_reminders:"अभी बहुत ज़्यादा reminders हैं।", errLimit_milestones:"एक goal में इससे ज़्यादा steps नहीं हो सकते।", errLimit_test:"अभी-अभी एक test भेजा था - कुछ मिनट रुको।",
+      errTitle:"पहले बताओ कि ये क्या है।", errTime:"सही समय चुनो।", errPast:"वो समय निकल चुका है।", errDate:"सही date चुनो।", errTz:"ये timezone सही नहीं है।",
+      errNet:"Connection नहीं है। थोड़ी देर में फिर कोशिश करो।", errGeneric:"कुछ गड़बड़ हो गई। फिर से कोशिश करो।", errOff:"इस account के लिए My Day अभी उपलब्ध नहीं है।",
+      saved:"Save हो गया", sheetClosed:"", moreDue:"+{n} और इंतज़ार में - My Day खोलो",
+      daysShort:["सोम","मंगल","बुध","गुरु","शुक्र","शनि","रवि"], dayN:"{n} दिन"
+    }
+  };
+  const L = () => (typeof LG !== "undefined" && LG.on()) ? LG.cur() : "hi";
+  function t(k, v){
+    let s = (TXT[L()] || TXT.hi)[k]; if(s === undefined) s = TXT.en[k]; if(s === undefined) return k;
+    if(typeof s === "string" && v) s = s.replace(/\{(\w+)\}/g, (_, x) => v[x] != null ? v[x] : "");
+    return s;
+  }
+  const A = s => esc(s);
+
+  /* ---------- state ---------- */
+  let tab = "today", tview = "today", rview = "upcoming", goalId = null, started = false, timer = null, loadSeq = 0;
+  let D = {};                          // the last payload per tab
+  let dismissed = new Set();           // reminder ids whose banner the learner closed this session
+  let dueCards = [];
+  let summaryAt = 0;
+  const enabled = () => !!(userState && userState.planner);
+
+  /* ---------- helpers ---------- */
+  const $q = (s, r) => (r || document).querySelector(s);
+  const loc = () => L() === "hi" ? "hi-IN" : "en-IN";
+  function dateObj(iso){ const p = String(iso || "").slice(0, 10).split("-"); return p.length === 3 ? new Date(+p[0], +p[1] - 1, +p[2]) : null; }
+  function fmtDate(iso){ const d = dateObj(iso); if(!d) return ""; try{ return new Intl.DateTimeFormat(loc(), { weekday:"short", day:"numeric", month:"short" }).format(d); }catch(_){ return iso; } }
+  function fmtTime(hhmm){ if(!hhmm) return ""; const [h, m] = hhmm.split(":").map(Number); return (h % 12 || 12) + ":" + String(m).padStart(2, "0") + " " + (h < 12 ? "AM" : "PM"); }
+  function fmtInstant(iso, tz){ try{ const d = new Date(iso); return new Intl.DateTimeFormat(loc(), { hour:"numeric", minute:"2-digit", hour12:true, timeZone: tz || undefined }).format(d); }catch(_){ return ""; } }
+  const serverToday = () => (D.today && D.today.date) || localIso(new Date());
+  function localIso(d){ return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function addDays(iso, n){ const d = dateObj(iso); d.setDate(d.getDate() + n); return localIso(d); }
+  function dayLabel(iso){
+    if(!iso) return t("noDate"); const td = serverToday();
+    return iso === td ? t("dToday") : iso === addDays(td, 1) ? t("dTomorrow") : iso === addDays(td, -1) ? t("dYesterday") : fmtDate(iso);
+  }
+  const firstName = () => ((authUser && authUser.name) || "").trim().split(/\s+/)[0] || "";
+  const deviceTz = () => { try{ return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; }catch(_){ return ""; } };
+  function sameZone(a, b){
+    if(!a || !b) return true; if(a === b) return true;
+    try{
+      return [0, 90, 200, 300].every(d => { const t0 = new Date(Date.now() + d * 86400000); const f = z => new Intl.DateTimeFormat("en-US", { timeZone:z, hour:"numeric", minute:"numeric", day:"numeric", month:"numeric", hour12:false }).format(t0); return f(a) === f(b); });
+    }catch(_){ return a === b; }
+  }
+
+  async function api(method, path, body){
+    const opt = { method, headers:{ "Authorization":"Bearer " + authToken, "Content-Type":"application/json" }, cache:"no-store" };
+    if(body !== undefined) opt.body = JSON.stringify(body);
+    let r;
+    try{ r = await fetch(API + path, opt); }catch(_){ throw { net:true }; }
+    if(r.status === 401){ try{ logout(); }catch(_){} throw { auth:true }; }
+    let j = null; try{ j = await r.json(); }catch(_){}
+    if(!r.ok){ const d = j && j.detail; throw { status:r.status, code:(d && typeof d === "object" ? d.error : (typeof d === "string" ? d : "")) || "" }; }
+    return j;
+  }
+  function errText(e){
+    if(e && e.net) return t("errNet");
+    if(e && e.status === 404) return t("errOff");
+    const c = e && e.code;
+    if(c && TXT.en["err" + c[0].toUpperCase() + c.slice(1)] !== undefined) return t("err" + c[0].toUpperCase() + c.slice(1));
+    if(c && c.indexOf("limit_") === 0 && TXT.en["errLimit_" + c.slice(6)] !== undefined) return t("errLimit_" + c.slice(6));
+    return t("errGeneric");
+  }
+  const warn = e => { try{ showNotif(errText(e)); }catch(_){} };
+
+  /* ---------- entry points ---------- */
+  function syncEntries(){
+    const on = enabled();
+    const r = $("mrowMyDay"); if(r) r.hidden = !on;
+    const h = $("plHomeCard"); if(h){ h.hidden = !(on && userState && userState.onboarded); if(!h.hidden) loadSummary(); }
+    const m = $q("#plHomeT"); if(m) m.textContent = t("title");
+    syncFab(); paintBanner();
+  }
+  async function loadSummary(){
+    if(Date.now() - summaryAt < 30000 && D.summary) { paintSummary(); return; }
+    summaryAt = Date.now();
+    try{ D.summary = await api("GET", "/summary"); paintSummary(); }catch(_){}
+  }
+  function paintSummary(){
+    const s = D.summary, el = $("plHomeS"); if(!el || !s) return;
+    const parts = [];
+    parts.push(s.open_today ? (s.open_today === 1 ? t("sumLeft1") : t("sumLeft", { n:s.open_today })) : (s.done_today ? t("sumNone") : t("sumEmpty")));
+    if(s.habits_total) parts.push(t("sumHabits", { a:s.habits_done, b:s.habits_total }));
+    if(s.overdue) parts.push(t("sumOver", { n:s.overdue }));
+    el.textContent = parts.join(" · ");
+  }
+  function path(){ return PATHS[tab] || "/my-day"; }
+  function open(which){
+    if(!enabled()){ try{ showNotif(t("errOff")); }catch(_){} try{ goHome(); }catch(_){} return; }
+    tab = PATHS[which] ? which : "today"; if(tab !== "goals") goalId = null;
+    show("pl", path()); paint(); load();
+    start();
+  }
+  ROUTES["/my-day"] = { enter: () => open("today") };
+  ROUTES["/my-day/tasks"] = { enter: () => open("tasks") };
+  ROUTES["/my-day/goals"] = { enter: () => open("goals") };
+  ROUTES["/my-day/habits"] = { enter: () => open("habits") };
+  ROUTES["/my-day/reminders"] = { enter: () => open("reminders") };
+  ROUTES["/my-day/settings"] = { enter: () => open("settings") };
+
+  /* ---------- chrome: header, tabs, language pill ---------- */
+  function paint(){
+    $("plTitle").textContent = t("title"); $("plSub").textContent = t("sub");
+    $("plBack").title = t("back"); $("plBell").setAttribute("aria-label", t("bell")); $("plGear").setAttribute("aria-label", t("gear")); $("plFab").setAttribute("aria-label", t("add"));
+    $("plBell").classList.toggle("on", tab === "reminders"); $("plGear").classList.toggle("on", tab === "settings");
+    $("plTabs").innerHTML = TABS.map(k => `<button class="pl-tab${tab === k ? " on" : ""}" role="tab" aria-selected="${tab === k}" data-tab="${k}">${A(t("t" + k[0].toUpperCase() + k.slice(1)))}</button>`).join("");
+    const lg = $("plLg"); if(lg){
+      const on = typeof LG !== "undefined" && LG.on(); lg.hidden = !on;
+      if(on && !lg.firstChild){
+        lg.innerHTML = '<div class="lg-sw" role="group"><button type="button" data-l="hi">हिंदी</button><button type="button" data-l="en">English</button></div>';
+        lg.querySelectorAll("button").forEach(b => b.onclick = () => { try{ LG.set(b.dataset.l); }catch(_){} });
+      }
+      lg.querySelectorAll("button[data-l]").forEach(b => b.classList.toggle("on", b.dataset.l === L()));
+    }
+    syncFab(); paintBanner();
+  }
+  // the ＋ floats over the phone column on the Today / Tasks / Goals / Habits tabs only (it sits outside the screen: see the CSS note)
+  function syncFab(){
+    const f = $("plFab"); if(!f || !f.parentNode) return;
+    f.parentNode.hidden = !(enabled() && currentScreen() === "pl" && tab !== "reminders" && tab !== "settings");
+    placeFab();
+  }
+  function placeFab(){
+    const w = $("plFab") && $("plFab").parentNode; if(!w || w.hidden) return;
+    const ref = $("plTabs").getBoundingClientRect(), nav = $("bnav") ? $("bnav").getBoundingClientRect() : null;
+    const navAtBottom = !!(nav && nav.height && nav.top > window.innerHeight * 0.5);
+    w.style.right = Math.max(12, Math.round(window.innerWidth - ref.right) + 8) + "px";
+    w.style.bottom = (navAtBottom ? Math.round(window.innerHeight - nav.top) + 16 : 28) + "px";
+  }
+  window.addEventListener("resize", () => { try{ placeFab(); }catch(_){} });
+  function onLang(){ if(!enabled()) return; try{ syncEntries(); }catch(_){} if(currentScreen() === "pl"){ paint(); render(); } try{ paintBanner(); }catch(_){} if(sheetOpen()) closeSheet(); }
+
+  /* ---------- loading ---------- */
+  async function load(){
+    const seq = ++loadSeq, body = $("plBody");
+    body.innerHTML = '<div class="spin" style="margin:36px auto"></div>';
+    try{
+      if(tab === "today") D.today = await api("GET", "/today");
+      else if(tab === "tasks") D.tasks = await api("GET", "/tasks?view=" + tview);
+      else if(tab === "goals") D.goals = (await api("GET", "/goals")).goals;
+      else if(tab === "habits") D.habits = (await api("GET", "/habits")).habits;
+      else if(tab === "reminders") D.rem = (await api("GET", "/reminders?view=" + rview)).reminders;
+      else if(tab === "settings") D.prefs = await api("GET", "/prefs");
+      if(tab === "goals" && goalId) D.goal = await api("GET", "/goals/" + goalId);
+    }catch(e){
+      if(seq !== loadSeq) return;
+      body.innerHTML = `<div class="pl-empty">${A(errText(e))}<br><br><button class="btn ghost" data-act="retry">${A(t("loading").replace("…", ""))} ↻</button></div>`; return;
+    }
+    if(seq !== loadSeq) return;
+    if(tab === "today"){ dueCards = (D.today.due || []); paintBell(); }
+    render();
+  }
+  function render(){
+    const body = $("plBody"); if(!body) return;
+    const f = { today:vToday, tasks:vTasks, goals:vGoals, habits:vHabits, reminders:vReminders, settings:vSettings }[tab];
+    try{ body.innerHTML = f(); }catch(e){ console.warn("PL.render", e); body.innerHTML = `<div class="pl-empty">${A(t("errGeneric"))}</div>`; }
+  }
+
+  /* ---------- Today ---------- */
+  function taskRow(x, o){
+    o = o || {};
+    const done = x.status === "done", skp = x.status === "skipped";
+    const chips = [];
+    if(x.state === "overdue" && x.status === "open") chips.push(`<span class="pl-chip amber">${A(t("stOver"))}</span>`);
+    else if(x.state === "due_soon" && x.status === "open") chips.push(`<span class="pl-chip gold">${A(t("stSoon"))}</span>`);
+    if(x.due_time) chips.push(`<span class="pl-chip">${A((o.day ? dayLabel(x.due_date) + " · " : "") + fmtTime(x.due_time))}</span>`);
+    else if(x.due_date && o.day) chips.push(`<span class="pl-chip">${A(dayLabel(x.due_date))}</span>`);
+    if(x.priority === 3 && x.status === "open") chips.push(`<span class="pl-chip hi">${A(t("pHigh"))}</span>`);
+    if(x.goal_title) chips.push(`<span class="pl-chip gold">🎯 ${A(x.goal_title)}</span>`);
+    if(x.series_id) chips.push(`<span class="pl-chip">↻</span>`);
+    if(x.pinned) chips.push(`<span class="pl-chip gold">📌</span>`);
+    if(x.snoozed) chips.push(`<span class="pl-chip">💤 ${A(t("stSnooze"))}</span>`);
+    if(x.rescheduled) chips.push(`<span class="pl-chip">${A(t("rescheduled"))}</span>`);
+    const trig = x.trigger && !x.trigger.fired && x.status === "open" ? `<button class="pl-trig" data-act="trig" data-id="${x.id}">${A(t("trigger", { l:x.trigger.label }))}</button>` : "";
+    return `<div class="pl-row"><button class="pl-chk${done ? " done" : skp ? " skip" : ""}" data-act="chk" data-id="${x.id}" aria-label="${A(done ? t("reopen") : t("done"))}: ${A(x.title)}">${done ? "<span>✓</span>" : ""}</button>
+      <button class="pl-main" data-act="task" data-id="${x.id}"><div class="pl-ttl${done || skp ? " done" : ""}">${A(x.title)}</div>${chips.length ? `<div class="pl-meta">${chips.join("")}</div>` : ""}</button></div>${trig ? `<div style="margin:-4px 0 8px 43px">${trig}</div>` : ""}`;
+  }
+  function remCard(c){
+    const k = c.kind === "test" ? t("remKTest") : t("remKFollow");
+    return `<div class="pl-remcard" data-rid="${c.id}"><div class="pl-k">${A(k)}${c.stale ? " · " + A(t("remStale")) : ""}</div><div class="pl-ttl">${A(c.title)}</div>${c.body ? `<div class="pl-note" style="margin:-6px 0 8px">${A(c.body)}</div>` : ""}
+      <div class="pl-acts"><button class="pl-act go" data-act="rem" data-id="${c.id}" data-a="done">✓ ${A(t("done"))}</button><button class="pl-act" data-act="rem" data-id="${c.id}" data-a="later">⏰ ${A(t("later"))}</button><button class="pl-act" data-act="rem" data-id="${c.id}" data-a="skip">${A(t("skip"))}</button></div></div>`;
+  }
+  function habitCard(h, compact){
+    const full = h.state_today === "done";
+    const cnt = h.count_today, tgt = h.target;
+    let glasses = "";
+    if(h.auto) glasses = `<div class="pl-bar"><i style="width:${Math.min(100, Math.round(100 * cnt / Math.max(1, tgt)))}%"></i></div><div class="pl-note" style="margin-top:2px">${A(t("hLogged", { a:cnt, b:tgt }))} ${A(t("hMin"))}</div>`;
+    else if(tgt <= 8) glasses = `<div class="pl-glasses">` + Array.from({ length:tgt }, (_, i) => `<button class="pl-gl${i < cnt ? " on" : ""}" data-act="hlog" data-id="${h.id}" data-n="${i + 1}" aria-label="${A(h.title)} ${i + 1}/${tgt}">${i + 1}</button>`).join("") + `</div>`;
+    else glasses = `<div class="pl-glasses"><button class="pl-gl" data-act="hlog" data-id="${h.id}" data-n="${Math.max(0, cnt - 1)}" aria-label="−">−</button><b style="min-width:70px;text-align:center">${A(t("hLogged", { a:cnt, b:tgt }))}</b><button class="pl-gl" data-act="hlog" data-id="${h.id}" data-n="${cnt + 1}" aria-label="+">+</button></div>`;
+    const dots = !compact && h.days && h.days.length ? `<div class="pl-dots" aria-hidden="true">${h.days.map(d => `<i class="pl-dot ${d.s}" title="${A(d.d)}"></i>`).join("")}</div>` : "";
+    const meta = [];
+    if(h.unit && !h.auto) meta.push(A(h.target + " " + h.unit)); else if(!h.auto) meta.push(A(String(h.target) + "×"));
+    if(!compact && h.consistency != null) meta.push(A(t("hCons", { n:h.consistency })));
+    if(!compact && h.streak > 1) meta.push("🔥 " + A(t("hStreak", { n:h.streak })));
+    if(h.state_today === "skipped") meta.push(A(t("skip")));
+    return `<div class="pl-habit"><div class="pl-hhead"><button class="pl-main" ${h.auto ? "disabled" : `data-act="habit" data-id="${h.id}"`}><div class="pl-ttl">${h.auto ? "🗣️ " : ""}${A(h.title)}${full ? " ✓" : ""}</div>${meta.length ? `<div class="pl-meta"><span class="pl-chip">${meta.join(" · ")}</span></div>` : ""}</button></div>${glasses}${dots}${h.auto && !compact ? `<div class="pl-note">${A(t("hAuto"))}</div>` : ""}</div>`;
+  }
+  function goalCard(g){
+    return `<button class="pl-gcard" data-act="goal" data-id="${g.id}"><div class="pl-ttl">${A(g.title)}</div><div class="pl-bar"><i style="width:${g.progress}%"></i></div>
+      <div class="pl-meta"><span class="pl-chip green">${A(t("gProg", { n:g.progress }))}</span>${g.status === "paused" ? `<span class="pl-chip amber">${A(t("gPaused"))}</span>` : ""}${g.status === "done" ? `<span class="pl-chip green">${A(t("gFinished"))}</span>` : ""}
+      ${g.behind_days ? `<span class="pl-chip amber">${A(t("gBehind", { n:g.behind_days }))}</span>` : ""}${g.target_date ? `<span class="pl-chip">🏁 ${A(fmtDate(g.target_date))}</span>` : ""}</div>
+      ${g.next_milestone ? `<div class="pl-note" style="margin-bottom:0">${A(t("gNext", { t:g.next_milestone.title }))}</div>` : (g.next_task ? `<div class="pl-note" style="margin-bottom:0">${A(t("gNext", { t:g.next_task.title }))}</div>` : "")}</button>`;
+  }
+  function vToday(){
+    const d = D.today; if(!d) return "";
+    const c = d.counts, hr = d.hour, name = firstName();
+    const hello = (hr < 5 ? t("gn") : hr < 12 ? t("gm") : hr < 17 ? t("ga") : t("ge")) + (name ? ", " + name : "");
+    const sum = [c.open_today ? (c.open_today === 1 ? t("sumLeft1") : t("sumLeft", { n:c.open_today })) : (c.done_today ? t("sumNone") : t("sumEmpty"))];
+    if(c.habits_total) sum.push(t("sumHabits", { a:c.habits_done, b:c.habits_total }));
+    if(c.overdue) sum.push(t("sumOver", { n:c.overdue }));
+    let h = `<div class="pl-hello">${A(hello)}</div><div class="pl-sum">${A(sum.join(" · "))}</div>`;
+    const dev = deviceTz();
+    if(dev && d.prefs && !sameZone(dev, d.tz) && !sessionStorage.getItem("dusu_pl_tz_" + dev))
+      h += `<div class="pl-card pad" style="margin-bottom:12px"><div class="pl-note" style="margin-top:0">${A(t("tzBanner", { dev, cur:d.tz }))}</div><div class="pl-acts"><button class="pl-act go" data-act="tzuse" data-tz="${A(dev)}">${A(t("tzUse", { dev }))}</button><button class="pl-act" data-act="tzkeep" data-tz="${A(dev)}">${A(t("tzKeep", { cur:d.tz }))}</button></div></div>`;
+    if(d.due && d.due.length) h += `<div class="pl-sec">${A(t("secDue"))}</div>` + d.due.map(remCard).join("");
+    const empty = !d.priorities.length && !d.today.length && !d.overdue.length && !d.done_today.length;
+    if(d.priorities.length) h += `<div class="pl-sec">${A(t("secPrio"))}</div><div class="pl-card">${d.priorities.map(x => taskRow(x)).join("")}</div>`;
+    const prioIds = new Set(d.priorities.map(x => x.id));
+    const rest = d.today.filter(x => !prioIds.has(x.id)), over = d.overdue.filter(x => !prioIds.has(x.id));
+    if(rest.length) h += `<div class="pl-sec">${A(t("secToday"))}</div><div class="pl-card">${rest.map(x => taskRow(x)).join("")}</div>`;
+    if(over.length) h += `<div class="pl-sec">${A(t("secOver"))}</div><div class="pl-card">${over.map(x => taskRow(x, { day:true })).join("")}</div>`;
+    if(empty) h += `<div class="pl-empty">${A(t("emptyToday"))}</div>`;
+    const hb = d.habits.filter(x => x.scheduled_today);
+    if(hb.length) h += `<div class="pl-sec">${A(t("secHabits"))}</div>` + hb.map(x => habitCard(x, true)).join("");
+    if(d.goals.length) h += `<div class="pl-sec">${A(t("secGoals"))}</div>` + d.goals.map(goalCard).join("");
+    if(d.done_today.length) h += `<div class="pl-sec">${A(t("secDone"))}</div><div class="pl-card">${d.done_today.map(x => taskRow(x)).join("")}</div>`;
+    if(typeof HM !== "undefined" && HM.enabled && HM.enabled()) h += `<div style="margin-top:18px"><button class="btn ghost" style="width:100%" data-act="ask">💬 ${A(t("ask"))}</button></div>`;
+    return h;
+  }
+
+  /* ---------- Tasks ---------- */
+  function vTasks(){
+    const views = [["today", "vToday"], ["upcoming", "vUpcoming"], ["overdue", "vOverdue"], ["inbox", "vInbox"], ["done", "vDone"], ["repeating", "vRepeat"]];
+    let h = `<div class="pl-chips" role="tablist">${views.map(([k, w]) => `<button class="pl-fchip${tview === k ? " on" : ""}" data-act="tview" data-v="${k}">${A(t(w))}</button>`).join("")}</div>`;
+    const list = (D.tasks && D.tasks.tasks) || [];
+    if(!list.length) return h + `<div class="pl-empty">${A(tview === "done" ? t("emptyDone") : t("emptyTasks"))}</div>`;
+    if(tview === "repeating") return h + `<div class="pl-card">${list.map(x => `<div class="pl-row"><span style="font-size:20px;line-height:1.3">↻</span><button class="pl-main" data-act="task" data-id="${x.id}"><div class="pl-ttl">${A(x.title)}</div><div class="pl-meta"><span class="pl-chip">${A(ruleText(x.repeat))}</span></div></button></div>`).join("")}</div>`;
+    return h + `<div class="pl-card">${list.map(x => taskRow(x, { day:true })).join("")}</div>`;
+  }
+  function ruleText(r){
+    if(!r) return "";
+    const n = r.interval || 1, days = (TXT[L()].daysShort || TXT.en.daysShort);
+    let s = r.freq === "daily" ? (n === 1 ? t("repDaily") : (L() === "hi" ? `हर ${n} दिन` : `Every ${n} days`))
+      : r.freq === "weekly" ? (n === 1 ? t("repWeekly") : (L() === "hi" ? `हर ${n} हफ़्ते` : `Every ${n} weeks`)) : (n === 1 ? t("repMonthly") : (L() === "hi" ? `हर ${n} महीने` : `Every ${n} months`));
+    if(r.freq === "weekly" && r.byday && r.byday.length) s += " (" + r.byday.map(i => days[i]).join(", ") + ")";
+    if(r.time) s += " · " + fmtTime(r.time);
+    return s;
+  }
+
+  /* ---------- Goals ---------- */
+  function vGoals(){
+    if(goalId && D.goal) return vGoal(D.goal);
+    const list = D.goals || [];
+    return list.length ? list.map(goalCard).join("") : `<div class="pl-empty">${A(t("emptyGoals"))}</div>`;
+  }
+  function vGoal(g){
+    let h = `<button class="btn ghost" data-act="gback" style="margin-bottom:10px">← ${A(t("tGoals"))}</button>`;
+    h += `<div class="pl-card pad"><div class="pl-ttl" style="font-family:var(--font-d);font-size:22px;font-weight:600">${A(g.title)}</div>${g.why ? `<div class="pl-note">${A(g.why)}</div>` : ""}
+      <div class="pl-bar"><i style="width:${g.progress}%"></i></div><div class="pl-meta"><span class="pl-chip green">${A(t("gProg", { n:g.progress }))}</span>${g.behind_days ? `<span class="pl-chip amber">${A(t("gBehind", { n:g.behind_days }))}</span>` : ""}
+      ${g.target_date ? `<span class="pl-chip">🏁 ${A(fmtDate(g.target_date))}</span>` : ""}<span class="pl-chip">${A(t("gTasks", { o:g.tasks_open, d:g.tasks_done }))}</span></div></div>`;
+    h += `<div class="pl-sec">${A(t("gMs"))}</div><div class="pl-card">`;
+    h += g.milestones.length ? g.milestones.map(m => `<div class="pl-ms"><button class="pl-chk${m.status === "done" ? " done" : ""}" data-act="ms" data-id="${m.id}" data-done="${m.status === "done" ? 1 : 0}" aria-label="${A(m.title)}">${m.status === "done" ? "<span>✓</span>" : ""}</button><div class="pl-ttl${m.status === "done" ? " done" : ""}" style="flex:1">${A(m.title)}${m.due_date ? `<div class="pl-meta"><span class="pl-chip">${A(fmtDate(m.due_date))}</span></div>` : ""}</div></div>`).join("") : `<div class="pl-empty">${A(t("gNoMs"))}</div>`;
+    h += `</div><div style="display:flex;gap:8px;margin-top:8px"><input class="pl-in" id="plMsNew" maxlength="120" placeholder="${A(t("gAddMs"))}" /><button class="btn ghost" data-act="msadd">＋</button></div>`;
+    h += `<div class="pl-foot"><button class="btn primary" data-act="gtask" data-id="${g.id}">＋ ${A(t("gAddTask"))}</button></div><div class="pl-foot">
+      <button class="btn ghost" data-act="gedit" data-id="${g.id}">${A(t("edit"))}</button>
+      ${g.status === "active" ? `<button class="btn ghost" data-act="gstat" data-a="pause" data-id="${g.id}">${A(t("gPause"))}</button>` : `<button class="btn ghost" data-act="gstat" data-a="resume" data-id="${g.id}">${A(g.status === "done" ? t("gReopen") : t("gResume"))}</button>`}
+      ${g.status !== "done" ? `<button class="btn ghost" data-act="gstat" data-a="done" data-id="${g.id}">✓ ${A(t("gDone"))}</button>` : ""}<button class="btn danger" data-act="gdel" data-id="${g.id}">${A(t("del"))}</button></div>`;
+    return h;
+  }
+
+  /* ---------- Habits ---------- */
+  function vHabits(){
+    const list = D.habits || [];
+    const real = list.filter(x => !x.auto);
+    return list.map(x => habitCard(x, false)).join("") + (real.length ? "" : `<div class="pl-empty">${A(t("emptyHabits"))}</div>`);
+  }
+
+  /* ---------- Reminders (bell) ---------- */
+  function vReminders(){
+    let h = `<div class="pl-chips"><button class="pl-fchip${rview === "upcoming" ? " on" : ""}" data-act="rview" data-v="upcoming">${A(t("remsUp"))}</button><button class="pl-fchip${rview === "history" ? " on" : ""}" data-act="rview" data-v="history">${A(t("remsHist"))}</button></div>`;
+    const list = D.rem || [];
+    if(!list.length) return h + `<div class="pl-empty">${A(t("emptyRem"))}</div>`;
+    const stat = r => r.status === "waiting" ? t("remWaiting") : r.status === "done" ? t("remDone") : r.status === "skipped" ? t("remSkipped") : r.status === "expired" ? t("remExpired") : r.status === "sent" ? t("remSent") : "";
+    return h + `<div class="pl-card">` + list.map(r => `<div class="pl-row"><span style="font-size:20px;line-height:1.3">${r.kind === "test" ? "🧪" : r.entity_type === "habit" ? "🌱" : "🔔"}</span><div class="pl-main" style="cursor:default"><div class="pl-ttl">${A(r.title)}</div>
+      <div class="pl-meta">${r.fire_at ? `<span class="pl-chip">${A(fmtInstantDay(r.fire_at))}</span>` : ""}${stat(r) ? `<span class="pl-chip ${r.status === "done" ? "green" : r.status === "expired" ? "amber" : ""}">${A(stat(r))}</span>` : ""}</div></div></div>`).join("") + `</div>`;
+  }
+  function fmtInstantDay(iso){
+    try{ const d = new Date(iso); return new Intl.DateTimeFormat(loc(), { weekday:"short", day:"numeric", month:"short", hour:"numeric", minute:"2-digit", hour12:true, timeZone:(D.prefs && D.prefs.tz) || (D.today && D.today.tz) || undefined }).format(d); }catch(_){ return ""; }
+  }
+
+  /* ---------- Settings (gear) ---------- */
+  const TZS = ["Asia/Kolkata", "Asia/Dubai", "Asia/Singapore", "Asia/Kathmandu", "Asia/Dhaka", "Asia/Karachi", "Europe/London", "Europe/Berlin", "America/New_York", "America/Chicago", "America/Los_Angeles", "Australia/Sydney", "UTC"];
+  function pushState(){
+    if(!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return "unsupported";
+    return Notification.permission === "denied" ? "denied" : (D.prefs && D.prefs.push_on && D.prefs.push_devices > 0 && Notification.permission === "granted") ? "on" : Notification.permission === "granted" ? "off" : "ask";
+  }
+  function vSettings(){
+    const p = D.prefs; if(!p) return "";
+    const tzs = TZS.includes(p.tz) ? TZS : [p.tz].concat(TZS), dev = deviceTz();
+    const sel = (k, vals, cur, fmt, label) => `<select data-set="${k}" aria-label="${A(label || k)}">${vals.map(v => `<option value="${v}"${String(v) === String(cur) ? " selected" : ""}>${A(fmt ? fmt(v) : v)}</option>`).join("")}</select>`;
+    const sw = (k, on, label, hint) => `<label class="pl-set"><span>${A(label)}${hint ? `<small>${A(hint)}</small>` : ""}</span><input type="checkbox" class="pl-cb" data-set="${k}" aria-label="${A(label)}" ${on ? "checked" : ""} /></label>`;
+    const ps = pushState();
+    const psTxt = { on:t("pushOn"), off:t("pushOff"), denied:t("pushDenied"), unsupported:t("pushNo"), ask:t("pushAsk") }[ps];
+    let h = `<div class="pl-sec">${A(t("setTime"))}</div><div class="pl-card">
+      <div class="pl-set"><span>${A(t("setTz"))}${dev && !sameZone(dev, p.tz) ? `<small><a href="#" data-act="tzdev" data-tz="${A(dev)}" style="color:var(--gold-lt)">${A(t("setTzAuto"))} (${A(dev)})</a></small>` : ""}</span>${sel("tz", tzs, p.tz, null, t("setTz"))}</div>
+      ${sw("quiet_on", p.quiet_on, t("setQuiet"), t("setQuietHint"))}
+      <div class="pl-set"><span>${A(t("setFrom"))} / ${A(t("setTo"))}</span><span style="display:flex;gap:6px"><input type="time" data-set="quiet_start" aria-label="${A(t("setQuiet"))} - ${A(t("setFrom"))}" value="${A(p.quiet_start)}" /><input type="time" data-set="quiet_end" aria-label="${A(t("setQuiet"))} - ${A(t("setTo"))}" value="${A(p.quiet_end)}" /></span></div></div>
+      <div class="pl-sec">${A(t("setRem"))}</div><div class="pl-card">
+      <div class="pl-set"><span>${A(t("setFollow"))}</span>${sel("followups", [0, 1, 2], p.followups, v => t("setFollowN", { n:v }), t("setFollow"))}</div>
+      <div class="pl-set"><span>${A(t("setGap"))}</span>${sel("followup_gap_min", [10, 15, 30, 45, 60], p.followup_gap_min, v => t("setMin", { n:v }), t("setGap"))}</div>
+      <div class="pl-set"><span>${A(t("setSnooze"))}</span>${sel("snooze_min", [5, 10, 15, 30, 60, 120], p.snooze_min, v => t("setMin", { n:v }), t("setSnooze"))}</div></div>
+      <div class="pl-sec">${A(t("setPush"))}</div><div class="pl-card pad"><div class="pl-ttl" style="margin-bottom:8px">${A(psTxt)}</div><div class="pl-acts">
+      ${ps === "on" ? `<button class="pl-act" data-act="pushoff">${A(t("setPushOff"))}</button>` : (ps === "ask" || ps === "off") ? `<button class="pl-act go" data-act="pushon">${A(t("setPushOn"))}</button>` : ""}
+      <button class="pl-act" data-act="pushtest">${A(t("setPushTest"))}</button></div><div class="pl-note">${A(t("pushNote"))}</div></div>
+      <div class="pl-sec">${A(t("setPriv"))}</div><div class="pl-card">${sw("hide_details", p.hide_details, t("setHide"), t("setHideHint"))}</div>
+      <div class="pl-sec">${A(t("tHabits"))}</div><div class="pl-card">${sw("english_habit", p.english_habit, t("setEng"))}
+      <div class="pl-set"><span>${A(t("setEngTarget"))}</span><input type="number" min="5" max="240" step="5" data-set="english_target_min" aria-label="${A(t("setEngTarget"))}" value="${p.english_target_min}" style="width:84px" /></div></div>
+      <div class="pl-sec">${A(t("setPause"))}</div><div class="pl-card">${sw("paused_all", p.paused_all, t("setPause"), t("setPauseHint"))}</div>
+      <div class="pl-sec">${A(t("setData"))}</div><div class="pl-foot"><button class="btn ghost" data-act="export">${A(t("setExport"))}</button><button class="btn danger" data-act="delall">${A(t("setDelAll"))}</button></div>`;
+    return h;
+  }
+
+  /* ---------- sheets (Add / Edit) ---------- */
+  let sheet = null;                            // { kind, edit, draft }
+  const sheetOpen = () => !!(sheet && !$("plSheet").hidden);
+  function openSheet(html){
+    const el = $("plSheet"); el.innerHTML = '<div class="pl-grip"></div>' + html; el.hidden = false; $("plSheetBg").hidden = false;
+    const f = el.querySelector("input[type=text],textarea,.pl-in"); try{ if(f && !f.matches("[type=date],[type=time]")) f.focus({ preventScroll:true }); }catch(_){}
+  }
+  function closeSheet(){ sheet = null; const el = $("plSheet"); if(el){ el.hidden = true; el.innerHTML = ""; } const bg = $("plSheetBg"); if(bg) bg.hidden = true; }
+  const chipRow = (name, opts, cur) => `<div class="pl-chips" data-chips="${name}">${opts.map(([v, l]) => `<button type="button" class="pl-fchip${String(cur) === String(v) ? " on" : ""}" data-v="${v}">${A(l)}</button>`).join("")}</div>`;
+  const val = (id) => { const e = $(id); return e ? e.value : ""; };
+  const chipVal = (name, dflt) => { const e = $q(`#plSheet [data-chips="${name}"] .on`); return e ? e.dataset.v : dflt; };
+
+  function sheetAdd(kind, keep){
+    kind = kind || "task"; keep = keep || {};
+    sheet = { kind, edit:null };
+    const types = [["task", t("kTask")], ["habit", t("kHabit")], ["goal", t("kGoal")], ["rem", t("kRem")]];
+    openSheet(`<div class="pl-chips" data-chips="kind" style="margin-bottom:12px">${types.map(([v, l]) => `<button type="button" class="pl-fchip${kind === v ? " on" : ""}" data-v="${v}" data-act="kind">${A(l)}</button>`).join("")}</div>` + formFor(kind, null, keep));
+  }
+  function goalOptions(cur){
+    const gs = (D.goals || (D.today && D.today.goals) || []).filter(g => g.status === "active");
+    return `<option value="">${A(t("noGoal"))}</option>` + gs.map(g => `<option value="${g.id}"${String(cur) === String(g.id) ? " selected" : ""}>${A(g.title)}</option>`).join("");
+  }
+  function formFor(kind, x, keep){
+    keep = keep || {}; const td = serverToday();
+    if(kind === "task"){
+      const series = x && x.is_series, rep = series ? (x.repeat || {}) : null;
+      const dd = x ? (x.due_date || "") : (keep.date || (tab === "today" || tview === "today" ? td : ""));
+      const tt = x ? (series ? (rep.time || "") : (x.due_time || "")) : (keep.time || "");
+      const rem = x ? x.remind : "at_due";
+      const hasRepeat = series;
+      return `<h3>${A(x ? t("editTask") : t("newTask"))}</h3><div id="plErr" class="pl-err" hidden></div>
+        <div class="pl-f"><label for="plTitle2">${A(t("fTitle"))}</label><input class="pl-in" id="plTitle2" maxlength="160" value="${A(x ? x.title : keep.title || "")}" autocomplete="off" /></div>
+        <div class="pl-two"><div class="pl-f"><label for="plDate">${A(t("fDate"))}</label><input class="pl-in" id="plDate" type="date" value="${A(dd)}" /></div>
+        <div class="pl-f"><label for="plTime">${A(t("fTime"))}</label><input class="pl-in" id="plTime" type="time" value="${A(tt)}" /></div></div>
+        <div class="pl-f"><label>${A(t("fPrio"))}</label>${chipRow("prio", [[1, t("pLow")], [2, t("pNorm")], [3, t("pHigh")]], x ? x.priority : 2)}</div>
+        <div class="pl-f"><label>${A(t("fRemind"))}</label>${chipRow("remind", [["none", t("rNone")], ["at_due", t("rAtDue")], ["before_15", t("r15")], ["before_60", t("r60")], ["custom", t("rCustom")]], rem)}
+          <div id="plRemAtWrap" style="margin-top:8px" ${rem === "custom" ? "" : "hidden"}><label class="pl-lab" for="plRemAt">${A(t("fRemindAt"))}</label><input class="pl-in" id="plRemAt" type="time" value="${A(x && x.remind_at ? fmtLocalTime(x.remind_at) : "")}" /></div></div>
+        <div class="pl-f"><label>${A(t("fRepeat"))}</label>${chipRow("repeat", [["", t("repNone")], ["daily", t("repDaily")], ["weekly", t("repWeekly")], ["monthly", t("repMonthly")]], hasRepeat ? rep.freq : "")}
+          <div id="plDaysWrap" style="margin-top:8px" ${hasRepeat && rep.freq === "weekly" ? "" : "hidden"}><label class="pl-lab">${A(t("fDays"))}</label><div class="pl-chips" data-chips="days" data-multi="1">${TXT[L()].daysShort.map((d, i) => `<button type="button" class="pl-fchip${hasRepeat && (rep.byday || []).includes(i) ? " on" : ""}" data-v="${i}">${A(d)}</button>`).join("")}</div></div></div>
+        ${series ? "" : `<div class="pl-f"><label for="plGoalSel">${A(t("fGoal"))}</label><select class="pl-in" id="plGoalSel">${goalOptions(x ? x.goal_id : keep.goal_id)}</select></div>
+        <div class="pl-f"><label for="plNotes">${A(t("fNotes"))}</label><textarea class="pl-in" id="plNotes" maxlength="1000">${A(x ? x.notes : "")}</textarea></div>
+        <details class="pr-more" style="margin:0 0 14px"><summary style="min-height:44px;display:flex;align-items:center;cursor:pointer;color:var(--ink-dim)">${A(t("fWait"))}</summary>
+          <div class="pl-note">${A(t("fWaitHint"))}</div><div class="pl-f"><input class="pl-in" id="plTrigLbl" maxlength="60" placeholder="${A(t("fWaitLabel"))}" value="${A(x && x.trigger ? x.trigger.label : "")}" /></div>
+          <div class="pl-f"><label for="plTrigFb">${A(t("fFallback"))}</label><input class="pl-in" id="plTrigFb" type="time" value="${A(x && x.trigger && x.trigger.fallback_time ? x.trigger.fallback_time : "")}" /></div></details>
+        <label class="pl-sw"><input type="checkbox" class="pl-cb" id="plPin" ${x && x.pinned ? "checked" : ""}/><span>📌 ${A(t("fPin"))}</span></label>`}
+        <div class="pl-foot"><button class="btn primary" data-act="save">${A(t("save"))}</button><button class="btn ghost" data-act="cancel">${A(t("cancel"))}</button>
+        ${x ? (x.status === "open" && !series ? `<button class="btn ghost" data-act="tskip" data-id="${x.id}">${A(t("skip"))}</button>` : "") + `<button class="btn danger" data-act="tdel" data-id="${x.id}">${A(t("del"))}</button>` : ""}</div>`;
+    }
+    if(kind === "habit"){
+      const sch = x ? x.schedule : { days:"daily", times:[] }, days = sch.days === "daily" ? "daily" : "pick";
+      return `<h3>${A(x ? t("editHabit") : t("newHabit"))}</h3><div id="plErr" class="pl-err" hidden></div>
+        <div class="pl-f"><label for="plTitle2">${A(t("hName"))}</label><input class="pl-in" id="plTitle2" maxlength="100" value="${A(x ? x.title : keep.title || "")}" autocomplete="off" /></div>
+        <div class="pl-two"><div class="pl-f"><label for="plHTarget">${A(t("hTarget"))}</label><input class="pl-in" id="plHTarget" type="number" min="1" max="100" value="${x ? x.target : 1}" /></div>
+        <div class="pl-f"><label for="plHUnit">${A(t("hUnit"))}</label><input class="pl-in" id="plHUnit" maxlength="24" value="${A(x ? x.unit : "")}" /></div></div>
+        <div class="pl-f"><label>${A(t("hDays"))}</label>${chipRow("hdays", [["daily", t("hDaily")], ["pick", TXT[L()].daysShort.join(" · ")]], days)}
+          <div id="plHDaysWrap" style="margin-top:8px" ${days === "pick" ? "" : "hidden"}><div class="pl-chips" data-chips="hdaylist" data-multi="1">${TXT[L()].daysShort.map((d, i) => `<button type="button" class="pl-fchip${Array.isArray(sch.days) && sch.days.includes(i) ? " on" : ""}" data-v="${i}">${A(d)}</button>`).join("")}</div></div></div>
+        <div class="pl-f"><label>${A(t("hTimes"))}</label><div id="plHTimes">${(sch.times || []).map(tt => `<div class="pl-ms"><input class="pl-in" type="time" value="${A(tt)}" style="flex:1" /><button type="button" class="pl-ic" data-act="hrmtime" aria-label="${A(t("del"))}">✕</button></div>`).join("")}</div>
+          <button type="button" class="btn ghost" data-act="haddtime" style="margin-top:6px">＋ ${A(t("hAddTime"))}</button></div>
+        <label class="pl-sw"><input type="checkbox" class="pl-cb" id="plHPartial" ${!x || x.partial_ok ? "checked" : ""}/><span>${A(t("hPartial"))}</span></label>
+        <div class="pl-foot"><button class="btn primary" data-act="save">${A(t("save"))}</button><button class="btn ghost" data-act="cancel">${A(t("cancel"))}</button>${x ? `<button class="btn danger" data-act="hdel" data-id="${x.id}">${A(t("del"))}</button>` : ""}</div>`;
+    }
+    if(kind === "goal"){
+      return `<h3>${A(x ? t("editGoal") : t("newGoal"))}</h3><div id="plErr" class="pl-err" hidden></div>
+        <div class="pl-f"><label for="plTitle2">${A(t("gTitle"))}</label><input class="pl-in" id="plTitle2" maxlength="120" value="${A(x ? x.title : keep.title || "")}" autocomplete="off" /></div>
+        <div class="pl-f"><label for="plWhy">${A(t("gWhy"))}</label><textarea class="pl-in" id="plWhy" maxlength="500">${A(x ? x.why : "")}</textarea></div>
+        <div class="pl-two"><div class="pl-f"><label for="plGDate">${A(t("gTarget"))}</label><input class="pl-in" id="plGDate" type="date" value="${A(x && x.target_date ? x.target_date : "")}" /></div>
+        <div class="pl-f"><label for="plGMin">${A(t("gMin"))}</label><input class="pl-in" id="plGMin" type="number" min="5" max="600" step="5" value="${x && x.daily_minutes ? x.daily_minutes : ""}" /></div></div>
+        ${x ? "" : `<div class="pl-f"><label for="plGMs">${A(t("gMs"))}</label><textarea class="pl-in" id="plGMs" rows="4"></textarea></div>`}
+        <div class="pl-foot"><button class="btn primary" data-act="save">${A(t("save"))}</button><button class="btn ghost" data-act="cancel">${A(t("cancel"))}</button></div>`;
+    }
+    const now = new Date(); const rd = keep.date || localIso(now);
+    return `<h3>${A(t("newRem"))}</h3><div id="plErr" class="pl-err" hidden></div>
+      <div class="pl-f"><label for="plTitle2">${A(t("fRTitle"))}</label><input class="pl-in" id="plTitle2" maxlength="160" value="${A(keep.title || "")}" autocomplete="off" /></div>
+      <div class="pl-two"><div class="pl-f"><label for="plDate">${A(t("fDate"))}</label><input class="pl-in" id="plDate" type="date" value="${A(rd)}" /></div>
+      <div class="pl-f"><label for="plTime">${A(t("fTime"))}</label><input class="pl-in" id="plTime" type="time" value="${A(keep.time || "")}" /></div></div>
+      <div class="pl-foot"><button class="btn primary" data-act="save">${A(t("save"))}</button><button class="btn ghost" data-act="cancel">${A(t("cancel"))}</button></div>`;
+  }
+  function fmtLocalTime(iso){
+    try{ const parts = new Intl.DateTimeFormat("en-GB", { hour:"2-digit", minute:"2-digit", hour12:false, timeZone:(D.prefs && D.prefs.tz) || (D.today && D.today.tz) || undefined }).format(new Date(iso)); return parts; }catch(_){ return ""; }
+  }
+  function showErr(msg){ const e = $("plErr"); if(e){ e.hidden = false; e.textContent = msg; try{ e.scrollIntoView({ block:"nearest" }); }catch(_){} } }
+
+  async function saveSheet(){
+    if(!sheet) return;
+    const kind = sheet.kind, ed = sheet.edit, btn = $q("#plSheet [data-act=save]");
+    const title = val("plTitle2").trim();
+    if(!title){ showErr(t("errTitle")); return; }
+    if(btn) btn.disabled = true;
+    try{
+      if(kind === "task"){
+        const series = ed && ed.is_series;
+        const rf = chipVal("repeat", "");
+        const body = { title, priority:+chipVal("prio", "2"), remind:chipVal("remind", "none") };
+        if(body.remind === "custom"){ if(!val("plRemAt")){ showErr(t("errTime")); if(btn) btn.disabled = false; return; } body.remind_time = val("plRemAt"); body.remind_date = val("plDate") || undefined; }
+        const dd = val("plDate"), tt = val("plTime");
+        if(!series){
+          body.notes = val("plNotes"); const g = val("plGoalSel"); body.goal_id = g ? +g : null;
+          const lbl = val("plTrigLbl").trim(); body.trigger = lbl ? { label:lbl, fallback_time:val("plTrigFb") || null } : null;
+        }
+        let rule = null;
+        if(rf){
+          rule = { freq:rf, interval:1 };
+          if(rf === "weekly"){ const ds = [...document.querySelectorAll('#plSheet [data-chips="days"] .on')].map(b => +b.dataset.v); if(ds.length) rule.byday = ds; }
+        }
+        let saved;
+        if(!ed){
+          if(dd) body.due_date = dd; if(tt) body.due_time = tt; if(rule) body.repeat = rule; body.pin = !!($("plPin") && $("plPin").checked);
+          body.client_key = "pl" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+          saved = await api("POST", "/tasks", body);
+        } else {
+          if(series){ if(rule) body.repeat = rule; body.due_date = dd || ed.due_date; body.due_time = tt || ""; }
+          else if((dd || "") !== (ed.due_date || "") || (tt || "") !== (ed.due_time || "")){
+            if(dd){ /* a real change of date/time keeps the history: the reschedule endpoint */ }
+            else { body.due_date = ""; body.due_time = ""; }
+          }
+          saved = await api("PATCH", "/tasks/" + ed.id, body);
+          if(!series && dd && ((dd || "") !== (ed.due_date || "") || (tt || "") !== (ed.due_time || ""))) saved = await api("POST", "/tasks/" + ed.id + "/reschedule", { due_date:dd, due_time:tt || null });
+          if(!series && ed.status === "open"){ const want = !!($("plPin") && $("plPin").checked); if(want !== !!ed.pinned) await api("POST", "/tasks/" + ed.id + "/pin", { on:want }); }
+        }
+      } else if(kind === "habit"){
+        const mode = chipVal("hdays", "daily");
+        const days = mode === "daily" ? "daily" : [...document.querySelectorAll('#plSheet [data-chips="hdaylist"] .on')].map(b => +b.dataset.v);
+        const times = [...document.querySelectorAll("#plHTimes input[type=time]")].map(i => i.value).filter(Boolean);
+        const body = { title, target:+val("plHTarget") || 1, unit:val("plHUnit").trim(), partial_ok:!!$("plHPartial").checked, schedule:{ days:(Array.isArray(days) && !days.length) ? "daily" : days, times } };
+        if(ed) await api("PATCH", "/habits/" + ed.id, body); else { body.client_key = "ph" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); await api("POST", "/habits", body); }
+      } else if(kind === "goal"){
+        const body = { title, why:val("plWhy").trim(), target_date:val("plGDate") || null, daily_minutes:+val("plGMin") || null };
+        if(ed) await api("PATCH", "/goals/" + ed.id, body);
+        else { body.milestones = val("plGMs").split("\n").map(s => s.trim()).filter(Boolean).slice(0, 12); body.client_key = "pg" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); await api("POST", "/goals", body); }
+      } else {
+        const tt = val("plTime"); if(!tt){ showErr(t("errTime")); if(btn) btn.disabled = false; return; }
+        await api("POST", "/reminders", { title, date:val("plDate") || undefined, time:tt, client_key:"pr" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) });
+      }
+    }catch(e){ if(btn) btn.disabled = false; showErr(errText(e)); return; }
+    closeSheet();
+    if(kind === "rem") { tab = "reminders"; rview = "upcoming"; paint(); try{ navTo(PATHS.reminders); }catch(_){ load(); } return; }
+    pollDue(); load(); summaryAt = 0;
+  }
+
+  /* ---------- actions ---------- */
+  async function act(el){
+    const a = el.dataset.act, id = el.dataset.id ? +el.dataset.id : null;
+    try{
+      if(a === "retry"){ load(); }
+      else if(a === "chk"){
+        const row = findTask(id); const done = row && row.status === "done";
+        await api("POST", "/tasks/" + id + "/" + (done ? "reopen" : "complete"), {}); await refreshKeep(); pollDue(); summaryAt = 0;
+      }
+      else if(a === "task"){ const x = findTask(id); if(x){ if(!D.goals){ try{ D.goals = (await api("GET", "/goals")).goals; }catch(_){} } sheet = { kind:"task", edit:x }; openSheet(formFor("task", x)); } }
+      else if(a === "trig"){ await api("POST", "/tasks/" + id + "/trigger", {}); await refreshKeep(); pollDue(); }
+      else if(a === "tview"){ tview = el.dataset.v; load(); }
+      else if(a === "rview"){ rview = el.dataset.v; load(); }
+      else if(a === "rem"){ await api("POST", "/reminders/" + id + "/act", { action:el.dataset.a }); dueCards = dueCards.filter(c => c.id !== id); paintBanner(); paintBell(); if(tab === "reminders") load(); else await refreshKeep(); summaryAt = 0; }
+      else if(a === "hlog"){ const n = +el.dataset.n; const h = findHabit(id); const same = h && h.count_today === n; await api("PUT", "/habits/" + id + "/log", { count: same ? Math.max(0, n - 1) : n }); await refreshKeep(); summaryAt = 0; }
+      else if(a === "habit"){ const h = findHabit(id); if(h){ sheet = { kind:"habit", edit:h }; openSheet(formFor("habit", h)); } }
+      else if(a === "goal"){ goalId = id; load(); }
+      else if(a === "gback"){ goalId = null; D.goal = null; load(); }
+      else if(a === "ms"){ await api("PATCH", "/milestones/" + id, { action: el.dataset.done === "1" ? "reopen" : "complete" }); D.goal = await api("GET", "/goals/" + goalId); render(); }
+      else if(a === "msadd"){ const v = ($("plMsNew").value || "").trim(); if(v){ D.goal = await api("POST", "/goals/" + goalId + "/milestones", { title:v }); render(); } }
+      else if(a === "gedit"){ sheet = { kind:"goal", edit:D.goal }; openSheet(formFor("goal", D.goal)); }
+      else if(a === "gstat"){ D.goal = await api("PATCH", "/goals/" + id, { action:el.dataset.a }); render(); }
+      else if(a === "gdel"){ if(confirm(t("delAsk"))){ await api("DELETE", "/goals/" + id); goalId = null; D.goal = null; load(); } }
+      else if(a === "gtask"){ sheetAdd("task", { goal_id:id }); }
+      else if(a === "bmore"){ navTo(PATHS.today); }
+      else if(a === "ask"){ try{ HM.go({ text:t("askText"), typed:true }); }catch(_){} }
+      else if(a === "tzuse"){ await api("PUT", "/prefs", { tz:el.dataset.tz }); load(); }
+      else if(a === "tzkeep"){ try{ sessionStorage.setItem("dusu_pl_tz_" + el.dataset.tz, "1"); }catch(_){} render(); }
+      else if(a === "tzdev"){ await api("PUT", "/prefs", { tz:el.dataset.tz }); load(); }
+      else if(a === "pushon"){ await enablePush(); }
+      else if(a === "pushoff"){ await disablePush(); }
+      else if(a === "pushtest"){ try{ await api("POST", "/push/test", {}); try{ showNotif(t("testSent")); }catch(_){} }catch(e){ if(e && e.code === "limit_test") try{ showNotif(t("testWait")); }catch(_){} else warn(e); } }
+      else if(a === "export"){ const j = await api("GET", "/export"); const b = new Blob([JSON.stringify(j, null, 2)], { type:"application/json" }); const u = URL.createObjectURL(b); const l = document.createElement("a"); l.href = u; l.download = "dusu-my-day.json"; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); }
+      else if(a === "delall"){ if(confirm(t("setDelAsk"))){ await api("POST", "/delete-all", { confirm:true }); D = {}; dueCards = []; paintBanner(); paintBell(); load(); } }
+      else if(a === "save"){ await saveSheet(); }
+      else if(a === "cancel"){ closeSheet(); }
+      else if(a === "kind"){ const kp = { title:val("plTitle2") }; sheetAdd(el.dataset.v, kp); }
+      else if(a === "tskip"){ await api("POST", "/tasks/" + id + "/skip", {}); closeSheet(); await refreshKeep(); }
+      else if(a === "tdel"){ if(confirm(t("delAsk"))){ await api("DELETE", "/tasks/" + id); closeSheet(); await refreshKeep(); pollDue(); summaryAt = 0; } }
+      else if(a === "hdel"){ if(confirm(t("delAsk"))){ await api("DELETE", "/habits/" + id); closeSheet(); await refreshKeep(); } }
+      else if(a === "haddtime"){ const w = $("plHTimes"); if(w && w.children.length < 4){ const d = document.createElement("div"); d.className = "pl-ms"; d.innerHTML = `<input class="pl-in" type="time" style="flex:1" /><button type="button" class="pl-ic" data-act="hrmtime" aria-label="${A(t("del"))}">✕</button>`; w.appendChild(d); } }
+      else if(a === "hrmtime"){ el.parentNode.remove(); }
+    }catch(e){ if(e && e.auth) return; warn(e); }
+  }
+  async function refreshKeep(){
+    // reload the visible tab WITHOUT the spinner flash (the learner just acted on it)
+    const seq = ++loadSeq;
+    try{
+      if(tab === "today") D.today = await api("GET", "/today");
+      else if(tab === "tasks") D.tasks = await api("GET", "/tasks?view=" + tview);
+      else if(tab === "goals"){ D.goals = (await api("GET", "/goals")).goals; if(goalId) D.goal = await api("GET", "/goals/" + goalId); }
+      else if(tab === "habits") D.habits = (await api("GET", "/habits")).habits;
+      else if(tab === "reminders") D.rem = (await api("GET", "/reminders?view=" + rview)).reminders;
+      else if(tab === "settings") D.prefs = await api("GET", "/prefs");
+    }catch(e){ warn(e); return; }
+    if(seq !== loadSeq) return;
+    if(tab === "today"){ dueCards = D.today.due || []; paintBell(); }
+    render();
+  }
+  function findTask(id){
+    const pools = [D.tasks && D.tasks.tasks, D.today && D.today.priorities, D.today && D.today.today, D.today && D.today.overdue, D.today && D.today.done_today];
+    for(const p of pools) for(const x of (p || [])) if(x.id === id) return x;
+    return null;
+  }
+  function findHabit(id){ for(const p of [D.habits, D.today && D.today.habits]) for(const h of (p || [])) if(h.id === id) return h; return null; }
+
+  /* ---------- the in-app reminder card, the bell, polling ---------- */
+  function paintBell(){
+    const n = dueCards.length, b = $("plBellN"); if(b){ b.hidden = !n; b.textContent = n > 9 ? "9+" : String(n); }
+  }
+  function paintBanner(){
+    const el = $("plBanner"); if(!el) return;
+    const pending = dueCards.filter(x => !dismissed.has(x.id)), c = pending[0];
+    if(!c || !enabled() || currentScreen() === "login" || currentScreen() === "assessment" || (currentScreen() === "pl" && tab === "today")){ el.hidden = true; el.innerHTML = ""; return; }
+    el.innerHTML = `<button class="pl-x" data-act="bclose" data-id="${c.id}" aria-label="${A(t("close"))}">✕</button>` + remCard(c)
+      + (pending.length > 1 ? `<button class="pl-more" data-act="bmore">${A(t("moreDue", { n:pending.length - 1 }))}</button>` : "");
+    el.hidden = false;
+  }
+  async function pollDue(){
+    if(!enabled() || !authToken || document.hidden) return;
+    try{
+      const r = await api("GET", "/due"); dueCards = r.due || [];
+      if(tab === "today" && currentScreen() === "pl" && D.today){ D.today.due = dueCards; if(!sheetOpen()) render(); }
+      paintBell(); paintBanner();
+    }catch(_){}
+  }
+  function start(){
+    if(started) return; started = true;
+    timer = setInterval(pollDue, 45000);
+    document.addEventListener("visibilitychange", () => { if(!document.hidden) pollDue(); });
+    try{ if("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", e => {
+      if(!e.data) return;
+      if(e.data.type === "pl-due") pollDue();
+      else if(e.data.type === "pl-open"){ const p = String(e.data.url || "/my-day").split("?")[0]; navTo(ROUTES[p] ? p : "/my-day"); }   // a notification tapped while the app was open
+    }); }catch(_){}
+    pollDue();
+  }
+  function reset(){ D = {}; dueCards = []; dismissed = new Set(); summaryAt = 0; started = false; if(timer){ clearInterval(timer); timer = null; } closeSheet(); paintBanner(); paintBell(); }
+
+  /* ---------- push (opt-in; the app card above is the guaranteed channel) ---------- */
+  const b64 = s => { const p = "=".repeat((4 - s.length % 4) % 4); const r = atob((s + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from([...r].map(c => c.charCodeAt(0))); };
+  async function enablePush(){
+    if(pushState() === "unsupported"){ try{ showNotif(t("pushNo")); }catch(_){} return; }
+    let perm = Notification.permission;
+    if(perm === "default") perm = await Notification.requestPermission();
+    if(perm !== "granted"){ D.prefs = await api("GET", "/prefs"); render(); return; }
+    const k = await api("GET", "/push/key");
+    if(!k.available){ try{ showNotif(t("errGeneric")); }catch(_){} return; }
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:b64(k.key) });
+    await api("POST", "/push/subscribe", { subscription:sub.toJSON(), ua:(navigator.userAgent || "").slice(0, 150) });
+    D.prefs = await api("GET", "/prefs"); render();
+  }
+  async function disablePush(){
+    try{ const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); if(sub){ await api("DELETE", "/push/subscribe", { endpoint:sub.endpoint }); await sub.unsubscribe(); } else await api("DELETE", "/push/subscribe", {}); }catch(e){ warn(e); }
+    D.prefs = await api("GET", "/prefs"); render();
+  }
+
+  /* ---------- wiring ---------- */
+  const body = $("plBody");
+  document.addEventListener("click", ev => {
+    const b = ev.target.closest && ev.target.closest("[data-act],[data-tab],.pl-fchip"); if(!b) return;
+    const inPl = b.closest("#pl, #plSheet, #plBanner"); if(!inPl) return;
+    if(b.dataset.tab){ navTo(PATHS[b.dataset.tab]); return; }
+    if(b.dataset.act === "bclose"){ dismissed.add(+b.dataset.id); paintBanner(); return; }
+    if(b.closest("#plSheet")){
+      if(b.closest("[data-chips]") && b.matches(".pl-fchip") && b.dataset.act !== "kind"){
+        const box = b.closest("[data-chips]"), name = box.dataset.chips;
+        if(box.dataset.multi) b.classList.toggle("on"); else { box.querySelectorAll(".pl-fchip").forEach(x => x.classList.remove("on")); b.classList.add("on"); }
+        if(name === "remind"){ const w = $("plRemAtWrap"); if(w) w.hidden = b.dataset.v !== "custom"; }
+        if(name === "repeat"){ const w = $("plDaysWrap"); if(w) w.hidden = b.dataset.v !== "weekly"; }
+        if(name === "hdays"){ const w = $("plHDaysWrap"); if(w) w.hidden = b.dataset.v !== "pick"; }
+        return;
+      }
+    }
+    if(b.dataset.act){ ev.preventDefault(); act(b); }
+  });
+  document.addEventListener("change", async ev => {
+    const e = ev.target; if(!e.dataset || !e.dataset.set || !e.closest("#pl")) return;
+    const k = e.dataset.set; let v = e.type === "checkbox" ? e.checked : e.type === "number" ? +e.value : e.value;
+    if(["followups", "followup_gap_min", "snooze_min"].includes(k)) v = +v;
+    try{ D.prefs = await api("PUT", "/prefs", { [k]:v }); if(k === "tz" || k === "paused_all") summaryAt = 0; render(); }catch(err){ warn(err); try{ D.prefs = await api("GET", "/prefs"); render(); }catch(_){} }
+  });
+  document.addEventListener("keydown", ev => { if(ev.key === "Escape" && sheetOpen()) closeSheet(); });
+  $("plSheetBg").onclick = closeSheet;
+  $("plBack").onclick = () => { if(tab === "reminders" || tab === "settings") navTo(PATHS.today); else navTo("/"); };
+  $("plBell").onclick = () => navTo(tab === "reminders" ? PATHS.today : PATHS.reminders);
+  $("plGear").onclick = () => navTo(tab === "settings" ? PATHS.today : PATHS.settings);
+  $("plFab").onclick = () => { if(!D.goals){ api("GET", "/goals").then(r => { D.goals = r.goals; }).catch(() => {}); } sheetAdd(tab === "habits" ? "habit" : tab === "goals" && !goalId ? "goal" : "task"); };
+  if($("plHomeCard")) $("plHomeCard").onclick = () => navTo("/my-day");
+  if($("mrowMyDay")) $("mrowMyDay").dataset.more = "myday";
+
+  function leave(){ closeSheet(); paintBanner(); }
+  return { enabled, open, path, syncEntries, onLang, start, reset, pollDue, leave, _txt:TXT };
+})();
+window.PL = PL;
 
 if($("assessExit")) $("assessExit").onclick = skipAssessment;
 try{ LG.mount(); }catch(e){ console.warn("LG.mount", e); }   // Hindi/English controls (hidden until the switch is on for this learner)

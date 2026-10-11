@@ -40,8 +40,12 @@ from .providers import llm
 from .providers.openrouter_provider import set_active_keys
 from . import auth
 from . import db
+from .planner import models as _planner_models  # noqa: F401  (registers the pl_* tables on db.Base before init_db runs)
+from .planner import api as planner_api, life_lines as planner_life, scheduler as planner_scheduler
 
 app = FastAPI(title="DuSu")
+app.include_router(planner_api.router)      # My Day: /planner/* (404 while the `planner` switch is off for the account)
+planner_life.register()                      # DuSu reads the plan through the "knows your data" block (life.EXTRA_LINES)
 
 # --- Roles ---
 # Only the owner rides the app's own keys (the ones in .env). EVERY other account —
@@ -248,6 +252,26 @@ async def home_ai_enabled(email: str) -> bool:
     return False
 
 
+async def planner_mode() -> str:
+    """My Day rollout switch (Settings table, no migration; DUSU_GOALS_PLAN.md D2). It stores personal data and sends reminders, so it ships DARK:
+    'off' = nobody, the endpoints answer 404 and the scheduler idles (the DEFAULT); 'owner' = only the owner / unlimited allowlist;
+    'on' = everyone."""
+    try:
+        v = await _cached("planner", lambda: db.get_setting("planner", "off"))
+        return v if v in ("off", "owner", "on") else "off"
+    except Exception:
+        return "off"
+
+
+async def planner_enabled(email: str) -> bool:
+    m = await planner_mode()
+    if m == "on":
+        return True
+    if m == "owner":
+        return role_for(email) in ("owner", "unlimited")
+    return False
+
+
 # Profile seeded for accounts that skip the level check (see level_test_on).
 SKIPPED_TEST_PROFILE = {"goal": "", "comfort": "", "practice_time": "10",
                         "level": "A1", "scores": {}, "weak_areas": []}
@@ -407,6 +431,9 @@ async def _safe_build_report(session) -> dict:
 @app.on_event("startup")
 async def _startup():
     await db.init_db()   # create tables if a database is configured (no-op otherwise)
+    if db.db_enabled:
+        # My Day's reminder engine: one loop in this process, Postgres as the queue. It idles while the `planner` switch is off.
+        app.state.planner_task = asyncio.create_task(planner_scheduler.run_forever(planner_mode, planner_enabled))
 
 _BACKEND = Path(__file__).resolve().parent.parent
 _CLIENT_HTML = _BACKEND / "test_client.html"
@@ -670,6 +697,7 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
         except Exception:
             _pr_server_stt = False
     _home_ai = await home_ai_enabled(email)
+    _planner = await planner_enabled(email)
     common = {"role": _role, "email": email, "office": _office, "office_allowed": _office,
               "unlimited": _unlim, "plan": plan, "requests_left": req_left,
               "request_limit": req_limit, "trial_days_left": trial_days, "trial_over": trial_over,
@@ -684,6 +712,7 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
               # Home 2.0 (DUSU_HOME_AI_PLAN.md): the AI-companion Home. `home_personal` = may DuSu use what it remembers about
               # the learner on Home (default yes); overridden from the saved prefs once the state is loaded.
               "home_ai": _home_ai, "home_personal": True,
+              "planner": _planner,                  # My Day (DUSU_GOALS_PLAN.md): the client draws its entry points only when true
               "level_test": await level_test_on(),
               # The public name this user appears as on the leaderboard / league.
               # Boards are alias-only for privacy (§18), so without this the user
@@ -692,7 +721,7 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
     if _home_ai:
         # The Home page's feature icons (home_content.tiles): what exists for THIS learner, both languages' titles, each with
         # the route a tap opens. Only the learners who have the new Home get the key, so /me is unchanged for everyone else.
-        common["home_tiles"] = home_content.tiles({"practice_room": _pr})
+        common["home_tiles"] = home_content.tiles({"practice_room": _pr, "planner": _planner})
     if not db.db_enabled:
         return {"onboarded": None, **common}
     try:
@@ -1116,8 +1145,12 @@ async def admin_overview(token: str = "", authorization: str | None = Header(Non
            "access_phase": await access_phase(), "level_test": await level_test_on(),
            "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode(),
            "life_context": await life_context_mode(), "bilingual": await bilingual_mode(),
-           "home_ai": await home_ai_mode()}
+           "home_ai": await home_ai_mode(), "planner": await planner_mode()}
     if db.db_enabled:
+        try:
+            out["planner_health"] = await planner_scheduler.health()
+        except Exception as e:
+            print(f"[admin] planner health failed: {type(e).__name__}")
         try:
             users = await db.admin_list_users()
             for u in users:                       # attach computed role
@@ -1150,6 +1183,7 @@ class SettingsIn(BaseModel):
     life_context: str | None = None       # off | owner | on  ("DuSu knows your data", CLAUDE.md §10)
     bilingual: str | None = None          # off | owner | on  (Hindi / English modes, CLAUDE.md §11)
     home_ai: str | None = None            # off | owner | on  (Home 2.0 - the AI companion Home, CLAUDE.md §12)
+    planner: str | None = None            # off | owner | on  (My Day - tasks, habits, goals, reminders; DUSU_GOALS_PLAN.md)
 
 
 @app.post("/admin/settings")
@@ -1172,11 +1206,13 @@ async def admin_settings(inp: SettingsIn, authorization: str | None = Header(Non
         await db.set_setting("bilingual", inp.bilingual if inp.bilingual in ("off", "owner", "on") else "owner")
     if inp.home_ai is not None:
         await db.set_setting("home_ai", inp.home_ai if inp.home_ai in ("off", "owner", "on") else "owner")
+    if inp.planner is not None:
+        await db.set_setting("planner", inp.planner if inp.planner in ("off", "owner", "on") else "off")
     invalidate_access_cache()
     return {"access_phase": await access_phase(), "level_test": await level_test_on(),
             "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode(),
             "life_context": await life_context_mode(), "bilingual": await bilingual_mode(),
-            "home_ai": await home_ai_mode()}
+            "home_ai": await home_ai_mode(), "planner": await planner_mode()}
 
 
 class WipeIn(BaseModel):
@@ -1648,7 +1684,8 @@ async def set_lang_pref(inp: LangIn, authorization: str | None = Header(None)):
 async def _home_flags(email: str) -> dict:
     """Which optional features exist for this learner (feeds home_content: the Know About page, the model's catalogue and
     the validation of the ids it suggests - one source, so they cannot disagree)."""
-    return {"practice_room": await practice_room_enabled(email), "bilingual": await bilingual_enabled(email)}
+    return {"practice_room": await practice_room_enabled(email), "bilingual": await bilingual_enabled(email),
+            "planner": await planner_enabled(email)}
 
 
 def _home_tod(hour) -> str:
@@ -2742,7 +2779,7 @@ async def interview_ws(ws: WebSocket):
                 # Home reads the learner's numbers whatever the Talk / Daily `life_context` switch says: it is its own feature
                 # (switch `home_ai`) with its own privacy toggle, and "my progress?" is one of the things it is for.
                 if uid and db.db_enabled and mode in ("conversation", "daily", "home") and (mode == "home" or await life_context_enabled(_email)):
-                    _life_open = asyncio.create_task(life.build(uid))
+                    _life_open = asyncio.create_task(life.build(uid, _email))
                 if uid and db.db_enabled and mode in ("conversation", "interview", "daily", "home"):
                     try:
                         gather_tasks = [db.get_memory(uid), db.recent_summaries(uid, 6), db.relationship_stage(uid)]

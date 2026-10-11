@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import inspect
 import re
 from typing import Awaitable, Callable
 
@@ -29,9 +30,9 @@ from . import db
 
 _IST = dt.timezone(dt.timedelta(hours=5, minutes=30))   # the app's one fixed day boundary (db._ist_now)
 
-# async fn(uid) -> list[str]: a few short plain sentences for the block (no leading dash). Each gets
-# 1.5 s and may fail silently - see build().
-EXTRA_LINES: list[Callable[[str], Awaitable[list[str]]]] = []
+# async fn(uid) or async fn(uid, email) -> list[str]: a few short plain sentences for the block (no leading dash). Each gets
+# 1.5 s and may fail silently - see build(). (The email lets a module check ITS OWN switch for this learner.)
+EXTRA_LINES: list[Callable[..., Awaitable[list[str]]]] = []
 
 _MAX_CHARS = 1700            # the whole list of lines, before the heading and the rules
 
@@ -288,26 +289,28 @@ def render(snap: dict, league=None, trend=None, practice=None, extra=(), now: dt
         if _clean(x, 300):
             L.append((2, _clean(x, 300)))
 
-    return "\n".join([_HEAD] + [f"- {t}" for t in _fit(L, _MAX_CHARS)] + [_RULES])
+    budget = _MAX_CHARS + sum(len(_clean(x, 300)) + 3 for x in (extra or ()) if _clean(x, 300))      # a module's lines never crowd out the numbers
+    return "\n".join([_HEAD] + [f"- {t}" for t in _fit(L, budget)] + [_RULES])
 
 
-async def _extra(fn: Callable[[str], Awaitable[list[str]]], uid: str) -> list[str]:
+async def _extra(fn: Callable[..., Awaitable[list[str]]], uid: str, email: str = "") -> list[str]:
     try:
-        out = await asyncio.wait_for(fn(uid), timeout=1.5)
+        two = len([p for p in inspect.signature(fn).parameters.values() if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]) >= 2
+        out = await asyncio.wait_for(fn(uid, email) if two else fn(uid), timeout=1.5)
         return [str(x) for x in out] if isinstance(out, list) else []
     except Exception as e:                      # a module's lines are a bonus - never a reason to fail
         print(f"[life] extra {getattr(fn, '__name__', 'fn')} failed: {type(e).__name__}")
         return []
 
 
-async def build(uid: str) -> str:
+async def build(uid: str, email: str = "") -> str:
     """The block for `uid`, or "" when there is nothing honest to say (no database, unknown user, the
     snapshot itself failed). The caller bounds the wait (main.py gives it 3 s)."""
     if not uid or not db.db_enabled:
         return ""
     res = await asyncio.gather(
         db.life_snapshot(uid), db.weekly_league(uid, limit=1), db.speaking_trend(uid),
-        db.list_practice_attempts(uid, 3), *[_extra(fn, uid) for fn in EXTRA_LINES],
+        db.list_practice_attempts(uid, 3), *[_extra(fn, uid, email) for fn in EXTRA_LINES],
         return_exceptions=True)
     names = ("snapshot", "league", "trend", "practice")
     for name, r in zip(names, res):

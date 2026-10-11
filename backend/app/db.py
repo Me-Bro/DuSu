@@ -2259,6 +2259,8 @@ async def admin_wipe_users(keep_emails: set[str]) -> int:
         del_ids = [u.id for u in users if (u.email or "").strip().lower() not in keep]
         if not del_ids:
             return 0
+        from .planner import service as _pl         # My Day's rows reference users: they go first (a forgotten table = orphaned personal data)
+        await _pl.delete_rows(s, del_ids)
         for tbl in (Conversation, Memory, Progress, Profile, UserKey, Feedback, UsageDaily,
                     SessionScore, WeeklyStat, SeasonAward, PracticeAttempt):
             await s.execute(delete(tbl).where(tbl.user_id.in_(del_ids)))
@@ -2272,6 +2274,8 @@ async def delete_user(user_id: str) -> bool:
     if not db_enabled:
         return False
     async with _Session() as s:               # type: ignore[misc]
+        from .planner import service as _pl
+        await _pl.delete_rows(s, [user_id])
         for tbl in (Conversation, Memory, Progress, Profile, UserKey, Feedback, UsageDaily,
                     SessionScore, WeeklyStat, SeasonAward, PracticeAttempt):
             await s.execute(delete(tbl).where(tbl.user_id == user_id))

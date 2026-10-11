@@ -1,11 +1,8 @@
 # DUSU — Goals, Habits & Smart Reminders ("My Day") — Plan
 
-> **Status 2026-10-10: PLAN ONLY. Nothing in this document is built.**
-> Written with the superpowers brainstorming flow: audit the real repo → take the open decisions → design → stop for review.
-> Part 1 of the same request, **"DuSu knows your data"**, *is* built and live (CLAUDE.md §10, commit `fc32d1b`) — this module plugs into it (§10).
-> **Waiting for the owner's go.** Reply **"go"** (all phases, in order) or **"go P0–P2"** (reminders first — recommended, §13) and the chosen phases get turned into a task-by-task implementation plan and built behind a switch that ships **OFF**.
->
-> Also asked: *"is the viva / presenting feature done?"* — **Presentation is built and live but switched OFF** (Practice Room, commit `acfc04b`). Viva, seminar, speech and discussion are **not** built: the Practice Room shows them as "Soon" (`practice.ENABLED_KINDS = ("presentation",)`).
+> **Status 2026-10-11: P0-P3 BUILT (behind the `planner` switch, default off) - the owner asked for it ("is Know About showing coming soon ... make sure all features start working ... what is my routine").**
+> Built: tables, tasks (+ repeat, condition / "wait for my tap", pins, reschedule history), goals by hand with milestones and deterministic progress, habits (absolute logging, consistency, streak, the built-in English-practice strip), the reminder engine (one asyncio loop, Postgres as the queue, quiet hours, follow-ups, snooze, stale policy, push with signed action tokens), the in-app reminder card, Settings (timezone, quiet hours, test reminder, export, delete-all), DuSu reading the plan, the Home card / tile / More row, Hindi + English. Details, files and verification: CLAUDE.md §14. **Not built (so no copy claims it):** P4 AI planner (sentence parsing, goal drafting, replan, split), P5 recovery + evening review, voice capture of tasks, the Career-roadmap bridge. **Not verified:** push while the app is closed on a real handset (P2's tier-5 phone matrix) - nothing is promised until the owner runs Settings -> "Send me a test reminder".
+> Original status (kept for the record): *Status 2026-10-10: PLAN ONLY ... waiting for the owner's go.* Part 1 of the same request, **"DuSu knows your data"**, is built and live (CLAUDE.md §10) and this module plugs into it (§10). The Practice Room's viva / discussion / speech / seminar / custom were built the same day (CLAUDE.md §13).
 
 ## Contents
 0. TL;DR · 1. Your spec vs. this repo (+ audit) · 2. Scope & acceptance criteria · 3. Not in V1 · 4. Screens & flows · 5. Domain model · 6. Reminder engine · 7. Channels & Android reality · 8. API contract · 9. AI design · 10. DuSu integration · 11. Privacy & security · 12. Verification plan · 13. Phases & tickets · 14. Rollout & metrics · 15. Risks & open questions · Appendices A–C
