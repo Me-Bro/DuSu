@@ -58,6 +58,7 @@ LINES = {
                         "then ask one sharper, more specific follow-up question.)"),
         "switch_note": "(The learner has switched to English from now on — reply in English only.)",
         "daily_fallback_q": "How was your day today?",
+        "practice_end": "Thank you - that's all for now. Let me put your report together.",
     },
     "hi": {
         "interview_end": "धन्यवाद, हमारा interview यहीं पूरा होता है।",
@@ -68,6 +69,7 @@ LINES = {
                         "one sharper, more specific follow-up question — in Hindi, Devanagari script.)"),
         "switch_note": "(The learner has switched to Hindi from now on — reply in Hindi, in Devanagari script.)",
         "daily_fallback_q": "आज आपका दिन कैसा रहा?",
+        "practice_end": "धन्यवाद - अभी के लिए इतना ही। मैं आपकी रिपोर्ट तैयार करती हूँ।",
     },
 }
 

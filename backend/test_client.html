@@ -1995,7 +1995,8 @@
   .pr-sel{ font:inherit; font-size:13px; color:var(--ink); background:rgba(255,255,255,.06); border:1px solid var(--glass-brd);
     border-radius:10px; padding:6px 10px; color-scheme:dark; }
   @media (min-width:1200px){
-    #prHub, #prSetup, #prLive, #prWork, #prBridge{ max-width:720px; margin:0 auto; }
+    #prHub, #prSetup, #prTalk, #prLive, #prWork, #prBridge{ max-width:720px; margin:0 auto; }
+    textarea.pr-in{ resize:vertical; min-height:72px; line-height:1.5; font:inherit; }
     #prReport{ max-width:980px; margin:0 auto; }
     #prRepBody{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:22px; align-content:start; }
     #prRepBody > *{ grid-column:1 / -1; }
@@ -2474,7 +2475,7 @@
     <div class="sec-label center" style="margin-top:14px">Practice</div>
     <button class="pr-entry" id="prEntry" hidden>
       <span class="pr-ic">🎤</span>
-      <span><b>Practice Room</b><small>Rehearse a presentation — record, get a scored report, listen back, try again.</small></span>
+      <span><b>Practice Room</b><small>Rehearse a talk, face a viva or a group discussion — get a scored report and try again.</small></span>
       <span class="pr-go">→</span>
     </button>
     <div class="modes">
@@ -2577,6 +2578,31 @@
     <div class="controls">
       <button class="btn ghost" id="prSetupCancel">Back</button>
       <button class="btn primary" id="prSetupGo">Continue</button>
+    </div>
+  </section>
+
+  <section id="prTalk" class="screen">
+    <div class="sess-head">
+      <button class="back" id="prTalkBack" title="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+      <div><div class="sess-title">Set up your practice</div><div class="sess-sub" id="prTalkSub">Viva</div></div>
+    </div>
+    <p class="pr-hint" id="prTalkIntro" style="margin:12px 0 0"></p>
+    <div class="pr-group" style="margin-top:14px">
+      <div class="pr-lab" id="prTalkLab"></div>
+      <textarea class="pr-in" id="prTalkTopic" maxlength="300" rows="3" autocomplete="off"></textarea>
+    </div>
+    <div class="pr-group"><div class="pr-lab">I'll speak in</div><div class="pr-chips" id="prTalkLang"></div></div>
+    <div class="pr-group"><div class="pr-lab">Feedback in</div><div class="pr-chips" id="prTalkFeed"></div></div>
+    <div class="pr-group"><div class="pr-lab">Level</div><div class="pr-chips" id="prTalkLevel"></div></div>
+    <div class="pr-group"><div class="pr-lab" id="prTalkRoundsLab">How many questions?</div><div class="pr-chips" id="prTalkRounds"></div></div>
+    <div class="card" id="prTalkNoSR" hidden>
+      <h4>🎙️ Needs Chrome</h4>
+      <p class="pr-hint" style="margin:0">This practice talks and listens. Open DuSu in Chrome (or the installed app) and allow the microphone.</p>
+    </div>
+    <p class="pr-hint dim">🔒 DuSu does not record audio. Your answers go to DuSu as text to be scored, and only the report is saved.</p>
+    <div class="controls">
+      <button class="btn ghost" id="prTalkCancel">Back</button>
+      <button class="btn primary" id="prTalkGo">Start</button>
     </div>
   </section>
 
@@ -3531,7 +3557,9 @@ const LG = (function(){
   const homeOn = () => { try{ return !!HM.enabled(); }catch(_){ return false; } };   // ...and a new feature is live: with Home AI off there is nothing to switch, so nothing is drawn
   const cur = () => pref || (userState && ok(userState.lang) ? userState.lang : "") || "hi";
   // The language a mode runs in: the learner's choice for a new feature (when the switch is on), what the mode always was for everything else.
-  const lang = mode => { const m = mode || currentMode; return (SWITCHABLE[m] && on()) ? cur() : (LEGACY[m] || "en"); };
+  let practiceLang = "en";   // the Practice Room conversation kinds (viva / discussion / custom) speak the language picked in their own Setup
+  const setPracticeLang = l => { practiceLang = l === "en" ? "en" : "hi"; };
+  const lang = mode => { const m = mode || currentMode; if(m === "practice") return practiceLang; return (SWITCHABLE[m] && on()) ? cur() : (LEGACY[m] || "en"); };
   const switchable = mode => !!SWITCHABLE[mode || currentMode];
   const stt  = l => l === "hi" ? "hi-IN" : "en-US";                     // speech recogniser locale (English stays on the proven en-US)
   const voice = l => l === "hi" ? HI() : ENG_NORM();                    // DuSu's voice for a line written in `l`
@@ -3623,7 +3651,7 @@ const LG = (function(){
     const ah = document.querySelector("#about .sess-head"); if(ah && !ah.querySelector(".lg-sw")) ah.appendChild(pill());                                  // Know About DuSu
   }
 
-  return { on, cur, lang, switchable, stt, voice, t:tr, set, pills, applyUI, applySession, syncFromState, clear, mount, save };
+  return { on, cur, lang, setPracticeLang, switchable, stt, voice, t:tr, set, pills, applyUI, applySession, syncFromState, clear, mount, save };
 })();
 function lgt(key, vars){ return LG.t(key, vars); }
 function thinkSteps(kind){
@@ -3695,7 +3723,7 @@ function show(id, pathOverride){
 const NAV_TAB = { about:"home", home:"home", journey:"journey", daily:"daily", practice:"practice",
   learning:"practice", session:"practice", setup:"practice", lesson:"practice", report:"practice",
   leaderboard:"leaderboard", profile:"more", keys:"more", admin:"more", help:"more", career:"home", league:"leaderboard", achievements:"more", interviewReports:"more",
-  prHub:"practice", prSetup:"practice", prLive:"practice", prWork:"practice", prReport:"practice", prBridge:"practice" };
+  prHub:"practice", prSetup:"practice", prTalk:"practice", prLive:"practice", prWork:"practice", prReport:"practice", prBridge:"practice" };
 const PATH_TAB = { "/profile":"more", "/keys":"more", "/more":"more" };
 function syncNav(id, pathOverride){
   const nav = $("bnav"); if(nav) nav.classList.toggle("hide", id === "login" || id === "assessment");
@@ -3832,14 +3860,14 @@ function runGuards(route){
 }
 // visible screen → canonical path (session is shared by conversation + interview)
 function pathForScreen(id){
-  if(id === "session") return currentMode === "interview" ? "/interview" : currentMode === "home" ? "/home-chat" : "/face-to-face";
+  if(id === "session") return currentMode === "interview" ? "/interview" : currentMode === "home" ? "/home-chat" : currentMode === "practice" ? "/practice-room" : "/face-to-face";
   return ({ home:"/", practice:"/practice", daily:"/daily-talk", setup:"/interview",
     learning:"/learn", journey:"/learning-journey", lesson:"/learning-journey", report:"/interview",
     leaderboard:"/leaderboard", keys:"/keys", admin:"/more", help:"/more", profile:"/profile",
     career:"/career-path", league:"/league", achievements:"/achievements",
     interviewReports:"/interview-reports", about:"/about",
     // every Practice Room screen shares one URL: a reload mid-take can't resume a live recording anyway, so it lands on the hub
-    prHub:"/practice-room", prSetup:"/practice-room", prLive:"/practice-room", prWork:"/practice-room", prReport:"/practice-room", prBridge:"/practice-room",
+    prHub:"/practice-room", prSetup:"/practice-room", prTalk:"/practice-room", prLive:"/practice-room", prWork:"/practice-room", prReport:"/practice-room", prBridge:"/practice-room",
     superadmin:"/superadmin", subscribe:"/subscribe", login:"/", assessment:"/test" })[id] || null;
 }
 function syncUrl(id, pathOverride){
@@ -4601,6 +4629,7 @@ function leave(){
     return;
   }
   currentLesson = null;
+  if(currentMode === "practice"){ try{ PR.open(); return; }catch(_){} }   // a practice conversation goes back to the Practice Room
   show("home");
 }
 $("backBtn").onclick = leave;
@@ -4619,8 +4648,8 @@ $("endBtn").onclick = () => {
   stopListening(); FACE.stopTalking();
   if(window.speechSynthesis) window.speechSynthesis.cancel();
   ws && ws.send(JSON.stringify({ type:"end" }));
-  orb("thinking", currentMode==="interview" ? lgt("orbScoring") : lgt("orbWrap"), "");
-  thinkShow(currentMode==="interview" ? "scoring" : "wrap");
+  orb("thinking", (currentMode==="interview" || currentMode==="practice") ? lgt("orbScoring") : lgt("orbWrap"), "");
+  thinkShow((currentMode==="interview" || currentMode==="practice") ? "scoring" : "wrap");
 };
 
 function onMessage(ev){
@@ -4635,6 +4664,9 @@ function onMessage(ev){
     case "home_turn": try{ HM.onTurn(m); }catch(e){ console.warn("HM.onTurn", e); } break;
     case "home_error": try{ HM.onError(m); }catch(e){ console.warn("HM.onError", e); } break;
     case "lang_ok": break;   // the server acknowledged a Hindi/English switch — nothing to do, the screen already changed
+    case "practice_done": addSys("✅ That's all the questions — scoring your practice…"); thinkShow("scoring"); break;   // Practice Room conversation kinds
+    case "practice_report": try{ PR.onTalkReport(m.data); }catch(e){ console.warn("PR.onTalkReport", e); } break;
+    case "practice_error": try{ PR.onTalkError(m); }catch(e){ console.warn("PR.onTalkError", e); } break;
     case "translate_error":
       // The server sends this for a failed Daily turn too — it used to poke the Learn screen's
       // controls and leave Daily stuck on "thinking" with a dead mic.
@@ -5778,6 +5810,8 @@ const BADGE_LABELS = { first_lesson:"🎤 First Lesson", first_converse:"💬 Fi
   fearless_speaker:"🏅 Fearless Speaker (50 Face-to-Face)", interview_ready:"🏅 Interview Ready (50 interviews)",
   vocabulary_explorer:"🏅 Vocabulary Explorer (1,000 words)",
   // Practice Room — "Bridge Builder" (a Hindi/Hinglish talk re-done in English) carries no XP on purpose
+  first_viva:"🎓 First Viva", viva_80:"🎓 Viva 80+", first_discussion:"👥 First Discussion", first_speech:"📣 First Speech",
+  first_seminar:"🧑‍🏫 First Seminar", first_custom:"✨ First Custom Practice",
   first_presentation:"🎤 First Presentation", presentation_10:"📊 10 Presentations",
   presentation_80:"🌟 Presentation 80+", presentation_90:"🏆 Presentation 90+", bridge_builder:"🌉 Bridge Builder" };
 let todayMood = "";
@@ -7357,17 +7391,33 @@ const PR = (function(){
   "use strict";
   const MAX_SEC = 15 * 60, MIN_SEC = 45;
   const CAT_LABEL = { fluency:"Fluency", grammar:"Grammar", vocabulary:"Vocabulary", clarity:"Clarity", content:"Content",
-                      structure:"Structure", steadiness:"Steadiness", time:"Time" };
+                      structure:"Structure", steadiness:"Steadiness", time:"Time",
+                      knowledge:"Knowledge", explaining:"Explaining", relevance:"Answering the question", composure:"Composure",
+                      ideas:"Ideas", responding:"Responding to others", goal:"Getting it done", language:"English (grammar & words)" };
   const BAND_LABEL = { excellent:"Excellent", good:"Good", developing:"Developing", needs_practice:"Needs practice" };
   const LANG_LABEL = { en:"English", hi:"Hindi", hinglish:"Hinglish" };
   const DURS = [[120, "2 min"], [300, "5 min"], [600, "10 min"]];
   const LEVELS = [["beginner", "Beginner"], ["intermediate", "Intermediate"], ["advanced", "Advanced"]];
   const GOALS = [["College presentation", "College presentation"], ["Viva / seminar", "Viva / seminar"],
                  ["Job interview", "Job interview"], ["Speaking confidence", "Confidence"]];
-  const COMING = [["viva", "🎓", "Viva", "Answer an examiner's questions"], ["discussion", "👥", "Discussion", "Practise a group discussion"],
-                  ["speech", "📣", "Speech", "Rehearse a speech"], ["seminar", "🧑‍🏫", "Seminar", "Present, then take questions"],
-                  ["custom", "✨", "Custom", "Your own scenario"]];
-  const PR_SCREENS = ["prHub", "prSetup", "prLive", "prWork", "prReport", "prBridge"];
+  // The six kinds. "rec" = record a talk -> transcribe -> scored report; "talk" = a live conversation with DuSu (examiner / group-discussion
+  // partner / role-play), scored at the end (practice_talk.py). Both end in the same report screen and the same History.
+  const KIND_INFO = {
+    presentation: { ico:"🎤", name:"Presentation", sub:"Rehearse a talk · 2–10 min · scored report", mode:"rec" },
+    viva:         { ico:"🎓", name:"Viva", sub:"DuSu is your examiner — answer her questions out loud", mode:"talk" },
+    discussion:   { ico:"👥", name:"Discussion", sub:"A group discussion with DuSu and a participant", mode:"talk" },
+    speech:       { ico:"📣", name:"Speech", sub:"Rehearse a speech · record it, get a scored report", mode:"rec" },
+    seminar:      { ico:"🧑‍🏫", name:"Seminar", sub:"Present a topic to an academic audience", mode:"rec" },
+    custom:       { ico:"✨", name:"Custom", sub:"Describe a scenario — DuSu plays the other person", mode:"talk" },
+  };
+  const KIND_ORDER = ["presentation", "viva", "discussion", "speech", "seminar", "custom"];
+  const TALK_ROUNDS = { viva:[5, 8, 10], discussion:[4, 6, 8], custom:[5, 8, 10] };
+  const TALK_TEXT = {
+    viva:       { lab:"What should DuSu examine you on?", ph:"e.g. Database Management Systems — or your final-year project", intro:"DuSu plays a calm examiner: one question at a time, harder when you do well, simpler when you get stuck. Answer out loud.", rounds:"How many questions?", unit:" questions" },
+    discussion: { lab:"What is the discussion about?", ph:"e.g. Social media: boon or bane?", intro:"A small group discussion: DuSu moderates and plays one other participant, Arjun, who agrees, disagrees and asks you questions. Join in out loud.", rounds:"How many times will you speak?", unit:" turns" },
+    custom:     { lab:"Describe the scenario — who is DuSu, and what is the situation?", ph:"e.g. You are the HR manager and I am a fresher negotiating my first salary", intro:"DuSu plays the other person in your scenario and keeps the conversation going. Keep it safe and respectful — DuSu will step out of anything harmful.", rounds:"How many times will you speak?", unit:" turns" },
+  };
+  const PR_SCREENS = ["prHub", "prSetup", "prTalk", "prLive", "prWork", "prReport", "prBridge"];
 
   let st = freshSetup();     // the Setup screen's state
   let R = null;              // the live recording runtime (null when nothing is being recorded)
@@ -7437,7 +7487,7 @@ const PR = (function(){
   function prefs(){ return (userState && userState.practice_prefs) || {}; }
   function freshSetup(over){
     const p = prefs();
-    return Object.assign({ topic: localStorage.getItem("dusu_pr_topic") || "", dur:300, level:"intermediate", goal:"", date:"",
+    return Object.assign({ kind:"presentation", topic: localStorage.getItem("dusu_pr_topic") || "", dur:300, level:"intermediate", goal:"", date:"",
       lang: p.lang || "en", feed: p.feedback_lang || "", invite: p.english_invite !== "off", attemptOf:null, bridge:null }, over || {});
   }
   // "Feedback in" defaults: a Hindi/Hinglish talk → Hinglish; an English talk follows the language the student onboarded in.
@@ -7472,10 +7522,11 @@ const PR = (function(){
   /* ---------- Hub: practice types + my attempts + an unfinished take ---------- */
   function showHub(){
     show("prHub");
-    $("prKinds").innerHTML =
-      '<button class="pr-kind main" data-k="presentation"><span class="pr-ic">🎤</span><span><b>Presentation</b><small>Rehearse a talk · 2–10 min · scored report</small></span></button>' +
-      COMING.map(k => `<div class="pr-kind soon"><span class="pr-ic">${k[1]}</span><b>${k[2]}</b><small>${k[3]}</small><span class="pr-soon">Soon</span></div>`).join("");
-    $("prKinds").querySelector('[data-k="presentation"]').onclick = () => openSetup();
+    $("prKinds").innerHTML = KIND_ORDER.map((k, i) => { const x = KIND_INFO[k];
+      return i < 2   // the two featured kinds are wide rows (icon + text block); the rest are small tiles (icon, title, line - stacked)
+        ? `<button class="pr-kind main" data-k="${k}"><span class="pr-ic">${x.ico}</span><span><b>${x.name}</b><small>${x.sub}</small></span></button>`
+        : `<button class="pr-kind" data-k="${k}"><span class="pr-ic">${x.ico}</span><b>${x.name}</b><small>${x.sub}</small></button>`; }).join("");
+    $("prKinds").querySelectorAll(".pr-kind").forEach(b => b.onclick = () => kindGo(b.dataset.k));
     renderResume();
     loadList();
   }
@@ -7514,7 +7565,7 @@ const PR = (function(){
     }catch(_){ box.innerHTML = '<div class="pr-empty">Couldn’t load your practice history right now.</div>'; return; }
     if(!hist.length){ box.innerHTML = '<div class="pr-empty">No practice yet — your first presentation takes about five minutes.</div>'; return; }
     box.innerHTML = hist.map(a => `<button class="pr-row" data-id="${a.id}"><span class="pr-r-main"><span class="pr-r-t">${esc(a.topic || "Untitled talk")}</span>` +
-      `<span class="pr-r-s">${esc(shortDate(a.created_at))} · ${esc(LANG_LABEL[a.lang] || "")} · ${mmss(a.actual_sec)}${a.attempt_no > 1 ? " · attempt " + a.attempt_no : ""}</span></span>` +
+      `<span class="pr-r-s">${esc((KIND_INFO[a.kind] || {}).name || "")} · ${esc(shortDate(a.created_at))} · ${esc(LANG_LABEL[a.lang] || "")} · ${mmss(a.actual_sec)}${a.attempt_no > 1 ? " · attempt " + a.attempt_no : ""}</span></span>` +
       `<span class="pr-score">${a.overall}</span></button>`).join("");
     box.querySelectorAll(".pr-row").forEach(b => b.onclick = () => openAttempt(+b.dataset.id));
   }
@@ -7568,7 +7619,7 @@ const PR = (function(){
     const plan = sttPlan();
     $("prSttWarn").hidden = plan !== "none";
     $("prSetupGo").disabled = plan === "none";
-    $("prSetupSub").textContent = st.bridge ? "Same talk, now in English" : "Presentation";
+    $("prSetupSub").textContent = st.bridge ? "Same talk, now in English" : (KIND_INFO[st.kind] || KIND_INFO.presentation).name;
   }
   $("prTopic").addEventListener("input", () => { st.topic = $("prTopic").value; });
   $("prDate").addEventListener("change", () => { st.date = $("prDate").value; });
@@ -7915,7 +7966,7 @@ const PR = (function(){
     const s = take.setup, stt = take.stt;
     const actual = stt.duration > 0 ? stt.duration : take.actualMs / 1000;
     const r2 = n => Math.round(n * 100) / 100;
-    const body = { token:authToken, keys:officeKeys(), kind:"presentation", topic:s.topic, lang:s.lang, feedback_lang:s.feedEff, level:s.level,
+    const body = { token:authToken, keys:officeKeys(), kind:s.kind || "presentation", topic:s.topic, lang:s.lang, feedback_lang:s.feedEff, level:s.level,
       goal:s.goal || "", event_date:s.date || "", target_sec:s.dur, actual_sec:Math.round(actual * 10) / 10, pause_sec:Math.round(take.pauseMs / 1000),
       transcript:stt.text, words:stt.words.map(w => [w[0], r2(w[1]), r2(w[2])]),
       segments:stt.segments.map(g => [r2(g[0]), r2(g[1]), Math.round(g[2] * 1000) / 1000, Math.round(g[3] * 1000) / 1000]),
@@ -7969,11 +8020,13 @@ const PR = (function(){
       `<div class="metric pr-cat"><div class="m-top"><b>${CAT_LABEL[c.key] || esc(c.key)}<span class="pr-pts">${c.weight} pts</span>${deltaChip(dc[c.key])}</b><span>${c.score}</span></div>` +
       `<div class="bar"><i data-w="${c.score}"></i></div>${c.why ? `<div class="pr-why">${esc(c.why)}</div>` : ""}</div>`).join("") + "</div>";
     const stc = res.structure || {};
-    h += '<div class="card pr-half"><h4>🧱 Structure</h4><div class="pr-check">' +
+    if(res.structure) h += '<div class="card pr-half"><h4>🧱 Structure</h4><div class="pr-check">' +
          `<span class="${stc.introduction ? "ok" : "no"}">${stc.introduction ? "✓" : "✗"} Introduction</span>` +
          `<span class="${stc.main_points >= 2 ? "ok" : "no"}">${stc.main_points >= 2 ? "✓" : "✗"} ${stc.main_points || 0} main point${stc.main_points === 1 ? "" : "s"}</span>` +
          `<span class="${stc.examples >= 1 ? "ok" : "no"}">${stc.examples >= 1 ? "✓" : "✗"} ${stc.examples || 0} example${stc.examples === 1 ? "" : "s"}</span>` +
          `<span class="${stc.conclusion ? "ok" : "no"}">${stc.conclusion ? "✓" : "✗"} Conclusion</span></div></div>`;
+    if((res.revise || []).length) h += '<div class="card pr-half"><h4>🧩 ' + esc(res.revise_title || "To revise") + '</h4><ul>' +
+         res.revise.map(x => `<li><b>${esc(x.item)}</b>${x.tip ? " — " + esc(x.tip) : ""}</li>`).join("") + "</ul></div>";
     if((res.content_gaps || []).length) h += '<div class="card pr-half"><h4>🧩 Missing from your talk</h4><ul>' + res.content_gaps.map(x => `<li>${esc(x)}</li>`).join("") + "</ul></div>";
     h += '<div class="card good pr-half"><h4>✅ Strengths</h4><ul>' + ((res.strengths || []).map(x => `<li>${esc(x)}</li>`).join("") || "<li>—</li>") + "</ul></div>";
     h += '<div class="card fix pr-half"><h4>🛠 What to fix</h4><ul>' + ((res.improvements || []).map(x => `<li><b>${esc(x.issue)}</b>${x.how ? " — " + esc(x.how) : ""}</li>`).join("") || "<li>—</li>") + "</ul></div>";
@@ -7999,6 +8052,8 @@ const PR = (function(){
     if(take && take.blob){
       h += '<div class="card pr-full"><h4>🎧 Listen back</h4><audio class="pr-audio" id="prAudio" controls preload="metadata"></audio><div class="pr-tx" id="prTx"></div>' +
            '<button class="pr-link" id="prDelRec">Delete this recording from my phone</button></div>';
+    } else if(res.talk){
+      h += '<p class="pr-hint dim pr-full">Your conversation isn’t stored — only this report is.</p>';
     } else {
       h += '<p class="pr-hint dim pr-full">The recording and transcript stay on the phone you practised on.</p>';
     }
@@ -8008,7 +8063,7 @@ const PR = (function(){
   function showReport(res, take){
     curRes = res; cur = take || null;
     show("prReport");
-    $("prRepKicker").textContent = (res.attempt_no > 1 ? "Attempt " + res.attempt_no + " · " : "") + "Practice report";
+    $("prRepKicker").textContent = (res.attempt_no > 1 ? "Attempt " + res.attempt_no + " · " : "") + (res.talk ? ((KIND_INFO[res.kind] || {}).name || "Practice") + " report" : "Practice report");
     $("prMeta").innerHTML = [res.topic ? esc(res.topic) : "", esc(LANG_LABEL[res.lang] || ""), mmss(res.seconds || res.actual_sec || 0)]
       .filter(Boolean).map(x => `<span class="pr-tag">${x}</span>`).join("");
     const ov = res.overall || 0;
@@ -8065,7 +8120,8 @@ const PR = (function(){
   }
   $("prAgain").onclick = () => {
     if(!curRes) return openSetup();
-    openSetup({ topic:curRes.topic, dur:curRes.target_sec || 300, level:curRes.level || "intermediate", lang:curRes.lang, feed:curRes.feedback_lang, attemptOf:curRes.id });
+    if(curRes.talk || (KIND_INFO[curRes.kind] || {}).mode === "talk") return openTalkSetup(curRes.kind, { topic:curRes.topic, lang:curRes.lang, feed:curRes.feedback_lang, level:curRes.level || "intermediate", rounds:(curRes.talk || {}).rounds });
+    openSetup({ kind:curRes.kind || "presentation", topic:curRes.topic, dur:curRes.target_sec || 300, level:curRes.level || "intermediate", lang:curRes.lang, feed:curRes.feedback_lang, attemptOf:curRes.id });
   };
   $("prRepHub").onclick = showHub;
   $("prHubBack").onclick = () => navTo("/practice");
@@ -8105,12 +8161,88 @@ const PR = (function(){
   }
   $("prBridgeBack").onclick = () => show("prReport");
 
+  /* ---------- the conversation kinds: setup -> a live talk on the shared #session voice loop -> the same report ---------- */
+  function kindGo(k){
+    const x = KIND_INFO[k]; if(!x) return;
+    if(x.mode === "talk") openTalkSetup(k); else openSetup({ kind:k });
+  }
+  let tk = null;
+  function openTalkSetup(kind, over){
+    if(guardKeys()) return;
+    const p = prefs();
+    tk = Object.assign({ kind, topic: localStorage.getItem("dusu_prt_" + kind) || "", lang: p.lang || "en", feed: p.feedback_lang || "", level:"intermediate", rounds:(TALK_ROUNDS[kind] || [8, 8])[1] }, over || {});
+    if(!TALK_ROUNDS[kind]) return;
+    if((TALK_ROUNDS[kind] || []).indexOf(+tk.rounds) < 0) tk.rounds = TALK_ROUNDS[kind][1];
+    show("prTalk"); paintTalk();
+  }
+  function paintTalk(){
+    const x = KIND_INFO[tk.kind], t = TALK_TEXT[tk.kind];
+    $("prTalkSub").textContent = x.name; $("prTalkIntro").textContent = t.intro; $("prTalkLab").textContent = t.lab; $("prTalkRoundsLab").textContent = t.rounds;
+    const inp = $("prTalkTopic"); inp.placeholder = t.ph; if(inp.value !== tk.topic) inp.value = tk.topic;
+    chips("prTalkLang", [["hi", "हिन्दी Hindi"], ["hinglish", "Hinglish"], ["en", "English"]], tk.lang, v => { tk.lang = v; paintTalk(); });
+    chips("prTalkFeed", [["hinglish", "Hinglish"], ["en", "English"]], tk.feed || (tk.lang === "en" ? "en" : "hinglish"), v => { tk.feed = v; paintTalk(); });
+    chips("prTalkLevel", LEVELS, tk.level, v => { tk.level = v; paintTalk(); });
+    chips("prTalkRounds", TALK_ROUNDS[tk.kind].map(n => [n, n + t.unit]), tk.rounds, v => { tk.rounds = +v; paintTalk(); });
+    $("prTalkGo").disabled = !SR; $("prTalkNoSR").hidden = !!SR;
+  }
+  $("prTalkTopic").addEventListener("input", () => { if(tk) tk.topic = $("prTalkTopic").value; });
+  $("prTalkBack").onclick = $("prTalkCancel").onclick = () => showHub();
+  $("prTalkGo").onclick = () => {
+    tk.topic = $("prTalkTopic").value.trim();
+    if(tk.topic.length < 3){ showNotif("Tell DuSu what to practise — a few words is enough."); $("prTalkTopic").focus(); return; }
+    try{ localStorage.setItem("dusu_prt_" + tk.kind, tk.topic); }catch(_){}
+    savePrefs({ lang:tk.lang, feedback_lang:tk.feed || (tk.lang === "en" ? "en" : "hinglish") });
+    startTalk(Object.assign({}, tk, { feed: tk.feed || (tk.lang === "en" ? "en" : "hinglish") }));
+  };
+  // The live conversation is the ordinary voice loop (#session: orb, transcript, mic, speech) - only the socket's `start` and the
+  // frames it ends with are different. Nothing here changes how Talk or Interview behave (currentMode "practice" is its own mode).
+  function startTalk(cfg){
+    if(guardKeys()) return;
+    if(!SR){ showNotif(lgt("needChrome")); return; }
+    if(overLimit()){ showNotif(lgt("limitReached", { n: MAX_SESSIONS })); return; }
+    currentMode = "practice"; LG.setPracticeLang(cfg.lang);
+    $("feed").innerHTML = ""; thinkHide();
+    $("sessTitle").textContent = KIND_INFO[cfg.kind].name; $("sessSub").textContent = cfg.topic.length > 60 ? cfg.topic.slice(0, 58) + "…" : cfg.topic;
+    $("endBtn").textContent = "End & get my report"; $("endBtn").className = "btn primary";
+    show("session");
+    orb("connecting", lgt("orbReady"), lgt("orbReadyHint"));
+    addSys(lgt("tipPhones"));
+    thinkShow("start");
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+      running = true; srFails = 0; usageInc(); refreshUsage();
+      ws.send(JSON.stringify({ type:"start", mode:"practice", kind:cfg.kind, topic:cfg.topic, plang:cfg.lang, level:cfg.level, rounds:cfg.rounds,
+        feedback_lang:cfg.feed, token:authToken, keys:officeKeys(), mood:todayMood, hour:new Date().getHours(), day:localDay() }));
+      orb("connecting", lgt("orbReady2"), lgt("orbReady2Hint"));
+    };
+    ws.onmessage = onMessage;
+    ws.onclose = () => { running = false; stopListening(); thinkHide(); if(window.speechSynthesis) window.speechSynthesis.cancel(); FACE.stopTalking(); Assistant.stopTalking(); };
+    ws.onerror = () => { thinkHide(); orb("idle", lgt("connErr"), lgt("connErrHint")); };
+  }
+  function onTalkReport(res){
+    running = false; try{ stopListening(); }catch(_){} try{ killSpeech(); }catch(_){}
+    try{ ws && ws.close(); }catch(_){}
+    if(res && res.too_short){
+      showHub();
+      showNotif("That was too short to score — answer at least two questions with a few sentences each, then tap “End & get my report”.");
+      return;
+    }
+    showReport(res, null);
+  }
+  function onTalkError(m){
+    running = false; try{ stopListening(); }catch(_){}
+    const quota = m && m.msg === "quota";
+    addSys(quota ? "Your AI keys are at their limit — your practice couldn't be scored yet. Tap “End & get my report” to try again in a bit." : "DuSu couldn't score this practice just now. Tap “End & get my report” to try again.");
+    orb("idle", "Not scored yet", quota ? "Keys at their limit" : "Tap End to try again");
+  }
+  ["practice_report", "practice_error", "practice_done"].forEach(x => THINK_ENDERS.add(x));   // the "DuSu is thinking" loader must never outlive these
+
   /* ---------- wiring ---------- */
   if($("prEntry")) $("prEntry").onclick = () => navTo("/practice-room");
   if($("prHomeCard")) $("prHomeCard").onclick = () => navTo("/practice-room");
   // Account deletion: the recordings and transcripts live only on this device, so they go too.
   function wipeLocal(){ return IDB.reset(); }
-  return { open, syncEntries, onLeaveLive, guardLeave, enabled, wipeLocal };
+  return { open, syncEntries, onLeaveLive, guardLeave, enabled, wipeLocal, onTalkReport, onTalkError };
 })();
 window.PR = PR;
 ROUTES["/practice-room"] = { enter: () => PR.open() };
@@ -8134,10 +8266,10 @@ const HM = (function(){
     hi: {
       companion:"तुम्हारी AI companion", seg:{ morning:"सुबह", afternoon:"दोपहर", evening:"शाम", night:"रात" },
       about:"Know About DuSu", typePh:"या यहाँ type करके बताओ…", featsH:"किसी भी feature पर जाओ",
-      chips:[ { l:"📅 आज क्या करूँ?", t:"आज मुझे क्या करना चाहिए? मेरा दिन plan करने में मदद करो।" },
-              { l:"🗣️ English practice", t:"मुझे English बोलने की practice करनी है।" },
-              { l:"🎯 Interview prep", t:"मुझे interview की तैयारी करनी है।" },
-              { l:"📈 मेरी progress", t:"मेरी progress कैसी चल रही है?" } ],
+      chips:[ { l:"⏰ अभी कितना बजा है?", t:"अभी कितना बजा है? और आज कौन सा दिन है?" },
+              { l:"📅 मेरा routine", t:"आज मेरा routine क्या है?" },
+              { l:"📈 मेरी progress", t:"मेरी progress कैसी चल रही है?" },
+              { l:"🗣️ English practice", t:"मुझे English बोलने की practice करनी है।" } ],
       sessTitle:"DuSu से बात", sessSub:"तुम्हारी AI companion", end:"बात खत्म करें", livePh:"यहाँ type करो…",
       micOn:"Voice चालू है — बंद करने के लिए दबाओ", micOff:"Voice से बात करने के लिए दबाओ", newChat:"↻ नई बात-चीत", orbIdle:"DuSu",
       noVoice:"इस browser में voice input नहीं है — कोई बात नहीं, नीचे type करके बात करो।",
@@ -8158,10 +8290,10 @@ const HM = (function(){
     en: {
       companion:"Your AI companion", seg:{ morning:"Morning", afternoon:"Afternoon", evening:"Evening", night:"Night" },
       about:"Know About DuSu", typePh:"Or type here…", featsH:"Jump to a feature",
-      chips:[ { l:"📅 Plan my day", t:"Help me plan my day." },
-              { l:"🗣️ English practice", t:"I want to practise speaking English." },
-              { l:"🎯 Interview prep", t:"I want to prepare for an interview." },
-              { l:"📈 My progress", t:"How is my progress going?" } ],
+      chips:[ { l:"⏰ What's the time?", t:"What's the time right now? And what day is it?" },
+              { l:"📅 My routine today", t:"What is my routine for today?" },
+              { l:"📈 My progress", t:"How is my progress going?" },
+              { l:"🗣️ English practice", t:"I want to practise speaking English." } ],
       sessTitle:"Talk with DuSu", sessSub:"your AI companion", end:"End chat", livePh:"Type here…",
       micOn:"Voice is on — tap to turn it off", micOff:"Tap to talk by voice", newChat:"↻ New chat", orbIdle:"DuSu",
       noVoice:"Voice input isn't available in this browser — no problem, just type below.",
@@ -8377,7 +8509,7 @@ const HM = (function(){
     ws.onopen = () => {
       running = !textMode; srFails = 0; usageInc(); refreshUsage();
       ws.send(JSON.stringify({ type:"start", mode:"home", name:"", token:authToken, mood:todayMood, hour:new Date().getHours(),
-        day:localDay(), keys:officeKeys(), lang:LG.lang("home"), opening:g.text }));
+        day:localDay(), keys:officeKeys(), lang:LG.lang("home"), opening:g.text, tzmin:-new Date().getTimezoneOffset() }));   // tzmin: the device clock, so DuSu can say the time
     };
     ws.onmessage = onMessage;                                    // the shared handler hands home_* frames to onReady / onTurn / onError
     ws.onclose = () => {

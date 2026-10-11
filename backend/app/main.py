@@ -30,6 +30,7 @@ from pydantic import BaseModel
 
 from .config import settings
 from . import practice
+from . import practice_talk
 from . import life
 from . import home_content
 from . import lang as langmod
@@ -664,7 +665,8 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
             _pr_prefs = None
         try:
             _ok, _eff, _ = await resolve_keys(email, {}, uid)
-            _pr_server_stt = bool(_ok and _eff is None and settings.groq_api_key)
+            _pr_server_stt = bool(_ok and ((_eff is None and (settings.groq_api_key or settings.gemini_api_key))
+                                           or (_eff and (_eff.get("groq") or _eff.get("gemini")))))
         except Exception:
             _pr_server_stt = False
     _home_ai = await home_ai_enabled(email)
@@ -2074,8 +2076,8 @@ def _practice_event_date(s: str) -> str:
 async def practice_analyze(inp: PracticeAnalyzeIn, authorization: str | None = Header(None)):
     claims = _practice_claims(inp.token, authorization)
     email, uid, eff = await _practice_gate(claims, inp.keys)
-    if inp.kind not in practice.ENABLED_KINDS:
-        raise HTTPException(400, "This practice type is coming soon")
+    if inp.kind not in practice.MONOLOGUE_KINDS:
+        raise HTTPException(400, "This practice type is a live conversation - start it from the Practice Room")
     topic = practice.clean_text(inp.topic, 200).replace("<", "").replace(">", "")
     if uid and db.db_enabled:
         try:
@@ -2261,21 +2263,122 @@ async def practice_delete(inp: PracticeDeleteIn, authorization: str | None = Hea
     return {"ok": ok}
 
 
+async def _practice_talk_save(claims, uid, res: dict, topic: str) -> dict:
+    """A scored conversation practice (viva / discussion / custom) -> a saved Practice attempt (History), Speaker Progression XP,
+    weekly missions, vocabulary, badges. Mirrors what /practice/analyze does for a recorded talk; the report keeps no transcript."""
+    english = res["lang"] == "en"
+    cats = {c["key"]: c["score"] for c in res["categories"]}
+    out = dict(res)
+    out.update({"topic": topic, "target_sec": 0, "delta": None, "invite": {"show": False}, "id": None, "attempt_no": 1,
+                "parent_id": None, "via": "direct", "progress": {}, "mission": None, "new_badges": []})
+    if not (uid and db.db_enabled):
+        return out
+    try:
+        saved = await db.save_practice_attempt(uid, {
+            "kind": res["kind"], "topic": topic, "lang": res["lang"], "feedback_lang": res["feedback_lang"], "level": res["level"],
+            "target_sec": 0, "actual_sec": res["seconds"], "pause_sec": 0, "words": res["words"], "wpm": 0,
+            "overall": res["overall"], "scores": cats, "report": {k: v for k, v in res.items() if k != "too_short"},
+            "parent_id": None, "invite": "none", "genuine_effort": res["genuine_effort"]})
+        out.update({"id": saved["id"], "attempt_no": saved["attempt_no"], "parent_id": saved["parent_id"], "via": saved["via"]})
+    except Exception as e:
+        print(f"[practice-talk] save failed: {type(e).__name__}")          # the report is still returned
+        return out
+    minutes = res["seconds"] / 60.0
+    turns = max(1, (res.get("talk") or {}).get("answered", 1))
+    try:
+        await db.login(claims)
+        scores, unscored = practice.progress_scores_talk(cats, english)
+        sp = await db.award_speaker_progress(uid, res["kind"], minutes=minutes, turns=turns, scores=scores,
+                                             genuine_effort=res["genuine_effort"], unscored=frozenset(unscored))
+        out["progress"] = sp or {}
+        try:
+            mr = await db.update_weekly_missions(uid, res["kind"], minutes, (sp or {}).get("overall", 0))
+            out["mission"] = mr if mr.get("completed") else None
+        except Exception as e:
+            print(f"[practice-talk] missions failed: {type(e).__name__}")
+    except Exception as e:
+        print(f"[practice-talk] progression failed: {type(e).__name__}")
+    try:
+        await db.bump_daily_stat(uid, sentences=turns, seconds=int(res["seconds"]))
+        if res["genuine_effort"]:
+            lang_label = {"en": "English", "hi": "Hindi", "hinglish": "Hinglish"}[res["lang"]]
+            await db.add_conversation(uid, res["kind"], f"Practised a {max(1, round(minutes))}-minute {res['kind']} on "
+                                      f"'{topic or 'a topic'}' in {lang_label} - scored {res['overall']}.")
+        badges = await db.check_practice_badges(uid)
+        out["new_badges"] = list(dict.fromkeys(((out["progress"] or {}).get("new_badges") or []) + badges))
+    except Exception as e:
+        print(f"[practice-talk] post-save steps failed: {type(e).__name__}")
+    return out
+
+
 _stt_used: dict[str, tuple[str, int]] = {}      # uid → (IST day, calls) — keeps the shared server key from being drained
 _STT_DAILY_CAP = 40
 _STT_MAX_BYTES = 24 * 1024 * 1024               # Groq's free-tier upload limit is 25 MB
 
 
+_GEMINI_STT_PROMPT = ("Transcribe this audio recording of a person speaking{lang_hint}. Return ONLY a JSON object: "
+                      '{{"text":"<the full transcript>","segments":[{{"start":<seconds>,"end":<seconds>,"text":"<segment text>"}}]}}. '
+                      "Transcribe exactly what was said, including repeated words and hesitations such as um/uh; do not correct grammar, "
+                      "do not translate and do not summarise. {script} Use real timestamps in seconds from the start of the audio. "
+                      'If there is no speech, return {{"text":"","segments":[]}}.')
+
+
+async def _gemini_transcribe(data: bytes, mime: str, lang: str, key: str) -> dict:
+    """Transcription through Gemini when no (working) Groq key exists. Returns the SAME shape the client already reads from Groq
+    (text / duration / words / segments), with words and segments left EMPTY: Gemini's timing is per sentence, not per word, so the
+    scorer then uses the model's own read of fluency instead of measured pauses (practice.analyze already does that when a
+    transcript has no word timestamps). `engine` says where it came from."""
+    import base64
+    import httpx
+    hi = lang in ("hi", "hinglish")
+    prompt = _GEMINI_STT_PROMPT.format(
+        lang_hint=" in Hindi (the speaker may mix in English words)" if hi else " in English",
+        script=("Write Hindi words in Devanagari script and English words in Latin letters." if hi else "Write in English."))
+    models = ("gemini-flash-latest", "gemini-flash-lite-latest") if hi else ("gemini-flash-lite-latest", "gemini-flash-latest")
+    mime = (mime or "audio/webm").split(";")[0].strip() or "audio/webm"
+    body = {"contents": [{"parts": [{"text": prompt}, {"inline_data": {"mime_type": mime, "data": base64.b64encode(data).decode()}}]}],
+            "generationConfig": {"temperature": 0, "responseMimeType": "application/json", "maxOutputTokens": 8192}}
+    last = None
+    for model in models:
+        try:
+            async with httpx.AsyncClient(timeout=170) as c:
+                r = await c.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                                 headers={"x-goog-api-key": key, "Content-Type": "application/json"}, json=body)
+        except Exception as e:
+            last = type(e).__name__
+            continue
+        if r.status_code == 429:
+            last = "quota"
+            continue
+        if r.status_code >= 400:
+            last = f"http_{r.status_code}"
+            continue
+        try:
+            txt = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+            d = json.loads(txt)
+            text = str(d.get("text") or "").strip()
+            segs = d.get("segments") if isinstance(d.get("segments"), list) else []
+            end = max([float(x.get("end") or 0) for x in segs if isinstance(x, dict)] or [0.0])
+            return {"text": text, "duration": round(end, 2), "words": [], "segments": [], "engine": "gemini"}
+        except Exception:
+            last = "parse"
+            continue
+    print(f"[practice] gemini transcription failed: {last}")
+    raise HTTPException(429 if last == "quota" else 502, "quota" if last == "quota" else "Transcription failed - please try again")
+
+
 @app.post("/practice/transcribe")
 async def practice_transcribe(request: Request, lang: str = "en", authorization: str | None = Header(None)):
-    """Server-side transcription for accounts that ride OUR keys (the owner / allowlist) and
-    so have no Groq key of their own in the browser. Everyone with their own Groq key sends the
-    audio straight from the phone to Groq instead — it never touches this server (plan §5.2).
+    """Server-side transcription for accounts that ride OUR keys (the owner / allowlist) - and for anyone whose saved keys include
+    one - and so have no Groq key of their own in the browser. Everyone with their own Groq key sends the audio straight from the
+    phone to Groq instead - it never touches this server (plan §5.2). Groq (Whisper, word timestamps) is tried first when a key
+    exists; when there is none, or it is rejected / rate-limited / down, Gemini transcribes instead (DUSU_ALL_FEATURES_PLAN.md D4).
     The audio is held in memory for the length of the request and never written anywhere."""
     claims = _practice_claims("", authorization)
     email, uid, eff = await _practice_gate(claims, {})
-    key = (eff or {}).get("groq") if eff else settings.groq_api_key
-    if not key:
+    gkey = (eff or {}).get("groq") if eff else settings.groq_api_key
+    mkey = (eff or {}).get("gemini") if eff else settings.gemini_api_key
+    if not gkey and not mkey:
         raise HTTPException(400, "no_groq_key")
     day = _quota_day()
     used_day, n = _stt_used.get(uid or "", (day, 0))
@@ -2288,29 +2391,37 @@ async def practice_transcribe(request: Request, lang: str = "en", authorization:
     if len(data) > _STT_MAX_BYTES:
         raise HTTPException(413, "recording too large")
     _stt_used[uid or ""] = (day, n + 1)
-    import httpx
-    form = {"model": "whisper-large-v3-turbo", "response_format": "verbose_json", "temperature": "0",
-            "timestamp_granularities[]": ["word", "segment"]}
-    if lang in ("en", "hi", "hinglish"):
-        form["language"] = "en" if lang == "en" else "hi"
-    try:
-        async with httpx.AsyncClient(timeout=120) as c:
-            r = await c.post("https://api.groq.com/openai/v1/audio/transcriptions",
-                             headers={"Authorization": f"Bearer {key}"},
-                             files={"file": ("practice.webm", data, request.headers.get("content-type") or "audio/webm")},
-                             data=form)
-    except Exception as e:
-        print(f"[practice] transcribe request failed: {type(e).__name__}")
-        raise HTTPException(502, "Could not reach the transcription service")
-    if r.status_code in (401, 403):
-        print("[practice] transcribe: the server's Groq key was rejected")
-        raise HTTPException(502, "server_key_unavailable")
-    if r.status_code == 429:
-        raise HTTPException(429, "quota")
-    if r.status_code >= 400:
-        print(f"[practice] transcribe upstream {r.status_code}")
-        raise HTTPException(502, "Transcription failed — please try again")
-    return JSONResponse(r.json())
+    mime = request.headers.get("content-type") or "audio/webm"
+    if gkey:
+        import httpx
+        form = {"model": "whisper-large-v3-turbo", "response_format": "verbose_json", "temperature": "0",
+                "timestamp_granularities[]": ["word", "segment"]}
+        if lang in ("en", "hi", "hinglish"):
+            form["language"] = "en" if lang == "en" else "hi"
+        status = None
+        try:
+            async with httpx.AsyncClient(timeout=120) as c:
+                r = await c.post("https://api.groq.com/openai/v1/audio/transcriptions",
+                                 headers={"Authorization": f"Bearer {gkey}"},
+                                 files={"file": ("practice.webm", data, mime)}, data=form)
+            status = r.status_code
+        except Exception as e:
+            print(f"[practice] transcribe request failed: {type(e).__name__}")
+        if status is not None and status < 400:
+            return JSONResponse(r.json())
+        if status in (401, 403):
+            print("[practice] transcribe: the Groq key was rejected")
+        elif status is not None:
+            print(f"[practice] transcribe upstream {status}")
+        if not mkey:                                        # nothing to fall back to: the original errors
+            if status in (401, 403):
+                raise HTTPException(502, "server_key_unavailable")
+            if status == 429:
+                raise HTTPException(429, "quota")
+            if status is None:
+                raise HTTPException(502, "Could not reach the transcription service")
+            raise HTTPException(502, "Transcription failed — please try again")
+    return JSONResponse(await _gemini_transcribe(data, mime, lang, mkey))
 
 
 @app.get("/")
@@ -2434,13 +2545,15 @@ async def interview_ws(ws: WebSocket):
     _email = ""
     quota_day = _quota_day()   # server IST day → deterministic reset at 11:59pm (client day ignored)
     turn_quota = TurnQuota()   # resolved once on `start`; per-turn decisions are then free
+    _claims = None             # the signed-in claims from `start` (the practice report needs them to award XP)
+    practice_done = False      # a conversation practice is scored once
 
     async def _persist_session():
         """One combined LLM pass at session end → memory + courage badges."""
         nonlocal persisted
         if persisted or session is None or uid is None or not db.db_enabled:
             return
-        if session.mode == "learning":
+        if session.mode in ("learning", "practice"):     # a practice conversation is scored + saved by _practice_finish
             return
         persisted = True
         # No real turns = nothing to remember/reward (prevents 0-turn XP/streak farming).
@@ -2526,6 +2639,33 @@ async def interview_ws(ws: WebSocket):
         except Exception as e:
             print(f"[memory] persist failed: {type(e).__name__}: {e}")
 
+    async def _practice_finish():
+        """Score the finished conversation practice ONCE, save it as a Practice attempt and send the report. A learner who answered
+        fewer than practice_talk.MIN_ANSWERS times gets a friendly 'too short' and nothing is saved or rewarded."""
+        nonlocal practice_done
+        if practice_done or session is None or session.mode != "practice":
+            return
+        practice_done = True
+        cfg = session.practice
+        try:
+            res = await practice_talk.analyze_talk(
+                llm, kind=cfg["kind"], topic=cfg["topic"], lang=cfg["plang"], feedback_lang=cfg.get("feedback_lang", ""),
+                level=cfg["level"], turns=session.transcript, rounds=cfg["rounds"], seconds=time.monotonic() - started_at)
+        except practice.AnalysisUnavailable as e:
+            print(f"[practice-talk] analysis unavailable: {_safe_err(e)}")      # never the conversation
+            practice_done = False          # nothing was scored: "End" can try again on the same conversation
+            await _send(ws, type="practice_error", msg="quota" if _is_quota(e) else "unavailable")
+            return
+        except Exception as e:
+            print(f"[practice-talk] analysis failed: {_safe_err(e)}")
+            practice_done = False
+            await _send(ws, type="practice_error", msg="quota" if _is_quota(e) else "unavailable")
+            return
+        if res.get("too_short"):
+            await _send(ws, type="practice_report", data=res)
+            return
+        await _send(ws, type="practice_report", data=await _practice_talk_save(_claims, uid, res, cfg["topic"]))
+
     try:
         while True:
             data = json.loads(await ws.receive_text())
@@ -2537,6 +2677,7 @@ async def interview_ws(ws: WebSocket):
                     await _send(ws, type="auth_error", msg="Please sign in again")
                     break
                 uid = claims["sub"] if claims else None
+                _claims = claims
                 # Access gate + BYOK key routing.
                 _keys = data.get("keys")
                 _email = claims.get("email", "") if claims else ""
@@ -2566,11 +2707,41 @@ async def interview_ws(ws: WebSocket):
                 if mode == "home" and not await home_ai_enabled(_email):
                     await _send(ws, type="error", msg="The Home companion is not available for this account yet.")
                     break
+                # Practice Room conversation kinds (viva / discussion / custom): switched per learner like the rest of the Practice Room.
+                _practice_cfg = None
+                if mode == "practice":
+                    if not await practice_room_enabled(_email):
+                        await _send(ws, type="error", msg="The Practice Room is not available for this account yet.")
+                        break
+                    _pk = data.get("kind")
+                    if _pk not in practice_talk.TALK_KINDS:
+                        await _send(ws, type="error", msg="Unknown practice type.")
+                        break
+                    _practice_cfg = {"kind": _pk, "topic": practice_talk.clean_topic(data.get("topic")),
+                                     "plang": data.get("plang") if data.get("plang") in practice.LANGS else "en",
+                                     "level": data.get("level") if data.get("level") in practice.LEVELS else "intermediate",
+                                     "rounds": practice_talk.clean_rounds(_pk, data.get("rounds")),
+                                     "feedback_lang": data.get("feedback_lang") if data.get("feedback_lang") in practice.FEEDBACK_LANGS else ""}
+                    if len(_practice_cfg["topic"]) < 3:
+                        await _send(ws, type="error", msg="Tell DuSu what to practise - a few words is enough.")
+                        break
+                    if _pk == "custom" and practice_talk.scenario_blocked(_practice_cfg["topic"]):
+                        await _send(ws, type="error", msg="DuSu can't role-play that one. Try another situation - an interview, a shop, a meeting, a doctor's visit.")
+                        break
+                    if uid and db.db_enabled:
+                        try:
+                            if (await db.practice_today(uid, _practice_cfg["topic"]))["count"] >= practice.DAILY_ATTEMPT_CAP:
+                                await _send(ws, type="error", msg="You've reached today's limit of practice attempts. Come back tomorrow.")
+                                break
+                        except Exception as e:
+                            print(f"[practice-talk] cap lookup failed: {type(e).__name__}")
                 _quota_open = asyncio.create_task(turn_quota.open(_email, uid, quota_day))
                 # "DuSu knows your data" (life.py, CLAUDE.md §10): the learner's own numbers, read
                 # alongside the memory reads below and appended to the same text. Talk + Daily Talk + the Home companion.
                 _life_open = None
-                if uid and db.db_enabled and mode in ("conversation", "daily", "home") and await life_context_enabled(_email):
+                # Home reads the learner's numbers whatever the Talk / Daily `life_context` switch says: it is its own feature
+                # (switch `home_ai`) with its own privacy toggle, and "my progress?" is one of the things it is for.
+                if uid and db.db_enabled and mode in ("conversation", "daily", "home") and (mode == "home" or await life_context_enabled(_email)):
                     _life_open = asyncio.create_task(life.build(uid))
                 if uid and db.db_enabled and mode in ("conversation", "interview", "daily", "home"):
                     try:
@@ -2641,6 +2812,8 @@ async def interview_ws(ws: WebSocket):
                 # and the session is built exactly as it was before a language choice existed.
                 bilingual_on = (mode in langmod.SWITCHABLE) and await bilingual_enabled(_email)
                 _lang = langmod.session_lang(mode, data.get("lang"), bilingual_on)
+                if _practice_cfg:      # the practice's own language choice (Setup), not the Hindi/English switch
+                    _lang = "en" if _practice_cfg["plang"] == "en" else "hi"
                 session = Session(
                     mode,
                     _who,
@@ -2661,6 +2834,8 @@ async def interview_ws(ws: WebSocket):
                     new_learner=(mode == "home" and not (summaries or facts.get("facts_learned") or facts.get("recent_turns")
                                                           or facts.get("nickname"))),
                     hour=hour,
+                    tzmin=(data.get("tzmin") if mode == "home" else None),
+                    practice=_practice_cfg,
                 )
                 if session.mode == "home":
                     # Home 2.0: nothing to generate on start - the client already spoke the greeting it is showing, so DuSu
@@ -2789,7 +2964,10 @@ async def interview_ws(ws: WebSocket):
                     else: await _send(ws, type="error", msg="Could not get a reply — please try again.")
                     continue
                 await _send(ws, type="ai_text", text=line, streamed=spoke_any, lang=session.lang)
-                if session.done:  # interview mode only
+                if session.done and session.mode == "practice":
+                    await _send(ws, type="practice_done")
+                    await _practice_finish()
+                elif session.done:  # interview mode only
                     await _send(ws, type="interview_done")
                     report_data = await _safe_build_report(session)
                     await _send(ws, type="report", data=report_data)
@@ -2820,6 +2998,9 @@ async def interview_ws(ws: WebSocket):
                     if uid and db.db_enabled and not report_data.get("error"):
                         await db.save_interview_report(uid, session.role, report_data)
                     await _persist_session()   # remember this conversation
+                elif session.mode == "practice":
+                    await _send(ws, type="status", msg="scoring")
+                    await _practice_finish()
                 else:
                     # Speaker Progression (§7 item 3): _persist_session() sends
                     # "speaker_progress" — it MUST reach the client before "ended", because

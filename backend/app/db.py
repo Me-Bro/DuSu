@@ -2643,6 +2643,11 @@ async def check_practice_badges(user_id: str) -> list[str]:
         ids.append("presentation_90")
     if any(r.via == "bridge" and r.lang == "en" for r in rows):
         ids.append("bridge_builder")
+    for k in ("viva", "discussion", "speech", "seminar", "custom"):          # the other kinds (DUSU_ALL_FEATURES_PLAN.md D5)
+        if any(r.kind == k for r in rows):
+            ids.append(f"first_{k}")
+    if any(r.kind == "viva" and r.overall >= 80 for r in rows):
+        ids.append("viva_80")
     return await award_badges(user_id, ids)
 
 

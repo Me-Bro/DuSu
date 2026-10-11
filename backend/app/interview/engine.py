@@ -7,6 +7,8 @@ Modes:
   - "learning"      : Learn, a one-sentence translator.
   - "home"          : Home 2.0 - the AI companion on the Home screen (one JSON call per turn: reply + intent + suggested
                       features; home_content.py holds what it may mention). Never scored, never pays XP.
+  - "practice"      : Practice Room conversation kinds (practice_talk.py): DuSu is the viva examiner / the other discussion
+                      participant / the person in the learner's own scenario; ends after N answers; scored once as a Practice attempt.
 
 Every mode also has a language (`Session.lang`, DUSU_BILINGUAL_PLAN.md): "hi" or "en" - what the learner speaks and what
 DuSu answers in. ONLY the new features obey the learner's Hindi / English choice (lang.SWITCHABLE = the Home companion;
@@ -22,6 +24,7 @@ here later; the interface stays the same.
 
 from .. import lang as L
 from .. import home_content as hc
+from .. import practice_talk as PT
 from ..providers import llm
 from ..config import settings
 from .prompts import (interviewer_system, conversation_system, scorer_system,
@@ -29,7 +32,7 @@ from .prompts import (interviewer_system, conversation_system, scorer_system,
                       DAILY_TURN_SYSTEM, DAILY_TURN_SYSTEM_EN, home_system)
 
 END_MARKER = "INTERVIEW_COMPLETE:"
-MODES = ("interview", "conversation", "learning", "daily", "home")
+MODES = ("interview", "conversation", "learning", "daily", "home", "practice")
 # Free-tier models occasionally return a lazy dead-end line ("Hi!", "How are you?")
 # instead of a real reactive follow-up. One retry with a sharper nudge, same spirit
 # as the retry-on-parse-failure pattern already used for /assessment. (The per-language
@@ -42,7 +45,8 @@ class Session:
                  profession: str = "", time_of_day: str = "", level: str = "", daily_context: str = "",
                  career_goal: str = "", past_interview_count: int = 0, past_interview_avg: float | None = None,
                  lang: str | None = None, bilingual: bool = False,
-                 home_flags: dict | None = None, home_personal: bool = True, new_learner: bool = False, hour=None):
+                 home_flags: dict | None = None, home_personal: bool = True, new_learner: bool = False, hour=None, tzmin=None,
+                 practice: dict | None = None):
         self.mode = mode if mode in MODES else "interview"
         self.name = name or "there"
         self.role = role or "general"
@@ -65,6 +69,8 @@ class Session:
         self.home_personal = home_personal
         self.new_learner = new_learner
         self.hour = hour
+        self.tzmin = tzmin                   # the learner's UTC offset in minutes (device clock) - the Home chat's "RIGHT NOW"
+        self.practice = practice or {}       # Practice Room conversation kinds: {kind, topic, plang, level, rounds, feedback_lang}
         self.thoughts_translated = 0   # Daily Talk's unique metric (§5) — counted deterministically below, never LLM-inferred
         self._build_system()
         self.transcript: list[dict] = []  # {role: "user"|"assistant", content}
@@ -80,6 +86,10 @@ class Session:
                                               past_interview_avg=self.past_interview_avg, lang=self.lang)
         elif self.mode == "conversation":
             self.system = conversation_system(self.name, self.facts_summary, self.mood, lang=self.lang)
+        elif self.mode == "practice":
+            p = self.practice
+            self.system = PT.talk_system(p.get("kind", "viva"), p.get("topic", ""), self.lang, p.get("level", "intermediate"),
+                                         int(p.get("rounds") or 8), self.name, END_MARKER)
         else:  # learning + daily + home: no static chat persona (each builds its prompt per turn)
             self.system = ""
 
@@ -133,6 +143,14 @@ class Session:
         elif self.mode == "conversation" and self.turns >= settings.conversation_max_turns:
             self.capped = True
             spoken = L.line(self.lang, "convo_cap")
+        elif self.mode == "practice":
+            # the examiner / participant ends the scene with the marker after the last answer; if the model forgets, the cap does it
+            if END_MARKER in raw:
+                self.done = True
+                spoken = raw.split(END_MARKER, 1)[1].strip() or L.line(self.lang, "practice_end")
+            elif self.turns >= int(self.practice.get("rounds") or 8):
+                self.done = True
+                spoken = L.line(self.lang, "practice_end")
         self.transcript.append({"role": "assistant", "content": spoken})
         return spoken
 
@@ -146,7 +164,7 @@ class Session:
         async for piece in llm.next_question_stream(self.system, self._transcript_for_call(), seed=L.SEED[self.lang]):
             parts.append(piece)
             # Hold back the marker line itself — it's a control token, never spoken.
-            if self.mode == "interview" and END_MARKER in piece:
+            if self.mode in ("interview", "practice") and END_MARKER in piece:
                 continue
             yield piece
         self._switch_note = False
@@ -160,6 +178,13 @@ class Session:
                 self.done = True
         elif self.mode == "conversation" and self.turns >= settings.conversation_max_turns:
             self.capped = True
+        elif self.mode == "practice":
+            if END_MARKER in raw:
+                self.done = True
+                spoken = raw.split(END_MARKER, 1)[1].strip() or L.line(self.lang, "practice_end")
+            elif self.turns >= int(self.practice.get("rounds") or 8):
+                self.done = True
+                spoken = L.line(self.lang, "practice_end")
         if spoken:
             self.transcript.append({"role": "assistant", "content": spoken})
         self._last_spoken = spoken
@@ -225,8 +250,11 @@ class Session:
         A broken JSON reply is retried once; after that the learner still gets a true, useful line and sensible buttons
         from the deterministic keyword fallback, never a silent failure. A call that raises (quota, all providers down)
         propagates to the caller, same as every other mode."""
+        now = hc.now_text(self.tzmin)
+        planner_on = bool(self.home_flags.get("planner"))
         system = home_system(self.name, self.lang, self.time_of_day, self.hour, self.facts_summary if self.home_personal else "",
-                             self.home_personal, self.new_learner, hc.catalog(self.home_flags), hc.INTENTS, self.mood)
+                             self.home_personal, self.new_learner, hc.catalog(self.home_flags), hc.INTENTS, self.mood,
+                             now_text=now, planner_on=planner_on)
         convo = "\n".join(f"{m['role']}: {m['content']}" for m in self.transcript[-14:])
         note = (L.line(self.lang, "switch_note") + "\n\n") if self._switch_note else ""
         payload = (f"{note}conversation so far:\n{convo or '(nothing yet)'}\n\n"
@@ -243,11 +271,11 @@ class Session:
         if data:
             reply = hc.soften(data["reply"].strip())[:700]
             intent = data.get("intent") if data.get("intent") in hc.INTENTS else hc.detect_intent(answer)
-            ids = data.get("suggest")
+            ids = hc.filter_suggest(intent, data.get("suggest"))
         else:
             intent = hc.detect_intent(answer)
-            reply = hc.fallback_reply(intent, self.lang)
-            ids = hc.default_suggest(intent)
+            reply = hc.fallback_reply(intent, self.lang, now, planner_on)
+            ids = hc.filter_suggest(intent, hc.default_suggest(intent))
         self.transcript.append({"role": "user", "content": answer})
         self.turns += 1
         self.transcript.append({"role": "assistant", "content": reply})

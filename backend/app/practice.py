@@ -28,7 +28,9 @@ import unicodedata
 from .interview.prompts import practice_analysis_system, practice_bridge_system
 
 KINDS = ("presentation", "viva", "speech", "seminar", "discussion", "custom")
-ENABLED_KINDS = ("presentation",)             # Phase 1 — the rest are accepted by the schema/XP table only
+MONOLOGUE_KINDS = ("presentation", "speech", "seminar")      # record -> transcribe -> analyse (this file)
+TALK_KINDS = ("viva", "discussion", "custom")                # a live conversation, scored at the end (practice_talk.py)
+ENABLED_KINDS = KINDS                                        # all six are live (DUSU_ALL_FEATURES_PLAN.md D5)
 LANGS = ("en", "hi", "hinglish")
 FEEDBACK_LANGS = ("en", "hinglish")
 LEVELS = ("beginner", "intermediate", "advanced")
@@ -542,6 +544,19 @@ def progress_scores(cats: dict, english: bool) -> tuple[dict, set]:
     if english:
         scores["vocabulary"] = cats.get("vocabulary") or 0
         scores["grammar_trend"] = cats.get("grammar") or 0
+    else:
+        unscored = {"vocabulary", "grammar_trend"}
+    return scores, unscored
+
+
+def progress_scores_talk(cats: dict, english: bool) -> tuple[dict, set]:
+    """The conversation kinds' categories -> the five Speaker-Progression components (same idea as progress_scores)."""
+    depth = cats.get("knowledge") or cats.get("ideas") or cats.get("goal") or 0
+    scores = {"confidence": cats.get("composure") or 0, "continuity": cats.get("explaining") or 0, "depth": depth}
+    unscored: set[str] = set()
+    if english:
+        scores["vocabulary"] = cats.get("language") or 0
+        scores["grammar_trend"] = cats.get("language") or 0
     else:
         unscored = {"vocabulary", "grammar_trend"}
     return scores, unscored

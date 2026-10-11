@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import re
 
-INTENTS = ("daily_plan", "goal_progress", "english_practice", "confidence_practice", "interview_prep",
+INTENTS = ("daily_plan", "goal_progress", "time_date", "english_practice", "confidence_practice", "interview_prep",
            "translate_help", "presentation_prep", "feature_discovery", "general_conversation")
 
 # status: "live" = built and reachable; "soon" = not built (never linked, never promised).
@@ -213,6 +213,10 @@ def catalog(flags: dict | None) -> str:
 # Keywords are matched on a lowercased message, in BOTH scripts (speech recognition returns Devanagari for hi-IN).
 # Order matters: the first group that matches wins, so the narrow ones come first.
 _KW: list[tuple[str, tuple[str, ...]]] = [
+    ("time_date", ("what time", "the time", "current time", "time now", "time is it", "time right now", "what date", "today's date",
+                   "todays date", "what day", "which day", "date today", "kitne baje", "kitna baja", "kya time", "time kya",
+                   "कितने बजे", "कितना बजा", "कितना बजे", "कितने बज", "क्या टाइम", "टाइम क्या", "टाइम कितना", "समय क्या", "समय कितना",
+                   "अभी कितना", "आज की तारीख", "तारीख क्या", "तारीख़ क्या", "कौन सा दिन", "कौन-सा दिन", "आज क्या दिन", "आज कौन सी तारीख")),
     ("presentation_prep", ("presentation", "viva", "seminar", "speech", "प्रेजेंटेशन", "प्रेज़ेंटेशन", "प्रस्तुति", "भाषण", "वाइवा")),
     ("interview_prep", ("interview", "इंटरव्यू", "इंटरव्यु", "hr round", "placement", "प्लेसमेंट")),
     ("translate_help", ("translate", "translation", "meaning", "अनुवाद", "ट्रांसलेट", "मतलब", "कैसे बोलते", "कैसे कहते",
@@ -231,8 +235,9 @@ _KW: list[tuple[str, tuple[str, ...]]] = [
 ]
 
 _DEFAULT_SUGGEST = {
-    "daily_plan": ["daily_talk"],
-    "goal_progress": ["journey"],
+    "daily_plan": [],                       # answered in place (DUSU_ALL_FEATURES_PLAN.md D1): the time, the routine, the progress -
+    "goal_progress": [],                    # no "go to another page" buttons for things DuSu can answer itself
+    "time_date": [],
     "english_practice": ["face_to_face", "daily_talk"],
     "confidence_practice": ["face_to_face"],
     "interview_prep": ["interview"],
@@ -255,8 +260,72 @@ def default_suggest(intent: str) -> list[str]:
     return list(_DEFAULT_SUGGEST.get(intent, []))
 
 
-def fallback_reply(intent: str, lang: str) -> str:
-    """What DuSu says when the model could not be used for a turn: short, true, and it keeps the learner moving."""
+# Questions DuSu answers itself, right there in the chat. A model's `suggest` for these (and for plain chat) is dropped, or cut down
+# to the one feature that really is where the thing lives (the plan -> My Day), so a reply never ends in "go to another page" for
+# something it could have answered. Only a request to DO something (practise, interview, translate, rehearse, open) gets buttons.
+INFORMATIONAL = frozenset({"time_date", "goal_progress", "daily_plan"})
+
+
+def filter_suggest(intent: str, ids):
+    """The ids a reply may carry as buttons, given its intent."""
+    ids = ids if isinstance(ids, (list, tuple)) else []
+    if intent in ("time_date", "goal_progress", "general_conversation"):     # answered / chatted in place - no buttons
+        return []
+    if intent == "daily_plan":
+        return [i for i in ids if i == "goals_planning"][:1]
+    return list(ids)
+
+
+_WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+_MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+
+
+def _tz_ok(tzmin) -> bool:
+    return isinstance(tzmin, int) and not isinstance(tzmin, bool) and -720 <= tzmin <= 840
+
+
+def local_now(tzmin=None, now_utc=None):
+    """The learner's wall clock. `tzmin` = minutes east of UTC as their device reports it; without it we use India time, the
+    app's own day boundary everywhere else."""
+    import datetime as _dt
+    tz = _dt.timezone(_dt.timedelta(minutes=tzmin if _tz_ok(tzmin) else 330))
+    return (now_utc or _dt.datetime.now(_dt.timezone.utc)).astimezone(tz)
+
+
+def now_text(tzmin=None, now_utc=None) -> str:
+    """One line for the prompt: 'Sunday, 11 October 2026, 6:40 PM (18:40, evening)'. Recomputed every turn, so a long chat never
+    quotes a stale time."""
+    d = local_now(tzmin, now_utc)
+    part = "night" if (d.hour >= 21 or d.hour < 5) else "morning" if d.hour < 12 else "afternoon" if d.hour < 17 else "evening"
+    s = (f"{_WEEKDAYS[d.weekday()]}, {d.day} {_MONTHS[d.month - 1]} {d.year}, {d.hour % 12 or 12}:{d.minute:02d} "
+         f"{'AM' if d.hour < 12 else 'PM'} ({d.hour:02d}:{d.minute:02d}, {part})")
+    return s if _tz_ok(tzmin) else s + " - India time (the app did not send the device clock)"
+
+
+_NOW_RE = re.compile(r"^(\w+), (\d+) (\w+) \d+, (\d+:\d\d) (AM|PM) \(\d\d:\d\d, (night|morning|afternoon|evening)\)")
+_PART_HI = {"night": "रात", "morning": "सुबह", "afternoon": "दोपहर", "evening": "शाम"}
+
+
+def time_line(lang: str, now: str) -> str:
+    """The time question answered from now_text() alone - one short, speakable sentence in the learner's language. '' if `now`
+    is not a now_text() string."""
+    m = _NOW_RE.match(now or "")
+    if not m:
+        return ""
+    day, dom, month, clock, ampm, part = m.groups()
+    if lang == "en":
+        return f"It's {clock} {ampm} on {day}, {dom} {month}."
+    return f"अभी {_PART_HI[part]} के {clock} बजे हैं। आज {day} है, {dom} {month}।"
+
+
+def fallback_reply(intent: str, lang: str, now: str = "", planner: bool = False) -> str:
+    """What DuSu says when the model could not be used for a turn: short, true, and it keeps the learner moving.
+    `now` is now_text(): the time question can always be answered, model or no model. `planner`: My Day exists for this learner."""
+    if intent == "time_date" and time_line(lang, now):
+        return time_line(lang, now)
+    if intent == "daily_plan" and planner:
+        return ("I couldn't read your plan just now - ask me again in a moment, or open My Day. What is on your mind for today?" if lang == "en"
+                else "अभी तुम्हारा plan नहीं पढ़ पाई - थोड़ी देर बाद फिर पूछ लो, या My Day खोल लो। आज दिमाग़ में क्या चल रहा है?")
     if lang == "en":
         return {"daily_plan": "I don't have any saved tasks for you yet - planning isn't in DuSu yet. But tell me what is on your mind for today, and we can sort your priorities out loud.",
                 "goal_progress": "Your Journey page shows exactly how far you have come - take a look. Want to tell me what you are working towards?",
