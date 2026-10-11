@@ -4351,18 +4351,24 @@ async function openAdmin(){
       <input type="checkbox" id="lvlTestSw" ${d.level_test === false ? "" : "checked"}></label>
       <label class="swrow"><span><b>Owner must add own keys</b><br><span class="msub">On = your owner account faces the same BYOK wall as a real user (dogfooding). Admin access is unaffected.</span></span>
       <input type="checkbox" id="ownerByokSw" ${d.owner_byok ? "checked" : ""}></label>
-      <label class="swrow"><span><b>Practice Room</b><br><span class="msub">Off = hidden for everyone (the code ships dark). Owner only = just you, to try it on your own phone. Everyone = live for all users.</span></span>
-      <select class="pr-sel" id="prRoomSel"><option value="off" ${d.practice_room === "on" || d.practice_room === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.practice_room === "owner" ? "selected" : ""}>Owner only</option><option value="on" ${d.practice_room === "on" ? "selected" : ""}>Everyone</option></select></label>
-      <label class="swrow"><span><b>DuSu knows your progress</b><br><span class="msub">In Talk and Daily Talk, DuSu can answer "what's my streak / level / last score?" from the database. Off = DuSu only remembers who you are. Owner only = just you (default). Everyone = all users.</span></span>
-      <select class="pr-sel" id="lifeSel"><option value="off" ${d.life_context === "off" ? "selected" : ""}>Off</option><option value="owner" ${d.life_context === "on" || d.life_context === "off" ? "" : "selected"}>Owner only</option><option value="on" ${d.life_context === "on" ? "selected" : ""}>Everyone</option></select></label>
-      <label class="swrow"><span><b>Hindi / English switch (new features)</b><br><span class="msub">The Hindi ⇄ English choice on the NEW features only: Home companion + Know About DuSu (My Day later). Off = they are Hinglish only, no switch. Owner only = just you (default). Everyone = all users. Daily Talk, Face-to-Face, Interview, Learn and Journey are never affected - they always run exactly as before.</span></span>
-      <select class="pr-sel" id="bilSel"><option value="off" ${d.bilingual === "off" ? "selected" : ""}>Off</option><option value="owner" ${d.bilingual === "on" || d.bilingual === "off" ? "" : "selected"}>Owner only</option><option value="on" ${d.bilingual === "on" ? "selected" : ""}>Everyone</option></select></label>
-      <label class="swrow"><span><b>Home AI companion</b><br><span class="msub">Home becomes "DuSu first": a Hinglish greeting, Start Speaking opens the AI companion (Daily Talk stays its own tab) and a Know About DuSu page. Off = Home is exactly as before. Owner only = just you (default). Everyone = all users. Its answers about progress also need "DuSu knows your progress" above.</span></span>
-      <select class="pr-sel" id="homeSel"><option value="off" ${d.home_ai === "off" ? "selected" : ""}>Off</option><option value="owner" ${d.home_ai === "on" || d.home_ai === "off" ? "" : "selected"}>Owner only</option><option value="on" ${d.home_ai === "on" ? "selected" : ""}>Everyone</option></select></label>
-      <label class="swrow"><span><b>My Day (tasks · habits · goals · reminders)</b><br><span class="msub">Stores each learner's plan and sends reminders, so it ships dark. Off = nobody (default). Owner only = just you. Everyone = all users. Its Hindi / English switch is the one above.</span></span>
-      <select class="pr-sel" id="plSel"><option value="off" ${d.planner === "on" || d.planner === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.planner === "owner" ? "selected" : ""}>Owner only</option><option value="on" ${d.planner === "on" ? "selected" : ""}>Everyone</option></select></label>
+      <label class="swrow"><span><b>Practice Room</b><br><span class="msub">Off = hidden for everyone (the code ships dark). Owner + early access = you and the testers listed under Early access below, to try it first. Everyone = live for all users.</span></span>
+      <select class="pr-sel" id="prRoomSel"><option value="off" ${d.practice_room === "on" || d.practice_room === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.practice_room === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.practice_room === "on" ? "selected" : ""}>Everyone</option></select></label>
+      <label class="swrow"><span><b>DuSu knows your progress</b><br><span class="msub">In Talk and Daily Talk, DuSu can answer "what's my streak / level / last score?" from the database. Off = DuSu only remembers who you are. Owner + early access = you and the early-access testers (default). Everyone = all users.</span></span>
+      <select class="pr-sel" id="lifeSel"><option value="off" ${d.life_context === "off" ? "selected" : ""}>Off</option><option value="owner" ${d.life_context === "on" || d.life_context === "off" ? "" : "selected"}>Owner + early access</option><option value="on" ${d.life_context === "on" ? "selected" : ""}>Everyone</option></select></label>
+      <label class="swrow"><span><b>Hindi / English switch (new features)</b><br><span class="msub">The Hindi ⇄ English choice on the NEW features only: Home companion + Know About DuSu (My Day later). Off = they are Hinglish only, no switch. Owner + early access = you and the early-access testers (default). Everyone = all users. Daily Talk, Face-to-Face, Interview, Learn and Journey are never affected - they always run exactly as before.</span></span>
+      <select class="pr-sel" id="bilSel"><option value="off" ${d.bilingual === "off" ? "selected" : ""}>Off</option><option value="owner" ${d.bilingual === "on" || d.bilingual === "off" ? "" : "selected"}>Owner + early access</option><option value="on" ${d.bilingual === "on" ? "selected" : ""}>Everyone</option></select></label>
+      <label class="swrow"><span><b>Home AI companion</b><br><span class="msub">Home becomes "DuSu first": a Hinglish greeting, Start Speaking opens the AI companion (Daily Talk stays its own tab) and a Know About DuSu page. Off = Home is exactly as before. Owner + early access = you and the early-access testers (default). Everyone = all users. Its answers about progress also need "DuSu knows your progress" above.</span></span>
+      <select class="pr-sel" id="homeSel"><option value="off" ${d.home_ai === "off" ? "selected" : ""}>Off</option><option value="owner" ${d.home_ai === "on" || d.home_ai === "off" ? "" : "selected"}>Owner + early access</option><option value="on" ${d.home_ai === "on" ? "selected" : ""}>Everyone</option></select></label>
+      <label class="swrow"><span><b>My Day (tasks · habits · goals · reminders)</b><br><span class="msub">Stores each learner's plan and sends reminders, so it ships dark. Off = nobody (default). Owner + early access = you and the early-access testers. Everyone = all users. Its Hindi / English switch is the one above.</span></span>
+      <select class="pr-sel" id="plSel"><option value="off" ${d.planner === "on" || d.planner === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.planner === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.planner === "on" ? "selected" : ""}>Everyone</option></select></label>
       ${d.planner_health ? `<p class="keys-note" style="margin:-4px 0 8px">Reminders: ${d.planner_health.scheduled} waiting · ${d.planner_health.queue_late} late · ${d.planner_health.sending_stuck} stuck · sent in 24 h ${d.planner_health.sent_24h} (push accepted ${d.planner_health.push_accepted_24h}, failed ${d.planner_health.push_failed_24h}) · ${d.planner_health.push_devices} device(s) · push ${d.planner_health.push_available ? "available" : "UNAVAILABLE (library missing)"}${d.planner_health.last_error ? " · last loop error: " + esc(d.planner_health.last_error) : ""}</p>` : ""}
       <button class="uBtn bad" id="wipeBtn" style="width:100%;margin:2px 0 4px">🗑 Reset test users</button>`;
+    // Early access: invited testers see every feature whose switch is "Owner + early access" (main.staged_visible) - visibility only.
+    const ea = d.early_access || [];
+    h += `<div class="admin-head">Early access (testers)</div>
+      <p class="keys-note" style="margin:0 0 6px">These people see every feature above that is set to <b>Owner + early access</b>, before it goes to everyone. It changes nothing else for them: no admin rights, no extra keys or quota. Remove them any time. (You can also use the button on a user's card below.)</p>
+      <div class="offAdd"><input id="eaEmail" type="email" placeholder="person@email.com"/><button class="uBtn ok" id="eaAddBtn">Add</button></div>
+      <div id="eaList">` + (ea.length ? ea.map(e=>`<div class="admin-row">${esc(e)}<button class="uBtn bad" data-ea="${esc(e)}" style="margin-left:auto">Remove</button></div>`).join("") : '<p class="keys-note">No testers yet.</p>') + `</div>`;
     h += `<div class="admin-head">Android app link</div><div id="alBox"><div class="spin" style="margin:12px auto"></div></div>`;
     // Office allowlist. NOTE: is_office() in main.py means "must BYOK", NOT free
     // access — resolve_keys() demands own keys for anyone on this list. The old
@@ -4388,12 +4394,13 @@ async function openAdmin(){
       const dot = u.status==='blocked'?'🚫':u.status==='pending'?'⏳':'🟢';
       const days = Object.entries(u.daily_stats||{}).slice(-7).map(([dd,s])=>`${dd.slice(5)}·${Math.round((s.seconds||0)/60)}m`).join('  ');
       h += `<div class="uCard">
-        <div class="uTop"><b>${esc(u.name||u.email||'user')}</b><span class="uRole ${u.role}">${u.role}</span><span class="uSt">${dot} ${u.status}</span></div>
+        <div class="uTop"><b>${esc(u.name||u.email||'user')}</b><span class="uRole ${u.role}">${u.role}</span><span class="uSt">${dot} ${u.status}</span>${u.early?'<span class="uSt">🧪 early access</span>':''}</div>
         <div class="uMail">${esc(u.email||'')}</div>
         <div class="uMeta">${u.mode==='office'?'🏢 Office':'🏠 Personal'} · Lvl ${esc(u.level||'-')} · ${u.xp} XP · ${u.streak_days}🔥 · ${u.total_sessions} sessions · ${u.total_minutes} min · ${u.words} words</div>
         <div class="uMeta">Joined ${(u.created_at||'').slice(0,10)} · Last seen ${(u.last_seen||'').slice(0,10)}</div>
         ${days?`<div class="uMeta uDays">📅 ${esc(days)}</div>`:''}
         <div class="uActs">
+          ${u.role!=='owner'&&u.email?`<button class="uBtn${u.early?'':' ok'}" data-ea-act="${u.early?'remove':'add'}" data-email="${esc(u.email)}">${u.early?'Remove early access':'Give early access'}</button>`:''}
           ${u.status!=='active'?`<button class="uBtn ok" data-act="approve" data-id="${u.id}">Approve</button>`:''}
           ${u.status!=='blocked'?`<button class="uBtn bad" data-act="block" data-id="${u.id}">Block</button>`:`<button class="uBtn" data-act="unblock" data-id="${u.id}">Unblock</button>`}
           ${u.role!=='owner'?`<button class="uBtn bad" data-act="delete" data-id="${u.id}">Delete</button>`:''}
@@ -4455,6 +4462,9 @@ function wireOffice(){
   loadApplink();
   if($("offAddBtn")) $("offAddBtn").onclick = () => officeEmail(($("offEmail").value||"").trim(), "add");
   document.querySelectorAll("[data-off]").forEach(b=>b.onclick=()=>officeEmail(b.dataset.off, "remove"));
+  if($("eaAddBtn")) $("eaAddBtn").onclick = () => earlyEmail(($("eaEmail").value||"").trim(), "add");
+  document.querySelectorAll("[data-ea]").forEach(b=>b.onclick=()=>earlyEmail(b.dataset.ea, "remove"));
+  document.querySelectorAll("[data-ea-act]").forEach(b=>b.onclick=()=>earlyEmail(b.dataset.email, b.dataset.eaAct));
   // Both switches POST the full settings object. /admin/settings writes every field it
   // receives, and SettingsIn defaults level_test to true — so sending one switch alone
   // would silently reset the other.
@@ -4480,7 +4490,7 @@ function wireOffice(){
   if($("homeSel")) $("homeSel").onchange = saveSettings;
   if($("plSel")) $("plSel").onchange = saveSettings;
   if($("wipeBtn")) $("wipeBtn").onclick = async () => {
-    if(!confirm("Delete ALL users except david, shuhani & free-access emails? This cannot be undone.")) return;
+    if(!confirm("Delete ALL users except david, shuhani, free-access and early-access emails? This cannot be undone.")) return;
     try{ const r = await fetch("/admin/wipe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:authToken})});
       const d = await r.json(); alert("Deleted " + (d.deleted||0) + " users."); }catch(_){ alert("Failed."); }
     openAdmin();
@@ -4490,6 +4500,16 @@ async function officeEmail(email, action){
   if(!email) return;
   try{ await fetch("/admin/office",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({token:authToken,email,action})}); }catch(_){}
+  openAdmin();
+}
+// Early access (testers): add / remove one email. The server drops its access cache, so the tester's next app load already has the features.
+async function earlyEmail(email, action){
+  if(!email) return;
+  try{
+    const r = await fetch("/admin/early",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({token:authToken,email,action})});
+    if(!r.ok){ const j = await r.json().catch(()=>({})); alert(j.detail || "Couldn't save."); return; }
+  }catch(_){ alert("Couldn't save."); return; }
   openAdmin();
 }
 

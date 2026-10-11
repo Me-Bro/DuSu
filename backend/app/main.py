@@ -132,6 +132,24 @@ async def is_office(email: str) -> bool:
         return False
 
 
+async def early_access(email: str) -> bool:
+    """Owner-invited tester (dashboard -> Early access). Cached like is_office; any failure reads as "no"."""
+    e = (email or "").strip().lower()
+    if not e:
+        return False
+    try:
+        return bool(await _cached(f"early:{e}", lambda: db.early_has(e)))
+    except Exception:
+        return False
+
+
+async def staged_visible(email: str) -> bool:
+    """What a rollout switch set to 'owner' means: the owner / unlimited allowlist PLUS the invited early-access testers, so one named
+    person can try a feature before it goes to everyone. VISIBILITY ONLY - role_for / resolve_keys / is_unlimited never read the
+    early-access list, so an invited tester gets no admin rights, no free keys and no quota."""
+    return role_for(email) in ("owner", "unlimited") or await early_access(email)
+
+
 async def access_phase() -> str:
     """Growth-phase master switch (Settings table, no migration needed).
     'growth' = launch strategy: every non-owner/unlimited account must BYOK and then
@@ -170,10 +188,9 @@ async def level_test_on() -> bool:
 
 async def practice_room_mode() -> str:
     """Practice Room rollout switch (Settings table, no migration). 'off' = the code ships
-    dark and nobody sees it (default); 'owner' = only the owner / unlimited allowlist (the
-    owner's own phone is where the recording spikes have to run — plan §7); 'on' = everyone.
-    A closed-test cohort tier was left out on purpose: the Settings value column is 255 chars,
-    too small for an email list."""
+    dark and nobody sees it (default); 'owner' = the owner / unlimited allowlist plus the invited
+    early-access testers (the owner's own phone is where the recording spikes have to run — plan §7;
+    see staged_visible); 'on' = everyone."""
     try:
         v = await _cached("practice_room", lambda: db.get_setting("practice_room", "off"))
         return v if v in ("off", "owner", "on") else "off"
@@ -186,15 +203,15 @@ async def practice_room_enabled(email: str) -> bool:
     if m == "on":
         return True
     if m == "owner":
-        return role_for(email) in ("owner", "unlimited")
+        return await staged_visible(email)
     return False
 
 
 async def life_context_mode() -> str:
     """'DuSu knows your data' rollout switch (Settings table, no migration; CLAUDE.md §10). It changes
     what DuSu says in every Talk / Daily Talk conversation, so it is staged like the Practice Room:
-    'off' = nobody; 'owner' = only the owner / unlimited allowlist (the DEFAULT - the owner checks it
-    on their own account first); 'on' = everyone."""
+    'off' = nobody; 'owner' = the owner / unlimited allowlist plus the early-access testers (the DEFAULT - the owner checks it
+    on their own account first; see staged_visible); 'on' = everyone."""
     try:
         v = await _cached("life_context", lambda: db.get_setting("life_context", "owner"))
         return v if v in ("off", "owner", "on") else "owner"
@@ -207,14 +224,14 @@ async def life_context_enabled(email: str) -> bool:
     if m == "on":
         return True
     if m == "owner":
-        return role_for(email) in ("owner", "unlimited")
+        return await staged_visible(email)
     return False
 
 
 async def bilingual_mode() -> str:
     """Hindi / English switch rollout (Settings table, no migration; CLAUDE.md §11, DUSU_LANGUAGE_SCOPE_PLAN.md). Since 2026-10-11 it
     governs the NEW features only (lang.SWITCHABLE: the Home companion + Know About DuSu; My Day later): 'off' = they are Hinglish
-    only, no switch; 'owner' = only the owner / unlimited allowlist see the switch (the DEFAULT); 'on' = everyone. It NEVER touches
+    only, no switch; 'owner' = the owner / unlimited allowlist plus the early-access testers see the switch (the DEFAULT); 'on' = everyone. It NEVER touches
     Daily Talk, Face-to-Face, Interview, Learn or Journey - those are pinned to what they always were."""
     try:
         v = await _cached("bilingual", lambda: db.get_setting("bilingual", "owner"))
@@ -228,14 +245,14 @@ async def bilingual_enabled(email: str) -> bool:
     if m == "on":
         return True
     if m == "owner":
-        return role_for(email) in ("owner", "unlimited")
+        return await staged_visible(email)
     return False
 
 
 async def home_ai_mode() -> str:
     """Home 2.0 rollout switch (Settings table, no migration; CLAUDE.md §12, DUSU_HOME_AI_PLAN.md). It changes what Start Speaking
     does (the AI companion instead of Daily Talk), so it is staged like the other three: 'off' = Home is exactly as before;
-    'owner' = only the owner / unlimited allowlist (the DEFAULT - the owner tries it first); 'on' = everyone."""
+    'owner' = the owner / unlimited allowlist plus the early-access testers (the DEFAULT - the owner tries it first); 'on' = everyone."""
     try:
         v = await _cached("home_ai", lambda: db.get_setting("home_ai", "owner"))
         return v if v in ("off", "owner", "on") else "owner"
@@ -248,14 +265,14 @@ async def home_ai_enabled(email: str) -> bool:
     if m == "on":
         return True
     if m == "owner":
-        return role_for(email) in ("owner", "unlimited")
+        return await staged_visible(email)
     return False
 
 
 async def planner_mode() -> str:
     """My Day rollout switch (Settings table, no migration; DUSU_GOALS_PLAN.md D2). It stores personal data and sends reminders, so it ships DARK:
-    'off' = nobody, the endpoints answer 404 and the scheduler idles (the DEFAULT); 'owner' = only the owner / unlimited allowlist;
-    'on' = everyone."""
+    'off' = nobody, the endpoints answer 404 and the scheduler idles (the DEFAULT); 'owner' = the owner / unlimited allowlist plus the
+    early-access testers; 'on' = everyone."""
     try:
         v = await _cached("planner", lambda: db.get_setting("planner", "off"))
         return v if v in ("off", "owner", "on") else "off"
@@ -268,7 +285,7 @@ async def planner_enabled(email: str) -> bool:
     if m == "on":
         return True
     if m == "owner":
-        return role_for(email) in ("owner", "unlimited")
+        return await staged_visible(email)
     return False
 
 
@@ -1153,8 +1170,12 @@ async def admin_overview(token: str = "", authorization: str | None = Header(Non
             print(f"[admin] planner health failed: {type(e).__name__}")
         try:
             users = await db.admin_list_users()
+            early = await db.early_list()
+            early_set = {e.lower() for e in early}
             for u in users:                       # attach computed role
                 u["role"] = role_for(u.get("email", ""))
+                u["early"] = (u.get("email") or "").strip().lower() in early_set
+            out["early_access"] = early
             out["users"] = users
             out["counts"] = {
                 "total": len(users),
@@ -1229,6 +1250,7 @@ async def admin_wipe(inp: WipeIn, authorization: str | None = Header(None)):
     keep = {e.lower() for e in OWNER_EMAILS} | {e.lower() for e in UNLIMITED_EMAILS}
     try:
         keep |= set(await db.office_list())
+        keep |= set(await db.early_list())          # invited testers are people the owner chose to keep, not test debris
     except Exception:
         pass
     n = await db.admin_wipe_users(keep)
@@ -1351,6 +1373,38 @@ async def admin_office(inp: OfficeEmailIn, authorization: str | None = Header(No
         raise HTTPException(400, "Unknown action")
     invalidate_access_cache()
     return {"ok": ok, "office_emails": await db.office_list()}
+
+
+class EarlyAccessIn(BaseModel):
+    token: str = ""
+    email: str
+    action: str        # add | remove
+
+
+_EARLY_WHY = {"invalid": "That does not look like an email address.",
+              "full": f"The early-access list is full ({db._MAX_EARLY}) - remove someone first."}
+
+
+@app.post("/admin/early")
+async def admin_early(inp: EarlyAccessIn, authorization: str | None = Header(None)):
+    """Owner-only: add / remove an invited early-access tester. They see every feature whose switch is set to 'Owner + early access'
+    (Practice Room, My Day, Home AI, Hindi / English switch, DuSu knows your progress) - visibility only: no admin rights, no keys, no quota.
+    The change is immediate: the access cache is dropped, so the tester's next app load (/me) already has the features."""
+    _require_owner(inp.token, authorization)
+    if not db.db_enabled:
+        raise HTTPException(400, "Database required")
+    if inp.action == "add":
+        res = await db.early_add(inp.email)
+        if res in _EARLY_WHY:
+            raise HTTPException(400, _EARLY_WHY[res])
+    elif inp.action == "remove":
+        res = "removed" if await db.early_remove(inp.email) else "invalid"
+        if res == "invalid":
+            raise HTTPException(400, _EARLY_WHY["invalid"])
+    else:
+        raise HTTPException(400, "Unknown action")
+    invalidate_access_cache()
+    return {"ok": True, "result": res, "early_access": await db.early_list()}
 
 
 class AdminActionIn(BaseModel):

@@ -1478,6 +1478,23 @@ The thing Know About DuSu listed as "coming soon". **Ships dark:** switch `setti
 
 ---
 
+## 15. Early access - show a staged feature to named accounts (built 2026-10-11)
+
+**Why it exists.** Every new feature ships behind a rollout switch (`practice_room`, `planner`, `home_ai`, `bilingual`, `life_context`) set to `owner`. A second account ("Vijeta Rana", a normal `user`) could not see ANY of the new features - not a bug: the switch said "owner only" and `role_for()` said "user" (measured on prod 2026-10-11: all five `*_enabled(email)` returned False for her and True for the owner; she was past the own-keys wall, with verified keys). There was no way to show a feature to one person short of flipping it for all 17 accounts.
+
+| Piece | Where |
+|---|---|
+| List | table `early_access_emails` (email PK, lowercased; `added_at`) - a brand-new table, no migration. `db.early_list / early_has / early_add / early_remove` (`early_add` -> `added` / `exists` / `invalid` / `full`, cap `_MAX_EARLY` = 100); `_clean_email` |
+| Gate | `main.staged_visible(email)` = the owner / unlimited role **or** the email is on the list (`early_access`, cached 60 s like `is_office`). The five `*_enabled` functions use it for mode `owner`. `off` stays off for everyone (a kill switch); `on` = everyone |
+| Owner UI | dashboard -> Access -> **Early access (testers)** (list, add, remove) + a **Give / Remove early access** button and a 🧪 tag on every user card; the switches' middle option now reads "Owner + early access". `/admin/overview` carries `early_access` + `users[].early`; `POST /admin/early {email, action}` (owner only; 400 on a bad email or a full list) drops the access cache, so the tester's next `/me` already has the features |
+| What it does NOT do | **visibility only** - `role_for`, `resolve_keys`, `is_unlimited`, `is_office` never read the list: no admin, no free keys, no quota (a tester still meets the own-keys wall - tested equal to a normal account). `UNLIMITED_EMAILS` is NOT a substitute: it would also hand the person the server's keys with no quota |
+| Data hygiene | `delete_user` (the owner's Delete AND a learner deleting their own account) removes the row - an email is personal data; "Reset test users" keeps invited testers |
+| Granting without the dashboard | a `.sql` file piped into `dusu-db-1`: `INSERT INTO early_access_emails (email, added_at) VALUES ('person@example.com', now()) ON CONFLICT DO NOTHING;` - visible within the 60 s cache |
+
+**Gotchas:** the tester has to reload / reopen the app (the flags come with `/me` at load; an installed PWA / TWA may need a full close). A dashboard change is immediate on the server; direct SQL waits out the cache (up to 60 s). **Verified (2026-10-11):** 48 scratch-DB checks through the real HTTP layer + WebSocket - the bug reproduced first (all five features invisible to a normal account), then after the invite visible to the tester only, no admin / keys / quota leak, `off` still hides, `on` still means everyone, validation, idempotency, cap, the cache path, delete / wipe / self-deletion - and 45 Chromium checks on the dashboard at 360 / 390 / 1280 px (mocked owner API) plus a look at the screenshots. **Not verified:** the tester's own phone (reload behaviour of the installed app).
+
+---
+
 ## Quick command reference
 
 ```powershell

@@ -2221,6 +2221,77 @@ async def office_remove(email: str) -> bool:
         return True
 
 
+# ===================== EARLY ACCESS (owner-invited testers) =====================
+# A rollout switch set to "owner" (Practice Room, My Day, Home AI, Hindi/English switch, DuSu-knows-your-data) shows its feature to the
+# owner AND to the accounts on this list (main.staged_visible) - so one named person can try a feature before it goes to everyone.
+# VISIBILITY ONLY: no role, no admin rights, no keys, no quota (role_for / resolve_keys / is_unlimited never read this list).
+# A table, not a Settings value: Settings.value is 255 characters, too small for a list of emails. Keyed by email like OfficeEmail;
+# delete_user (the owner's Delete button AND a learner deleting their own account) removes the person's row - an email is personal data.
+_MAX_EARLY = 100
+
+
+def _clean_email(email: str) -> str:
+    """The email lowercased, or '' when it is not plausibly one (one @, no spaces, a dot in the domain)."""
+    e = (email or "").strip().lower()
+    if not e or len(e) > 254 or e.count("@") != 1 or any(ch.isspace() for ch in e):
+        return ""
+    local, _, domain = e.partition("@")
+    if not local or "." not in domain or domain.startswith(".") or domain.endswith("."):
+        return ""
+    return e
+
+
+class EarlyAccessEmail(Base):
+    __tablename__ = "early_access_emails"
+    email: Mapped[str] = mapped_column(String(255), primary_key=True)   # lowercased
+    added_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+async def early_list() -> list[str]:
+    if not db_enabled:
+        return []
+    async with _Session() as s:               # type: ignore[misc]
+        rows = (await s.execute(select(EarlyAccessEmail.email).order_by(EarlyAccessEmail.added_at.desc()))).scalars().all()
+        return list(rows)
+
+
+async def early_has(email: str) -> bool:
+    e = _clean_email(email)
+    if not e or not db_enabled:
+        return False
+    async with _Session() as s:               # type: ignore[misc]
+        return (await s.get(EarlyAccessEmail, e)) is not None
+
+
+async def early_add(email: str) -> str:
+    """'added' | 'exists' | 'invalid' | 'full' - the endpoint tells the owner which."""
+    e = _clean_email(email)
+    if not e:
+        return "invalid"
+    if not db_enabled:
+        return "invalid"
+    async with _Session() as s:               # type: ignore[misc]
+        if await s.get(EarlyAccessEmail, e) is not None:
+            return "exists"
+        n = (await s.execute(select(func.count()).select_from(EarlyAccessEmail))).scalar() or 0
+        if n >= _MAX_EARLY:
+            return "full"
+        s.add(EarlyAccessEmail(email=e))
+        await s.commit()
+        return "added"
+
+
+async def early_remove(email: str) -> bool:
+    e = _clean_email(email)
+    if not e or not db_enabled:
+        return False
+    async with _Session() as s:               # type: ignore[misc]
+        row = await s.get(EarlyAccessEmail, e)
+        if row:
+            await s.delete(row); await s.commit()
+        return True
+
+
 # ===================== APP SETTINGS (owner toggles) =====================
 class Setting(Base):
     __tablename__ = "settings"
@@ -2264,6 +2335,10 @@ async def admin_wipe_users(keep_emails: set[str]) -> int:
         for tbl in (Conversation, Memory, Progress, Profile, UserKey, Feedback, UsageDaily,
                     SessionScore, WeeklyStat, SeasonAward, PracticeAttempt):
             await s.execute(delete(tbl).where(tbl.user_id.in_(del_ids)))
+        del_set = set(del_ids)
+        gone = [(u.email or "").strip().lower() for u in users if u.id in del_set]
+        if gone:                                    # an invited tester's email goes with their account (main keeps them out of the wipe anyway)
+            await s.execute(delete(EarlyAccessEmail).where(EarlyAccessEmail.email.in_(gone)))
         await s.execute(delete(User).where(User.id.in_(del_ids)))
         await s.commit()
         return len(del_ids)
@@ -2281,6 +2356,9 @@ async def delete_user(user_id: str) -> bool:
             await s.execute(delete(tbl).where(tbl.user_id == user_id))
         u = await s.get(User, user_id)
         if u:
+            em = (u.email or "").strip().lower()
+            if em:                                  # the early-access list holds their email: that is personal data too
+                await s.execute(delete(EarlyAccessEmail).where(EarlyAccessEmail.email == em))
             await s.delete(u)
         await s.commit()
         return True
