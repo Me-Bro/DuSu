@@ -263,13 +263,13 @@ class Session:
         for attempt in (0, 1):
             ask = payload if attempt == 0 else (payload + "\n\n(Your last reply was not a valid JSON object with a non-empty "
                                                            '"reply". Return exactly the JSON object described above.)')
-            d = await llm.assess(system, ask, max_tokens=700, prefer_fast=True, temperature=0.6)
+            d = await llm.assess(system, ask, max_tokens=900, prefer_fast=True, temperature=0.6)   # room to read EVERY reminder when asked (Devanagari is token-heavy)
             if isinstance(d, dict) and not d.get("error") and isinstance(d.get("reply"), str) and d["reply"].strip():
                 data = d
                 break
         self._switch_note = False
         if data:
-            reply = hc.soften(data["reply"].strip())[:700]
+            reply = hc.soften(data["reply"].strip())[:900]
             intent = data.get("intent") if data.get("intent") in hc.INTENTS else hc.detect_intent(answer)
             ids = hc.filter_suggest(intent, data.get("suggest"))
         else:

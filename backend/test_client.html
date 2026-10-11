@@ -2025,9 +2025,10 @@
   .pl-badge{ position:absolute; top:-5px; right:-5px; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--amber);
     color:#241a08; font-size:11px; font-weight:700; line-height:18px; text-align:center; }
   .pl-lgrow{ display:flex; justify-content:flex-end; margin:2px 0 0; }
-  .pl-tabs{ display:flex; gap:6px; margin:12px 0 4px; overflow-x:auto; scrollbar-width:none; }
+  /* five tabs (Today · Reminders · Tasks · Goals · Habits) must ALL be visible on a phone: they share the row and stretch evenly, and only a very narrow screen scrolls */
+  .pl-tabs{ display:flex; gap:4px; margin:12px 0 4px; overflow-x:auto; scrollbar-width:none; }
   .pl-tabs::-webkit-scrollbar{ display:none; }
-  .pl-tab{ flex:1 0 auto; min-height:44px; padding:0 16px; font:inherit; font-size:14px; font-weight:600; border-radius:999px; cursor:pointer;
+  .pl-tab{ flex:1 1 auto; min-height:44px; padding:0 8px; font:inherit; font-size:13px; font-weight:600; border-radius:999px; cursor:pointer; white-space:nowrap;
     background:var(--glass); border:1px solid var(--glass-brd); color:var(--ink-dim); }
   .pl-tab.on{ background:linear-gradient(135deg,rgba(111,140,255,.3),rgba(122,92,240,.2)); border-color:var(--gold); color:var(--ink); }
   .pl-body{ margin-top:10px; padding-bottom:88px; }
@@ -8626,6 +8627,7 @@ const HM = (function(){
 
   // ---- the companion chat ----
   let textMode = false, greetDone = true, wsReady = false, pendingText = "", thinking = false, next = null, listenT = null;
+  let planText = "", planShown = false;                       // the "what is on your day" line DuSu adds after her greeting (from the server, exact)
   const notice = msg => { const n = $("hmNotice"); if(!n) return; n.textContent = msg || ""; n.hidden = !msg; };
   function syncMic(){
     const m = $("hmMic"); if(!m) return;
@@ -8662,7 +8664,7 @@ const HM = (function(){
     const speaksFirst = !o.text;                                 // Start Speaking: DuSu says the greeting aloud, at once
     textMode = !SR || !!o.typed;
     pendingText = o.text || "";
-    wsReady = false; thinking = false;
+    wsReady = false; thinking = false; planText = ""; planShown = false;
     greetDone = !speaksFirst || textMode;
     currentMode = "home";
     $("feed").innerHTML = ""; thinkHide(); renderActs([]);
@@ -8679,7 +8681,8 @@ const HM = (function(){
     ws.onopen = () => {
       running = !textMode; srFails = 0; usageInc(); refreshUsage();
       ws.send(JSON.stringify({ type:"start", mode:"home", name:"", token:authToken, mood:todayMood, hour:new Date().getHours(),
-        day:localDay(), keys:officeKeys(), lang:LG.lang("home"), opening:g.text, tzmin:-new Date().getTimezoneOffset() }));   // tzmin: the device clock, so DuSu can say the time
+        day:localDay(), keys:officeKeys(), lang:LG.lang("home"), opening:g.text, tzmin:-new Date().getTimezoneOffset(),   // tzmin: the device clock, so DuSu can say the time
+        plan:speaksFirst }));                                    // Start Speaking: DuSu adds what is on the learner's day after the greeting (chips / typed text ask for it themselves)
     };
     ws.onmessage = onMessage;                                    // the shared handler hands home_* frames to onReady / onTurn / onError
     ws.onclose = () => {
@@ -8697,7 +8700,17 @@ const HM = (function(){
     try{ await say(text, Object.assign({}, LG.voice(L), { onStart: () => { FACE.startTalking(); Assistant.startTalking(); } })); }catch(_){}
     try{ FACE.stopTalking(); Assistant.stopTalking(); }catch(_){}
     if(ep !== speakEpoch) return;
-    aiSpeaking = false; greetDone = true; maybeListen();
+    aiSpeaking = false; greetDone = true; tryPlan(); maybeListen();
+  }
+
+  // After the greeting (and once the server is ready) DuSu says what is on the learner's day - exact lines from My Day, built on the server.
+  // Spoken (the mic opens when she finishes) or, in text mode, just shown. At most once per conversation.
+  function tryPlan(){
+    if(!planText || planShown || !wsReady || !greetDone || aiSpeaking || currentMode !== "home") return;
+    planShown = true; const line = planText; planText = "";
+    addMsg(line, "ai"); toLatest();
+    if(textMode || !running) return;
+    speak(line, lang());                                         // speak() hands the mic back when she finishes
   }
 
   // The mic opens once DuSu has finished her opening AND the server has answered "ready" - exactly once.
@@ -8724,10 +8737,12 @@ const HM = (function(){
     return true;
   }
 
-  function onReady(){
+  function onReady(m){
     wsReady = true; thinkHide();
+    const p = m && m.plan;
+    if(p && !pendingText) planText = String(p[lang()] || p.hi || p.en || "").trim();
     if(pendingText){ const x = pendingText; pendingText = ""; submit(x); }
-    else { if(!aiSpeaking) orb("idle", T[lang()].orbIdle, ""); maybeListen(); }
+    else { if(!aiSpeaking) orb("idle", T[lang()].orbIdle, ""); tryPlan(); maybeListen(); }
   }
   function onTurn(m){
     thinking = false;
@@ -8859,13 +8874,17 @@ const PL = (function(){
   "use strict";
   const API = "/planner";
   const PATHS = { today:"/my-day", tasks:"/my-day/tasks", goals:"/my-day/goals", habits:"/my-day/habits", reminders:"/my-day/reminders", settings:"/my-day/settings" };
-  const TABS = ["today", "tasks", "goals", "habits"];
+  const TABS = ["today", "reminders", "tasks", "goals", "habits"];
 
   /* ---------- words (Hindi = Devanagari with everyday English words in Latin; DuSu is "she"; the learner's gender is never assumed) ---------- */
   const TXT = {
     en: {
       title:"My Day", sub:"Tasks, habits, goals & reminders", back:"Back", add:"Add", bell:"Reminders", gear:"Settings", close:"Close", loading:"Loading…",
-      tToday:"Today", tTasks:"Tasks", tGoals:"Goals", tHabits:"Habits",
+      tToday:"Today", tTasks:"Tasks", tGoals:"Goals", tHabits:"Habits", tReminders:"Reminders",
+      secRem:"Reminders", remNone:"No reminders yet. Tap ＋ to set one.", remAllLink:"See all reminders", sumRem:"{n} reminders today", sumRem1:"1 reminder today",
+      savedTask:"Task saved", savedHabit:"Habit saved", savedGoal:"Goal saved", pushHintT:"You will only see these while DuSu is open", pushHintNo:"Not now",
+      pushHintB:"Turn on notifications and DuSu can ping this phone when a reminder is due, even if the app is closed. Some phones block that to save battery - the test button in Settings checks yours.",
+      editRem:"Edit reminder", remSet:"Reminder set for {when}", remDup:"That reminder is already set for {when}", remDeleted:"Reminder deleted",
       gm:"Good morning", ga:"Good afternoon", ge:"Good evening", gn:"Hi",
       sumLeft:"{n} left today", sumLeft1:"1 left today", sumNone:"Nothing left for today", sumEmpty:"Nothing planned yet", sumHabits:"{a} of {b} habits", sumOver:"{n} overdue",
       secDue:"Reminders for you", secPrio:"Today's priorities", secToday:"Also today", secOver:"Needs a new plan", secDone:"Done today", secHabits:"Habits", secGoals:"Goals",
@@ -8910,7 +8929,11 @@ const PL = (function(){
     },
     hi: {
       title:"My Day", sub:"Tasks, habits, goals और reminders", back:"वापस", add:"जोड़ो", bell:"Reminders", gear:"Settings", close:"बंद करो", loading:"लोड हो रहा है…",
-      tToday:"आज", tTasks:"Tasks", tGoals:"Goals", tHabits:"Habits",
+      tToday:"आज", tTasks:"Tasks", tGoals:"Goals", tHabits:"Habits", tReminders:"Reminders",
+      secRem:"Reminders", remNone:"अभी कोई reminder नहीं है। ＋ दबाकर एक लगाओ।", remAllLink:"सारे reminders देखो", sumRem:"आज {n} reminders", sumRem1:"आज 1 reminder",
+      savedTask:"Task save हो गया", savedHabit:"Habit save हो गई", savedGoal:"Goal save हो गया", pushHintT:"ये तुम्हें सिर्फ़ तभी दिखेंगे जब DuSu खुला हो", pushHintNo:"अभी नहीं",
+      pushHintB:"Notifications चालू करो तो reminder के समय DuSu इस phone पर ping कर सकती है, app बंद हो तब भी। कुछ phones battery बचाने के लिए इन्हें रोक देते हैं - Settings का test button तुम्हारे phone पर जाँच लेगा।",
+      editRem:"Reminder बदलो", remSet:"{when} के लिए reminder लग गया", remDup:"ये reminder {when} के लिए पहले से लगा है", remDeleted:"Reminder हट गया",
       gm:"Good morning", ga:"Good afternoon", ge:"Good evening", gn:"Hi",
       sumLeft:"आज {n} बाक़ी हैं", sumLeft1:"आज 1 बाक़ी है", sumNone:"आज का सब हो गया", sumEmpty:"अभी कुछ plan नहीं है", sumHabits:"{b} में से {a} habits", sumOver:"{n} पिछले बाक़ी",
       secDue:"तुम्हारे लिए reminders", secPrio:"आज की priorities", secToday:"आज और भी", secOver:"नया plan चाहिए", secDone:"आज हुए", secHabits:"Habits", secGoals:"Goals",
@@ -8977,7 +9000,7 @@ const PL = (function(){
   function fmtDate(iso){ const d = dateObj(iso); if(!d) return ""; try{ return new Intl.DateTimeFormat(loc(), { weekday:"short", day:"numeric", month:"short" }).format(d); }catch(_){ return iso; } }
   function fmtTime(hhmm){ if(!hhmm) return ""; const [h, m] = hhmm.split(":").map(Number); return (h % 12 || 12) + ":" + String(m).padStart(2, "0") + " " + (h < 12 ? "AM" : "PM"); }
   function fmtInstant(iso, tz){ try{ const d = new Date(iso); return new Intl.DateTimeFormat(loc(), { hour:"numeric", minute:"2-digit", hour12:true, timeZone: tz || undefined }).format(d); }catch(_){ return ""; } }
-  const serverToday = () => (D.today && D.today.date) || localIso(new Date());
+  const serverToday = () => (D.today && D.today.date) || D.remToday || localIso(new Date());
   function localIso(d){ return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
   function addDays(iso, n){ const d = dateObj(iso); d.setDate(d.getDate() + n); return localIso(d); }
   function dayLabel(iso){
@@ -9028,8 +9051,11 @@ const PL = (function(){
   }
   function paintSummary(){
     const s = D.summary, el = $("plHomeS"); if(!el || !s) return;
-    const parts = [];
-    parts.push(s.open_today ? (s.open_today === 1 ? t("sumLeft1") : t("sumLeft", { n:s.open_today })) : (s.done_today ? t("sumNone") : t("sumEmpty")));
+    const parts = [], rn = s.reminders_today || 0;
+    if(s.open_today) parts.push(s.open_today === 1 ? t("sumLeft1") : t("sumLeft", { n:s.open_today }));
+    else if(s.done_today) parts.push(t("sumNone"));
+    else if(!rn) parts.push(t("sumEmpty"));
+    if(rn) parts.push(rn === 1 ? t("sumRem1") : t("sumRem", { n:rn }));
     if(s.habits_total) parts.push(t("sumHabits", { a:s.habits_done, b:s.habits_total }));
     if(s.overdue) parts.push(t("sumOver", { n:s.overdue }));
     el.textContent = parts.join(" · ");
@@ -9067,7 +9093,7 @@ const PL = (function(){
   // the ＋ floats over the phone column on the Today / Tasks / Goals / Habits tabs only (it sits outside the screen: see the CSS note)
   function syncFab(){
     const f = $("plFab"); if(!f || !f.parentNode) return;
-    f.parentNode.hidden = !(enabled() && currentScreen() === "pl" && tab !== "reminders" && tab !== "settings");
+    f.parentNode.hidden = !(enabled() && currentScreen() === "pl" && tab !== "settings");
     placeFab();
   }
   function placeFab(){
@@ -9089,7 +9115,11 @@ const PL = (function(){
       else if(tab === "tasks") D.tasks = await api("GET", "/tasks?view=" + tview);
       else if(tab === "goals") D.goals = (await api("GET", "/goals")).goals;
       else if(tab === "habits") D.habits = (await api("GET", "/habits")).habits;
-      else if(tab === "reminders") D.rem = (await api("GET", "/reminders?view=" + rview)).reminders;
+      else if(tab === "reminders"){
+        // the list and (only the first time) the notification state, side by side - one round trip of waiting, not two
+        const [r, pf] = await Promise.all([api("GET", "/reminders?view=" + rview), D.prefs ? Promise.resolve(null) : api("GET", "/prefs").catch(() => null)]);
+        D.rem = r.reminders; D.remToday = r.today; D.remTz = r.tz; if(pf) D.prefs = pf;
+      }
       else if(tab === "settings") D.prefs = await api("GET", "/prefs");
       if(tab === "goals" && goalId) D.goal = await api("GET", "/goals/" + goalId);
     }catch(e){
@@ -9130,6 +9160,14 @@ const PL = (function(){
     return `<div class="pl-remcard" data-rid="${c.id}"><div class="pl-k">${A(k)}${c.stale ? " · " + A(t("remStale")) : ""}</div><div class="pl-ttl">${A(c.title)}</div>${c.body ? `<div class="pl-note" style="margin:-6px 0 8px">${A(c.body)}</div>` : ""}
       <div class="pl-acts"><button class="pl-act go" data-act="rem" data-id="${c.id}" data-a="done">✓ ${A(t("done"))}</button><button class="pl-act" data-act="rem" data-id="${c.id}" data-a="later">⏰ ${A(t("later"))}</button><button class="pl-act" data-act="rem" data-id="${c.id}" data-a="skip">${A(t("skip"))}</button></div></div>`;
   }
+  // one of the learner's own reminders: a round check (it is done - it will not ring) + the words and the time; tap the words to change or delete it
+  function remRow(x, o){
+    o = o || {};
+    const chips = [`<span class="pl-chip">${A((o.day ? dayLabel(x.day) + " · " : "") + fmtTime(x.time))}</span>`];
+    if(x.status === "waiting") chips.push(`<span class="pl-chip gold">${A(t("remWaiting"))}</span>`);
+    return `<div class="pl-row"><button class="pl-chk" data-act="remdone" data-id="${x.id}" aria-label="${A(t("done"))}: ${A(x.title)}"></button>
+      <button class="pl-main" data-act="remedit" data-id="${x.id}" aria-label="${A(t("edit"))}: ${A(x.title)}"><div class="pl-ttl">🔔 ${A(x.title)}</div><div class="pl-meta">${chips.join("")}</div></button></div>`;
+  }
   function habitCard(h, compact){
     const full = h.state_today === "done";
     const cnt = h.count_today, tgt = h.target;
@@ -9155,7 +9193,12 @@ const PL = (function(){
     const d = D.today; if(!d) return "";
     const c = d.counts, hr = d.hour, name = firstName();
     const hello = (hr < 5 ? t("gn") : hr < 12 ? t("gm") : hr < 17 ? t("ga") : t("ge")) + (name ? ", " + name : "");
-    const sum = [c.open_today ? (c.open_today === 1 ? t("sumLeft1") : t("sumLeft", { n:c.open_today })) : (c.done_today ? t("sumNone") : t("sumEmpty"))];
+    const remN = c.reminders_today || 0, rems = d.reminders || [];
+    const sum = [];
+    if(c.open_today) sum.push(c.open_today === 1 ? t("sumLeft1") : t("sumLeft", { n:c.open_today }));
+    else if(c.done_today) sum.push(t("sumNone"));
+    else if(!remN) sum.push(t("sumEmpty"));
+    if(remN) sum.push(remN === 1 ? t("sumRem1") : t("sumRem", { n:remN }));
     if(c.habits_total) sum.push(t("sumHabits", { a:c.habits_done, b:c.habits_total }));
     if(c.overdue) sum.push(t("sumOver", { n:c.overdue }));
     let h = `<div class="pl-hello">${A(hello)}</div><div class="pl-sum">${A(sum.join(" · "))}</div>`;
@@ -9163,7 +9206,13 @@ const PL = (function(){
     if(dev && d.prefs && !sameZone(dev, d.tz) && !sessionStorage.getItem("dusu_pl_tz_" + dev))
       h += `<div class="pl-card pad" style="margin-bottom:12px"><div class="pl-note" style="margin-top:0">${A(t("tzBanner", { dev, cur:d.tz }))}</div><div class="pl-acts"><button class="pl-act go" data-act="tzuse" data-tz="${A(dev)}">${A(t("tzUse", { dev }))}</button><button class="pl-act" data-act="tzkeep" data-tz="${A(dev)}">${A(t("tzKeep", { cur:d.tz }))}</button></div></div>`;
     if(d.due && d.due.length) h += `<div class="pl-sec">${A(t("secDue"))}</div>` + d.due.map(remCard).join("");
-    const empty = !d.priorities.length && !d.today.length && !d.overdue.length && !d.done_today.length;
+    // the learner's own reminders are part of the day: today's are listed right here (the next few when none are left today)
+    if(rems.length){
+      const tdIso = d.date, todays = rems.filter(x => x.day === tdIso), shown = todays.length ? todays.slice(0, 6) : rems.slice(0, 3);
+      h += `<div class="pl-sec">${A(t("secRem"))}</div><div class="pl-card">${shown.map(x => remRow(x, { day:x.day !== tdIso })).join("")}</div>`;
+      if(rems.length > shown.length) h += `<button class="pl-more" data-act="remall">${A(t("remAllLink"))} (${rems.length})</button>`;
+    }
+    const empty = !d.priorities.length && !d.today.length && !d.overdue.length && !d.done_today.length && !rems.length && !(d.due && d.due.length);
     if(d.priorities.length) h += `<div class="pl-sec">${A(t("secPrio"))}</div><div class="pl-card">${d.priorities.map(x => taskRow(x)).join("")}</div>`;
     const prioIds = new Set(d.priorities.map(x => x.id));
     const rest = d.today.filter(x => !prioIds.has(x.id)), over = d.overdue.filter(x => !prioIds.has(x.id));
@@ -9229,13 +9278,27 @@ const PL = (function(){
   function vReminders(){
     let h = `<div class="pl-chips"><button class="pl-fchip${rview === "upcoming" ? " on" : ""}" data-act="rview" data-v="upcoming">${A(t("remsUp"))}</button><button class="pl-fchip${rview === "history" ? " on" : ""}" data-act="rview" data-v="history">${A(t("remsHist"))}</button></div>`;
     const list = D.rem || [];
-    if(!list.length) return h + `<div class="pl-empty">${A(t("emptyRem"))}</div>`;
+    if(!list.length) return h + `<div class="pl-empty">${A(rview === "history" ? t("emptyRem") : t("remNone"))}</div>`;
     const stat = r => r.status === "waiting" ? t("remWaiting") : r.status === "done" ? t("remDone") : r.status === "skipped" ? t("remSkipped") : r.status === "expired" ? t("remExpired") : r.status === "sent" ? t("remSent") : "";
-    return h + `<div class="pl-card">` + list.map(r => `<div class="pl-row"><span style="font-size:20px;line-height:1.3">${r.kind === "test" ? "🧪" : r.entity_type === "habit" ? "🌱" : "🔔"}</span><div class="pl-main" style="cursor:default"><div class="pl-ttl">${A(r.title)}</div>
-      <div class="pl-meta">${r.fire_at ? `<span class="pl-chip">${A(fmtInstantDay(r.fire_at))}</span>` : ""}${stat(r) ? `<span class="pl-chip ${r.status === "done" ? "green" : r.status === "expired" ? "amber" : ""}">${A(stat(r))}</span>` : ""}</div></div></div>`).join("") + `</div>`;
+    const flat = r => `<div class="pl-row"><span style="font-size:20px;line-height:1.3">${r.kind === "test" ? "🧪" : r.entity_type === "habit" ? "🌱" : "🔔"}</span><div class="pl-main" style="cursor:default"><div class="pl-ttl">${A(r.title)}</div>
+      <div class="pl-meta">${r.fire_at ? `<span class="pl-chip">${A(fmtInstantDay(r.fire_at))}</span>` : ""}${stat(r) ? `<span class="pl-chip ${r.status === "done" ? "green" : r.status === "expired" ? "amber" : ""}">${A(stat(r))}</span>` : ""}</div></div></div>`;
+    if(rview === "history") return h + `<div class="pl-card">` + list.map(flat).join("") + `</div>`;
+    // reminders only ring inside DuSu until notifications are on: say so once, with the button (the learner can dismiss it)
+    const ps = pushState(), hideHint = (() => { try{ return !!localStorage.getItem("dusu_pl_pushhint"); }catch(_){ return false; } })();
+    if(ps !== "on" && !hideHint){
+      const why = ps === "denied" ? t("pushDenied") : ps === "unsupported" ? t("pushNo") : t("pushHintB");
+      const go = (ps === "ask" || ps === "off") ? `<button class="pl-act go" data-act="pushon">${A(t("setPushOn"))}</button>` : "";
+      h += `<div class="pl-card pad" style="margin-bottom:12px"><div class="pl-ttl" style="margin-bottom:4px">🔔 ${A(t("pushHintT"))}</div><div class="pl-note" style="margin-top:0">${A(why)}</div>
+        <div class="pl-acts">${go}<button class="pl-act" data-act="pushhide">${A(t("pushHintNo"))}</button></div></div>`;
+    }
+    // coming up: grouped by the learner's own day. Their own reminders can be ticked off, changed and deleted; a task's or a habit's reminder is managed from that task / habit.
+    const groups = [];
+    list.forEach(r => { const day = r.day || ""; let g = groups[groups.length - 1]; if(!g || g.day !== day){ g = { day, items:[] }; groups.push(g); } g.items.push(r); });
+    return h + groups.map(g => `<div class="pl-sec">${A(g.day ? dayLabel(g.day) : t("noDate"))}</div><div class="pl-card">`
+      + g.items.map(r => (r.entity_type === "custom" && r.kind !== "test" && r.time) ? remRow(r) : flat(r)).join("") + `</div>`).join("");
   }
   function fmtInstantDay(iso){
-    try{ const d = new Date(iso); return new Intl.DateTimeFormat(loc(), { weekday:"short", day:"numeric", month:"short", hour:"numeric", minute:"2-digit", hour12:true, timeZone:(D.prefs && D.prefs.tz) || (D.today && D.today.tz) || undefined }).format(d); }catch(_){ return ""; }
+    try{ const d = new Date(iso); return new Intl.DateTimeFormat(loc(), { weekday:"short", day:"numeric", month:"short", hour:"numeric", minute:"2-digit", hour12:true, timeZone:(D.prefs && D.prefs.tz) || (D.today && D.today.tz) || D.remTz || undefined }).format(d); }catch(_){ return ""; }
   }
 
   /* ---------- Settings (gear) ---------- */
@@ -9340,12 +9403,12 @@ const PL = (function(){
         ${x ? "" : `<div class="pl-f"><label for="plGMs">${A(t("gMs"))}</label><textarea class="pl-in" id="plGMs" rows="4"></textarea></div>`}
         <div class="pl-foot"><button class="btn primary" data-act="save">${A(t("save"))}</button><button class="btn ghost" data-act="cancel">${A(t("cancel"))}</button></div>`;
     }
-    const now = new Date(); const rd = keep.date || localIso(now);
-    return `<h3>${A(t("newRem"))}</h3><div id="plErr" class="pl-err" hidden></div>
-      <div class="pl-f"><label for="plTitle2">${A(t("fRTitle"))}</label><input class="pl-in" id="plTitle2" maxlength="160" value="${A(keep.title || "")}" autocomplete="off" /></div>
+    const now = new Date(); const rd = x ? (x.day || localIso(now)) : (keep.date || localIso(now));
+    return `<h3>${A(x ? t("editRem") : t("newRem"))}</h3><div id="plErr" class="pl-err" hidden></div>
+      <div class="pl-f"><label for="plTitle2">${A(t("fRTitle"))}</label><input class="pl-in" id="plTitle2" maxlength="160" value="${A(x ? x.title : keep.title || "")}" autocomplete="off" /></div>
       <div class="pl-two"><div class="pl-f"><label for="plDate">${A(t("fDate"))}</label><input class="pl-in" id="plDate" type="date" value="${A(rd)}" /></div>
-      <div class="pl-f"><label for="plTime">${A(t("fTime"))}</label><input class="pl-in" id="plTime" type="time" value="${A(keep.time || "")}" /></div></div>
-      <div class="pl-foot"><button class="btn primary" data-act="save">${A(t("save"))}</button><button class="btn ghost" data-act="cancel">${A(t("cancel"))}</button></div>`;
+      <div class="pl-f"><label for="plTime">${A(t("fTime"))}</label><input class="pl-in" id="plTime" type="time" value="${A(x ? (x.time || "") : (keep.time || ""))}" /></div></div>
+      <div class="pl-foot"><button class="btn primary" data-act="save">${A(t("save"))}</button><button class="btn ghost" data-act="cancel">${A(t("cancel"))}</button>${x ? `<button class="btn danger" data-act="remdel" data-id="${x.id}">${A(t("del"))}</button>` : ""}</div>`;
   }
   function fmtLocalTime(iso){
     try{ const parts = new Intl.DateTimeFormat("en-GB", { hour:"2-digit", minute:"2-digit", hour12:false, timeZone:(D.prefs && D.prefs.tz) || (D.today && D.today.tz) || undefined }).format(new Date(iso)); return parts; }catch(_){ return ""; }
@@ -9358,6 +9421,7 @@ const PL = (function(){
     const title = val("plTitle2").trim();
     if(!title){ showErr(t("errTitle")); return; }
     if(btn) btn.disabled = true;
+    let remSaved = null, savedObj = null;
     try{
       if(kind === "task"){
         const series = ed && ed.is_series;
@@ -9378,7 +9442,7 @@ const PL = (function(){
         if(!ed){
           if(dd) body.due_date = dd; if(tt) body.due_time = tt; if(rule) body.repeat = rule; body.pin = !!($("plPin") && $("plPin").checked);
           body.client_key = "pl" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-          saved = await api("POST", "/tasks", body);
+          saved = await api("POST", "/tasks", body); savedObj = saved;
         } else {
           if(series){ if(rule) body.repeat = rule; body.due_date = dd || ed.due_date; body.due_time = tt || ""; }
           else if((dd || "") !== (ed.due_date || "") || (tt || "") !== (ed.due_time || "")){
@@ -9394,18 +9458,33 @@ const PL = (function(){
         const days = mode === "daily" ? "daily" : [...document.querySelectorAll('#plSheet [data-chips="hdaylist"] .on')].map(b => +b.dataset.v);
         const times = [...document.querySelectorAll("#plHTimes input[type=time]")].map(i => i.value).filter(Boolean);
         const body = { title, target:+val("plHTarget") || 1, unit:val("plHUnit").trim(), partial_ok:!!$("plHPartial").checked, schedule:{ days:(Array.isArray(days) && !days.length) ? "daily" : days, times } };
-        if(ed) await api("PATCH", "/habits/" + ed.id, body); else { body.client_key = "ph" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); await api("POST", "/habits", body); }
+        if(ed) await api("PATCH", "/habits/" + ed.id, body); else { body.client_key = "ph" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); savedObj = await api("POST", "/habits", body); }
       } else if(kind === "goal"){
         const body = { title, why:val("plWhy").trim(), target_date:val("plGDate") || null, daily_minutes:+val("plGMin") || null };
         if(ed) await api("PATCH", "/goals/" + ed.id, body);
-        else { body.milestones = val("plGMs").split("\n").map(s => s.trim()).filter(Boolean).slice(0, 12); body.client_key = "pg" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); await api("POST", "/goals", body); }
+        else { body.milestones = val("plGMs").split("\n").map(s => s.trim()).filter(Boolean).slice(0, 12); body.client_key = "pg" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); savedObj = await api("POST", "/goals", body); }
       } else {
         const tt = val("plTime"); if(!tt){ showErr(t("errTime")); if(btn) btn.disabled = false; return; }
-        await api("POST", "/reminders", { title, date:val("plDate") || undefined, time:tt, client_key:"pr" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) });
+        if(ed) remSaved = await api("PATCH", "/reminders/" + ed.id, { title, date:val("plDate") || undefined, time:tt });
+        else remSaved = await api("POST", "/reminders", { title, date:val("plDate") || undefined, time:tt, client_key:"pr" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) });
       }
     }catch(e){ if(btn) btn.disabled = false; showErr(errText(e)); return; }
     closeSheet();
-    if(kind === "rem") { tab = "reminders"; rview = "upcoming"; paint(); try{ navTo(PATHS.reminders); }catch(_){ load(); } return; }
+    if(kind === "rem"){
+      // say plainly what happened (it was set / it already existed / it was changed) and show the list it is now part of
+      try{ const when = remSaved && remSaved.fire_at ? fmtInstantDay(remSaved.fire_at) : ""; showNotif(ed ? t("saved") : (remSaved && remSaved.duplicate) ? t("remDup", { when }) : t("remSet", { when })); }catch(_){}
+      summaryAt = 0;
+      if(ed){ await refreshKeep(); return; }               // edited in place: stay where you were
+      tab = "reminders"; rview = "upcoming"; paint(); try{ navTo(PATHS.reminders); }catch(_){ load(); } return;
+    }
+    // a NEW task / habit / goal: confirm it, and (on the Tasks tab) show the view it landed in - a task for tomorrow or with no date is not in "Today"
+    if(!ed && savedObj){
+      try{ showNotif(t(kind === "task" ? "savedTask" : kind === "habit" ? "savedHabit" : "savedGoal")); }catch(_){}
+      if(kind === "task" && tab === "tasks"){
+        const dd = savedObj.due_date, td = serverToday();
+        tview = savedObj.is_series || savedObj.repeat ? "repeating" : !dd ? "inbox" : dd === td ? "today" : dd < td ? "overdue" : "upcoming";
+      }
+    }
     pollDue(); load(); summaryAt = 0;
   }
 
@@ -9423,6 +9502,10 @@ const PL = (function(){
       else if(a === "tview"){ tview = el.dataset.v; load(); }
       else if(a === "rview"){ rview = el.dataset.v; load(); }
       else if(a === "rem"){ await api("POST", "/reminders/" + id + "/act", { action:el.dataset.a }); dueCards = dueCards.filter(c => c.id !== id); paintBanner(); paintBell(); if(tab === "reminders") load(); else await refreshKeep(); summaryAt = 0; }
+      else if(a === "remedit"){ const x = findRem(id); if(x){ sheet = { kind:"rem", edit:x }; openSheet(formFor("rem", x)); } }
+      else if(a === "remdone"){ await api("POST", "/reminders/" + id + "/act", { action:"done" }); await refreshKeep(); summaryAt = 0; }
+      else if(a === "remdel"){ if(confirm(t("delAsk"))){ await api("DELETE", "/reminders/" + id); closeSheet(); try{ showNotif(t("remDeleted")); }catch(_){} await refreshKeep(); summaryAt = 0; } }
+      else if(a === "remall"){ navTo(PATHS.reminders); }
       else if(a === "hlog"){ const n = +el.dataset.n; const h = findHabit(id); const same = h && h.count_today === n; await api("PUT", "/habits/" + id + "/log", { count: same ? Math.max(0, n - 1) : n }); await refreshKeep(); summaryAt = 0; }
       else if(a === "habit"){ const h = findHabit(id); if(h){ sheet = { kind:"habit", edit:h }; openSheet(formFor("habit", h)); } }
       else if(a === "goal"){ goalId = id; load(); }
@@ -9440,6 +9523,7 @@ const PL = (function(){
       else if(a === "tzdev"){ await api("PUT", "/prefs", { tz:el.dataset.tz }); load(); }
       else if(a === "pushon"){ await enablePush(); }
       else if(a === "pushoff"){ await disablePush(); }
+      else if(a === "pushhide"){ try{ localStorage.setItem("dusu_pl_pushhint", "1"); }catch(_){} render(); }
       else if(a === "pushtest"){ try{ await api("POST", "/push/test", {}); try{ showNotif(t("testSent")); }catch(_){} }catch(e){ if(e && e.code === "limit_test") try{ showNotif(t("testWait")); }catch(_){} else warn(e); } }
       else if(a === "export"){ const j = await api("GET", "/export"); const b = new Blob([JSON.stringify(j, null, 2)], { type:"application/json" }); const u = URL.createObjectURL(b); const l = document.createElement("a"); l.href = u; l.download = "dusu-my-day.json"; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); }
       else if(a === "delall"){ if(confirm(t("setDelAsk"))){ await api("POST", "/delete-all", { confirm:true }); D = {}; dueCards = []; paintBanner(); paintBell(); load(); } }
@@ -9461,7 +9545,7 @@ const PL = (function(){
       else if(tab === "tasks") D.tasks = await api("GET", "/tasks?view=" + tview);
       else if(tab === "goals"){ D.goals = (await api("GET", "/goals")).goals; if(goalId) D.goal = await api("GET", "/goals/" + goalId); }
       else if(tab === "habits") D.habits = (await api("GET", "/habits")).habits;
-      else if(tab === "reminders") D.rem = (await api("GET", "/reminders?view=" + rview)).reminders;
+      else if(tab === "reminders"){ const r = await api("GET", "/reminders?view=" + rview); D.rem = r.reminders; D.remToday = r.today; D.remTz = r.tz; }
       else if(tab === "settings") D.prefs = await api("GET", "/prefs");
     }catch(e){ warn(e); return; }
     if(seq !== loadSeq) return;
@@ -9474,6 +9558,7 @@ const PL = (function(){
     return null;
   }
   function findHabit(id){ for(const p of [D.habits, D.today && D.today.habits]) for(const h of (p || [])) if(h.id === id) return h; return null; }
+  function findRem(id){ for(const p of [D.rem, D.today && D.today.reminders]) for(const r of (p || [])) if(r.id === id) return r; return null; }
 
   /* ---------- the in-app reminder card, the bell, polling ---------- */
   function paintBell(){
@@ -9555,10 +9640,10 @@ const PL = (function(){
   });
   document.addEventListener("keydown", ev => { if(ev.key === "Escape" && sheetOpen()) closeSheet(); });
   $("plSheetBg").onclick = closeSheet;
-  $("plBack").onclick = () => { if(tab === "reminders" || tab === "settings") navTo(PATHS.today); else navTo("/"); };
+  $("plBack").onclick = () => { if(tab === "settings") navTo(PATHS.today); else navTo("/"); };
   $("plBell").onclick = () => navTo(tab === "reminders" ? PATHS.today : PATHS.reminders);
   $("plGear").onclick = () => navTo(tab === "settings" ? PATHS.today : PATHS.settings);
-  $("plFab").onclick = () => { if(!D.goals){ api("GET", "/goals").then(r => { D.goals = r.goals; }).catch(() => {}); } sheetAdd(tab === "habits" ? "habit" : tab === "goals" && !goalId ? "goal" : "task"); };
+  $("plFab").onclick = () => { if(!D.goals){ api("GET", "/goals").then(r => { D.goals = r.goals; }).catch(() => {}); } sheetAdd(tab === "habits" ? "habit" : tab === "goals" && !goalId ? "goal" : tab === "reminders" ? "rem" : "task"); };
   if($("plHomeCard")) $("plHomeCard").onclick = () => navTo("/my-day");
   if($("mrowMyDay")) $("mrowMyDay").dataset.more = "myday";
 

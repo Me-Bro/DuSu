@@ -225,6 +225,18 @@ async def reminder_create(body: dict = Body(...), authorization: str | None = He
     return await _run(svc.create_custom_reminder(uid, body))
 
 
+@router.patch("/reminders/{rid}")
+async def reminder_update(rid: int, body: dict = Body(...), authorization: str | None = Header(None)):
+    _c, uid, _e = await _gate(authorization, str(body.get("token", "")))
+    return await _run(svc.update_custom_reminder(uid, rid, body))
+
+
+@router.delete("/reminders/{rid}")
+async def reminder_delete(rid: int, token: str = "", authorization: str | None = Header(None)):
+    _c, uid, _e = await _gate(authorization, token)
+    return await _run(svc.delete_custom_reminder(uid, rid))
+
+
 @router.post("/reminders/{rid}/act")
 async def reminder_act(rid: int, body: dict = Body(...), authorization: str | None = Header(None)):
     _c, uid, _e = await _gate(authorization, str(body.get("token", "")))

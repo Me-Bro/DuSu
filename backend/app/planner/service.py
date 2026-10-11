@@ -1150,6 +1150,16 @@ def reminder_json(r: PlReminder, task: PlTask | None = None, now: dt.datetime | 
     return out
 
 
+def reminder_brief(r: PlReminder, tz: str) -> dict:
+    """reminder_json + the learner's LOCAL day ('2026-10-11') and time ('20:00') of it, so a list can group and an edit sheet can prefill with no
+    time-zone arithmetic in the client."""
+    out = reminder_json(r)
+    if r.fire_at is not None:
+        loc = tu.to_local(r.fire_at, tz)
+        out["day"], out["time"] = loc.date().isoformat(), f"{loc.hour:02d}:{loc.minute:02d}"
+    return out
+
+
 async def due_cards(uid: str) -> dict:
     """Reminders the app should show NOW: sent and not yet acted on (the in-app channel IS this list)."""
     async with _S() as s:
@@ -1168,6 +1178,7 @@ async def due_cards(uid: str) -> dict:
 
 async def list_reminders(uid: str, view: str = "upcoming") -> dict:
     async with _S() as s:
+        p = await _prefs(s, uid)
         now = _utc()
         if view == "history":
             since = now - dt.timedelta(days=30)
@@ -1178,7 +1189,7 @@ async def list_reminders(uid: str, view: str = "upcoming") -> dict:
             q = select(PlReminder).where(PlReminder.user_id == uid, PlReminder.status.in_(("waiting", "scheduled"))).order_by(PlReminder.fire_at.asc().nulls_last())
         rows = (await s.execute(q.limit(60))).scalars().all()
         await s.commit()
-        return {"reminders": [reminder_json(r) for r in rows], "view": view}
+        return {"reminders": [reminder_brief(r, p.tz) for r in rows], "view": view, "tz": p.tz, "today": tu.local_today(p.tz, now).isoformat()}
 
 
 async def create_custom_reminder(uid: str, body: dict) -> dict:
@@ -1195,6 +1206,16 @@ async def create_custom_reminder(uid: str, body: dict) -> dict:
         now = _utc()
         if fire < now - dt.timedelta(minutes=1):
             raise Invalid("past")
+        # the same words at the same minute that are already waiting: the learner added it twice (a second tap, a retry, or not sure the
+        # first one saved) - hand back the one that exists instead of piling up a copy
+        dup = (await s.execute(select(PlReminder).where(PlReminder.user_id == uid, PlReminder.entity_type == "custom", PlReminder.kind == "time",
+                                                        PlReminder.status.in_(("scheduled", "waiting")), PlReminder.fire_at == fire,
+                                                        func.lower(PlReminder.title) == title.lower()))).scalars().first()
+        if dup is not None:
+            await s.commit()
+            out = reminder_json(dup)
+            out["duplicate"] = True
+            return out
         n = (await s.execute(select(func.count()).select_from(PlReminder).where(PlReminder.user_id == uid, PlReminder.entity_type == "custom",
                                                                                PlReminder.status.in_(("scheduled", "waiting"))))).scalar() or 0
         if n >= rules.LIMITS["custom_reminders"] or await _count_creates(s, uid) >= rules.LIMITS["creates_per_day"]:
@@ -1204,6 +1225,66 @@ async def create_custom_reminder(uid: str, body: dict) -> dict:
                                    key=(f"c:{uid[:24]}:{key}" if key else f"c:{uid[:24]}:{fire:%Y%m%dT%H%M%S}:{abs(hash(title)) % 10**6}")[:96],
                                    fire_at=fire, tz=p.tz, status="scheduled")
         _ev(s, uid, "custom", r.id, "created")
+        await s.commit()
+        return reminder_json(r)
+
+
+async def _own_custom_reminder(s, uid: str, rid: int) -> PlReminder:
+    """The learner's own note-to-self reminder (never a task's or a habit's - those are managed from the task / habit), row-locked. A foreign id,
+    a test reminder and a deleted one are all NotFound."""
+    r = (await s.execute(select(PlReminder).where(PlReminder.id == rid, PlReminder.user_id == uid, PlReminder.entity_type == "custom")
+                         .with_for_update())).scalars().first()
+    if r is None or r.kind == "test" or r.status == "cancelled":
+        raise NotFound("reminder")
+    return r
+
+
+async def update_custom_reminder(uid: str, rid: int, body: dict) -> dict:
+    """Change the words and / or the time of one of the learner's own reminders. A new time (even for one that already fired or was missed)
+    arms it again; nothing sent earlier is repeated. Past times are refused like on create."""
+    async with _S() as s:
+        p = await _prefs(s, uid)
+        r = await _own_custom_reminder(s, uid, rid)
+        title = r.title
+        if "title" in body:
+            title = rules.clean_str(body.get("title"), 160)
+            if not title:
+                raise Invalid("title")
+        fire = r.fire_at
+        if body.get("date") or body.get("time"):
+            cur = tu.to_local(r.fire_at, p.tz) if r.fire_at is not None else tu.local_now(p.tz)
+            d = tu.parse_date(body.get("date")) if body.get("date") else cur.date()
+            if d is None:
+                raise Invalid("date")
+            tm = tu.parse_hhmm(body.get("time")) if body.get("time") else cur.time().replace(second=0, microsecond=0)
+            if tm is None:
+                raise Invalid("time")
+            fire = tu.to_utc(d, tm, p.tz)
+            if fire != r.fire_at and fire < _utc() - dt.timedelta(minutes=1):
+                raise Invalid("past")
+        if title != r.title or fire != r.fire_at:
+            r.title = title
+            if fire != r.fire_at:
+                r.fire_at, r.tz, r.status = fire, p.tz, "scheduled"
+                r.attempts, r.followups_sent, r.snooze_count, r.push_state, r.last_error = 0, 0, 0, "none", ""
+                r.claimed_at = r.sent_at = r.acted_at = None
+                r.action = ""
+            _ev(s, uid, "custom", r.id, "edited")
+        await s.commit()
+        return reminder_json(r)
+
+
+async def delete_custom_reminder(uid: str, rid: int) -> dict:
+    """Remove one of the learner's own reminders: it is cancelled (so it never fires, the scheduler re-checks the status at send time) and
+    leaves every list. A second call changes nothing."""
+    async with _S() as s:
+        r = (await s.execute(select(PlReminder).where(PlReminder.id == rid, PlReminder.user_id == uid, PlReminder.entity_type == "custom")
+                             .with_for_update())).scalars().first()
+        if r is None or r.kind == "test":
+            raise NotFound("reminder")
+        if r.status != "cancelled":
+            r.status, r.acted_at, r.action = "cancelled", _utc(), "deleted"
+            _ev(s, uid, "custom", r.id, "deleted")
         await s.commit()
         return reminder_json(r)
 
@@ -1299,12 +1380,18 @@ async def today(uid: str) -> dict:
         nxt = (await s.execute(select(PlReminder).where(PlReminder.user_id == uid, PlReminder.status == "scheduled", PlReminder.fire_at > now)
                                .order_by(PlReminder.fire_at.asc()).limit(1))).scalars().first()
         due = (await due_cards_in(s, uid, now))
+        # the learner's own note-to-self reminders that are still ahead (a reminder is part of the day: Today lists them, DuSu reads them all)
+        rem_rows = (await s.execute(select(PlReminder).where(PlReminder.user_id == uid, PlReminder.entity_type == "custom", PlReminder.kind != "test",
+                                                             PlReminder.status.in_(("scheduled", "waiting")), PlReminder.fire_at > now)
+                                    .order_by(PlReminder.fire_at.asc()).limit(12))).scalars().all()
+        reminders = [reminder_brief(r, p.tz) for r in rem_rows]
+        rem_today = sum(1 for x in reminders if x.get("day") == td.isoformat()) + sum(1 for x in due if x.get("entity_type") == "custom")
         await s.commit()
         return {"now": now.isoformat(), "tz": p.tz, "date": td.isoformat(), "dow": td.weekday(), "hour": tu.local_now(p.tz, now).hour,
                 "counts": {"open_today": len(due_today) + len([r for r in pinned if r not in due_today and r not in overdue]), "overdue": len(overdue),
-                           "done_today": len(done_rows), "pinned": len(pinned),
+                           "done_today": len(done_rows), "pinned": len(pinned), "reminders_today": rem_today,
                            "habits_done": sum(1 for h in sched_today if h["state_today"] in ("done", "skipped")), "habits_total": len(sched_today)},
-                "due": due, "priorities": [tj(r) for r in prio[:3]], "today": [tj(r) for r in due_today], "overdue": [tj(r) for r in overdue[:20]],
+                "due": due, "reminders": reminders, "priorities": [tj(r) for r in prio[:3]], "today": [tj(r) for r in due_today], "overdue": [tj(r) for r in overdue[:20]],
                 "done_today": [tj(r) for r in done_rows], "habits": habits, "goals": goals,
                 "next_reminder": ({"title": nxt.title, "fire_at": _iso(nxt.fire_at), "kind": nxt.kind} if nxt else None), "prefs": prefs_json(p)}
 
@@ -1432,6 +1519,9 @@ async def summary(uid: str) -> dict:
                                .order_by(PlReminder.fire_at.asc()).limit(1))).scalars().first()
         due_cards = (await s.execute(select(func.count()).select_from(PlReminder).where(PlReminder.user_id == uid, or_(PlReminder.status == "sent",
                      and_(PlReminder.status == "scheduled", PlReminder.fire_at <= now))))).scalar() or 0
+        rem_today = (await s.execute(select(func.count()).select_from(PlReminder).where(
+            PlReminder.user_id == uid, PlReminder.entity_type == "custom", PlReminder.kind != "test", PlReminder.status.in_(("scheduled", "waiting", "sent")),
+            PlReminder.fire_at >= lo, PlReminder.fire_at < hi))).scalar() or 0
         await s.commit()
         return {"open_today": int(due_today), "overdue": int(overdue), "done_today": int(done_today), "habits_done": done, "habits_total": len(sched), "due_reminders": int(due_cards),
-                "next_reminder": ({"title": nxt.title, "fire_at": _iso(nxt.fire_at)} if nxt else None), "tz": p.tz}
+                "reminders_today": int(rem_today), "next_reminder": ({"title": nxt.title, "fire_at": _iso(nxt.fire_at)} if nxt else None), "tz": p.tz}

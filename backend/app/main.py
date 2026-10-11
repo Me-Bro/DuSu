@@ -2932,9 +2932,22 @@ async def interview_ws(ws: WebSocket):
                     # Home 2.0: nothing to generate on start - the client already spoke the greeting it is showing, so DuSu
                     # "speaks first" instantly. Record it as the first assistant line so the model knows what it said.
                     _opening = _clean_opening(data.get("opening"))
-                    if _opening:
-                        session.transcript.append({"role": "assistant", "content": _opening})
-                    await _send(ws, type="home_ready", lang=session.lang)
+                    # Start Speaking (the client sends plan=true only then): right after the greeting DuSu says what is on the learner's day -
+                    # their own reminders / tasks, exact, built from the database with no model. Only for a learner who has My Day AND has not
+                    # switched personalisation off; any failure just means no plan line.
+                    _plan = None
+                    if data.get("plan") and _home_personal and uid and db.db_enabled:
+                        try:
+                            if await planner_enabled(_email):
+                                _plan = await asyncio.wait_for(planner_life.opening_plan(uid), timeout=2.0)
+                        except Exception as e:
+                            print(f"[plan] skipped: {type(e).__name__}")
+                    _said = _opening
+                    if _plan and _plan.get(session.lang):          # the model must know DuSu already said it
+                        _said = (_opening + " " if _opening else "") + _plan[session.lang]
+                    if _said:
+                        session.transcript.append({"role": "assistant", "content": _said})
+                    await _send(ws, type="home_ready", lang=session.lang, plan=_plan)
                 elif session.mode == "daily":
                     # Resume: seed the recent turns the client kept in localStorage so
                     # DuSu picks up the thread instead of opening cold.
