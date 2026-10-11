@@ -1,6 +1,6 @@
 # DUSU — Make every feature real: Home that answers, Practice Room with Viva, My Day (routine) — Plan + status
 
-> **Status 2026-10-11: ALL THREE WORKSTREAMS BUILT, DEPLOYED AND LIVE-CHECKED (Practice Room + planner switches = `owner`; flip to `on` from the dashboard when ready).** Owner: "where is viva, practice option? … is Know About showing *coming soon* … make sure it is fully configured and all features start working … in Home → Start Speaking nowhere to go and no AI buttons needed — we can ask questions: what is the time, routine, my progress … make a solid plan and implement".
+> **Status 2026-10-11: ALL THREE WORKSTREAMS BUILT, DEPLOYED AND LIVE-CHECKED - and, by the owner's decision ("all features for everyone"), all five rollout switches (`practice_room`, `planner`, `home_ai`, `bilingual`, `life_context`) are now `on` = Everyone in production. Rollback for any one of them: dashboard -> Access -> "Owner + early access" or "Off" (live within a minute; data stays).** Owner: "where is viva, practice option? … is Know About showing *coming soon* … make sure it is fully configured and all features start working … in Home → Start Speaking nowhere to go and no AI buttons needed — we can ask questions: what is the time, routine, my progress … make a solid plan and implement".
 > Status of each stage: §7.
 
 ## 0. How the message was read
