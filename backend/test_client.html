@@ -299,6 +299,7 @@
   #home.hm-on .hstage > #hmAbout { order:5; }
   #home.hm-on .hstage > #hmType { order:6; }
   #home.hm-on .hstage > .lg-row { order:7; margin-top:14px; }
+  #home.hm-on .hstage > #hmFeats { order:8; }
   .hm-label { font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-faint); font-weight:600;
     margin:18px 0 0; line-height:1.6; }
   .hm-label b { color:var(--gold-lt); font-weight:700; }
@@ -331,6 +332,23 @@
     color:var(--ink); background:var(--glass); border:1px solid var(--glass-brd); display:grid; place-items:center; }
   .hm-send { background:var(--grad); color:#0b1020; border-color:transparent; }
   .hm-mic.on { background:var(--grad); color:#0b1020; border-color:transparent; }
+  /* Feature icons on Home: one tap into any feature. The tiles come from /me.home_tiles (the same registry as Know About). */
+  .hm-feats { width:min(360px,94vw); margin:26px auto 4px; }
+  .hm-feats[hidden] { display:none; }
+  .hm-feats-h { font-size:13px; letter-spacing:.03em; color:var(--ink-faint); font-weight:600; line-height:1.6; margin:0 0 12px; text-align:center; }
+  .hm-feats-g { display:flex; flex-wrap:wrap; justify-content:center; gap:14px 10px; }
+  .hm-feat { flex:0 0 80px; width:80px; font:inherit; display:flex; flex-direction:column; align-items:center; gap:7px; padding:2px 0 4px;
+    background:none; border:0; cursor:pointer; color:var(--ink); -webkit-tap-highlight-color:transparent; }
+  .hm-feat-ic { width:54px; height:54px; border-radius:17px; display:grid; place-items:center; color:var(--gold-lt); font-size:24px; line-height:1;
+    background:linear-gradient(145deg, color-mix(in srgb,var(--gold) 17%,transparent), color-mix(in srgb,var(--gold) 5%,transparent));
+    border:1px solid color-mix(in srgb,var(--gold) 30%,transparent); transition:transform .18s, border-color .2s, box-shadow .2s; }
+  .hm-feat-ic svg { width:26px; height:26px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .hm-feat-t { font-size:11.5px; line-height:1.3; color:var(--ink-dim); text-align:center; min-height:2.6em; max-width:100%; overflow:hidden; word-break:break-word;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+  .hm-feat:hover .hm-feat-ic { transform:translateY(-2px); border-color:color-mix(in srgb,var(--gold) 65%,transparent); box-shadow:0 8px 18px -10px color-mix(in srgb,var(--gold) 80%,transparent); }
+  .hm-feat:hover .hm-feat-t { color:var(--ink); }
+  .hm-feat:active .hm-feat-ic { transform:scale(.94); }
+  .hm-feat:focus-visible { outline:2px solid var(--gold-lt); outline-offset:3px; border-radius:14px; }
   /* the live chat (inside #session, only while currentMode === "home") */
   .hm-live { display:flex; flex-direction:column; gap:10px; margin:12px 0 2px; }
   #session.hm-chat .hm-live { position:sticky; bottom:calc(76px + env(safe-area-inset-bottom) + 4px); z-index:5; padding:10px 0 6px; margin:8px 0 0;
@@ -388,8 +406,9 @@
     #home.hm-on #welcomeMsg { font-size:26px; max-width:520px; }
     .hm-chips { width:min(560px,94vw); }
     .hm-type { width:min(440px,92vw); }
+    .hm-feats { width:min(560px,94vw); }
   }
-  @media (prefers-reduced-motion: reduce){ .hm-chip, .hm-act, .hm-about, .ab-try { transition:none !important; } }
+  @media (prefers-reduced-motion: reduce){ .hm-chip, .hm-act, .hm-about, .ab-try, .hm-feat-ic { transition:none !important; } }
   #moreHome { animation:fade .5s ease; scroll-margin-top:20px; }
   @media (prefers-reduced-motion: reduce){
     .halo,.hpart i,.hbtn,.hbubble,.htitle,.hsub,.reveal-link,.hjourney{ animation:none !important; opacity:1 !important; transform:none !important; }
@@ -1983,7 +2002,7 @@
     #prRepBody > .pr-half{ grid-column:auto; }
     #prRepBody .card{ height:100%; }
   }
-  /* ===== Hindi / English switch (DUSU_BILINGUAL_PLAN.md) — every control stays [hidden] until userState.bilingual ===== */
+  /* ===== Hindi / English switch - NEW features only (DUSU_LANGUAGE_SCOPE_PLAN.md) — every control stays [hidden] until userState.bilingual ===== */
   .lg-sw{ display:inline-flex; flex:none; border:1px solid var(--glass-brd); border-radius:999px; overflow:hidden; background:var(--glass); }
   .lg-sw[hidden]{ display:none; }
   .lg-sw button{ font:inherit; font-size:13px; line-height:1.3; padding:7px 13px; min-height:34px; color:var(--ink-dim); background:transparent; border:0; cursor:pointer; }
@@ -1992,20 +2011,8 @@
   .sess-head .lg-sw{ margin-left:auto; }
   .lg-row{ display:flex; justify-content:center; margin:0 0 14px; }
   .lg-row[hidden]{ display:none; }
-  .lg-setup{ display:flex; justify-content:center; margin:0 0 14px; }
-  .lg-setup[hidden]{ display:none; }
-  .lg-dir{ display:flex; gap:8px; justify-content:center; margin:0 0 14px; flex-wrap:wrap; }
-  .lg-dir[hidden]{ display:none; }
-  .lg-dir button{ font:inherit; font-size:13px; line-height:1.3; padding:7px 14px; min-height:34px; border-radius:999px; cursor:pointer;
-    color:var(--ink-dim); background:var(--glass); border:1px solid var(--glass-brd); }
-  .lg-dir button.on{ color:#0d1020; background:var(--gold); border-color:transparent; font-weight:600; }
-  .lg-dir button:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:2px; }
-  /* Devanagari carries its marks above and below the line: give Hindi text room so matras are never clipped */
-  html[lang="hi"] .sess-title, html[lang="hi"] .sess-sub, html[lang="hi"] .prac-h, html[lang="hi"] .mode-card h3,
-  html[lang="hi"] .btab span, html[lang="hi"] .learn-instr, html[lang="hi"] .learn-state, html[lang="hi"] .mic-label,
-  html[lang="hi"] .state-label, html[lang="hi"] .state-hint, html[lang="hi"] .tc-label, html[lang="hi"] .th-txt,
-  html[lang="hi"] .bubble, html[lang="hi"] .sysmsg, html[lang="hi"] .btn, html[lang="hi"] .card h4,
-  html[lang="hi"] .m-top, html[lang="hi"] .sr-row, html[lang="hi"] .sr-next{ line-height:1.55; }
+  /* Devanagari carries its marks above and below the line: give the Home chat (the only Hindi surface in a shared screen) room so matras are never clipped */
+  #session.hm-chat .bubble, #session.hm-chat .sysmsg, #session.hm-chat .state-label{ line-height:1.55; }
 </style>
 </head>
 <body>
@@ -2138,6 +2145,7 @@
         <input id="hmTypeIn" type="text" maxlength="400" enterkeyhint="send" aria-label="Type to DuSu" />
         <button type="submit" class="hm-send" id="hmTypeGo" aria-label="Send">&#10148;</button>
       </form>
+      <nav class="hm-feats" id="hmFeats" hidden></nav>
       <button class="hgoal" id="homeGoal" hidden></button>
       <div class="cp-home" id="homeCareer" hidden></div>
       <div class="sr-missions" id="homeMissions" hidden></div>
@@ -3367,13 +3375,13 @@ const VOICE_SCREENS = new Set(["session","daily","learning"]);
 let speakEpoch = 0;
 function killSpeech(){ speakEpoch++; try{ if(window.speechSynthesis) window.speechSynthesis.cancel(); }catch(_){} }
 
-/* ================= Hindi / English language modes (DUSU_BILINGUAL_PLAN.md · CLAUDE.md §11) =================
-   ONE global language (hi | en, Hindi until the learner chooses) for Daily Talk, Face-to-Face and Interview — switchable
-   before AND during a session — plus Learn's own direction (what the learner SPEAKS: hi = Hindi→English, the original).
-   Everything here is inert until userState.bilingual is true. With the switch OFF, LG.lang(mode) returns what each mode
-   always did (Talk/Interview English, Daily/Learn Hindi) and t() returns the ORIGINAL wording (I18N.legacy, then I18N.en),
-   so nothing on screen or in the voice changes. Hindi copy is Devanagari with English words kept in Latin (as the level
-   check already does); DuSu is "she" in Hindi, and the learner's gender is never assumed. */
+/* ================= Hindi / English choice - the NEW features only (DUSU_LANGUAGE_SCOPE_PLAN.md · CLAUDE.md §11) =================
+   One language (hi | en, Hindi until the learner chooses) for the NEW features: the Home AI companion, Know About DuSu (and My Day later).
+   Daily Talk, Face-to-Face, Interview, Learn, Journey and every screen around them are NOT affected: LG.lang(mode) returns what each
+   mode always did (Talk/Interview English, Daily/Learn Hindi) and t() returns the ORIGINAL English wording everywhere except inside the
+   Home companion chat - so nothing in an old feature changes on screen, in the voice or on the wire, whatever the switch says.
+   The Hindi strings below that belong to old screens are PARKED (unused). Hindi copy is Devanagari with English words kept in Latin;
+   DuSu is "she" in Hindi, and the learner's gender is never assumed. */
 const I18N = {
   en: {
     lgAria:"Language", home:"Home", back:"Back",
@@ -3507,46 +3515,31 @@ const LEARN_SAY = {
   en: { greet:"Hello! What should I translate into Hindi? Tap the button below and speak.", intro:"हिंदी में ऐसे कहते हैं।", noSpeech:"Sorry, I didn't catch that. Please say it again." }
 };
 
-// [selector, key, attribute?] — static text the switch re-writes. The original is remembered on first touch and put back
-// if the switch is off, so flag-off is exact. (Texts that depend on the mode or the Learn direction are set in code.)
-const LG_STATIC = [
-  [".btab[data-tab=home] span","navHome"], [".btab[data-tab=journey] span","navJourney"], [".btab[data-tab=daily] span","navDaily"],
-  [".btab[data-tab=practice] span","navPractice"], [".btab[data-tab=leaderboard] span","navRanks"], [".btab[data-tab=more] span","navMore"],
-  ["#practice > .sec-label","hubTitle"], ["#practice .prac-block.learn .prac-h","hubLearnH"], ["#practice .prac-block.talk .prac-h","hubTalkH"],
-  ["#practice .prac-block.interview .prac-h","hubIntH"], ["#practice .mode-card.learn h3","hubLearnT"], ["#practice .mode-card.talk h3","hubTalkT"],
-  ["#practice .mode-card.interview h3","hubIntT"], ["#prSoon","hubSoon"],
-  ["#setup h1 + p","setP"], ["#setup .field label","setLabel"], ["#role","setPh","placeholder"], ["#setupBack","back"], ["#startInterview","setStart"],
-  ["#backBtn span","home"], ["#dailyBack span","home"], ["#learnBack span","home"],
-  ["#report .rep-head .sess-sub","repKicker"], ["#report .score-ring .val small","repOverall"], ["#report .sr-ai-note","repNote"],
-  ["#report .card.good h4","repStrengthsH"], ["#report .card.fix h4","repFixesH"], ["#report .card.better h4","repBetterH"],
-  ["#shareBtn","repShare"], ["#pastReportsBtn","repPast"], ["#againBtn","repHome"],
-  ["#sessionResult .rep-head .sess-sub","srKicker"], ["#srDone","srContinue"],
-  ["#daily .sess-title","dTitle"], ["#daily .sess-sub","dSub"], ["#dailyLoader .mload-t","dLoader"], ["#daily .mic-label","dMicLabel"],
-  ["#dailyCard .tc-label:not(.tc-top)","dcYou"], ["#dailyCard .tc-top","dcEngLbl"], ["#dcNext span","dcReplyBtn"], ["#dailyFinish","dFinish"],
-  ["#dailyNudge","dNudge"], ["#dcReplay","dcReplayTitle","title"], ["#dcReplay","dcReplayAria","aria-label"],
-  ["#learning .sess-title","lTitle"], ["#learning .mic-label","lMicLabel"], ["#transCard .tc-label:not(.tc-top)","lcYou"],
-  ["#replayBtn","lReplay"], ["#continueBtn","lContinue"]
-];
-
 const LG = (function(){
-  const K_LANG = "dusu_lang", K_DIR = "dusu_learn_dir";
-  const LEGACY = { conversation:"en", interview:"en", daily:"hi", learning:"hi", home:"hi" };   // home = Home 2.0 (Hinglish with or without the switch)
+  const K_LANG = "dusu_lang", K_DIR = "dusu_learn_dir";   // K_DIR is parked (Learn is Hindi -> English only): only cleaned up on sign-out
+  const LEGACY = { conversation:"en", interview:"en", daily:"hi", learning:"hi", home:"hi" };   // what each mode always was (home = Hinglish by default)
+  // ONLY these modes obey the learner's choice - the new features. Everything else (Daily Talk, Face-to-Face, Interview, Learn, Journey and
+  // every screen around them) is pinned to LEGACY: it behaves exactly as it did before a language choice existed, whatever the switch,
+  // the saved preference or a frame from the server says (DUSU_LANGUAGE_SCOPE_PLAN.md). A new feature joins by being added here.
+  const SWITCHABLE = { home:true };
   const ok = v => v === "hi" || v === "en";
   const rd = k => { try{ const v = localStorage.getItem(k); return ok(v) ? v : ""; }catch(_){ return ""; } };
   const wr = (k, v) => { try{ localStorage.setItem(k, v); }catch(_){} };
-  let pref = rd(K_LANG), dirPref = rd(K_DIR);     // cached copy of the saved choice (the server is the source of truth)
+  let pref = rd(K_LANG);     // cached copy of the saved choice (the server is the source of truth)
 
-  const on  = () => !!(userState && userState.bilingual);
+  const on  = () => !!(userState && userState.bilingual);          // the Hindi / English choice is switched on for this learner (new features only)
+  const homeOn = () => { try{ return !!HM.enabled(); }catch(_){ return false; } };   // ...and a new feature is live: with Home AI off there is nothing to switch, so nothing is drawn
   const cur = () => pref || (userState && ok(userState.lang) ? userState.lang : "") || "hi";
-  const dir = () => dirPref || (userState && ok(userState.learn_dir) ? userState.learn_dir : "") || "hi";
-  // The language a mode runs in. Switch OFF => exactly what it always was.
-  const lang = mode => { const m = mode || currentMode; return on() ? (m === "learning" ? dir() : cur()) : (LEGACY[m] || "en"); };
+  // The language a mode runs in: the learner's choice for a new feature (when the switch is on), what the mode always was for everything else.
+  const lang = mode => { const m = mode || currentMode; return (SWITCHABLE[m] && on()) ? cur() : (LEGACY[m] || "en"); };
+  const switchable = mode => !!SWITCHABLE[mode || currentMode];
   const stt  = l => l === "hi" ? "hi-IN" : "en-US";                     // speech recogniser locale (English stays on the proven en-US)
   const voice = l => l === "hi" ? HI() : ENG_NORM();                    // DuSu's voice for a line written in `l`
+  // The Home companion chat is the ONLY place the shared screens speak the learner's language; every other string is the original English.
+  const inHomeChat = () => currentMode === "home" && currentScreen() === "session";
 
   function tr(key, vars){
-    let L = on() ? cur() : "legacy";
-    if(L === "legacy"){ try{ if(currentMode === "home" && currentScreen() === "session" && HM.enabled()) L = "hi"; }catch(_){} }   // Home 2.0 chat = Hinglish
+    const L = inHomeChat() ? (on() ? cur() : "hi") : "legacy";
     let v = I18N[L] ? I18N[L][key] : undefined;
     if(v === undefined) v = I18N.en[key];
     if(v === undefined) return key;
@@ -3559,43 +3552,12 @@ const LG = (function(){
     try{ fetch("/lang", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(Object.assign({ token:authToken }, body)) }).catch(()=>{}); }catch(_){}
   }
 
-  function applyStatic(enabled){
-    LG_STATIC.forEach(([sel, key, attr]) => {
-      document.querySelectorAll(sel).forEach(el => {
-        if(attr){
-          const k = "i18nOrig_" + attr.replace(/-/g, "_");
-          if(el.dataset[k] === undefined) el.dataset[k] = el.getAttribute(attr) || "";
-          el.setAttribute(attr, enabled ? tr(key) : el.dataset[k]);
-        } else {
-          if(el.dataset.i18nOrig === undefined) el.dataset.i18nOrig = el.textContent;
-          el.textContent = enabled ? tr(key) : el.dataset.i18nOrig;
-        }
-      });
-    });
-    // the Interview set-up heading is two runs of text (the second is gold)
-    const h1 = document.querySelector("#setup h1");
-    if(h1){
-      if(h1.dataset.i18nOrig === undefined) h1.dataset.i18nOrig = h1.innerHTML;
-      h1.innerHTML = enabled ? esc(tr("setH1a")) + ' <span class="g">' + esc(tr("setH1b")) + "</span>" : h1.dataset.i18nOrig;
-    }
-  }
   function setText(sel, text){
     const el = document.querySelector(sel); if(!el) return;
     if(el.dataset.i18nOrig === undefined) el.dataset.i18nOrig = el.textContent;
     el.textContent = text === null ? el.dataset.i18nOrig : text;
   }
-  // Learn: sub-line, instruction and the result card's second label follow the DIRECTION.
-  function applyLearn(){
-    const e = on() && dir() === "en";
-    setText("#learning .sess-sub", on() ? tr(e ? "lSubE2H" : "lSubH2E") : null);
-    setText("#learning .learn-instr", on() ? tr(e ? "lInstrE2H" : "lInstrH2E") : null);
-    setText("#transCard .tc-top", on() ? tr(e ? "lcInHi" : "lcInEn") : null);
-    document.querySelectorAll("[data-lg-dir] button[data-d]").forEach(b => {
-      b.textContent = tr(b.dataset.d === "en" ? "lDirE2H" : "lDirH2E");
-      b.classList.toggle("on", b.dataset.d === dir());
-    });
-  }
-  // Face-to-Face / Interview header + End button (depend on the mode being run)
+  // Face-to-Face / Interview header + End button (the original English: tr() is never anything else outside the Home chat)
   function applySession(){
     if(currentMode === "home"){ try{ HM.sessionChrome(); }catch(_){} return; }   // Home 2.0 draws its own header
     const iv = currentMode === "interview";
@@ -3605,46 +3567,28 @@ const LG = (function(){
     const eb = $("endBtn"); if(eb) eb.textContent = tr(iv ? "endBtnInt" : "endBtn");
   }
 
-  function applyUI(){
-    const enabled = on();
-    try{ document.documentElement.lang = enabled ? cur() : "en"; }catch(_){}
-    document.querySelectorAll("[data-lg-sw]").forEach(el => { el.hidden = !enabled; });
+  // Show each switch only where it belongs: the Home page and Know About whenever the switch is on for this learner, the chat-header one
+  // only while the Home companion chat is open. No old feature has a switch.
+  function pills(){
+    const enabled = on() && homeOn(), chat = inHomeChat();
+    document.querySelectorAll("[data-lg-sw]").forEach(el => { el.hidden = !enabled || (el.dataset.lgSw === "chat" && !chat); });
     document.querySelectorAll("[data-lg-sw] button[data-l]").forEach(b => b.classList.toggle("on", enabled && b.dataset.l === cur()));
-    document.querySelectorAll("[data-lg-dir]").forEach(el => { el.hidden = !enabled; });
     document.querySelectorAll(".lg-sw").forEach(el => el.setAttribute("aria-label", tr("lgAria")));
-    applyStatic(enabled);
-    applyLearn();
+  }
+  function applyUI(){
+    pills();                       // <html lang> and every old screen are deliberately left exactly as shipped
     if(currentScreen() === "session") applySession();
-    try{ if($("dailyRecs") && $("dailyRecs").children.length) renderDailyRecs(); }catch(_){}
-    try{ HM.render(); }catch(_){}   // Home 2.0: greeting + chips follow the language
+    try{ HM.render(); }catch(_){}  // Home greeting + chips + Know About follow the language
   }
 
-  // After a change while a live session is open: tell the server, stop what is in flight in the OLD language, say so,
-  // and carry on in the NEW one. The socket, the conversation and the turn count are untouched.
-  function live(kind, l){
-    const scr = currentScreen();
-    const wsOpen = !!(ws && ws.readyState === 1 && running);
-    if(kind === "lang" && (scr === "session" || scr === "daily")){
-      if(wsOpen){ try{ ws.send(JSON.stringify({ type:"lang", lang:l })); }catch(_){} }
-      if(scr === "session"){
-        stopListening(); killSpeech();
-        applySession(); addSys(tr("switchSys"));
-        if(wsOpen) speak(tr("switchSay"), l);     // speak() hands the mic back when it finishes
-      } else {
-        killSpeech();
-        try{ if(drec){ drec.onend = null; drec.stop(); drec = null; } }catch(_){}
-        dMicActive(false); dailyChatSys(tr("switchSys")); dState("");
-        if(wsOpen){
-          say(tr("switchSay"), voice(l)).then(() => { if(running){ dState(tr("dTap")); dMic(true); } });
-        }
-      }
-    } else if(kind === "dir" && scr === "learning"){
-      if(wsOpen){ try{ ws.send(JSON.stringify({ type:"lang", lang:l })); }catch(_){} }
-      killSpeech();
-      try{ if(lrec){ lrec.onend = null; lrec.stop(); lrec = null; } }catch(_){}
-      micActive(false); $("transCard").hidden = true;
-      learnState(tr(l === "en" ? "lTapE" : "lTapH")); micEnable(true);
-    }
+  // A change while the Home companion chat is open: tell the server, stop what is in flight in the OLD language, say so, and carry on in the
+  // NEW one. The socket, the conversation and the turn count are untouched. (Text mode: the server still follows; nothing is spoken.)
+  function live(l){
+    if(!inHomeChat()) return;
+    if(ws && ws.readyState === 1){ try{ ws.send(JSON.stringify({ type:"lang", lang:l })); }catch(_){} }
+    stopListening(); killSpeech();
+    applySession(); addSys(tr("switchSys"));
+    if(ws && ws.readyState === 1 && running) speak(tr("switchSay"), l);     // speak() hands the mic back when it finishes
   }
 
   function set(l){
@@ -3653,54 +3597,37 @@ const LG = (function(){
     if(userState) userState.lang = l;
     save({ lang:l });
     applyUI();
-    if(was !== l) live("lang", l);
-  }
-  function setDir(d){
-    if(!ok(d)) return;
-    const was = dir(); dirPref = d; wr(K_DIR, d);
-    if(userState) userState.learn_dir = d;
-    save({ learn:d });
-    applyUI();
-    if(was !== d) live("dir", d);
+    if(was !== l){ live(l); if(currentScreen() === "about"){ try{ HM.openAbout(); }catch(_){} } }   // Know About re-reads the page in the new language
   }
 
   // The server's saved choice wins on every /me (so it follows the learner across devices); localStorage is a cache
   // that makes the first paint right.
   function syncFromState(){
     if(userState && ok(userState.lang)){ pref = userState.lang; wr(K_LANG, pref); }
-    if(userState && ok(userState.learn_dir)){ dirPref = userState.learn_dir; wr(K_DIR, dirPref); }
     applyUI();
   }
-  function clear(){ pref = ""; dirPref = ""; try{ localStorage.removeItem(K_LANG); localStorage.removeItem(K_DIR); }catch(_){} }
+  function clear(){ pref = ""; try{ localStorage.removeItem(K_LANG); localStorage.removeItem(K_DIR); }catch(_){} }
 
-  // The controls are built here (not in the markup) so the page is untouched until the switch is on.
-  function pill(wrap){
+  // The controls are built here (not in the markup) so the page is untouched until the switch is on - and only on the new features.
+  function pill(wrap, ctx){
     const mk = cls => { const d = document.createElement("div"); d.className = cls; return d; };
     const sw = mk("lg-sw"); sw.setAttribute("role", "group");
     sw.innerHTML = '<button type="button" data-l="hi">हिंदी</button><button type="button" data-l="en">English</button>';
     sw.querySelectorAll("button").forEach(b => b.onclick = () => set(b.dataset.l));
-    if(!wrap){ sw.setAttribute("data-lg-sw", ""); sw.hidden = true; return sw; }
-    const w = mk(wrap); w.setAttribute("data-lg-sw", ""); w.hidden = true; w.appendChild(sw); return w;
+    if(!wrap){ sw.setAttribute("data-lg-sw", ctx || ""); sw.hidden = true; return sw; }
+    const w = mk(wrap); w.setAttribute("data-lg-sw", ctx || ""); w.hidden = true; w.appendChild(sw); return w;
   }
   function mount(){
-    ["#session", "#daily", "#learning"].forEach(sel => { const h = document.querySelector(sel + " .sess-head"); if(h && !h.querySelector(".lg-sw")) h.appendChild(pill()); });
-    const hs = $("hsub"); if(hs && hs.parentNode && !document.querySelector(".lg-row")) hs.parentNode.insertBefore(pill("lg-row"), hs.nextSibling);
-    const f = document.querySelector("#setup .field"); if(f && f.parentNode && !document.querySelector(".lg-setup")) f.parentNode.insertBefore(pill("lg-setup"), f);
-    const li = document.querySelector("#learning .learn-instr");
-    if(li && li.parentNode && !document.querySelector("[data-lg-dir]")){
-      const d = document.createElement("div"); d.className = "lg-dir"; d.setAttribute("data-lg-dir", ""); d.hidden = true;
-      d.innerHTML = '<button type="button" data-d="hi"></button><button type="button" data-d="en"></button>';
-      d.querySelectorAll("button").forEach(b => b.onclick = () => setDir(b.dataset.d));
-      li.parentNode.insertBefore(d, li.nextSibling);
-    }
+    const hs = $("hsub"); if(hs && hs.parentNode && !document.querySelector(".lg-row")) hs.parentNode.insertBefore(pill("lg-row"), hs.nextSibling);   // the Home page
+    const sh = document.querySelector("#session .sess-head"); if(sh && !sh.querySelector(".lg-sw")) sh.appendChild(pill(null, "chat"));                 // the Home chat header (hidden in every other mode)
+    const ah = document.querySelector("#about .sess-head"); if(ah && !ah.querySelector(".lg-sw")) ah.appendChild(pill());                                  // Know About DuSu
   }
 
-  return { on, cur, dir, lang, stt, voice, t:tr, set, setDir, applyUI, applySession, applyLearn, syncFromState, clear, mount, save };
+  return { on, cur, lang, switchable, stt, voice, t:tr, set, pills, applyUI, applySession, syncFromState, clear, mount, save };
 })();
 function lgt(key, vars){ return LG.t(key, vars); }
 function thinkSteps(kind){
-  const k = (kind === "translate" && LG.on() && LG.dir() === "en") ? "th_translate2" : "th_" + kind;
-  const v = lgt(k);
+  const v = lgt("th_" + kind);
   return Array.isArray(v) ? v : lgt("th_think");
 }
 
@@ -4258,7 +4185,7 @@ async function openAdmin(){
       <select class="pr-sel" id="prRoomSel"><option value="off" ${d.practice_room === "on" || d.practice_room === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.practice_room === "owner" ? "selected" : ""}>Owner only</option><option value="on" ${d.practice_room === "on" ? "selected" : ""}>Everyone</option></select></label>
       <label class="swrow"><span><b>DuSu knows your progress</b><br><span class="msub">In Talk and Daily Talk, DuSu can answer "what's my streak / level / last score?" from the database. Off = DuSu only remembers who you are. Owner only = just you (default). Everyone = all users.</span></span>
       <select class="pr-sel" id="lifeSel"><option value="off" ${d.life_context === "off" ? "selected" : ""}>Off</option><option value="owner" ${d.life_context === "on" || d.life_context === "off" ? "" : "selected"}>Owner only</option><option value="on" ${d.life_context === "on" ? "selected" : ""}>Everyone</option></select></label>
-      <label class="swrow"><span><b>Hindi / English modes</b><br><span class="msub">Talk, Interview and Daily Talk in Hindi (default) or English, switchable mid-chat; Learn also English→Hindi. Off = exactly as before (Talk/Interview English, Daily Hindi). Owner only = just you (default). Everyone = all users.</span></span>
+      <label class="swrow"><span><b>Hindi / English switch (new features)</b><br><span class="msub">The Hindi ⇄ English choice on the NEW features only: Home companion + Know About DuSu (My Day later). Off = they are Hinglish only, no switch. Owner only = just you (default). Everyone = all users. Daily Talk, Face-to-Face, Interview, Learn and Journey are never affected - they always run exactly as before.</span></span>
       <select class="pr-sel" id="bilSel"><option value="off" ${d.bilingual === "off" ? "selected" : ""}>Off</option><option value="owner" ${d.bilingual === "on" || d.bilingual === "off" ? "" : "selected"}>Owner only</option><option value="on" ${d.bilingual === "on" ? "selected" : ""}>Everyone</option></select></label>
       <label class="swrow"><span><b>Home AI companion</b><br><span class="msub">Home becomes "DuSu first": a Hinglish greeting, Start Speaking opens the AI companion (Daily Talk stays its own tab) and a Know About DuSu page. Off = Home is exactly as before. Owner only = just you (default). Everyone = all users. Its answers about progress also need "DuSu knows your progress" above.</span></span>
       <select class="pr-sel" id="homeSel"><option value="off" ${d.home_ai === "off" ? "selected" : ""}>Off</option><option value="owner" ${d.home_ai === "on" || d.home_ai === "off" ? "" : "selected"}>Owner only</option><option value="on" ${d.home_ai === "on" ? "selected" : ""}>Everyone</option></select></label>
@@ -4712,7 +4639,7 @@ function onMessage(ev){
       // The server sends this for a failed Daily turn too — it used to poke the Learn screen's
       // controls and leave Daily stuck on "thinking" with a dead mic.
       if(currentMode === "daily"){ dailyFail(lgt("dFailAnswer")); break; }
-      say(lgt("lUnavail"), LG.on() ? LG.voice(LG.cur()) : ENG_NORM());
+      say(lgt("lUnavail"), ENG_NORM());   // Learn is Hindi -> English only
       learnState(lgt("lFail")); micEnable(true); break;
     case "ai_text": addMsg(m.text, "ai"); speak(m.text, m.lang); break;   // m.lang = the language this reply was WRITTEN in
     case "interview_done": addSys(lgt("sysInterviewDone")); thinkShow("scoring"); break;
@@ -4832,7 +4759,7 @@ function speak(text, lang){   // lang = the language the line was written in (th
   if(!window.speechSynthesis){ aiSpeaking=false; delayedListen(); return; }
   const u = new SpeechSynthesisUtterance(speakable(text));
   u.rate = 1.0; u.pitch = 1.0;
-  if((lang || LG.lang(currentMode)) === "hi"){ u.lang = "hi-IN"; u.rate = 0.95; if(hindiVoice) u.voice = hindiVoice; }   // Hindi line → Hindi voice
+  if(((LG.switchable(currentMode) && lang) || LG.lang(currentMode)) === "hi"){ u.lang = "hi-IN"; u.rate = 0.95; if(hindiVoice) u.voice = hindiVoice; }   // Hindi line → Hindi voice (only the Home chat follows the tag; old modes are pinned)
   else if(pickedVoice) u.voice = pickedVoice;
   u.onstart = () => { FACE.startTalking(); Assistant.startTalking(); };   // mouth starts WITH the voice, not before
   u.onboundary = () => { FACE.boundary(); Assistant.boundary(); };   // sync mouth to each spoken word
@@ -5140,7 +5067,7 @@ function startHindiListen(){
 }
 async function handleTranslation(hindi, english, dir){   // hindi = what the learner SAID, english = the translation (names kept); dir = "hi2en" | "en2hi"
   const ep = ++speakEpoch;   // Finish/tab-switch bumps epoch → bail out of the chain
-  const e2h = dir === "en2hi";
+  const e2h = false;   // Learn is Hindi -> English only (the frame's dir tag is ignored)
   lastEnglish = english; lastLearnE2H = e2h;
   $("tcHindi").textContent = hindi; $("tcEng").textContent = english;
   $("transCard").hidden = false; $("replayBtn").disabled = true; learnState("");
@@ -5341,9 +5268,9 @@ function pickDailyRec(action){
   chooseMode(action);                           // learning | conversation | interview
 }
 
-async function greetDaily(question, lang){   // lang = the language the opening line was written in
+async function greetDaily(question, lang){   // Daily Talk is pinned to Hindi: the frame's lang tag is ignored
   const ep = ++speakEpoch;
-  const l = lang || LG.lang("daily");
+  const l = LG.lang("daily");
   if($("dailyLoader")) $("dailyLoader").hidden = true;   // connected → hide loader
   dLastNext = question;
   dailyTurns.push({ role:"assistant", content: question });
@@ -5375,9 +5302,9 @@ function startDailyListen(){
     if(!got && running){ await say(lgt("dNoSpeech"), LG.voice(LG.lang("daily"))); dState(lgt("dTap")); dMic(true); } };
   try{ drec.start(); }catch(_){}
 }
-async function handleDailyTurn(hindi, english, reply, tip, nextQ, lang){   // lang = the language this turn was written in
+async function handleDailyTurn(hindi, english, reply, tip, nextQ, lang){   // Daily Talk is pinned to Hindi: the frame's lang tag is ignored
   const ep = ++speakEpoch;   // this turn owns the speaker; a Finish/tab-switch bumps it → we bail
-  const hiTurn = (lang || LG.lang("daily")) === "hi";   // Hindi turn: `english` is a TRANSLATION we speak; English turn: it is the learner's line POLISHED (shown, not spoken)
+  const hiTurn = LG.lang("daily") === "hi";   // always a Hindi turn: `english` is a TRANSLATION we speak
   dLastEng = english || ""; dLastNext = nextQ || "";
   $("dcHindi").textContent = hindi; $("dcEng").textContent = english || "—";
   setDailyTip(tip);
@@ -8206,7 +8133,7 @@ const HM = (function(){
   const T = {
     hi: {
       companion:"तुम्हारी AI companion", seg:{ morning:"सुबह", afternoon:"दोपहर", evening:"शाम", night:"रात" },
-      about:"Know About DuSu", typePh:"या यहाँ type करके बताओ…",
+      about:"Know About DuSu", typePh:"या यहाँ type करके बताओ…", featsH:"किसी भी feature पर जाओ",
       chips:[ { l:"📅 आज क्या करूँ?", t:"आज मुझे क्या करना चाहिए? मेरा दिन plan करने में मदद करो।" },
               { l:"🗣️ English practice", t:"मुझे English बोलने की practice करनी है।" },
               { l:"🎯 Interview prep", t:"मुझे interview की तैयारी करनी है।" },
@@ -8230,7 +8157,7 @@ const HM = (function(){
     },
     en: {
       companion:"Your AI companion", seg:{ morning:"Morning", afternoon:"Afternoon", evening:"Evening", night:"Night" },
-      about:"Know About DuSu", typePh:"Or type here…",
+      about:"Know About DuSu", typePh:"Or type here…", featsH:"Jump to a feature",
       chips:[ { l:"📅 Plan my day", t:"Help me plan my day." },
               { l:"🗣️ English practice", t:"I want to practise speaking English." },
               { l:"🎯 Interview prep", t:"I want to prepare for an interview." },
@@ -8344,7 +8271,7 @@ const HM = (function(){
     const home = $("home"); if(!home) return;
     const on = enabled();
     home.classList.toggle("hm-on", on);
-    ["hmLabel", "hmChips", "hmAbout", "hmType"].forEach(id => { const e = $(id); if(e) e.hidden = !on; });
+    ["hmLabel", "hmChips", "hmAbout", "hmType", "hmFeats"].forEach(id => { const e = $(id); if(e) e.hidden = !on; });
     if(!on) return;                                              // switch off: the page is exactly what it always was
     const L = lang(), t = T[L], g = greeting();
     $("hmLabel").innerHTML = `<b>DuSu</b> · ${esc(t.companion)} · ${esc(t.seg[g.seg])}`;
@@ -8357,6 +8284,42 @@ const HM = (function(){
     }
     $("hmAbout").textContent = "💡 " + t.about;
     $("hmTypeIn").placeholder = t.typePh;
+    renderFeats();
+  }
+
+  // ---- feature icons: one tap into any feature -----------------------------------------------------------------------------
+  // The tiles come from /me (home_tiles: the same registry as Know About, already filtered for this learner - a feature that is
+  // not built, or not switched on for them, is not in the list). The client only draws them: a tile whose route it does not know
+  // is skipped (never a dead button), an id it has no drawing for falls back to the registry's emoji, and a tap is just navTo(route),
+  // exactly like "Try it" on Know About - so every guard (keys, quota) and the Back button / URL behave the same.
+  const ICONS = {
+    daily_talk:    '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+    face_to_face:  '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+    interview:     '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+    learn:         '<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>',
+    journey:       '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>',
+    practice_room: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/>',
+    career_path:   '<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>',
+    league:        '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
+    achievements:  '<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>'
+  };
+  function renderFeats(){
+    const nav = $("hmFeats"); if(!nav) return;
+    const L = lang(), t = T[L];
+    const tiles = (userState && Array.isArray(userState.home_tiles) ? userState.home_tiles : []).filter(x => x && x.route && ROUTES[x.route]);
+    if(!tiles.length){ nav.hidden = true; nav.innerHTML = ""; nav.dataset.sig = ""; return; }
+    nav.hidden = false;
+    const sig = L + "|" + tiles.map(x => x.id + x.route).join(",");
+    if(nav.dataset.sig === sig) return;                           // nothing changed: leave the DOM alone (render() runs often)
+    nav.dataset.sig = sig;
+    nav.setAttribute("aria-label", t.featsH);
+    nav.innerHTML = `<div class="hm-feats-h">${esc(t.featsH)}</div><div class="hm-feats-g">` + tiles.map(x => {
+      const title = (x.t && (x.t[L] || x.t.en)) || x.id, svg = ICONS[x.id];
+      return `<button type="button" class="hm-feat" data-id="${esc(x.id)}" data-route="${esc(x.route)}" aria-label="${esc(title)}">`
+        + `<span class="hm-feat-ic" aria-hidden="true">${svg ? `<svg viewBox="0 0 24 24" focusable="false">${svg}</svg>` : esc(x.icon || "•")}</span>`
+        + `<span class="hm-feat-t">${esc(title)}</span></button>`;
+    }).join("") + `</div>`;
+    nav.querySelectorAll(".hm-feat").forEach(b => b.onclick = () => navTo(b.dataset.route));
   }
 
   // ---- the companion chat ----
@@ -8382,6 +8345,7 @@ const HM = (function(){
     const l = $("hmLive"); if(l) l.hidden = !on;
     const r = $("hmRestart"); if(r) r.hidden = !on;
     const s = $("session"); if(s) s.classList.toggle("hm-chat", on);
+    try{ LG.pills(); }catch(_){}   // the chat-header Hindi/English switch exists only while the Home chat is open
   }
 
   // Start Speaking / a chip / typed text all arrive here through the router (so the Back button and the URL work).

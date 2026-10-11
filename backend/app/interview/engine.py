@@ -9,9 +9,11 @@ Modes:
                       features; home_content.py holds what it may mention). Never scored, never pays XP.
 
 Every mode also has a language (`Session.lang`, DUSU_BILINGUAL_PLAN.md): "hi" or "en" - what the learner speaks and what
-DuSu answers in (for Learn: the language the learner speaks, i.e. the translation direction). With the bilingual switch
-OFF, main.py passes lang.LEGACY[mode] (conversation/interview "en", daily/learning "hi"), which is exactly the behaviour
-before the switch existed - nothing below changes a word of those paths.
+DuSu answers in. ONLY the new features obey the learner's Hindi / English choice (lang.SWITCHABLE = the Home companion;
+DUSU_LANGUAGE_SCOPE_PLAN.md). main.py passes lang.LEGACY[mode] to every older mode (conversation/interview "en", daily/learning
+"hi") whatever the switch, the saved preference or the client says, which is exactly the behaviour before any language choice
+existed - nothing below changes a word of those paths. The Hindi / English branches below for those older modes (Hindi Talk and
+Interview, English Daily Talk, English -> Hindi Learn, the Hindi report) are PARKED: kept, tested once, but unreachable.
 
 v0 keeps the full transcript in memory (one session per WebSocket). Plan
 section P calls for summarizing context once conversations get long — do that
@@ -40,8 +42,7 @@ class Session:
                  profession: str = "", time_of_day: str = "", level: str = "", daily_context: str = "",
                  career_goal: str = "", past_interview_count: int = 0, past_interview_avg: float | None = None,
                  lang: str | None = None, bilingual: bool = False,
-                 home_flags: dict | None = None, home_personal: bool = True, new_learner: bool = False, hour=None,
-                 polish: bool = False):
+                 home_flags: dict | None = None, home_personal: bool = True, new_learner: bool = False, hour=None):
         self.mode = mode if mode in MODES else "interview"
         self.name = name or "there"
         self.role = role or "general"
@@ -64,9 +65,6 @@ class Session:
         self.home_personal = home_personal
         self.new_learner = new_learner
         self.hour = hour
-        # Voice polish (Home 2.0): Hindi replies in Daily Talk / Face-to-Face lose the stiff textbook words ("सुप्रभात" -> "Good morning").
-        # Only for learners who have the Home AI switch on; False = every reply is passed through untouched, as before.
-        self.polish = polish
         self.thoughts_translated = 0   # Daily Talk's unique metric (§5) — counted deterministically below, never LLM-inferred
         self._build_system()
         self.transcript: list[dict] = []  # {role: "user"|"assistant", content}
@@ -135,8 +133,6 @@ class Session:
         elif self.mode == "conversation" and self.turns >= settings.conversation_max_turns:
             self.capped = True
             spoken = L.line(self.lang, "convo_cap")
-        elif self.polish and self.mode == "conversation" and self.lang == "hi":
-            spoken = hc.soften(spoken)
         self.transcript.append({"role": "assistant", "content": spoken})
         return spoken
 
@@ -152,7 +148,7 @@ class Session:
             # Hold back the marker line itself — it's a control token, never spoken.
             if self.mode == "interview" and END_MARKER in piece:
                 continue
-            yield hc.soften(piece) if (self.polish and self.mode == "conversation" and self.lang == "hi") else piece
+            yield piece
         self._switch_note = False
         raw = " ".join(parts).strip()
         spoken = raw
@@ -164,8 +160,6 @@ class Session:
                 self.done = True
         elif self.mode == "conversation" and self.turns >= settings.conversation_max_turns:
             self.capped = True
-        elif self.polish and self.mode == "conversation" and self.lang == "hi":
-            spoken = hc.soften(spoken)
         if spoken:
             self.transcript.append({"role": "assistant", "content": spoken})
         self._last_spoken = spoken
@@ -218,10 +212,6 @@ class Session:
             # mode `english` is the learner's own line polished, not a thought they translated.
             if hi and (data.get("english") or "").strip():
                 self.thoughts_translated += 1
-        if self.polish:   # soften() only touches Devanagari stiff words, so an English session passes through unchanged
-            for k in ("reply_hindi", "next_question_hindi"):
-                if isinstance(data.get(k), str):
-                    data[k] = hc.soften(data[k])
         # keep the richer reply in memory (falls back to the bare question)
         reply = (data.get("reply_hindi") or data.get("next_question_hindi") or "").strip()
         if reply:

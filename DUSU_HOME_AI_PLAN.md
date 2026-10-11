@@ -3,6 +3,7 @@
 > **Status 2026-10-11: BUILT, TESTED, PUSHED AND DEPLOYED (commit `8efebf4`)** - audited, designed, then built in the same pass (owner: "make full solid plan and implement, push code, SSH, test end to end").
 > Ships behind `settings.home_ai` = off / **owner (default)** / on (dashboard → Access → "Home AI companion"). **Switch OFF = today's Home, byte for byte.**
 > Status, verification and what is *not* verified: §10. Also covers the Android "browser X + URL bar" bug: §9.
+> **Update 2026-10-11 (§11):** feature icons on Home (one tap into any feature), Home also knows what Daily Talk learned (shared database), and the Hindi/English choice is now scoped to the new features only - so the voice polish on Daily Talk / Face-to-Face was removed (`DUSU_LANGUAGE_SCOPE_PLAN.md`).
 
 ## 0. How the request was read
 | Phrase | Decision |
@@ -90,3 +91,14 @@ Model JSON glitches (~1 in 9 on the lite model) → one retry + keyword fallback
 **Not verified (needs the owner's phone):** Hindi TTS voice and `hi-IN` recogniser accuracy on Hinglish, the sticky input row with the on-screen keyboard, a Play-installed build losing its browser bar.
 
 **Owner to-do:** (1) paste the Play *App signing key certificate* SHA-256 (section 9) - the only way to fix the bar on Play installs; (2) try Home 2.0 on your phone, then flip the switch to *Everyone*; (3) say "go" on the Goals plan when you want the planner - Home already knows how to plug it in (CLAUDE.md section 12).
+
+## 11. Update 2026-10-11 - feature icons, shared database, language scope
+**Owner request:** "new feature icon logo add in Home page, and by clicking on them the user can go into these features, via the router".
+| Piece | Decision / where |
+|---|---|
+| What is drawn | One **icon tile per feature that really exists for this learner** - the same registry as Know About and the model's catalogue: Daily Talk, Face to Face Talk, Interview Prep, Learn, Your English Journey, (Practice Room only when switched on), Career Path, Weekly League, Achievements. **Never** a "coming soon" feature (Goals & Daily Planning has no route) and never the Know About page itself (it has its own button) |
+| Source | `home_content.tiles(flags)` -> `/me.home_tiles` (`[{id, icon, route, t:{hi,en}}]`), sent **only to learners who have `home_ai`** (everyone else's `/me` is unchanged). No extra fetch; cached with the rest of the state in `dusu_state`, so the first paint is instant; both languages' titles ride along, so the Hindi/English switch re-labels the tiles with no network |
+| Look | A centred grid under the type box (CSS `order` 8, above the older Speaker Rank / stats cards): rounded glass tiles with an inline **SVG line icon** per id (`HM` `ICONS`; the registry emoji is the fallback for an id the client has no drawing for), a 2-line label, heading "किसी भी feature पर जाओ" / "Jump to a feature". 80 px tiles, 4 per row on a phone (3 on a 320 px phone, 6 on desktop), the odd last tile centred; every tile is >= 44 px |
+| Tap | `navTo(route)` - exactly what "Try it" does on Know About, so every guard (keys, quota), the Back button and the URL behave the same. A tile whose route the client does not have is **skipped** (never a dead button); no tiles / Home AI off -> the grid is hidden and the old Home is untouched |
+| Shared database | The Home companion's memory block now also carries **what the learner told Daily Talk today / yesterday** (mood, plans, weather, events - `_home_daily_block`), labelled as their own words, never a task list ("you mentioned an interview", never "I saved it"). The privacy switch removes it with the rest |
+| Language scope | The Hindi/English choice is for the new features only; Daily Talk, Face-to-Face, Interview, Learn and Journey are pinned to what they always were (`DUSU_LANGUAGE_SCOPE_PLAN.md`). The voice polish this plan added to Daily Talk / Face-to-Face (§2) was **removed** because it changed old-feature output |

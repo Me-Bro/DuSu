@@ -207,10 +207,10 @@ async def life_context_enabled(email: str) -> bool:
 
 
 async def bilingual_mode() -> str:
-    """Hindi / English switch rollout (Settings table, no migration; CLAUDE.md §11, DUSU_BILINGUAL_PLAN.md). It changes the
-    language of every Face-to-Face, Interview and Daily Talk conversation (default Hindi) and adds a Hindi direction to
-    Learn, so it is staged like the Practice Room: 'off' = every mode behaves exactly as before the switch existed;
-    'owner' = only the owner / unlimited allowlist (the DEFAULT - the owner tries it first); 'on' = everyone."""
+    """Hindi / English switch rollout (Settings table, no migration; CLAUDE.md §11, DUSU_LANGUAGE_SCOPE_PLAN.md). Since 2026-10-11 it
+    governs the NEW features only (lang.SWITCHABLE: the Home companion + Know About DuSu; My Day later): 'off' = they are Hinglish
+    only, no switch; 'owner' = only the owner / unlimited allowlist see the switch (the DEFAULT); 'on' = everyone. It NEVER touches
+    Daily Talk, Face-to-Face, Interview, Learn or Journey - those are pinned to what they always were."""
     try:
         v = await _cached("bilingual", lambda: db.get_setting("bilingual", "owner"))
         return v if v in ("off", "owner", "on") else "owner"
@@ -667,25 +667,30 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
             _pr_server_stt = bool(_ok and _eff is None and settings.groq_api_key)
         except Exception:
             _pr_server_stt = False
+    _home_ai = await home_ai_enabled(email)
     common = {"role": _role, "email": email, "office": _office, "office_allowed": _office,
               "unlimited": _unlim, "plan": plan, "requests_left": req_left,
               "request_limit": req_limit, "trial_days_left": trial_days, "trial_over": trial_over,
               "has_keys": _has_keys,
               "day_number": _day_num,
               "practice_room": _pr, "practice_prefs": _pr_prefs, "practice_server_stt": _pr_server_stt,
-              # Hindi / English switch (DUSU_BILINGUAL_PLAN.md): `bilingual` = is it on for this learner; `lang` is
-              # their saved language (Hindi until they choose), `learn_dir` Learn's direction. Overridden from the
-              # saved prefs below once the state is loaded.
+              # Hindi / English switch for the NEW features (DUSU_LANGUAGE_SCOPE_PLAN.md): `bilingual` = is the switch drawn for this
+              # learner; `lang` is their saved language (Hindi until they choose). `learn_dir` is parked (Learn is Hindi -> English only).
+              # Overridden from the saved prefs below once the state is loaded.
               "bilingual": await bilingual_enabled(email), "lang": langmod.DEFAULT_LANG,
               "learn_dir": langmod.DEFAULT_LANG,
               # Home 2.0 (DUSU_HOME_AI_PLAN.md): the AI-companion Home. `home_personal` = may DuSu use what it remembers about
               # the learner on Home (default yes); overridden from the saved prefs once the state is loaded.
-              "home_ai": await home_ai_enabled(email), "home_personal": True,
+              "home_ai": _home_ai, "home_personal": True,
               "level_test": await level_test_on(),
               # The public name this user appears as on the leaderboard / league.
               # Boards are alias-only for privacy (§18), so without this the user
               # has no way to recognise their own row.
               "alias": db.alias_for(uid) if uid else ""}
+    if _home_ai:
+        # The Home page's feature icons (home_content.tiles): what exists for THIS learner, both languages' titles, each with
+        # the route a tap opens. Only the learners who have the new Home get the key, so /me is unchanged for everyone else.
+        common["home_tiles"] = home_content.tiles({"practice_room": _pr})
     if not db.db_enabled:
         return {"onboarded": None, **common}
     try:
@@ -1615,14 +1620,15 @@ class FutureMeIn(BaseModel):
 
 class LangIn(BaseModel):
     token: str = ""
-    lang: str | None = None     # hi | en - Face-to-Face / Interview / Daily Talk
-    learn: str | None = None    # hi | en - what the learner SPEAKS in Learn (hi = Hindi -> English)
+    lang: str | None = None     # hi | en - the new features (Home companion, Know About; My Day later)
+    learn: str | None = None    # parked: Learn is Hindi -> English only; still accepted so an old client cannot break
 
 
 @app.post("/lang")
 async def set_lang_pref(inp: LangIn, authorization: str | None = Header(None)):
-    """Save the learner's Hindi / English choice (and Learn's direction). Hindi until they choose; sticky across
-    devices. The client only calls this when the switch is on for them (userState.bilingual)."""
+    """Save the learner's Hindi / English choice for the NEW features. Hindi until they choose; sticky across devices (it
+    lives in the database, so every device and every new feature shares it). The client only calls this when the switch is
+    on for them (userState.bilingual). Old features never read it."""
     claims = auth.read_session(_bearer(authorization, inp.token))
     if not claims:
         raise HTTPException(401, "Not signed in")
@@ -2407,6 +2413,16 @@ def _daily_context_str(facts: dict) -> str:
     return "\n".join(out)
 
 
+def _home_daily_block(facts: dict) -> str:
+    """What the learner told Daily Talk today / yesterday, as one labelled block for the Home companion's memory (the database
+    is shared between the features - DUSU_LANGUAGE_SCOPE_PLAN.md D8). Labelled as THEIR OWN WORDS, never a task list, so Home
+    cannot turn it into a promise or a plan DuSu "saved". '' when there is nothing."""
+    dc = _daily_context_str(facts or {})
+    if not dc:
+        return ""
+    return "WHAT THEY RECENTLY TOLD DAILY TALK (their own words about today / yesterday - not a task list DuSu keeps):\n" + dc
+
+
 @app.websocket("/ws/interview")
 async def interview_ws(ws: WebSocket):
     await ws.accept()
@@ -2594,6 +2610,12 @@ async def interview_ws(ws: WebSocket):
                             facts_summary = (facts_summary + "\n\n" if facts_summary else "") + _numbers
                     except Exception as e:   # the numbers are a bonus - a slow/failed read never blocks the chat
                         print(f"[life] skipped: {type(e).__name__}: {e}")
+                if mode == "home" and _home_personal:
+                    # The database is shared (DUSU_LANGUAGE_SCOPE_PLAN.md D8): the Home companion also knows what the learner told Daily
+                    # Talk today / yesterday (mood, plans, weather, events) - their own words, never presented as a task list DuSu keeps.
+                    _dcb = _home_daily_block(facts)
+                    if _dcb:
+                        facts_summary = (facts_summary + "\n\n" if facts_summary else "") + _dcb
                 started_at = time.monotonic()
                 persisted = False
                 # time-of-day from the client's local hour (0-23)
@@ -2613,11 +2635,12 @@ async def interview_ws(ws: WebSocket):
                         or data.get("name", ""))
                 if mode == "home":   # spoken aloud and said often: the first name, never "Good morning Pratap Singh"
                     _who = (_who or "").split(" ")[0]
-                # Hindi / English (DUSU_BILINGUAL_PLAN.md): with the switch ON the client's choice rules (default
-                # Hindi); with it OFF every mode keeps what it always did (lang.LEGACY).
-                bilingual_on = await bilingual_enabled(_email)
-                _lang = (langmod.norm(data.get("lang")) if bilingual_on
-                         else langmod.LEGACY.get(mode, "en"))
+                # Hindi / English (DUSU_LANGUAGE_SCOPE_PLAN.md): the learner's choice reaches ONLY the new features (lang.SWITCHABLE =
+                # the Home companion). Daily Talk, Face-to-Face, Interview and Learn are pinned to what they always were (lang.LEGACY)
+                # whatever the dashboard switch, the saved preference or the `lang` the client sends - so for them bilingual_on is False
+                # and the session is built exactly as it was before a language choice existed.
+                bilingual_on = (mode in langmod.SWITCHABLE) and await bilingual_enabled(_email)
+                _lang = langmod.session_lang(mode, data.get("lang"), bilingual_on)
                 session = Session(
                     mode,
                     _who,
@@ -2638,7 +2661,6 @@ async def interview_ws(ws: WebSocket):
                     new_learner=(mode == "home" and not (summaries or facts.get("facts_learned") or facts.get("recent_turns")
                                                           or facts.get("nickname"))),
                     hour=hour,
-                    polish=(mode in ("daily", "conversation") and await home_ai_enabled(_email)),
                 )
                 if session.mode == "home":
                     # Home 2.0: nothing to generate on start - the client already spoke the greeting it is showing, so DuSu

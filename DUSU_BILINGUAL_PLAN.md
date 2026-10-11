@@ -1,5 +1,7 @@
 # DUSU — Hindi ⇄ English modes (Daily Talk · Face-to-Face · Interview · Learn) — Plan + status
 
+> **⚠ RE-SCOPED 2026-10-11 — read `DUSU_LANGUAGE_SCOPE_PLAN.md` first.** The owner ruled that the Hindi ⇄ English choice belongs to the **new features only** (Home AI companion, Know About DuSu, later My Day). Daily Talk, Face-to-Face, Interview, Learn and Journey are **pinned to what they were before this plan**, whatever the switch, the saved choice or the client says. The all-modes design below is kept in the code but **parked** (unreachable until a mode is added to `lang.SWITCHABLE` and its switch is drawn again), and the verification in §9 describes that parked design - it is **not** today's behaviour. The voice polish mentioned for Home was removed for the same reason.
+
 > **Status 2026-10-10: designed, then built in the same pass** (owner said "make solid plan and implement").
 > Ships behind `settings.bilingual` = off / **owner (default)** / on. **Switch OFF = today's behaviour, byte for byte** (Face-to-Face and Interview English-only, Daily Talk Hindi-in, Learn Hindi→English).
 > What is built, what is verified and what is not: §9. What is deliberately left for a second pass: §8.

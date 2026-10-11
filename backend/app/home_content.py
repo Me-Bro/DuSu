@@ -135,6 +135,15 @@ def upcoming() -> list[dict]:
     return [x for x in FEATURES if x["status"] == "soon"]
 
 
+def tiles(flags: dict | None = None) -> list[dict]:
+    """The icon tiles on the Home page: one per feature that really exists for THIS learner (built, switched on, and with a
+    route to open), in registry order. Both languages' titles ride along so the Hindi/English switch re-labels them without a
+    fetch. "Coming soon" features and the Know About page are never tiles - there is nothing to open. Same registry as the
+    Know About page and the model's catalogue, so the three cannot disagree."""
+    return [{"id": x["id"], "icon": x["icon"], "route": x["route"], "t": {"hi": x["hi"]["title"], "en": x["en"]["title"]}}
+            for x in available(flags) if x["route"]]
+
+
 def valid_ids(flags: dict | None = None) -> set[str]:
     """Ids a chip may carry for this learner. 'about' is always valid; a 'soon' feature never is."""
     return {x["id"] for x in available(flags)} | {ABOUT["id"]}

@@ -19,8 +19,24 @@ LEGACY = {"conversation": "en", "interview": "en", "daily": "hi", "learning": "h
           "home": "hi"}   # Home 2.0 (home_content.py): the companion is Hinglish by default, with or without the switch
 
 
+# The modes that obey the learner's Hindi / English choice: ONLY the new features (the Home AI companion; Know About DuSu has no socket;
+# My Day joins by adding its mode here). Every older mode - Daily Talk, Face-to-Face, Interview, Learn - is pinned to LEGACY above: it runs
+# exactly as it did before a language choice existed, whatever the dashboard switch, the saved preference or the client says
+# (DUSU_LANGUAGE_SCOPE_PLAN.md). The Hindi / English prompts written for those older modes (prompts.py, engine.py) are PARKED: reachable
+# again only by adding the mode here and drawing its switch.
+SWITCHABLE = ("home",)
+
+
 def norm(v, default: str = DEFAULT_LANG) -> str:
     return v if v in LANGS else default
+
+
+def session_lang(mode: str, requested, switch_on: bool) -> str:
+    """The language a WebSocket session runs in: the learner's choice for a switchable (new) mode when the switch is on for them, and
+    what the mode always was (LEGACY) for everything else - an old mode never sees the choice."""
+    if switch_on and mode in SWITCHABLE:
+        return norm(requested)
+    return LEGACY.get(mode, "en")
 
 
 # A reply shorter than this is a dead-end one-liner and gets one retry (see engine.next_ai_turn). Devanagari carries
