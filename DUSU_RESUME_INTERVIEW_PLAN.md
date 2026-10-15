@@ -1,6 +1,6 @@
 # DuSu — Resume Interview (resume + job description → recorded mock interview) — Plan
 
-> Drafted 2026-10-15 from the owner's request, then **stress-tested by an independent review** (§3 lists what it changed). **Status 2026-10-15: BUILT and DEPLOYED DARK (switch off, live-checked) — see §19 for what was built, how it was verified and what is not, §19.7 for the deployment.** ✔ = read in the code on 2026-10-15; *(verify)* = an assumption with a spike in §14.
+> Drafted 2026-10-15 from the owner's request, then **stress-tested by an independent review** (§3 lists what it changed). **Status 2026-10-15: BUILT, DEPLOYED and SWITCHED ON FOR EVERYONE (the owner's decision, live-checked) — see §19 for what was built, how it was verified and what is not, §19.7 for the deployment and the rollout.** ✔ = read in the code on 2026-10-15; *(verify)* = an assumption with a spike in §14.
 > Working name **Resume Interview**. "Interview Prep" already labels the HR mock interview (`home_content.py:43`, route `/interview`) — a second "Interview …" name would confuse learners *and* the Home model, so this one is named for what differs.
 
 ---
@@ -364,7 +364,7 @@ Hindi screens · written note from DuSu on the report · tailored plan extension
 
 ## 19. Implementation status (built 2026-10-15)
 
-**BUILT, ships DARK.** `settings.resume_interview` defaults to `off`: nothing is drawn and every `/rinterview/*` endpoint answers 404 (export / delete-all / per-item delete excepted) until the owner flips it (dashboard -> Access -> "Resume Interview": Off / Owner + early access / Everyone). **Deployed dark on 2026-10-15** (commit `0c5038b`, local - not pushed; see 19.7). `requirements.txt` gained `pypdf==6.20.1`, which is why it needed a rebuild.
+**BUILT, deployed 2026-10-15, and switched ON FOR EVERYONE the same day (19.7).** In code `settings.resume_interview` defaults to `off`: nothing is drawn and every `/rinterview/*` endpoint answers 404 (export / delete-all / per-item delete excepted) until the owner flips it (dashboard -> Access -> "Resume Interview": Off / Owner + early access / Everyone). **Deployed dark on 2026-10-15** (commit `0c5038b`, local - not pushed; see 19.7). `requirements.txt` gained `pypdf==6.20.1`, which is why it needed a rebuild.
 
 ### 19.1 What exists
 
@@ -459,3 +459,7 @@ Live checks afterwards: the container healthy on the new image with no restarts 
 **Rollback** (data is never at risk - the new tables are additive and unused while the switch is off): `docker tag dusu-backend:pre-resume-interview dusu-backend:latest && docker compose up -d --no-deps backend`. Quicker still: set the switch to Off (it already is).
 
 **Still to do (the owner's):** the real-phone check (19.6 step 3), the policy-page read-through and Play Data-safety review (step 4), then flip the switch to "Owner + early access". Until then no learner can see or reach the feature.
+
+**Switched on for everyone (2026-10-15, the owner's decision).** `settings.resume_interview = on` was written straight into the `settings` table (the dashboard needs an owner login, which a shell session does not have; it is the same row, and the running server picks it up within its 60 s settings cache). Read back through the app's own code in a separate process: mode `on`, enabled for an ordinary account; the server stayed healthy after the cache window and the log shows no errors. This was done **before** the real-phone check (19.6 step 3), the policy-page read-through and the Play Data-safety review (step 4), at the owner's request - those are now follow-ups, not gates. Learners see it from their next page load / app reopen (an installed PWA / TWA may need a full close): a Resume Interview button in the Practice hub, a card on Home, a row in the More sheet.
+
+**Rollback of visibility** (instant, loses nothing): dashboard -> Access -> Resume Interview -> Off, or `UPDATE settings SET value = 'off' WHERE key = 'resume_interview';` (live within 60 s). Export, delete-all and per-item delete keep working with the switch off, and anything a learner already saved stays in their account.
