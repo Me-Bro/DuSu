@@ -1,6 +1,6 @@
 # DuSu — Resume Interview (resume + job description → recorded mock interview) — Plan
 
-> Drafted 2026-10-15 from the owner's request, then **stress-tested by an independent review** (§3 lists what it changed). **Status 2026-10-15: BUILT, ships DARK (switch off) — see §19 for what was built, how it was verified and what is not.** ✔ = read in the code on 2026-10-15; *(verify)* = an assumption with a spike in §14.
+> Drafted 2026-10-15 from the owner's request, then **stress-tested by an independent review** (§3 lists what it changed). **Status 2026-10-15: BUILT and DEPLOYED DARK (switch off, live-checked) — see §19 for what was built, how it was verified and what is not, §19.7 for the deployment.** ✔ = read in the code on 2026-10-15; *(verify)* = an assumption with a spike in §14.
 > Working name **Resume Interview**. "Interview Prep" already labels the HR mock interview (`home_content.py:43`, route `/interview`) — a second "Interview …" name would confuse learners *and* the Home model, so this one is named for what differs.
 
 ---
@@ -364,7 +364,7 @@ Hindi screens · written note from DuSu on the report · tailored plan extension
 
 ## 19. Implementation status (built 2026-10-15)
 
-**BUILT, ships DARK.** `settings.resume_interview` defaults to `off`: nothing is drawn and every `/rinterview/*` endpoint answers 404 (export / delete-all / per-item delete excepted) until the owner flips it (dashboard -> Access -> "Resume Interview": Off / Owner + early access / Everyone). **Not deployed:** `requirements.txt` gained `pypdf==6.20.1`, so going live is `docker compose up -d --build`. Nothing has been committed or pushed.
+**BUILT, ships DARK.** `settings.resume_interview` defaults to `off`: nothing is drawn and every `/rinterview/*` endpoint answers 404 (export / delete-all / per-item delete excepted) until the owner flips it (dashboard -> Access -> "Resume Interview": Off / Owner + early access / Everyone). **Deployed dark on 2026-10-15** (commit `0c5038b`, local - not pushed; see 19.7). `requirements.txt` gained `pypdf==6.20.1`, which is why it needed a rebuild.
 
 ### 19.1 What exists
 
@@ -444,8 +444,18 @@ After the build, a fresh agent read the whole backend adversarially (given the c
 
 ### 19.6 Go-live checklist (the owner's)
 
-1. `docker compose up -d --build` (the image needs `pypdf`).
+1. ~~`docker compose up -d --build` (the image needs `pypdf`).~~ **Done 2026-10-15** (19.7).
 2. Dashboard -> Access -> Resume Interview -> **Owner + early access**; add a tester or two under early access.
 3. On a real phone (installed app / the Play build): upload a real resume + a real job description, read the redaction preview, tick an edit, re-upload, record three answers, listen back, Finish. Try Groq-key and no-Groq-key accounts.
 4. Read the three policy pages once; check the Play Data-safety answers.
 5. Only then decide on **Everyone**. Rollback at any time = set it back to Off (endpoints 404, the client hides it; export / delete keep working; no migration to undo).
+
+### 19.7 Deployment (2026-10-15) - dark, live-checked
+
+What was run: a tagged copy of the running image (`dusu-backend:pre-resume-interview`, the rollback), a `pg_dump` of the live database to `~/dusu-backups/` (mode 600, delete it when satisfied - there is no other copy of the database), `docker compose build backend`, a sanity check of the new image before the swap (pypdf 6.20.1, 22 `/rinterview` routes, no env files baked in, `sw.js` = `dusu-v27`), then `docker compose up -d --no-deps backend` (only the backend container is recreated; the `db` container and its volume are untouched).
+
+Live checks afterwards: the container healthy on the new image with no restarts and a clean startup log; the four `ri_*` tables and their six unique indexes created, **0 rows**; **no `resume_interview` row in `settings`**, i.e. the code default `off` applies; the other five switches unchanged; the user count unchanged; `/health` 200; `/rinterview/state`, `/export` and `/delete-all` answer **401** without a login (routes registered, auth required) on `localhost:3878` and on both public hostnames (`dusu.ranabrothers.online`, `dusu.ruralrootcloud.com`); `sw.js` serves `dusu-v27` through the tunnel; the served page contains the `#ri` screen.
+
+**Rollback** (data is never at risk - the new tables are additive and unused while the switch is off): `docker tag dusu-backend:pre-resume-interview dusu-backend:latest && docker compose up -d --no-deps backend`. Quicker still: set the switch to Off (it already is).
+
+**Still to do (the owner's):** the real-phone check (19.6 step 3), the policy-page read-through and Play Data-safety review (step 4), then flip the switch to "Owner + early access". Until then no learner can see or reach the feature.
