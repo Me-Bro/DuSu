@@ -614,6 +614,19 @@ async def list_tasks(uid: str, view: str = "today", goal_id: int | None = None) 
                 raise Invalid("view")
             q = select(PlTask).where(*conds).order_by((PlTask.pin_date == today).desc(), *order_open)
         rows = (await s.execute(q.limit(rules.LIMITS["list"]))).scalars().all()
+        if view in ("all", "today"):
+            # a task that was just checked off must STAY on the list it was checked on (struck through), or there is nothing left to uncheck: it used to vanish
+            # and wait in the Done chip, where a learner who had just ticked it never looked. All carries what was finished or skipped in the last two days,
+            # Today what was finished today; anything older is in the Done chip (still uncheckable there)
+            fin = func.coalesce(PlTask.completed_at, PlTask.skipped_at)
+            if view == "today":
+                lo, hi = tu.day_bounds_utc(today, p.tz)
+                window = and_(fin >= lo, fin < hi)
+            else:
+                window = fin >= now - dt.timedelta(days=2)
+            finished = (await s.execute(select(PlTask).where(*base, PlTask.is_series.is_(False), PlTask.status.in_(("done", "skipped")), window)
+                                        .order_by(fin.desc()).limit(40))).scalars().all()
+            rows = list(rows) + list(finished)
         titles = await _goal_titles(s, uid, {r.goal_id for r in rows})
         snoozed = await _snoozed_ids(s, uid, [r.id for r in rows])
         await s.commit()
@@ -817,6 +830,8 @@ async def update_goal(uid: str, gid: int, body: dict) -> dict:
             g.status = {"pause": "paused", "resume": "active", "reopen": "active", "done": "done", "archive": "archived"}[action]
             if g.status == "done":
                 g.completed_at = _utc()
+            elif prev == "done":
+                g.completed_at = None                                  # reopened: it is no longer "finished at"
             if prev != g.status:
                 tasks = (await s.execute(select(PlTask).where(PlTask.goal_id == g.id, PlTask.user_id == uid, PlTask.status == "open",
                                                               PlTask.deleted_at.is_(None), PlTask.is_series.is_(False)))).scalars().all()

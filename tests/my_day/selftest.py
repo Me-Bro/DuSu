@@ -152,7 +152,7 @@ async def main():
     check("the existing learner's reminder is untouched", (await count(PM.PlReminder, PM.PlReminder.user_id == "u-old")) == 1 and old_rem["id"] > 0)
 
     # ------------------------------------------------------------------ users + client
-    names = ["ann", "bob", "cat", "dan", "eve", "fay", "gus", "hal", "ida", "jon", "kim", "lee", "sim", "ned", "spr", "zed", "mia", "ola"]
+    names = ["ann", "bob", "cat", "dan", "eve", "fay", "gus", "hal", "ida", "jon", "kim", "lee", "sim", "ned", "spr", "zed", "mia", "ola", "pia", "quin", "rae"]
     users = {n: {"sub": f"u-{n}", "email": f"{n}@example.com", "name": n.title(), "picture": ""} for n in names}
     for u in users.values():
         await db.login(u)
@@ -745,6 +745,165 @@ async def main():
         check("rules, habits and repeating tasks are all in Postgres (they survive a restart: nothing lives in memory)", (n_rules, n_hab, n_tpl) == (3, 1, 2), (n_rules, n_hab, n_tpl))
 
         # -------------------------------------------------------------- old behaviour intact
+        # -------------------------------------------------------------- check and uncheck: what every list shows afterwards
+        section("check and uncheck: a task that was just checked stays on the list it was checked on, and can be unchecked there")
+        setclock(at(2026, 10, 14, 6, 0))                                  # Wed 14 Oct, 11:30 in India
+        TODAY = "2026-10-14"
+
+        async def tl(who, view, **q):
+            return (await api(who, "GET", "/tasks", params={"view": view, **q})).json()["tasks"]
+
+        def has(lst, tid, status=None):
+            return [x for x in lst if x["id"] == tid and (status is None or x["status"] == status)]
+
+        t1 = (await api("pia", "POST", "/tasks", {"title": "Check me", "due_date": TODAY, "client_key": "pia-t1"})).json()
+        t2 = (await api("pia", "POST", "/tasks", {"title": "No date", "client_key": "pia-t2"})).json()
+        for v in ("all", "today"):
+            check(f"before: the open task is on {v}", bool(has(await tl("pia", v), t1["id"], "open")))
+        r = await api("pia", "POST", f"/tasks/{t1['id']}/complete", {})
+        check("complete answers 200 with the task done", r.status_code == 200 and r.json()["status"] == "done")
+        a, td = await tl("pia", "all"), await tl("pia", "today")
+        check("AFTER checking it, All still lists it - once, as done", len(has(a, t1["id"])) == 1 and bool(has(a, t1["id"], "done")), [(x["title"], x["status"]) for x in a])
+        check("...and so does the Today chip (it was finished today)", len(has(td, t1["id"])) == 1 and bool(has(td, t1["id"], "done")))
+        check("the open task of another day is still there too", bool(has(a, t2["id"], "open")))
+        check("finished tasks come AFTER the open ones (the list does not jump around)", [x["status"] for x in a] == sorted([x["status"] for x in a], key=lambda z: z != "open"), [x["status"] for x in a])
+        for v in ("upcoming", "overdue", "inbox"):
+            check(f"the {v} chip lists open things only: the finished task is not there", not has(await tl("pia", v), t1["id"]))
+        check("the Done chip lists it", bool(has(await tl("pia", "done"), t1["id"], "done")))
+        r = await api("pia", "POST", f"/tasks/{t1['id']}/complete", {})
+        ev = await count(PM.PlEvent, PM.PlEvent.user_id == uid("pia"), PM.PlEvent.entity_type == "task", PM.PlEvent.entity_id == t1["id"], PM.PlEvent.event_type == "completed")
+        check("checking it twice changes nothing and logs one event", r.json()["status"] == "done" and ev == 1, ev)
+        r = await api("pia", "POST", f"/tasks/{t1['id']}/reopen", {})
+        check("unchecking it: open again", r.status_code == 200 and r.json()["status"] == "open")
+        a, td = await tl("pia", "all"), await tl("pia", "today")
+        check("...and it is on All and Today as open, once", len(has(a, t1["id"])) == 1 and bool(has(a, t1["id"], "open")) and len(has(td, t1["id"])) == 1 and bool(has(td, t1["id"], "open")))
+        check("...and it left the Done chip", not has(await tl("pia", "done"), t1["id"]))
+        r = await api("pia", "POST", f"/tasks/{t1['id']}/reopen", {})
+        check("unchecking an open task is harmless", r.status_code == 200 and r.json()["status"] == "open")
+        # skipped
+        await api("pia", "POST", f"/tasks/{t2['id']}/skip", {})
+        a = await tl("pia", "all")
+        check("a SKIPPED task is listed on All as skipped", bool(has(a, t2["id"], "skipped")))
+        await api("pia", "POST", f"/tasks/{t2['id']}/reopen", {})
+        check("...and a tap (reopen) puts it back", bool(has(await tl("pia", "all"), t2["id"], "open")) and not has(await tl("pia", "done"), t2["id"]))
+        # time passes
+        await api("pia", "POST", f"/tasks/{t1['id']}/complete", {})                               # finished Wed 11:30
+        setclock(at(2026, 10, 14, 20, 0))                                                          # Thu 01:30 in India: a new day, 14 h later
+        check("the next day it is no longer on the Today chip (that is for today)", not has(await tl("pia", "today"), t1["id"]))
+        check("...but still on All (the last two days)", bool(has(await tl("pia", "all"), t1["id"], "done")))
+        setclock(at(2026, 10, 17, 6, 0))                                                           # three days later
+        check("three days later it has left All", not has(await tl("pia", "all"), t1["id"]))
+        check("...and is in the Done chip, where it can still be unchecked", bool(has(await tl("pia", "done"), t1["id"], "done")))
+        r = await api("pia", "POST", f"/tasks/{t1['id']}/reopen", {})
+        check("...and unchecking it from there works", r.status_code == 200 and r.json()["status"] == "open")
+        setclock(at(2026, 11, 20, 6, 0))
+        await api("pia", "POST", f"/tasks/{t1['id']}/complete", {})
+        setclock(at(2026, 12, 20, 6, 0))
+        check("a task finished more than two weeks ago is on neither All nor Done (it is history)", not has(await tl("pia", "all"), t1["id"]) and not has(await tl("pia", "done"), t1["id"]))
+        r = await api("pia", "POST", f"/tasks/{t1['id']}/reopen", {})
+        check("...but the task itself is still there: a direct reopen works", r.status_code == 200 and r.json()["status"] == "open")
+        # a task of a goal; another learner
+        setclock(at(2026, 10, 14, 6, 0))
+        gq = (await api("quin", "POST", "/goals", {"title": "Goal with tasks", "client_key": "quin-g1"})).json()
+        tq = (await api("quin", "POST", "/tasks", {"title": "Goal task", "goal_id": gq["id"], "client_key": "quin-t1"})).json()
+        await api("quin", "POST", f"/tasks/{tq['id']}/complete", {})
+        check("a goal's tasks list (view=all&goal_id) keeps the finished one", bool(has(await tl("quin", "all", goal_id=gq["id"]), tq["id"], "done")))
+        for m, pth in (("POST", "complete"), ("POST", "reopen"), ("POST", "skip")):
+            r = await api("rae", m, f"/tasks/{tq['id']}/{pth}", {})
+            check(f"another learner cannot {pth} somebody else's task (404)", r.status_code == 404, r.status_code)
+        check("...and does not see it on any list", not has(await tl("rae", "all"), tq["id"]) and not has(await tl("rae", "done"), tq["id"]))
+
+        section("check and uncheck: goals and their steps")
+        g2 = (await api("quin", "POST", "/goals", {"title": "Two steps", "milestones": ["s1", "s2"], "client_key": "quin-g2"})).json()
+        async def goal(gid):
+            return next((x for x in (await api("quin", "GET", "/goals")).json()["goals"] if x["id"] == gid), None)
+        ms = {m["title"]: m["id"] for m in g2["milestones"]}
+        r = await api("quin", "PATCH", f"/milestones/{ms['s1']}", {"action": "complete"})
+        check("a step is checked: done, the goal moves", r.status_code == 200 and (await goal(g2["id"]))["progress"] == 50 and {m["title"]: m["status"] for m in (await goal(g2["id"]))["milestones"]}["s1"] == "done")
+        await api("quin", "PATCH", f"/milestones/{ms['s1']}", {"action": "reopen"})
+        check("the same step unchecked: open, the goal moves back", (await goal(g2["id"]))["progress"] == 0 and {m["title"]: m["status"] for m in (await goal(g2["id"]))["milestones"]}["s1"] == "open")
+        await api("quin", "PATCH", f"/milestones/{ms['s1']}", {"action": "reopen"})
+        check("unchecking an open step is harmless", (await goal(g2["id"]))["progress"] == 0)
+        await api("quin", "PATCH", f"/milestones/{ms['s1']}", {"action": "skip"})
+        check("a skipped step can be put back (reopen)", ({m["title"]: m["status"] for m in (await goal(g2["id"]))["milestones"]}["s1"] == "skipped") and (await api("quin", "PATCH", f"/milestones/{ms['s1']}", {"action": "reopen"})).status_code == 200
+              and {m["title"]: m["status"] for m in (await goal(g2["id"]))["milestones"]}["s1"] == "open")
+        await api("quin", "PATCH", f"/goals/{g2['id']}", {"action": "done"})
+        gd = await goal(g2["id"])
+        row_ = (await rows(PM.PlGoal, PM.PlGoal.id == g2["id"]))[0]
+        check("the goal is checked: finished, 100 %, with a finished-at time", gd["status"] == "done" and gd["progress"] == 100 and row_.completed_at is not None, (gd["status"], gd["progress"]))
+        check("...and it STAYS on the goals list (it does not vanish)", gd is not None)
+        await api("quin", "PATCH", f"/goals/{g2['id']}", {"action": "reopen"})
+        gd = await goal(g2["id"])
+        row_ = (await rows(PM.PlGoal, PM.PlGoal.id == g2["id"]))[0]
+        check("unchecked (reopened): active again, its progress is worked out again, and it is no longer 'finished at'", gd["status"] == "active" and gd["progress"] == 0 and row_.completed_at is None, (gd["status"], gd["progress"], row_.completed_at))
+        await api("quin", "PATCH", f"/goals/{g2['id']}", {"action": "reopen"})
+        check("reopening an active goal is harmless", (await goal(g2["id"]))["status"] == "active")
+        await api("quin", "PATCH", f"/goals/{g2['id']}", {"action": "pause"})
+        await api("quin", "PATCH", f"/goals/{g2['id']}", {"action": "done"})
+        await api("quin", "PATCH", f"/goals/{g2['id']}", {"action": "resume"})
+        check("a goal that was paused, finished and resumed is active", (await goal(g2["id"]))["status"] == "active")
+        r = await api("rae", "PATCH", f"/goals/{g2['id']}", {"action": "done"})
+        check("another learner cannot finish or reopen it (404)", r.status_code == 404)
+        r = await api("rae", "PATCH", f"/milestones/{ms['s1']}", {"action": "complete"})
+        check("...nor check its steps (404)", r.status_code == 404)
+
+        section("check and uncheck: habits (an ABSOLUTE count per day, so the latest tap wins and nothing depends on an old copy)")
+        async def habit(hid):
+            return next(x for x in (await api("quin", "GET", "/habits")).json()["habits"] if x["id"] == hid)
+        hb1 = (await api("quin", "POST", "/habits", {"title": "Once a day", "target": 1, "client_key": "quin-h1"})).json()
+        hb3 = (await api("quin", "POST", "/habits", {"title": "Three a day", "target": 3, "client_key": "quin-h3"})).json()
+        for want, state in ((1, "done"), (0, "none"), (1, "done"), (0, "none")):
+            r = await api("quin", "PUT", f"/habits/{hb1['id']}/log", {"count": want})
+            check(f"a once-a-day habit set to {want}: {state}", r.status_code == 200 and r.json()["count_today"] == want and r.json()["state_today"] == state, r.text[:120])
+        for want, state in ((3, "done"), (2, "partial"), (1, "partial"), (0, "none"), (2, "partial"), (3, "done"), (2, "partial")):
+            r = await api("quin", "PUT", f"/habits/{hb3['id']}/log", {"count": want})
+            check(f"a three-a-day habit set to {want}: {state}", r.json()["count_today"] == want and r.json()["state_today"] == state, r.text[:120])
+        n_ev = await count(PM.PlEvent, PM.PlEvent.user_id == uid("quin"), PM.PlEvent.entity_type == "habit", PM.PlEvent.entity_id == hb3["id"], PM.PlEvent.event_type == "logged")
+        await api("quin", "PUT", f"/habits/{hb3['id']}/log", {"count": 2})
+        check("sending the SAME count again changes nothing and logs nothing (a retried tap is harmless)", await count(PM.PlEvent, PM.PlEvent.user_id == uid("quin"), PM.PlEvent.entity_type == "habit", PM.PlEvent.entity_id == hb3["id"], PM.PlEvent.event_type == "logged") == n_ev)
+        r = await api("quin", "PUT", f"/habits/{hb1['id']}/log", {"skipped": True})
+        check("a skipped day is its own state", r.json()["state_today"] == "skipped" and r.json()["count_today"] == 0)
+        r = await api("quin", "PUT", f"/habits/{hb1['id']}/log", {"count": 1})
+        check("...and checking it afterwards un-skips it", r.json()["state_today"] == "done")
+        r = await api("quin", "PUT", f"/habits/{hb1['id']}/log", {"count": 0})
+        check("...and unchecking that leaves 'none' (not skipped)", r.json()["state_today"] == "none")
+        yday = dt.date(2026, 10, 13)
+        yrow = lambda: rows(PM.PlHabitLog, PM.PlHabitLog.habit_id == hb1["id"], PM.PlHabitLog.day == yday)       # noqa: E731
+        await api("quin", "PUT", f"/habits/{hb1['id']}/log", {"count": 1, "day": yday.isoformat()})
+        c1 = [x.count for x in await yrow()]
+        await api("quin", "PUT", f"/habits/{hb1['id']}/log", {"count": 0, "day": yday.isoformat()})
+        c2 = [x.count for x in await yrow()]
+        check("yesterday can be checked and unchecked too (the API takes a day; the stored log follows)", c1 == [1] and c2 == [0], (c1, c2))
+        r = await api("quin", "PUT", f"/habits/{hb1['id']}/log", {"count": 1, "day": "2026-10-15"})
+        check("a day in the future is refused (422)", r.status_code == 422)
+        r = await api("rae", "PUT", f"/habits/{hb1['id']}/log", {"count": 1})
+        check("another learner cannot log somebody else's habit (404)", r.status_code == 404)
+        td_ = (await api("quin", "GET", "/today")).json()
+        check("Today carries the habits with today's count", {h["title"]: h["count_today"] for h in td_["habits"] if not h.get("auto")} == {"Once a day": 0, "Three a day": 2}, [(h["title"], h["count_today"]) for h in td_["habits"]])
+
+        section("check and uncheck: reminders - done, skipped, and back")
+        setclock(at(2026, 10, 14, 6, 0))
+        rr1 = (await api("quin", "POST", "/reminders", {"title": "Tick me", "time": "20:00", "client_key": "quin-r1"})).json()
+        for action, want in (("done", "done"), ("reopen", "scheduled"), ("skip", "skipped"), ("reopen", "scheduled"), ("done", "done"), ("done", "done"), ("reopen", "scheduled")):
+            r = await api("quin", "POST", f"/reminders/{rr1['id']}/act", {"action": action})
+            check(f"a one-time reminder: {action} -> {want}", r.status_code == 200 and r.json()["status"] == want, r.text[:120])
+        rall = (await api("quin", "GET", "/reminders", params={"view": "all"})).json()["reminders"]
+        check("...and it is on All the whole time (once)", len([x for x in rall if x["id"] == rr1["id"]]) == 1)
+        await api("quin", "POST", f"/reminders/{rr1['id']}/act", {"action": "done"})
+        setclock(at(2026, 10, 14, 20, 0))                                                          # Thu 01:30: 14 h later
+        r_all = (await api("quin", "GET", "/reminders", params={"view": "all"})).json()["reminders"]
+        r_hist = (await api("quin", "GET", "/reminders", params={"view": "history"})).json()["reminders"]
+        check("a reminder ticked yesterday is still on All and in History", [x["id"] for x in r_all].count(rr1["id"]) == 1 and [x["id"] for x in r_hist].count(rr1["id"]) == 1)
+        setclock(at(2026, 10, 19, 6, 0))                                                           # five days later
+        r_all = (await api("quin", "GET", "/reminders", params={"view": "all"})).json()["reminders"]
+        r_hist = (await api("quin", "GET", "/reminders", params={"view": "history"})).json()["reminders"]
+        check("five days later it has left All but History still lists it", rr1["id"] not in [x["id"] for x in r_all] and rr1["id"] in [x["id"] for x in r_hist])
+        r = await api("quin", "POST", f"/reminders/{rr1['id']}/act", {"action": "reopen"})
+        check("...and unticking it from History works (it is due now: its time is past)", r.status_code == 200 and r.json()["status"] == "sent")
+        r = await api("rae", "POST", f"/reminders/{rr1['id']}/act", {"action": "reopen"})
+        check("another learner cannot untick it (404)", r.status_code == 404)
+        setclock(at(2026, 10, 14, 6, 0))
+
         section("one-time reminders and habit reminders behave exactly as before")
         setclock(at(2026, 10, 14, 6, 0))
         one = (await api("ann", "POST", "/reminders", {"title": "One time", "time": "21:00", "client_key": "one-1"})).json()

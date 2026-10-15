@@ -2101,6 +2101,15 @@
     background:rgba(255,255,255,.05); border:2px solid var(--ink-faint); }
   .pl-gl.on{ background:var(--green); border-color:var(--green); color:#241a08; }
   .pl-gl:disabled{ opacity:.5; cursor:default; }
+  /* a once-a-day habit: a labelled check (not a numbered glass); the glass habits get an explicit Undo; a goal row gets the same round check tasks have */
+  .pl-hcheck{ display:flex; align-items:center; gap:10px; width:100%; min-height:44px; margin-top:10px; padding:0 12px; font:inherit; font-size:14px; font-weight:600; text-align:left;
+    color:var(--ink-dim); background:rgba(255,255,255,.04); border:1px solid var(--glass-brd); border-radius:12px; cursor:pointer; }
+  .pl-hcheck .pl-hbox{ flex:none; width:26px; height:26px; border-radius:50%; border:2px solid var(--ink-faint); display:inline-flex; align-items:center; justify-content:center; font-size:15px; font-weight:800; color:#241a08; }
+  .pl-hcheck.on{ color:var(--ink); border-color:color-mix(in srgb,var(--green) 55%,transparent); background:rgba(79,214,160,.10); }
+  .pl-hcheck.on .pl-hbox{ background:var(--green); border-color:var(--green); }
+  .pl-gundo{ min-height:40px; padding:0 14px; border-radius:999px; font:inherit; font-size:13px; color:var(--ink-dim); background:none; border:1px solid var(--glass-brd); cursor:pointer; }
+  .pl-gwrap.has-chk .pl-gcard{ padding-left:54px; }
+  .pl-gwrap .pl-gchk{ position:absolute; left:5px; top:6px; margin:0; z-index:2; }
   .pl-dots{ display:flex; gap:4px; margin-top:9px; }
   .pl-dot{ width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,.12); }
   .pl-dot.done{ background:var(--green); } .pl-dot.partial{ background:var(--amber); } .pl-dot.missed{ background:rgba(255,255,255,.28); }
@@ -9242,6 +9251,9 @@ const PL = (function(){
       rrSet:"Repeating reminder set: {days} at {time}. Next: {when}", rrDup:"That repeating reminder is already set: {days} at {time}", rrSaved:"Repeating reminder updated", rrDeleted:"Repeating reminder deleted",
       rrDelAsk:"This reminder repeats. Delete it so it stops ringing on every one of its days? It cannot be undone.", rrPaused2:"Repeating reminder paused", rrResumed:"Repeating reminder is running again",
       errDays:"Please pick at least one day.", errLimit_repeating:"You can keep 30 repeating reminders. Delete one first.",
+      hMarkDone:"Mark done today", hDoneToday:"Done today - tap to undo", hUndo:"Undo",
+      gDoneToast:"Goal finished. Tap its circle again to reopen it.", gReopenToast:"Goal is active again.",
+      taskDoneMoved:"Done. It moved to \"Done today\" - tap its circle there to undo.", remDoneMoved:"Done. It is under All now - tap its circle there to undo.",
       save:"Save", cancel:"Cancel", del:"Delete", delAsk:"Delete this? It cannot be undone.", skip:"Skip", reopen:"Reopen", done:"Done", later:"Later",
       later30:"Later", moveDay:"Move to another day", trigger:"▶ {l}", edit:"Edit", repeats:"Repeats",
       setTime:"Time and quiet hours", setTz:"Timezone", setTzAuto:"Use my phone's timezone", setQuiet:"Quiet hours", setQuietHint:"No reminders are sent in this window; they wait until it ends.", setFrom:"From", setTo:"To",
@@ -9298,6 +9310,9 @@ const PL = (function(){
       rrSet:"बार-बार वाला reminder लग गया: {days}, {time} पर। अगला: {when}", rrDup:"ये बार-बार वाला reminder पहले से लगा है: {days}, {time} पर", rrSaved:"बार-बार वाला reminder बदल गया", rrDeleted:"बार-बार वाला reminder हट गया",
       rrDelAsk:"ये reminder बार-बार आता है। इसे हटा दें ताकि ये अपने किसी भी दिन न बजे? ये वापस नहीं आएगा।", rrPaused2:"बार-बार वाला reminder रुक गया", rrResumed:"बार-बार वाला reminder फिर चालू है",
       errDays:"कम से कम एक दिन चुनो।", errLimit_repeating:"बार-बार वाले reminders 30 तक ही रह सकते हैं। पहले एक हटाओ।",
+      hMarkDone:"आज का हो गया? यहाँ दबाओ", hDoneToday:"आज हो गया - वापस लेने के लिए दबाओ", hUndo:"वापस लो",
+      gDoneToast:"Goal पूरा हुआ। दोबारा खोलने के लिए इसका circle फिर दबाओ।", gReopenToast:"Goal फिर से चालू है।",
+      taskDoneMoved:"हो गया। ये अब \"आज हुए\" में है - वापस लेने के लिए वहाँ इसका circle दबाओ।", remDoneMoved:"हो गया। ये अब \"सब\" में है - वापस लेने के लिए वहाँ इसका circle दबाओ।",
       save:"Save करो", cancel:"रहने दो", del:"हटाओ", delAsk:"इसे हटाएँ? ये वापस नहीं आएगा।", skip:"छोड़ो", reopen:"फिर खोलो", done:"हो गया", later:"बाद में",
       later30:"बाद में", moveDay:"किसी और दिन पर", trigger:"▶ {l}", edit:"बदलो", repeats:"दोहराता है",
       setTime:"समय और quiet hours", setTz:"Timezone", setTzAuto:"मेरे phone का timezone use करो", setQuiet:"Quiet hours", setQuietHint:"इस समय में कोई reminder नहीं आएगा; वो खत्म होने तक रुका रहेगा।", setFrom:"से", setTo:"तक",
@@ -9336,6 +9351,19 @@ const PL = (function(){
     + `<button type="button" class="pl-ib del" data-act="${delAct}" data-id="${id}" aria-label="${A(t("del"))}: ${A(title)}">${IC_DEL}</button>`;
   const tools = (editAct, delAct, id, title) => `<div class="pl-tools">${toolBtns(editAct, delAct, id, title)}</div>`;
   let D = {};                          // the last payload per tab
+  // Each tab refreshes only ITS OWN list, so an older list of another tab can still hold an item as it WAS. That stale copy is what made a second tap on a
+  // habit (or a task) re-send "check" instead of "uncheck": the owner's server log showed three taps, all answered 200, none of them changing anything.
+  // So every list is stamped when it is loaded, and find*() answers from the NEWEST list that has the item.
+  let stampN = 0;
+  const stamp = k => { (D._at = D._at || {})[k] = ++stampN; };
+  function pick(id, pools){
+    let best = null, bestAt = -1;
+    for(const [k, list] of pools){
+      const hit = (list || []).find(x => x.id === id), at = (D._at && D._at[k]) || 0;
+      if(hit && at >= bestAt){ best = hit; bestAt = at; }
+    }
+    return best;
+  }
   let dismissed = new Set();           // reminder ids whose banner the learner closed this session
   let dueCards = [];
   let summaryAt = 0;
@@ -9480,14 +9508,14 @@ const PL = (function(){
     const seq = ++loadSeq, body = $("plBody");
     body.innerHTML = '<div class="spin" style="margin:36px auto"></div>';
     try{
-      if(tab === "today") D.today = await api("GET", "/today");
-      else if(tab === "tasks") D.tasks = await api("GET", "/tasks?view=" + tview);
+      if(tab === "today"){ D.today = await api("GET", "/today"); stamp("today"); }
+      else if(tab === "tasks"){ D.tasks = await api("GET", "/tasks?view=" + tview); stamp("tasks"); }
       else if(tab === "goals") D.goals = (await api("GET", "/goals")).goals;
-      else if(tab === "habits") D.habits = (await api("GET", "/habits")).habits;
+      else if(tab === "habits"){ D.habits = (await api("GET", "/habits")).habits; stamp("habits"); }
       else if(tab === "reminders"){
         // the list and (only the first time) the notification state, side by side - one round trip of waiting, not two
         const [r, rr, pf] = await Promise.all([api("GET", "/reminders?view=" + rview), api("GET", "/reminder-rules").catch(() => null), D.prefs ? Promise.resolve(null) : api("GET", "/prefs").catch(() => null)]);
-        D.rem = r.reminders; D.remToday = r.today; D.remTz = r.tz; if(rr) D.rules = rr.rules; if(pf) D.prefs = pf;
+        D.rem = r.reminders; D.remToday = r.today; D.remTz = r.tz; stamp("rem"); if(rr) D.rules = rr.rules; if(pf) D.prefs = pf;
       }
       else if(tab === "settings") D.prefs = await api("GET", "/prefs");
       if(tab === "goals" && goalId) D.goal = await api("GET", "/goals/" + goalId);
@@ -9522,7 +9550,8 @@ const PL = (function(){
     if(x.snoozed) chips.push(`<span class="pl-chip">💤 ${A(t("stSnooze"))}</span>`);
     if(x.rescheduled) chips.push(`<span class="pl-chip">${A(t("rescheduled"))}</span>`);
     const trig = x.trigger && !x.trigger.fired && x.status === "open" ? `<button class="pl-trig" data-act="trig" data-id="${x.id}">${A(t("trigger", { l:x.trigger.label }))}</button>` : "";
-    return `<div class="pl-row"><button class="pl-chk${done ? " done" : skp ? " skip" : ""}" data-act="chk" data-id="${x.id}" aria-label="${A(done ? t("reopen") : t("done"))}: ${A(x.title)}">${done ? "<span>✓</span>" : ""}</button>
+    // data-do is what a tap on THIS circle will do, fixed when the row is drawn (a finished or skipped task is put back; an open one is finished)
+    return `<div class="pl-row"><button class="pl-chk${done ? " done" : skp ? " skip" : ""}" data-act="chk" data-do="${done || skp ? "reopen" : "complete"}" data-id="${x.id}" aria-label="${A(done || skp ? t("reopen") : t("done"))}: ${A(x.title)}">${done ? "<span>✓</span>" : ""}</button>
       <button class="pl-main" data-act="task" data-id="${x.id}"><div class="pl-ttl${done || skp ? " done" : ""}">${A(x.title)}</div>${chips.length ? `<div class="pl-meta">${chips.join("")}</div>` : ""}</button>${tools("task", "tdel2", x.id, x.title)}</div>${trig ? `<div style="margin:-4px 0 8px 43px">${trig}</div>` : ""}`;
   }
   function remCard(c){
@@ -9560,8 +9589,17 @@ const PL = (function(){
     const cnt = h.count_today, tgt = h.target;
     let glasses = "";
     if(h.auto) glasses = `<div class="pl-bar"><i style="width:${Math.min(100, Math.round(100 * cnt / Math.max(1, tgt)))}%"></i></div><div class="pl-note" style="margin-top:2px">${A(t("hLogged", { a:cnt, b:tgt }))} ${A(t("hMin"))}</div>`;
-    else if(tgt <= 8) glasses = `<div class="pl-glasses">` + Array.from({ length:tgt }, (_, i) => `<button class="pl-gl${i < cnt ? " on" : ""}" data-act="hlog" data-id="${h.id}" data-n="${i + 1}" aria-label="${A(h.title)} ${i + 1}/${tgt}">${i + 1}</button>`).join("") + `</div>`;
-    else glasses = `<div class="pl-glasses"><button class="pl-gl" data-act="hlog" data-id="${h.id}" data-n="${Math.max(0, cnt - 1)}" aria-label="−">−</button><b style="min-width:70px;text-align:center">${A(t("hLogged", { a:cnt, b:tgt }))}</b><button class="pl-gl" data-act="hlog" data-id="${h.id}" data-n="${cnt + 1}" aria-label="+">+</button></div>`;
+    else if(tgt === 1){
+      // once a day: a clear check, labelled with what it is and what a tap does ("Mark done today" / "Done today - tap to undo")
+      const on = cnt >= 1, label = on ? t("hDoneToday") : t("hMarkDone");
+      glasses = `<button type="button" class="pl-hcheck${on ? " on" : ""}" data-act="hlog" data-id="${h.id}" data-n="1" data-set="${on ? 0 : 1}" aria-pressed="${on}" aria-label="${A(h.title)}: ${A(label)}"><span class="pl-hbox" aria-hidden="true">${on ? "✓" : ""}</span><span>${A(label)}</span></button>`;
+    }
+    else if(tgt <= 8){
+      // data-set: tapping glass k sets k; tapping the LAST filled glass takes one back; Undo takes one back too
+      glasses = `<div class="pl-glasses">` + Array.from({ length:tgt }, (_, i) => `<button class="pl-gl${i < cnt ? " on" : ""}" data-act="hlog" data-id="${h.id}" data-n="${i + 1}" data-set="${i + 1 === cnt ? cnt - 1 : i + 1}" aria-pressed="${i < cnt}" aria-label="${A(h.title)} ${i + 1}/${tgt}">${i + 1}</button>`).join("")
+        + (cnt > 0 ? `<button type="button" class="pl-gundo" data-act="hlog" data-id="${h.id}" data-undo="1" data-set="${cnt - 1}" aria-label="${A(t("hUndo"))}: ${A(h.title)}">↺ ${A(t("hUndo"))}</button>` : "") + `</div>`;
+    }
+    else glasses = `<div class="pl-glasses"><button class="pl-gl" data-act="hlog" data-id="${h.id}" data-n="${Math.max(0, cnt - 1)}" data-set="${Math.max(0, cnt - 1)}" aria-label="${A(h.title)} −1">−</button><b style="min-width:70px;text-align:center">${A(t("hLogged", { a:cnt, b:tgt }))}</b><button class="pl-gl" data-act="hlog" data-id="${h.id}" data-n="${cnt + 1}" data-set="${cnt + 1}" aria-label="${A(h.title)} +1">+</button></div>`;
     const dots = !compact && h.days && h.days.length ? `<div class="pl-dots" aria-hidden="true">${h.days.map(d => `<i class="pl-dot ${d.s}" title="${A(d.d)}"></i>`).join("")}</div>` : "";
     const meta = [];
     if(h.unit && !h.auto) meta.push(A(h.target + " " + h.unit)); else if(!h.auto) meta.push(A(String(h.target) + "×"));
@@ -9570,9 +9608,13 @@ const PL = (function(){
     if(h.state_today === "skipped") meta.push(A(t("skip")));
     return `<div class="pl-habit"><div class="pl-hhead"><button class="pl-main" ${h.auto ? "disabled" : `data-act="habit" data-id="${h.id}"`}><div class="pl-ttl">${h.auto ? "🗣️ " : ""}${A(h.title)}${full ? " ✓" : ""}</div>${meta.length ? `<div class="pl-meta"><span class="pl-chip">${meta.join(" · ")}</span></div>` : ""}</button>${h.auto ? "" : tools("habit", "hdel2", h.id, h.title)}</div>${glasses}${dots}${h.auto && !compact ? `<div class="pl-note">${A(t("hAuto"))}</div>` : ""}</div>`;
   }
-  function goalCard(g){
-    return `<div class="pl-gwrap"><button class="pl-gcard" data-act="goal" data-id="${g.id}"><div class="pl-ttl">${A(g.title)}</div><div class="pl-bar"><i style="width:${g.progress}%"></i></div>
-      <div class="pl-meta"><span class="pl-chip green">${A(t("gProg", { n:g.progress }))}</span>${g.status === "paused" ? `<span class="pl-chip amber">${A(t("gPaused"))}</span>` : ""}${g.status === "done" ? `<span class="pl-chip green">${A(t("gFinished"))}</span>` : ""}
+  // a goal: a check on the row (finished / reopened), then the card that opens it; `o.chk` draws the check (the Goals list does, Today's compact list does not)
+  function goalCard(g, o){
+    o = (o && typeof o === "object") ? o : {};
+    const done = g.status === "done";
+    const chk = o.chk ? `<button type="button" class="pl-chk pl-gchk${done ? " done" : ""}" data-act="gchk" data-do="${done ? "reopen" : "done"}" data-id="${g.id}" aria-label="${A(done ? t("reopen") : t("done"))}: ${A(g.title)}">${done ? "<span>✓</span>" : ""}</button>` : "";
+    return `<div class="pl-gwrap${o.chk ? " has-chk" : ""}">${chk}<button class="pl-gcard" data-act="goal" data-id="${g.id}"><div class="pl-ttl${done ? " done" : ""}">${A(g.title)}</div><div class="pl-bar"><i style="width:${g.progress}%"></i></div>
+      <div class="pl-meta"><span class="pl-chip green">${A(t("gProg", { n:g.progress }))}</span>${g.status === "paused" ? `<span class="pl-chip amber">${A(t("gPaused"))}</span>` : ""}${done ? `<span class="pl-chip green">${A(t("gFinished"))}</span>` : ""}
       ${g.behind_days ? `<span class="pl-chip amber">${A(t("gBehind", { n:g.behind_days }))}</span>` : ""}${g.target_date ? `<span class="pl-chip">🏁 ${A(fmtDate(g.target_date))}</span>` : ""}</div>
       ${g.next_milestone ? `<div class="pl-note" style="margin-bottom:0">${A(t("gNext", { t:g.next_milestone.title }))}</div>` : (g.next_task ? `<div class="pl-note" style="margin-bottom:0">${A(t("gNext", { t:g.next_task.title }))}</div>` : "")}</button>
       <div class="pl-gtools">${toolBtns("gedit2", "gdel2", g.id, g.title)}</div></div>`;
@@ -9610,7 +9652,7 @@ const PL = (function(){
     if(empty) h += `<div class="pl-empty">${A(t("emptyToday"))}</div>`;
     const hb = d.habits.filter(x => x.scheduled_today);
     if(hb.length) h += `<div class="pl-sec">${A(t("secHabits"))}</div>` + hb.map(x => habitCard(x, true)).join("");
-    if(d.goals.length) h += `<div class="pl-sec">${A(t("secGoals"))}</div>` + d.goals.map(goalCard).join("");
+    if(d.goals.length) h += `<div class="pl-sec">${A(t("secGoals"))}</div>` + d.goals.map(g => goalCard(g)).join("");
     if(d.done_today.length) h += `<div class="pl-sec">${A(t("secDone"))}</div><div class="pl-card">${d.done_today.map(x => taskRow(x)).join("")}</div>`;
     if(typeof HM !== "undefined" && HM.enabled && HM.enabled()) h += `<div style="margin-top:18px"><button class="btn ghost" style="width:100%" data-act="ask">💬 ${A(t("ask"))}</button></div>`;
     return h;
@@ -9639,7 +9681,7 @@ const PL = (function(){
   function vGoals(){
     if(goalId && D.goal) return vGoal(D.goal);
     const list = D.goals || [];
-    return list.length ? list.map(goalCard).join("") : `<div class="pl-empty">${A(t("emptyGoals"))}</div>`;
+    return list.length ? list.map(g => goalCard(g, { chk:true })).join("") : `<div class="pl-empty">${A(t("emptyGoals"))}</div>`;
   }
   function vGoal(g){
     let h = `<button class="btn ghost" data-act="gback" style="margin-bottom:10px">← ${A(t("tGoals"))}</button>`;
@@ -9791,7 +9833,8 @@ const PL = (function(){
           <div class="pl-f"><label for="plTrigFb">${A(t("fFallback"))}</label><input class="pl-in" id="plTrigFb" type="time" value="${A(x && x.trigger && x.trigger.fallback_time ? x.trigger.fallback_time : "")}" /></div></details>
         <label class="pl-sw"><input type="checkbox" class="pl-cb" id="plPin" ${x && x.pinned ? "checked" : ""}/><span>📌 ${A(t("fPin"))}</span></label>`}
         <div class="pl-foot pl-sticky">${ERRBOX}<button class="btn primary" data-act="save">${A(t("save"))}</button><button class="btn ghost" data-act="cancel">${A(t("cancel"))}</button>
-        ${x ? (x.status === "open" && !series ? `<button class="btn ghost" data-act="tskip" data-id="${x.id}">${A(t("skip"))}</button>` : "") + `<button class="btn danger" data-act="tdel" data-id="${x.id}">${A(t("del"))}</button>` : ""}</div>`;
+        ${x ? (x.status === "open" && !series ? `<button class="btn ghost" data-act="tskip" data-id="${x.id}">${A(t("skip"))}</button>` : "")
+          + (x.status !== "open" && !series ? `<button class="btn ghost" data-act="treopen" data-id="${x.id}">${A(t("reopen"))}</button>` : "") + `<button class="btn danger" data-act="tdel" data-id="${x.id}">${A(t("del"))}</button>` : ""}</div>`;
     }
     if(kind === "habit"){
       const sch = x ? x.schedule : { days:"daily", times:[] }, days = sch.days === "daily" ? "daily" : "pick";
@@ -9944,8 +9987,10 @@ const PL = (function(){
     try{
       if(a === "retry"){ load(); }
       else if(a === "chk"){
-        const row = findTask(id); const done = row && row.status === "done";
-        await api("POST", "/tasks/" + id + "/" + (done ? "reopen" : "complete"), {}); await refreshKeep(); pollDue(); summaryAt = 0;
+        const doit = el.dataset.do === "reopen" ? "reopen" : "complete";              // what the circle SHOWED when it was tapped
+        const fromToday = tab === "today";
+        await api("POST", "/tasks/" + id + "/" + doit, {}); await refreshKeep(); pollDue(); summaryAt = 0;
+        if(doit === "complete" && fromToday){ try{ showNotif(t("taskDoneMoved")); }catch(_){} }       // on Today a finished task moves down to "Done today": say so
       }
       else if(a === "task"){ const x = findTask(id); if(x){ if(!D.goals){ try{ D.goals = (await api("GET", "/goals")).goals; }catch(_){} } sheet = { kind:"task", edit:x }; openSheet(formFor("task", x)); } }
       else if(a === "trig"){ await api("POST", "/tasks/" + id + "/trigger", {}); await refreshKeep(); pollDue(); }
@@ -9953,7 +9998,11 @@ const PL = (function(){
       else if(a === "rview"){ rview = el.dataset.v; load(); }
       else if(a === "rem"){ await api("POST", "/reminders/" + id + "/act", { action:el.dataset.a }); dueCards = dueCards.filter(c => c.id !== id); paintBanner(); paintBell(); if(tab === "reminders") load(); else await refreshKeep(); summaryAt = 0; }
       else if(a === "remedit"){ const x = findRem(id); if(x){ sheet = { kind:"rem", edit:x }; openSheet(formFor("rem", x)); } }
-      else if(a === "remdone"){ await api("POST", "/reminders/" + id + "/act", { action:"done" }); await refreshKeep(); summaryAt = 0; }
+      else if(a === "remdone"){
+        const leaves = tab === "reminders" && rview === "upcoming";                  // "Coming up" lists what is still ahead: a ticked reminder leaves it for All
+        await api("POST", "/reminders/" + id + "/act", { action:"done" }); await refreshKeep(); summaryAt = 0;
+        if(leaves){ try{ showNotif(t("remDoneMoved")); }catch(_){} }
+      }
       else if(a === "remdel"){ if(confirm(t("delAsk"))){ await api("DELETE", "/reminders/" + id); closeSheet(); try{ showNotif(t("remDeleted")); }catch(_){} await refreshKeep(); summaryAt = 0; } }
       else if(a === "remall"){ navTo(PATHS.reminders); }
       // a repeating reminder: open it (always the fresh one from the server - it may have been changed on another phone), pause / resume, delete the whole thing
@@ -9974,7 +10023,13 @@ const PL = (function(){
       else if(a === "gdel2"){ if(confirm(t("delAsk"))){ await api("DELETE", "/goals/" + id); try{ showNotif(t("goalDeleted")); }catch(_){} await refreshKeep(); summaryAt = 0; } }
       else if(a === "gedit2"){ const g = await api("GET", "/goals/" + id); sheet = { kind:"goal", edit:g }; openSheet(formFor("goal", g)); }   // the list's goal lacks the "why" / minutes: edit the full one
       else if(a === "addnew"){ addForTab(); }
-      else if(a === "hlog"){ const n = +el.dataset.n; const h = findHabit(id); const same = h && h.count_today === n; await api("PUT", "/habits/" + id + "/log", { count: same ? Math.max(0, n - 1) : n }); await refreshKeep(); summaryAt = 0; }
+      // data-set is the count a tap on THIS button will set, fixed when the habit is drawn (tap the last filled glass = take one back; Undo = one back)
+      else if(a === "hlog"){ await api("PUT", "/habits/" + id + "/log", { count:Math.max(0, parseInt(el.dataset.set, 10) || 0) }); await refreshKeep(); summaryAt = 0; }
+      else if(a === "gchk"){
+        const doit = el.dataset.do === "reopen" ? "reopen" : "done";
+        await api("PATCH", "/goals/" + id, { action:doit }); await refreshKeep(); summaryAt = 0;
+        try{ showNotif(t(doit === "done" ? "gDoneToast" : "gReopenToast")); }catch(_){}
+      }
       else if(a === "habit"){ const h = findHabit(id); if(h){ sheet = { kind:"habit", edit:h }; openSheet(formFor("habit", h)); } }
       else if(a === "goal"){ goalId = id; load(); }
       else if(a === "gback"){ goalId = null; D.goal = null; load(); }
@@ -9999,6 +10054,7 @@ const PL = (function(){
       else if(a === "cancel"){ closeSheet(); }
       else if(a === "kind"){ const kp = { title:val("plTitle2") }; sheetAdd(el.dataset.v, kp); }
       else if(a === "tskip"){ await api("POST", "/tasks/" + id + "/skip", {}); closeSheet(); await refreshKeep(); }
+      else if(a === "treopen"){ await api("POST", "/tasks/" + id + "/reopen", {}); closeSheet(); await refreshKeep(); pollDue(); summaryAt = 0; }       // a finished / skipped task, opened with its pencil, can be put back from there too
       else if(a === "tdel"){ if(confirm(t("delAsk"))){ await api("DELETE", "/tasks/" + id); closeSheet(); await refreshKeep(); pollDue(); summaryAt = 0; } }
       else if(a === "hdel"){ if(confirm(t("delAsk"))){ await api("DELETE", "/habits/" + id); closeSheet(); await refreshKeep(); } }
       else if(a === "haddtime"){ const w = $("plHTimes"); if(w && w.children.length < 4){ const d = document.createElement("div"); d.className = "pl-ms"; d.innerHTML = `<input class="pl-in" type="time" style="flex:1" /><button type="button" class="pl-ic" data-act="hrmtime" aria-label="${A(t("del"))}">✕</button>`; w.appendChild(d); } }
@@ -10009,11 +10065,11 @@ const PL = (function(){
     // reload the visible tab WITHOUT the spinner flash (the learner just acted on it)
     const seq = ++loadSeq;
     try{
-      if(tab === "today") D.today = await api("GET", "/today");
-      else if(tab === "tasks") D.tasks = await api("GET", "/tasks?view=" + tview);
+      if(tab === "today"){ D.today = await api("GET", "/today"); stamp("today"); }
+      else if(tab === "tasks"){ D.tasks = await api("GET", "/tasks?view=" + tview); stamp("tasks"); }
       else if(tab === "goals"){ D.goals = (await api("GET", "/goals")).goals; if(goalId) D.goal = await api("GET", "/goals/" + goalId); }
-      else if(tab === "habits") D.habits = (await api("GET", "/habits")).habits;
-      else if(tab === "reminders"){ const [r, rr] = await Promise.all([api("GET", "/reminders?view=" + rview), api("GET", "/reminder-rules").catch(() => null)]); D.rem = r.reminders; D.remToday = r.today; D.remTz = r.tz; if(rr) D.rules = rr.rules; }
+      else if(tab === "habits"){ D.habits = (await api("GET", "/habits")).habits; stamp("habits"); }
+      else if(tab === "reminders"){ const [r, rr] = await Promise.all([api("GET", "/reminders?view=" + rview), api("GET", "/reminder-rules").catch(() => null)]); D.rem = r.reminders; D.remToday = r.today; D.remTz = r.tz; stamp("rem"); if(rr) D.rules = rr.rules; }
       else if(tab === "settings") D.prefs = await api("GET", "/prefs");
     }catch(e){ warn(e); return; }
     if(seq !== loadSeq) return;
@@ -10021,13 +10077,12 @@ const PL = (function(){
     render();
   }
   function findTask(id){
-    const pools = [D.tasks && D.tasks.tasks, D.today && D.today.priorities, D.today && D.today.today, D.today && D.today.overdue, D.today && D.today.done_today];
-    for(const p of pools) for(const x of (p || [])) if(x.id === id) return x;
-    return null;
+    const t0 = D.today || {};
+    return pick(id, [["tasks", D.tasks && D.tasks.tasks], ["today", [].concat(t0.priorities || [], t0.today || [], t0.overdue || [], t0.done_today || [])]]);
   }
-  function findHabit(id){ for(const p of [D.habits, D.today && D.today.habits]) for(const h of (p || [])) if(h.id === id) return h; return null; }
+  function findHabit(id){ return pick(id, [["habits", D.habits], ["today", D.today && D.today.habits]]); }
   function findRule(id){ return (D.rules || []).find(r => r.id === id) || null; }
-  function findRem(id){ for(const p of [D.rem, D.today && D.today.reminders, D.today && D.today.reminders_done]) for(const r of (p || [])) if(r.id === id) return r; return null; }
+  function findRem(id){ const t0 = D.today || {}; return pick(id, [["rem", D.rem], ["today", [].concat(t0.reminders || [], t0.reminders_done || [])]]); }
 
   /* ---------- the in-app reminder card, the bell, polling ---------- */
   function paintBell(){

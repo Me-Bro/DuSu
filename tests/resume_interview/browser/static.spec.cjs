@@ -178,7 +178,7 @@ const fs = require('fs');
     const mqs = [...css.matchAll(/@media\s*\(([^)]*)\)/g)].map(m => m[1]);
     T.eq(mqs, ['prefers-reduced-motion: reduce', 'min-width:1200px'], 'only a reduced-motion query and the >= 1200px desktop block');
     const svh = fs.readFileSync(H.HTML_SRC.replace('test_client.html', 'sw.js'), 'utf8');
-    T.has(svh, 'const CACHE = "dusu-v29"', 'sw.js: cache bumped to dusu-v29');
+    T.has(svh, 'const CACHE = "dusu-v30"', 'sw.js: cache bumped to dusu-v30');
     T.has(svh.split('\n').find(l => l.includes('const CACHE')), 'Job Interview Practice', 'with a note in the version comment');
   }
 

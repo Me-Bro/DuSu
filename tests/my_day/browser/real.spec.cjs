@@ -13,100 +13,17 @@
  *   H  an XSS canary in the title; another learner sees nothing; no console error, no unhandled rejection
  */
 const { chromium } = require('playwright');
-const fs = require('fs');
-const path = require('path');
-const { makeT, sleep } = require('../../resume_interview/browser/harness.cjs');
+const L = require('./lib.cjs').create('my day: repeating reminders (real server)');
+const { T, ERRS, sleep, ist, hhmm, wd, DAY, SHORT, ctxFor, api, setLang, boot, txt, body, vis, settle, notif, sheetOpen, shot, bodyHas, bodyLacks, openAdd, save } = L;
 
-const BASE = process.env.BASE;
-const OUT = process.env.OUT || '/tmp';
-const TOK = JSON.parse(fs.readFileSync(process.env.TOKENS, 'utf8'));
-const T = makeT('my day: repeating reminders (real server)');
-const ERRS = [];                                                            // every page error / console error of every page in the run
-
-// ----------------------------------------------------------------------------- time, in the learner's zone (India has no daylight saving)
-const IST_OFF = 5.5 * 3600 * 1000;
-const ist = d => new Date(d.getTime() + IST_OFF);                           // read with getUTC*
-const hhmm = d => String(ist(d).getUTCHours()).padStart(2, '0') + ':' + String(ist(d).getUTCMinutes()).padStart(2, '0');
-const wd = d => (ist(d).getUTCDay() + 6) % 7;                                // Mon = 0
-const DAY = 86400000;
 const t12 = s => { const [h, m] = s.split(':').map(Number); return (h % 12 || 12) + ':' + String(m).padStart(2, '0') + ' ' + (h < 12 ? 'AM' : 'PM'); };
-const SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-const INIT = `(() => {
-  window.__errors = []; window.__rejections = []; window.__xss = 0;
-  window.addEventListener('error', e => window.__errors.push(String(e.message)));
-  window.addEventListener('unhandledrejection', e => window.__rejections.push(String((e.reason && (e.reason.stack || e.reason.message)) || e.reason)));
-})();`;
-
-async function ctxFor(browser, who, o = {}) {
-  const u = TOK[who];
-  const ctx = await browser.newContext({ viewport: o.viewport || { width: 390, height: 844 }, isMobile: (o.viewport || { width: 390 }).width < 800, hasTouch: (o.viewport || { width: 390 }).width < 800,
-    serviceWorkers: 'block', reducedMotion: 'reduce' });
-  await ctx.addInitScript(INIT);
-  // the app's own-keys wall (every normal learner must bring two free keys) is passed the way a real learner passes it: two keys, verified, for THIS account
-  const seed = Object.assign({ dusu_token: u.token, dusu_user: u.user, dusu_onboarded: 'true', dusu_state: { onboarded: true, planner: true, bilingual: true }, dusu_rewards_intro_seen: '1',   // a returning learner's cached /me
-    dusu_usemode: 'office', dusu_office_keys: { groq: 'gsk_test_key_123', gemini: 'AIzaTestKey' }, dusu_keys_ok: '1', dusu_keys_owner: u.user.email,
-    dusu_lang: o.lang || 'en', dusu_pl_pushhint: '1' }, o.seed || {});
-  await ctx.addInitScript(`(() => { try { if (localStorage.getItem('__seeded')) return; localStorage.setItem('__seeded', '1'); const s = ${JSON.stringify(seed)};
-    for (const k of Object.keys(s)) localStorage.setItem(k, typeof s[k] === 'string' ? s[k] : JSON.stringify(s[k])); } catch (e) {} })();`);
-  await ctx.route('**/*', route => new URL(route.request().url()).origin !== BASE ? route.abort() : route.continue());   // nothing leaves the box
-  return ctx;
-}
-
-const api = async (who, method, p, body) => {
-  const r = await fetch(BASE + '/planner' + p, { method, headers: { Authorization: 'Bearer ' + TOK[who].token, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
-  let j = null; try { j = await r.json(); } catch (e) {}
-  return { status: r.status, body: j };
-};
 const rules = async who => (await api(who, 'GET', '/reminder-rules')).body.rules;
 const rem = async (who, view = 'all') => (await api(who, 'GET', '/reminders?view=' + view)).body.reminders;
-
-async function boot(ctx, urlPath, o = {}) {
-  const page = await ctx.newPage();
-  page.on('pageerror', e => ERRS.push('pageerror: ' + String((e && e.message) || e)));
-  page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|net::ERR|favicon/i.test(m.text())) ERRS.push('console.error: ' + m.text()); });
-  page.__dialogs = [];
-  page.on('dialog', d => { page.__dialogs.push(d.message()); d.accept(); });
-  // the app paints from the learner's cached state at once and /me answers a moment later (which re-applies the language and re-renders): let it settle, like a person who looks before tapping
-  const meDone = o.waitMe === false ? null : page.waitForResponse(r => new URL(r.url()).pathname === '/me' && r.request().method() === 'GET', { timeout: 30000 });
-  page.__me = meDone;
-  await page.goto(BASE + urlPath, { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('#pl.on', { timeout: 15000 });
-  if (meDone) { await meDone; await sleep(400); }
-  await page.waitForFunction(() => { const b = document.getElementById('plBody'); return b && !b.querySelector('.spin') && b.textContent.trim().length > 0; }, null, { timeout: 15000 });
-  return page;
-}
-const txt = (page, sel) => page.evaluate(s => { const e = document.querySelector(s); return e ? e.textContent : null; }, sel);
-const body = page => page.evaluate(() => document.getElementById('plBody').innerText);
-const vis = (page, sel) => page.evaluate(s => { const e = document.querySelector(s); if (!e) return false; const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return !e.closest('[hidden]') && cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0; }, sel);
-const settle = async page => { await page.waitForFunction(() => { const b = document.getElementById('plBody'); return b && !b.querySelector('.spin'); }, null, { timeout: 15000 }); await sleep(150); };
-const notif = page => page.evaluate(() => { const e = document.getElementById('notifTxt'); return e ? e.textContent : ''; });
-const sheetOpen = page => vis(page, '#plSheet');
-const shot = (page, name) => page.screenshot({ path: path.join(OUT, name + '.png'), fullPage: false }).catch(() => {});
-
-async function openAdd(page) {
-  await page.click('#plAddRow [data-act="addnew"]');
-  await page.waitForSelector('#plSheet:not([hidden]) #plTitle2', { timeout: 5000 });
-}
 async function fillRule(page, { title, time, mode, days }) {
   await page.fill('#plTitle2', title);
   await page.click(`#plSheet [data-chips="rrep"] [data-v="${mode}"]`);
   if (mode === 'days') for (const d of days) await page.click(`#plSheet [data-chips="rrdays"] [data-v="${d}"]`);
   await page.fill('#plTime', time);
-}
-async function save(page) {
-  await page.click('#plSheet [data-act="save"]');
-  await page.waitForFunction(() => { const s = document.getElementById('plSheet'), e = document.getElementById('plErr'); return s.hidden || (e && !e.hidden); }, null, { timeout: 15000 });
-}
-// wait until the list text satisfies a pattern (the screen re-draws a moment after the server has answered)
-const bodyHas = async (page, re) => page.waitForFunction(r => new RegExp(r.src, r.flags).test(document.getElementById('plBody').innerText), { src: re.source, flags: re.flags }, { timeout: 8000 }).then(() => true).catch(() => false);
-const bodyLacks = async (page, text) => page.waitForFunction(t => !document.getElementById('plBody').innerText.includes(t), text, { timeout: 8000 }).then(() => true).catch(() => false);
-const rowOf = (page, title) => page.evaluateHandle(t => [...document.querySelectorAll('#plBody .pl-row')].find(r => r.textContent.includes(t)) || null, title);
-
-// the learner's language lives on the server (it wins over the device cache on every /me): English for everyone but `cat`, who keeps Hindi
-async function setLang(who, lang) {
-  const r = await fetch(BASE + '/lang', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: TOK[who].token, lang }) });
-  if (!r.ok) throw new Error('could not save the language for ' + who + ': ' + r.status);
 }
 
 (async () => {
@@ -319,6 +236,7 @@ async function setLang(who, lang) {
   const secs = m.getUTCSeconds();
   if (m.getUTCHours() === 23 && m.getUTCMinutes() >= 55) console.log('  (skipped: too close to midnight in the learner\'s zone)');
   else {
+    await api('eve', 'PUT', '/prefs', { quiet_on: false });                             // the default quiet hours (22:00-07:00) would, correctly, hold a ring back at night: the test must not depend on the hour it runs
     const ctxE = await ctxFor(browser, 'eve');
     const pe = await boot(ctxE, '/my-day/reminders');
     const fire = new Date(Date.now() + (secs > 35 ? 110 : 70) * 1000);                // the next minute that is still >= 25 s away

@@ -48,9 +48,14 @@ add M14 $RUL "next_rule_fire counts today's passed time"           '        if f
     return None'
 add M15 $SVC "the materializer is not locked against an edit"      '                           .order_by(PlReminderRule.id).with_for_update())).scalars().all()' '                           .order_by(PlReminderRule.id))).scalars().all()'
 add M16 $SVC "EQUIVALENT BY DESIGN: key lookup removed (the unique index on (user_id, client_key) still answers a retry)" 'ex = next((r for r in mine if key and r.client_key == key), None) or next(' 'ex = next((r for r in mine if False), None) or next('
+add M18 $SVC "a finished task vanishes from All / Today again (nothing left to uncheck)" '            rows = list(rows) + list(finished)' '            rows = list(rows)'
+add M19 $SVC "reopening a goal keeps its finished-at time" '            elif prev == "done":
+                g.completed_at = None                                  # reopened: it is no longer "finished at"' '            elif False:
+                g.completed_at = None'
+add M20 $SVC "All keeps finished tasks forever (the two-day window is gone)" '                window = fin >= now - dt.timedelta(days=2)' '                window = fin >= now - dt.timedelta(days=4000)'
 add M17 $SCH "send-time check ignores a paused rule"               'or rule.status != "active" or day is None' 'or day is None'
 
-WANT=("$@"); [ ${#WANT[@]} -eq 0 ] && WANT=(M1 M2 M3 M4 M5 M6 M7 M8 M9 M10 M11 M12 M13 M14 M15 M17)      # M16 is an equivalent mutant (kept as documentation): name it to run it
+WANT=("$@"); [ ${#WANT[@]} -eq 0 ] && WANT=(M1 M2 M3 M4 M5 M6 M7 M8 M9 M10 M11 M12 M13 M14 M15 M17 M18 M19 M20)      # M16 is an equivalent mutant (kept as documentation): name it to run it
 caught=0; survived=()
 for m in "${WANT[@]}"; do
   rm -rf "$OUT/backend"; mkdir -p "$OUT/backend"
