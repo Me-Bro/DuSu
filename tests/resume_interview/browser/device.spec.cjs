@@ -70,14 +70,14 @@ const M = require('./mock.cjs');
   T.eq(await H.txt(A.page, '#riFin'), 'Finish interview', 'Finish unlocks at 3 real answers across the two phones');
   await A.page.click('#riFin'); await H.waitView(A.page, 'report', 15000); await A.page.waitForSelector('#riPerQ');
   T.eq(await A.page.evaluate(() => document.querySelectorAll('#riPerQ .ri-pq').length), 3, 'the report has 3 question cards');
-  T.eq(await A.page.evaluate(() => document.querySelectorAll('#riPerQ .ri-pq .btn').length), 2, 'A can play ONLY its own two answers (Q1, Q3), not B\'s Q2');
+  T.eq(await A.page.evaluate(() => document.querySelectorAll('#riPerQ .ri-pq-a .btn').length), 2, 'A can play ONLY its own two answers (Q1, Q3), not B\'s Q2');
 
   T.section('device B opens the finished interview from the hub');
   await B.page.evaluate(() => navTo('/resume-interview')); await H.waitView(B.page, 'hub');
   await B.page.waitForSelector('#riSessions .ri-main');
   T.has(await H.txt(B.page, '#riSessions'), 'Finished', 'B sees the interview as finished');
   await B.page.click('#riSessions .ri-main'); await H.waitView(B.page, 'report'); await B.page.waitForSelector('#riPerQ');
-  T.eq(await B.page.evaluate(() => document.querySelectorAll('#riPerQ .ri-pq .btn').length), 1, 'B can play only its own answer (Q2)');
+  T.eq(await B.page.evaluate(() => document.querySelectorAll('#riPerQ .ri-pq-a .btn').length), 1, 'B can play only its own answer (Q2)');
   T.eq(await B.page.evaluate(() => document.querySelector('#riRepHero .ri-tag').textContent), '3 of 3 answers counted', 'the same report on both phones');
 
   for (const p of [A.page, B.page]) { errors.push(...p.__consoleErrors); const r = await H.collectErrors(p); errors.push(...r.errors, ...r.rejections); }

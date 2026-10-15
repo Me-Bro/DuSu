@@ -1,4 +1,4 @@
-"""Resume Interview - HTTP API (`/rinterview/*`, DUSU_RESUME_INTERVIEW_PLAN.md §7).
+"""Job Interview Practice - HTTP API (`/rinterview/*`, DUSU_RESUME_INTERVIEW_PLAN.md §7).
 
 The gate is My Day's, in the same order: a valid session -> the `resume_interview` switch is on for THIS account (else 404, so the feature is
 invisible while it is off - EXCEPT export / delete, which must keep working so a learner's data is never trapped behind a switch) -> the account
@@ -58,9 +58,9 @@ async def _gate(authorization: str | None, token: str = "", need_enabled: bool =
         raise HTTPException(401, "Not signed in")
     email = claims.get("email", "")
     if not db.db_enabled:
-        raise HTTPException(404, "Resume Interview is not available yet")
+        raise HTTPException(404, "Job Interview Practice is not available yet")
     if need_enabled and not await M.resume_interview_enabled(email):
-        raise HTTPException(404, "Resume Interview is not available yet")
+        raise HTTPException(404, "Job Interview Practice is not available yet")
     uid = claims["sub"]
     if need_enabled:                                  # data rights (export / delete) stay open to a blocked account: blocking denies USE, never one's own data
         try:

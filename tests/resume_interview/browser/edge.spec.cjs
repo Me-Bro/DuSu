@@ -575,7 +575,7 @@ const want = n => !CASES || CASES.includes(n);
     await H.waitView(page, 'hub'); await page.waitForSelector('#riNew');
     const da = mock.calls.find(c => c.path === '/rinterview/delete-all');
     T.eq(da.body, { confirm: true }, 'POST /delete-all {confirm:true}');
-    T.has(await H.noteText(page), 'All your Resume Interview data was deleted', 'a confirmation survives the navigation to the hub');
+    T.has(await H.noteText(page), 'All your Job Interview Practice data was deleted', 'a confirmation survives the navigation to the hub');
     T.has(await H.txt(page, '#riBody'), 'No saved resumes yet', 'and the hub is empty');
     T.ok(page.__dialogs.some(x => /permanently deletes/.test(x)), 'Delete all asks first');
     await w.close();

@@ -1,4 +1,4 @@
-"""Resume Interview - the learner's interviews as exact lines for DuSu ("DuSu knows your data", life.EXTRA_LINES).
+"""Job Interview Practice - the learner's interviews as exact lines for DuSu ("DuSu knows your data", life.EXTRA_LINES).
 
 So "how did my last interview go?" is answered from the real numbers instead of an invented one. SCORES AND ROLE TITLES ONLY: these lines flow into
 other modes' prompts, so no resume text, no job text, no answers ever appear here. The provider checks the switch for THIS learner first - an
@@ -30,7 +30,7 @@ def format_lines(d: dict, today: dt.date | None = None) -> list[str]:
         # a finished interview with no judged answer (the model was down) has NO score: say so, never "0/100"
         scored = (f"{last.get('overall')}/100 over {last.get('answers')} answers" if last.get("overall") is not None
                   else f"not scored ({last.get('answers')} answers, the feedback was unavailable)")
-        line = (f"Resume Interview (mock interviews built from the learner's own resume and a job description): {d.get('finished', 1)} finished; "
+        line = (f"Job Interview Practice (mock interviews built from the learner's own resume and a job description): {d.get('finished', 1)} finished; "
                 f"the last was {life._clean(last.get('title'), 60) or 'a job'} - {scored}")
         if when:
             line += f", {when}"
@@ -38,10 +38,12 @@ def format_lines(d: dict, today: dt.date | None = None) -> list[str]:
             line += f"; {last['delta']:+d} points against their previous interview for the same job"
         if last.get("weakest"):
             line += f"; weakest area: {_LABEL.get(last['weakest'], last['weakest'])}"
+        if last.get("focus"):
+            line += "; the improvement points DuSu gave them for next time: " + ", ".join(life._clean(x, 60) for x in last["focus"][:3])
         out.append(line + ".")
     act = d.get("active")
     if act:
-        out.append(f"A Resume Interview is in progress: {life._clean(act.get('title'), 60) or 'a job'}, {act.get('answers', 0)} answers so far.")
+        out.append(f"A Job Interview Practice is in progress: {life._clean(act.get('title'), 60) or 'a job'}, {act.get('answers', 0)} answers so far.")
     return out
 
 

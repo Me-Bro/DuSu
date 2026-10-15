@@ -71,6 +71,9 @@ class Mock {
   constructor(opts = {}) {
     this.limits = Object.assign({}, LIMITS, opts.limits || {});
     this.wrapDetail = opts.wrapDetail !== false;
+    this.strong = !!opts.strong;           // an interview with nothing to fix: no weaknesses, no focus points
+    this.reportV1 = !!opts.reportV1;       // an old-format report (no coaching fields): the client must still show it
+    this.lastFocus = null;                 // the focus points of the latest finished interview (what /state and an interview in progress hand out)
     this.xss = !!opts.xss;                 // put hostile markup in every string the server sends
     this.flag = true;                      // switch on (false -> every /rinterview endpoint answers 404, like the real server)
     this.userEmail = opts.email || 'learner@example.com';
@@ -187,9 +190,34 @@ class Mock {
       content_notes: ['No number or result in the answer.'], improvements: [{ issue: 'Add one result with a number', how: 'For example: "cut report time by 40%".' }],
       better_answer: 'In my last role I built a sales dashboard in Power BI. I used SQL to pull the weekly numbers and cut the report time by [X]%.', follow_up: 'What was the hardest data problem you solved?',
       resume_check: { note: 'Your resume says you built dashboards for the sales team.', quote: 'Built dashboards for the sales team' },
+      evidence: { has_number: /\d/.test(transcript), has_result: false, has_example: true, named_item: /SQL/.test(transcript), sentences: 3, words: wc },
       delivery: { measured: !(tr.engine === 'gemini'), words: wc, seconds: dur, wpm: Math.round(wc / Math.max(dur, 1) * 60), pauses: tr.engine === 'gemini' ? null : 2, longest_pause: tr.engine === 'gemini' ? null : 2.4, restarts: tr.engine === 'gemini' ? null : 1,
         fillers: [{ word: 'uh', n: 1 }, { word: 'basically', n: 1 }] }, feedback_lang: s.settings.feedback_lang, genuine: true };
     return f;
+  }
+
+  coach(s, real) {
+    if (this.strong) return { v: 2, habits: { n: real.length }, weaknesses: [], focus: [], progress: null };
+    const x = t => this.x(t), first = real[0];
+    const card = (key, severity, tracked, extra) => ({ key, title: x(extra.title), severity, seen: x(extra.seen), why: x(extra.why), how: extra.how.map(x), drill: x(extra.drill), goal: x(extra.goal), tracked,
+      answers: extra.answers || [], examples: (extra.examples || []).map(e => ({ said: x(e.said), better: x(e.better), q: e.q })), items: (extra.items || []).map(x), ...(extra.model ? { model: extra.model } : {}) });
+    const weaknesses = [
+      card('no_number', 'high', true, { title: 'Add numbers to your stories', seen: `${real.length} of ${real.length} answers had no number or measurable result.`, why: 'Interviewers remember results they can picture.',
+        how: ['Choose one number per project.', 'Use: I did X, which moved Y from A to B.', 'Give an honest estimate if unsure.'], drill: 'Write one sentence with a number for each project.', goal: 'A number in every project answer',
+        answers: real.map(t => t.idx), model: first ? { q: first.idx, question: x(first.question), text: x('In my last role I built a sales dashboard in Power BI and cut report time by [X]%.') } : null }),
+      card('grammar', 'medium', true, { title: 'Fix the grammar slip that keeps coming back', seen: 'The same kind of slip (\u201ctense\u201d) came back 2 times.', why: 'A repeated mistake is a habit, and habits are easy to fix.',
+        how: ['Say each corrected sentence three times.', 'Make two new sentences.', 'Slow down on those words next time.'], drill: 'Say each corrected sentence below three times.', goal: 'No repeated grammar slip',
+        answers: first ? [first.idx] : [], examples: [{ said: 'I make dashboard', better: 'I made a dashboard', q: first ? first.idx : 1 }] }),
+      card('coverage', 'low', false, { title: 'Show the skills the job asks for', seen: '1 of the job\'s requirements were not touched by any of your answers.', why: 'The interviewer checks you against the requirements.',
+        how: ['Prepare one example per missing requirement.', 'Say what you would learn if you have none.', 'Use the requirement\'s own words.'], drill: 'Give a 45-second answer about the first requirement.', goal: 'One example per key requirement', items: ['Power BI dashboards'] })];
+    const focus = [{ key: 'no_number', title: x('Add numbers to your stories'), goal: x('A number in every project answer'), tracked: true, baseline: { count: real.length, of: real.length } },
+      { key: 'grammar', title: x('Fix the grammar slip that keeps coming back'), goal: x('No repeated grammar slip'), tracked: true, baseline: { per100: 2.4 } }];
+    const lf = this.lastFocus;
+    const progress = lf ? { vs: { session_id: lf.session_id, title: x(lf.title), finished_at: lf.finished_at, overall: lf.overall, answers: 3 },
+      items: [{ key: 'no_number', title: x('Add numbers to your stories'), goal: x('A number in every project answer'), was: x('3 of 3 answers'), now: x('1 of 3 answers'), status: 'improved', note: x('Better than last time.') },
+              { key: 'grammar', title: x('Fix the grammar slip that keeps coming back'), goal: x('No repeated grammar slip'), was: x('2.4 per 100 words'), now: x('2.5 per 100 words'), status: 'same', note: x('About the same: keep working on it.') }],
+      improved: 1, summary: x('1 of 2 focus points improved.') } : null;
+    return { v: 2, habits: { n: real.length }, weaknesses, focus, progress };
   }
 
   report(s) {
@@ -204,7 +232,7 @@ class Mock {
       redo: real.length ? { turn_id: real[0].id, idx: real[0].idx, question: this.x(real[0].question), score: 48, mistakes: [{ type: 'tense', said: this.x('I make dashboard'), better: this.x('I made a dashboard'), why: 'Past tense.' }], better_answer: this.x('In my last role I built a dashboard and cut report time by [X]%.') } : null,
       per_question: per.map(t => ({ turn_id: t.id, idx: t.idx, question: this.x(t.question), band: t.status === 'skipped' ? 'needs_work' : (t.feedback && t.feedback.band) || 'fair', score: t.status === 'skipped' ? null : 60, short: this.x(t.status === 'skipped' ? 'Skipped' : 'A real example, but no result.') })),
       delta: s.prevFinished ? { vs_session: s.prevFinished, language: { delta: 7, significant: true }, delivery: { delta: -2, significant: false } } : null, generated_at: nowIso() };
-    return rep;
+    return this.reportV1 ? rep : { ...rep, ...this.coach(s, real) };
   }
 
   /* ---------------- request handling ---------------- */
@@ -215,7 +243,7 @@ class Mock {
     const err = (status, code, extra) => ({ status, body: this.wrapDetail ? { detail: { error: code, ...(extra || {}) } } : { error: code, ...(extra || {}) } });
     const errStr = (status, s) => ({ status, body: this.wrapDetail ? { detail: s } : { error: s } });
     const p = c.path.replace(/^\/rinterview/, '') || '/';
-    if (!this.flag) return { status: 404, body: { detail: 'Resume Interview is not available yet' } };
+    if (!this.flag) return { status: 404, body: { detail: 'Job Interview Practice is not available yet' } };
     if (this.faults.status402 > 0 && /\/(analyze|swap-resume|start|answer|feedback)$/.test(p)) { this.faults.status402--; return errStr(402, 'keys_required'); }
     if (this.faults.status403 > 0 && /\/(analyze|swap-resume|start|answer|feedback)$/.test(p)) { this.faults.status403--; return errStr(403, 'Your access has been paused. Please contact the admin.'); }
     let m;
@@ -225,7 +253,7 @@ class Mock {
       const active = this.sessions.slice().reverse().find(s => s.status !== 'finished');
       return { status: 200, body: { limits: this.limits, today: { sessions: this.sessions.length, answers: this.sessions.reduce((a, s) => a + s.turns.filter(t => t.status === 'answered').length, 0), sessions_cap: 10, answers_cap: 120 },
         resumes: this.docs.filter(d => d.kind === 'resume').slice().reverse().map(d => this.docOut(d)), jds: this.docs.filter(d => d.kind === 'jd').slice().reverse().map(d => this.docOut(d)),
-        sessions: ss, active: active ? this.sessOut(active) : null } };
+        sessions: ss, active: active ? this.sessOut(active) : null, has_more: this.sessions.length > 30, focus: this.focusOut() } };
     }
 
     /* documents */
@@ -330,6 +358,7 @@ class Mock {
       const cf = this.canFinish(s); if (!cf.ok) return err(409, 'need_more', { need: cf.need, reasons: cf.reasons });
       s.status = 'finished'; s.finished_at = nowIso(); s.queue = []; s.turns.forEach(t => { if (t.status === 'asked') t.status = 'dropped'; });
       s.report = this.report(s); s.overall = s.report.overall;
+      if (s.report.focus) this.lastFocus = { session_id: s.id, title: s.title, finished_at: s.finished_at, overall: s.overall, points: s.report.focus };
       return { status: 200, body: { report: s.report, session: this.sessOut(s), progress: { xp_earned: 25, minutes: 3.5, streak_days: 3, speaker_rank: 'speaker', rank_up: false, new_badges: [] }, mission: null } };
     }
 
@@ -375,7 +404,12 @@ class Mock {
     const open = s.turns.find(t => t.status === 'asked');
     s.turns.forEach(t => this.settle(t, s));
     return { session: this.sessOut(s), rev: s.rev, analysis: s.analysis ? this.analysisOut(s.analysis) : null, turns: shown.map(t => this.turnOut(t)), queued_count: s.queue.length,
-      open_turn_id: open ? open.id : null, counts: this.counts(s), can_finish: this.canFinish(s), report: s.report || null, server_now: nowIso() };
+      open_turn_id: open ? open.id : null, counts: this.counts(s), can_finish: this.canFinish(s), report: s.report || null, server_now: nowIso(),
+      ...(s.status !== 'finished' ? { focus_prev: this.focusOut(s.id) } : {}) };
+  }
+  focusOut(exclude) {
+    const lf = this.lastFocus; if (!lf || lf.session_id === exclude) return null;
+    return { session_id: lf.session_id, title: this.x(lf.title), finished_at: lf.finished_at, overall: lf.overall, points: lf.points };
   }
   analysisOut(a) { const o = clone(a); delete o._until; if (o.state === 'pending') { o.match_score = null; o.band = 'unknown'; } return o; }
   settle(t, s) {                                         // pending feedback becomes done after the first poll

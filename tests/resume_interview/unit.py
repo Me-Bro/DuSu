@@ -722,6 +722,66 @@ op._mark_cooldown("x", "Error code: 429 - too many requests")
 check("a plain 429 is still the 90 s cooldown", 0 < op._cooldown["x"] - time.time() <= 90)
 op._cooldown.clear()
 
+# ----------------------------------------------------------------------------- 12. the coaching layer: weaknesses in detail, focus points, "did it work?"
+section("coach: habits, weaknesses in detail, focus points, progress since last time")
+from app.resume_interview import coach          # noqa: E402
+
+hb = coach.habit_metrics(T)
+check("habits are counted over the REAL answers only (the skipped and the not-counted ones are out)",
+      hb["n"] == 3 and hb["no_number"] == {"c": 2, "of": 3} and hb["no_result"] == {"c": 2, "of": 3} and hb["named_item"] == {"c": 2, "of": 3} and hb["short"] == {"c": 2, "of": 3}, str(hb))
+check("... fillers and grammar slips are rates per 100 words (comparable across interviews of different length)", hb["fillers"] == 5 and hb["fillers_per100"] == 4.0 and hb["mistakes"] == 3 and hb["mistakes_per100"] == 2.4, str(hb))
+check("... pace counts answers outside 95-165 wpm; no measured long pauses -> 0 of 3", hb["pace"] == {"c": 2, "of": 3} and hb["pauses"] == {"c": 0, "of": 3})
+for lang in ("en", "hinglish"):
+    ws = coach.build_weaknesses(T, rep, hb, lang)
+    check(f"[{lang}] weaknesses: ranked, at most 5, every card has what-was-seen / why / 3 steps / a drill / a goal / the answers it happened in",
+          0 < len(ws) <= 5 and all(w["title"] and w["seen"] and w["why"] and len(w["how"]) == 3 and w["drill"] and w["goal"] and w["severity"] in ("high", "medium", "low") for w in ws), str([w["key"] for w in ws]))
+    check(f"[{lang}] the repeating grammar slip leads, with the learner's OWN slips and their fixes as examples", ws[0]["key"] == "grammar" and ws[0]["examples"] and ws[0]["examples"][0]["said"] and ws[0]["examples"][0]["better"], str(ws[0]))
+    nn = next(w for w in ws if w["key"] == "no_number")
+    check(f"[{lang}] 'no number' names the questions it happened in and offers the learner's own stronger answer as a model", nn["answers"] == [2, 3] and nn["model"] and nn["model"]["q"] == 2 and nn["model"]["text"], str(nn))
+    check(f"[{lang}] 'what we saw' carries the real counts", "2" in nn["seen"] and "3" in nn["seen"], nn["seen"])
+wsE, wsH = coach.build_weaknesses(T, rep, hb, "en"), coach.build_weaknesses(T, rep, hb, "hinglish")
+check("the Hinglish cards are the same weaknesses in other words", [w["key"] for w in wsE] == [w["key"] for w in wsH] and all(a["title"] != b["title"] for a, b in zip(wsE, wsH)))
+allh = " ".join(" ".join([w["title"], w["why"], w["drill"], w["goal"]] + w["how"]) for k in coach.WEAK for w in [coach.WEAK[k]["hinglish"]]) + " " + " ".join(coach.SEEN["hinglish"].values()) + " " + " ".join(coach.STATUS_NOTE["hinglish"].values())
+check("Hinglish text is Roman letters only (no Devanagari) and never the rude tu register", not re.search(r"[ऀ-ॿ]", allh) and not re.search(r"\b(tu|tera|tere|teri|tujhe|tujhko|tujhse)\b", allh, re.I))
+check("the catalogue is complete: every key has both languages, the same shape, and every habit has a card",
+      all(set(coach.WEAK[k]) == {"en", "hinglish"} and all(set(coach.WEAK[k][lg]) == {"title", "why", "how", "drill", "goal"} and len(coach.WEAK[k][lg]["how"]) == 3 for lg in ("en", "hinglish")) for k in coach.WEAK)
+      and set(coach.HABITS) <= set(coach.WEAK) and set(coach.SEEN["en"]) == set(coach.SEEN["hinglish"]) == set(coach.WEAK))
+fo = coach.pick_focus(wsE, hb)
+check("focus points: at most 3, habits first (they can be checked next time), each with a goal and the baseline to beat", len(fo) == 3 and all(f["tracked"] and f["goal"] and f["baseline"] for f in fo) and fo[0]["key"] == "grammar" and fo[1]["baseline"] == {"count": 2, "of": 3})
+cat_only = {"categories": [{"key": "relevance", "score": 40}, {"key": "structure", "score": 50}, {"key": "specificity", "score": 80}, {"key": "language", "score": 80}, {"key": "delivery", "score": 80}], "coverage": None}
+good_turns = [turn(i, 75, 40, 80, 50, 80, 80) for i in (1, 2, 3)]
+wc = coach.build_weaknesses(good_turns, cat_only, coach.habit_metrics(good_turns), "en")
+check("category weaknesses (relevance / structure) appear when the habits are fine - and are not 'tracked' (the questions differ next time)", {w["key"] for w in wc} == {"relevance", "structure"} and not any(w["tracked"] for w in wc), str([w["key"] for w in wc]))
+check("a strong interview has nothing to fix: no weaknesses, no focus points", coach.build_weaknesses([turn(i, 90, 90, 90, 90, 90, 90) for i in (1, 2, 3)], {"categories": [], "coverage": None}, coach.habit_metrics([turn(i, 90, 90, 90, 90, 90, 90) for i in (1, 2, 3)]), "en") == [])
+cov_rep = {"categories": [], "coverage": {"covered": [], "not_yet": [{"id": "r1", "text": "SQL"}, {"id": "r2", "text": "Power BI"}], "pct": 0}}
+wv = coach.build_weaknesses([turn(i, 90, 90, 90, 90, 90, 90) for i in (1, 2, 3)], cov_rep, coach.habit_metrics([turn(i, 90, 90, 90, 90, 90, 90) for i in (1, 2, 3)]), "en")
+check("job requirements no answer touched are listed by name - as a 'medium' card that never outranks the style habits", wv and wv[0]["key"] == "coverage" and wv[0]["items"] == ["SQL", "Power BI"] and wv[0]["severity"] == "medium")
+
+# the NEXT interview: did it work?
+first = coach.enrich_report(rep, T)
+prev_info = {"session_id": 7, "title": "Data Analyst - Acme", "finished_at": "2026-10-14T10:00:00+00:00", "overall": 55, "real": 3, "habits": first["habits"], "focus": first["focus"]}
+better = [turn(i, 80, 80, 78, 78, 80, 80) for i in (1, 2, 3)]            # numbers, results, tools named, no slips, no fillers
+r2 = coach.enrich_report(rules.build_report(better, requirements=reqs_r, feedback_lang="en"), better, prev_any=prev_info)
+pg = r2["progress"]
+check("progress: every tracked focus point of the previous interview is judged, with the real numbers before and after", pg and [i["key"] for i in pg["items"]] == ["grammar", "no_number", "no_result"] and pg["items"][1]["was"] == "2 of 3 answers" and pg["items"][1]["now"] == "0 of 3 answers", str(pg))
+check("... and all three improved -> the summary says so", pg["improved"] == 3 and all(i["status"] == "improved" and i["note"] for i in pg["items"]) and "All 3" in pg["summary"], str(pg and pg["summary"]))
+same = coach.compare_progress(prev_info, first["habits"], "en")
+check("identical habits -> 'same' (never a made-up improvement)", same and all(i["status"] == "same" for i in same["items"]) and same["improved"] == 0 and "No focus point" in same["summary"], str(same))
+worse_h = dict(first["habits"], no_number={"c": 3, "of": 3}, no_result={"c": 3, "of": 3})
+prev_low = dict(prev_info, focus=[dict(f, baseline={"count": 1, "of": 3}) if f["key"] in ("no_number", "no_result") else f for f in prev_info["focus"]])
+wp = coach.compare_progress(prev_low, worse_h, "en")
+check("a habit that got worse is called worse (1 of 3 -> 3 of 3)", wp and {i["key"]: i["status"] for i in wp["items"]}["no_number"] == "worse")
+tiny = coach.compare_progress(dict(prev_info, focus=[dict(first["focus"][1], baseline={"count": 1, "of": 1})]), first["habits"], "en")
+check("one answer on either side is too little to compare: no verdict", tiny is None)
+check("a previous interview with no saved focus points (an old report) -> no 'since last time' card", coach.compare_progress(dict(prev_info, focus=None), first["habits"], "en") is None and coach.compare_progress(None, first["habits"], "en") is None)
+check("per-100-word habits use a relative band with an absolute floor: 4.0 -> 1.0 improved, 4.0 -> 3.6 same, 4.0 -> 6.0 worse",
+      [coach._status("fillers", {"per100": 4.0}, {"per100": x}) for x in (1.0, 3.6, 6.0)] == ["improved", "same", "worse"])
+fr = coach.compare_progress(prev_info, first["habits"], "hinglish")
+check("Hinglish progress text", fr and fr["items"][0]["note"] in coach.STATUS_NOTE["hinglish"].values() and "mein se" in fr["items"][1]["was"])
+check("enrich_report keeps the v1 report and adds v2 fields; running it twice changes nothing", first["v"] == 2 and first["overall"] == rep["overall"] and first["per_question"] == rep["per_question"]
+      and all(k in first for k in ("habits", "weaknesses", "focus", "progress")) and coach.enrich_report(first, T)["weaknesses"] == first["weaknesses"] and coach.enrich_report(first, T)["focus"] == first["focus"])
+check("a report with no answers still enriches without raising", coach.enrich_report({"categories": [], "coverage": None, "feedback_lang": "en"}, [])["weaknesses"] == [])
+
 print(f"\n{N - len(FAILS)} / {N} checks passed")
 if FAILS:
     print("FAILED:", *FAILS, sep="\n  - ")

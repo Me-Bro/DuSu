@@ -8,7 +8,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../../.." && pwd)"
 OUT="${OUT_DIR:-$HOME/.cache/dusu-ri-shots}"; mkdir -p "$OUT"
 ORIG="$OUT/orig-test_client.html"
-git -C "$REPO" show HEAD:backend/test_client.html > "$ORIG"      # the file as committed: the baseline for "old = old"
+# "old = old" is measured against the last commit BEFORE this feature existed (70455da), not against HEAD (which already contains it). ORIG_REV= overrides.
+git -C "$REPO" show "${ORIG_REV:-70455da}:backend/test_client.html" > "$ORIG"
 MODE="${1:-all}"
 fail=0
 run() {   # name  spec  [env assignments...]
@@ -19,6 +20,7 @@ run() {   # name  spec  [env assignments...]
   printf '%-28s %s\n' "$name" "${line:-NO SUMMARY (exit $rc) - see $log}"
   [ "$rc" -eq 0 ] || fail=1
 }
+run coach                coach.spec.cjs
 run flow-bare-errors    flow.spec.cjs        WRAP=0
 run flow-detail-errors  flow.spec.cjs        WRAP=1
 run edge-bare-errors    edge.spec.cjs        WRAP=0 $( [ "$MODE" = quick ] && echo CASES=upload,job,analysis,start,answers,stt,proxy,mic,feedback,dup,finish,interrupt,links,delete,library,report,limits,recorder,storage,draft,caps,keysgate,older,recover,stuck,paused )

@@ -44,9 +44,10 @@ async function realCtx(browser, who, o = {}) {
       const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
       if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
       env.groqCalls = (env.groqCalls || 0) + 1;
-      const words = FX.ANSWER_GOOD.split(' ').map((w, i) => ({ word: w, start: 0.5 + i * 0.42, end: 0.5 + i * 0.42 + 0.32 }));
+      const said = env.sttText || FX.ANSWER_GOOD;
+      const words = said.split(' ').map((w, i) => ({ word: w, start: 0.5 + i * 0.42, end: 0.5 + i * 0.42 + 0.32 }));
       return route.fulfill({ status: 200, headers: cors, contentType: 'application/json',
-        body: JSON.stringify({ text: FX.ANSWER_GOOD, duration: words[words.length - 1].end + 1, words, segments: [{ start: 0, end: words[words.length - 1].end, avg_logprob: -0.2, no_speech_prob: 0.01 }] }) });
+        body: JSON.stringify({ text: said, duration: words[words.length - 1].end + 1, words, segments: [{ start: 0, end: words[words.length - 1].end, avg_logprob: -0.2, no_speech_prob: 0.01 }] }) });
     }
     if (url.origin !== BASE) return route.abort();                                  // nothing leaves the box
     return route.continue();
@@ -149,7 +150,7 @@ const url = page => page.evaluate(() => location.pathname);
   await page2.click('#riSessions .ri-main'); await H.waitView(page2, 'report');
   await page2.waitForSelector('#riRepHero');
   T.has(await H.txt(page2, '#riBody'), 'Question by question', 'and opens its report');
-  T.ok(await page2.evaluate(() => document.querySelectorAll('.ri-pq .btn').length) === 0, 'no ▶ Listen on the second device (the recordings are on the first phone)');
+  T.ok(await page2.evaluate(() => document.querySelectorAll('.ri-pq-a .btn').length) === 0, 'no ▶ Listen on the second device (the recordings are on the first phone)');
   await page.click('#riPracticeAgain');                                           // device 1 starts another interview for the same job
   await H.waitView(page, 'interview', 25000); await page.waitForSelector('#riQText');
   const q1 = await H.txt(page, '#riQText');
@@ -257,9 +258,56 @@ const url = page => page.evaluate(() => location.pathname);
   const repC = (await api('cat', 'GET', '/sessions/' + sidC)).body;
   T.eq([repC.session.status, repC.report.overall, repC.report.band], ['finished', null, 'unknown'], 'in the database: finished, overall null, band unknown');
 
+  // ------------------------------------------------------------------------------------------- G
+  T.section('G - weaknesses in detail, saved focus points, "did it work?" (a weak interview, then a strong one)');
+  const ctxD = await realCtx(browser, 'dan', { seed: { dusu_office_keys: { groq: 'gsk_e2e', gemini: 'stub-key' }, dusu_keys_ok: '1', dusu_keys_owner: 'dan@example.com', dusu_usemode: 'office' } });
+  const pageD = await H.boot(ctxD, env, '/');
+  await H.toHub(pageD);
+  T.ok(!(await H.vis(pageD, '#riFocusCard')), 'a new learner has no focus card');
+  env.sttText = FX.ANSWER_WEAK;
+  await H.toMatch(pageD, env, { resume: FX.RESUME, jd: FX.JD, jdTitle: 'Data Analyst', jdCompany: 'Acme Corp' });
+  await H.startInterview(pageD);
+  for (let i = 1; i <= 3; i++) {
+    await H.answerOnce(pageD, { wait: 5600 });
+    if (i < 3) { await pageD.click('#riNextQ'); await pageD.waitForFunction(n => new RegExp('Question ' + n).test(document.getElementById('riQ').textContent), i + 1); }
+  }
+  await pageD.click('#riFin'); await H.waitView(pageD, 'report', 20000); await pageD.waitForSelector('#riRepHero');
+  T.ok(await H.vis(pageD, '#riPlan'), 'the report has an improvement plan (the real server computed it from the real answers)');
+  const plan1 = await pageD.evaluate(() => [...document.querySelectorAll('#riPlan li')].map(li => li.textContent));
+  T.ok(plan1.length >= 1 && plan1.length <= 3, 'at most three focus points: ' + plan1.map(x => x.split(' — ')[0]).join(' | '));
+  T.ok((await pageD.evaluate(() => document.querySelectorAll('.ri-wk').length)) >= 2, 'several weaknesses are explained in detail');
+  const wk1 = await H.txt(pageD, '.ri-wk');
+  for (const part of ['What happened', 'Why it matters', 'How to fix it', 'Practise this', 'Goal for next time']) T.has(wk1, part, 'a weakness card explains: ' + part);
+  T.ok(!(await H.vis(pageD, '#riProgress')), 'no "since last time" on the first interview');
+  T.eq(await pageD.evaluate(() => document.querySelectorAll('#riPerQ .ri-pqd').length), 3, 'every answer can be opened');
+  const ans1 = await pageD.evaluate(() => { const d = document.querySelector('#riPerQ .ri-pqd'); d.open = true; return d.textContent; });
+  T.has(ans1, 'What you said', 'an old answer shows what was said ...'); T.has(ans1, 'Mistakes to fix', '... and the mistakes to fix');
+  const stD = (await api('dan', 'GET', '/state')).body;
+  T.ok(stD.focus && stD.focus.points.length >= 1 && stD.focus.points.every(p => p.title && p.goal), 'the hub state carries the focus points');
+  await pageD.click('#riBack'); await H.waitView(pageD, 'hub'); await pageD.waitForSelector('#riFocusCard');
+  T.has(await H.txt(pageD, '#riFocusCard'), 'Your focus for next time', 'the hub shows the focus card');
+  env.sttText = FX.ANSWER_GOOD;                                                   // the second interview is a strong one
+  await pageD.click('#riFocusSee'); await H.waitView(pageD, 'report'); await pageD.waitForSelector('#riPlan');
+  await pageD.click('#riPracticeAgain'); await H.waitView(pageD, 'interview', 25000); await pageD.waitForSelector('#riQText');
+  T.has(await H.txt(pageD, '#riFocusBar'), 'Your focus today', 'the next interview starts with the focus bar');
+  await H.answerOnce(pageD, { wait: 5600 });
+  await pageD.waitForSelector('#riFocusCheck', { state: 'visible', timeout: 10000 });
+  T.ok((await pageD.evaluate(() => document.querySelectorAll('#riFocusCheck li').length)) >= 1, 'every answer is checked against the focus points (tick / cross)');
+  for (let i = 2; i <= 3; i++) {
+    await pageD.click('#riNextQ'); await pageD.waitForFunction(n => new RegExp('Question ' + n).test(document.getElementById('riQ').textContent), i);
+    await H.answerOnce(pageD, { wait: 5600 });
+  }
+  await pageD.click('#riFin'); await H.waitView(pageD, 'report', 20000); await pageD.waitForSelector('#riProgress');
+  const prog = await pageD.evaluate(() => [...document.querySelectorAll('#riProgress .ri-prow')].map(r => r.textContent));
+  T.ok(prog.length >= 1, '"Since your last interview" judges the saved focus points: ' + prog.map(x => x.slice(0, 60)).join(' | '));
+  T.ok(prog.some(x => x.startsWith('Better')), 'strong answers after weak ones: at least one point is "Better"');
+  T.ok(!prog.some(x => x.startsWith('Worse')), 'and none got worse');
+  const repD = (await api('dan', 'GET', '/sessions/' + ((await api('dan', 'GET', '/state')).body.sessions[0] || {}).id)).body;
+  T.ok(repD.report.progress && repD.report.progress.improved >= 1 && repD.report.v === 2, 'the comparison is saved with the interview');
+
   // ------------------------------------------------------------------------------------------- end
   T.section('no console errors, no unhandled rejections (the pages that ran the whole flow)');
-  for (const [name, p] of [['owner device 1', page], ['owner device 2', page2], ['bob', pageB], ['ann', pageA], ['cat', pageC]]) {
+  for (const [name, p] of [['owner device 1', page], ['owner device 2', page2], ['bob', pageB], ['ann', pageA], ['cat', pageC], ['dan', pageD]]) {
     const e = await H.collectErrors(p);
     T.eq([p.__consoleErrors, e.errors, e.rejections], [[], [], []], `${name}: no errors`);
   }

@@ -112,13 +112,36 @@ const HOSTILE = s => `${s} ${IMG} ${SCR} ${BRK}`;
   T.section('report: hostile patterns, fixes, redo, per-question text, coverage');
   await page.click('#riFin'); await H.waitView(page, 'report', 15000); await page.waitForSelector('#riPerQ');
   await audit('report', ['<img src=x onerror=', 'Question by question']);
-  T.has(await H.txt(page, '#riPatterns'), '<script>', 'patterns are shown as text');
-  T.has(await H.txt(page, '#riFixes'), '<img src=x', 'fixes are shown as text');
+  T.has(await H.txt(page, '#riPlan'), '<script>', 'the improvement plan is shown as text');
+  T.has(await H.txt(page, '#riWk-no_number'), '<img src=x', 'the weakness cards are shown as text');
+  await page.evaluate(() => document.querySelectorAll('#ri .ri-wk, #ri .ri-pqd').forEach(d => { d.open = true; }));
+  await audit('report (every weakness and every answer opened)', ['<img src=x onerror=']);
+  T.has(await H.txt(page, '#riWk-grammar'), '<img src=x', 'the learner\'s own slips inside a weakness card are shown as text');
+  T.has(await H.txt(page, '#riWk-coverage'), '<img src=x', 'the job requirements inside a weakness card are shown as text');
+  T.has(await H.txt(page, '#riPQ-1'), '<script>', 'an opened answer (transcript, mistakes, stronger answer) is shown as text');
   T.has(await H.txt(page, '#riRedo'), '<img src=x', 'the answer to redo is shown as text');
   T.has(await H.txt(page, '#riCov'), '<img src=x', 'coverage is shown as text');
 
+  T.section('the next interview: hostile focus bar, per-answer check and "since last time"');
+  await page.click('#riPracticeAgain'); await H.waitView(page, 'interview', 20000); await page.waitForSelector('#riQText');
+  await page.click('#riFocusBar summary');
+  await audit('interview (focus bar)', ['<img src=x onerror=']);
+  await H.answerOnce(page);
+  await page.waitForSelector('#riFocusCheck', { state: 'visible' });
+  await audit('interview (focus check)', ['<img src=x onerror=']);
+  T.has(await H.txt(page, '#riFocusCheck'), '<img src=x', 'the focus check shows the (hostile) focus-point titles as text');
+  for (let i = 0; i < 2; i++) {
+    await page.click('#riNextQ'); await page.waitForFunction(n => new RegExp('Question ' + n).test(document.getElementById('riQ').textContent), i + 2);
+    await page.waitForFunction(() => { const b = document.getElementById('riMic'); return b && !b.disabled; });
+    await H.answerOnce(page);
+  }
+  await page.click('#riFin'); await H.waitView(page, 'report', 15000); await page.waitForSelector('#riProgress');
+  await audit('report (since last time)', ['<img src=x onerror=']);
+  T.has(await H.txt(page, '#riProgress'), '<script>', 'the progress card is shown as text');
+
   T.section('hub + settings with hostile data');
   await page.click('#riBack'); await H.waitView(page, 'hub'); await page.waitForSelector('#riSessions .ri-row');
+  T.has(await H.txt(page, '#riFocusCard'), '<img src=x', 'the hub\'s focus card shows hostile focus titles as text');
   await audit('hub (history, resumes, jobs)', ['<img src=x onerror=']);
   T.section('hub: more than one page of hostile history ("Show older interviews")');
   const mkOld = id => ({ id, title: 'Old interview ' + id, status: 'finished', settings: { type: 'mixed', level: 'fresher', feedback_lang: 'en' }, resume_id: null, jd_id: null, overall: 60,

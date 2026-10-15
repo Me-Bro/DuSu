@@ -2307,6 +2307,21 @@
   .ri-st.met{ color:var(--green); border-color:rgba(79,214,160,.45); background:rgba(79,214,160,.1); }
   .ri-st.partial{ color:var(--amber); border-color:rgba(240,169,82,.45); background:rgba(240,169,82,.1); }
   .ri-st.missing{ color:#f2c4ba; border-color:rgba(224,138,122,.5); background:rgba(224,138,122,.1); }
+  .ri-st.improved{ color:var(--green); border-color:rgba(79,214,160,.45); background:rgba(79,214,160,.1); }
+  .ri-st.same{ color:var(--amber); border-color:rgba(240,169,82,.45); background:rgba(240,169,82,.1); }
+  .ri-st.worse{ color:#f2c4ba; border-color:rgba(224,138,122,.5); background:rgba(224,138,122,.1); }
+  .ri-ol{ margin:0 0 8px; padding-left:22px; display:flex; flex-direction:column; gap:6px; }
+  .ri-ol li{ font-size:13.5px; color:var(--ink-dim); line-height:1.5; overflow-wrap:anywhere; }
+  .ri-wk summary, .ri-pqd summary{ gap:8px 10px; flex-wrap:wrap; padding:8px 0; }
+  .ri-pq .ri-pqd{ border:0; background:none; padding:0; margin:0; }
+  .ri-wk-body, .ri-pq-body{ padding:2px 0 10px; }
+  .ri-wk-body p, .ri-pq-body p{ font-size:13.5px; line-height:1.55; color:var(--ink-dim); margin:0 0 8px; overflow-wrap:anywhere; }
+  .ri-prow{ display:flex; flex-direction:column; gap:4px; padding:10px 0; border-top:1px solid rgba(255,255,255,.07); }
+  .ri-prow:first-of-type{ border-top:0; }
+  .ri-prow-h{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:14px; font-weight:600; overflow-wrap:anywhere; }
+  .ri-fchk li.ok::before{ background:var(--green); }
+  .ri-fchk li.no::before{ background:var(--amber); }
+  .ri-focus .ri-ul b, .ri-fchk .ri-ul b{ color:var(--ink); }
   .ri-req-t{ font-size:14px; line-height:1.45; overflow-wrap:anywhere; }
   .ri-edit{ padding:12px 14px; margin:0 0 10px; border-radius:16px; background:var(--glass); border:1px solid var(--glass-brd); }
   .ri-edit.done{ border-color:rgba(79,214,160,.4); }
@@ -2568,7 +2583,7 @@
     </button>
     <button class="pr-entry" id="riHomeCard" hidden>
       <span class="pr-ic">📄</span>
-      <span><b>Resume Interview</b><small>Upload your resume and a job description — DuSu interviews you for that job.</small></span>
+      <span><b>Job Interview Practice</b><small>Upload your resume and a job description — DuSu interviews you for that job.</small></span>
       <span class="pr-go">→</span>
     </button>
     <div id="letterCard" class="letter-card" hidden></div>
@@ -2866,7 +2881,7 @@
     </button>
     <button class="pr-entry" id="riEntry" hidden>
       <span class="pr-ic">📄</span>
-      <span><b>Resume Interview</b><small>Upload your resume and a job description — DuSu interviews you for that job.</small></span>
+      <span><b>Job Interview Practice</b><small>Upload your resume and a job description — DuSu interviews you for that job.</small></span>
       <span class="pr-go">→</span>
     </button>
     <div class="modes">
@@ -3570,7 +3585,7 @@
   <section id="ri" class="screen" data-view="hub">
     <div class="sess-head ri-top">
       <button class="back ri-back" id="riBack" type="button" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
-      <div class="ri-ttl"><div class="sess-title" id="riTitle" tabindex="-1">Resume Interview</div><div class="sess-sub" id="riSub"></div></div>
+      <div class="ri-ttl"><div class="sess-title" id="riTitle" tabindex="-1">Job Interview Practice</div><div class="sess-sub" id="riSub"></div></div>
       <button class="ri-ic" id="riGear" type="button" aria-label="Settings">⚙️</button>
     </div>
     <ol class="ri-steps" id="riSteps" aria-label="Your progress" hidden></ol>
@@ -3590,7 +3605,7 @@
   <h3>More</h3>
   <button class="mrow" data-more="admin" id="mrowAdmin" hidden><span class="mi">📊</span><span><span class="mt">Dashboard</span><br><span class="msub">Users &amp; activity (owner)</span></span></button>
   <button class="mrow" data-more="myday" id="mrowMyDay" hidden><span class="mi">✅</span><span><span class="mt">My Day</span><br><span class="msub">Tasks, habits, goals &amp; reminders</span></span></button>
-  <button class="mrow" data-more="resume-interview" id="mrowRI" hidden><span class="mi">📄</span><span><span class="mt">Resume Interview</span><br><span class="msub">Your resume + a job → a mock interview</span></span></button>
+  <button class="mrow" data-more="resume-interview" id="mrowRI" hidden><span class="mi">📄</span><span><span class="mt">Job Interview Practice</span><br><span class="msub">Your resume + a job → a mock interview</span></span></button>
   <button class="mrow" data-more="profile"><span class="mi">👤</span><span><span class="mt">Profile</span><br><span class="msub">Streaks, badges, memories</span></span></button>
   <button class="mrow" data-more="keys"><span class="mi">🔑</span><span><span class="mt">DuSu keys / Mode</span><br><span class="msub">Personal or Office (own keys)</span></span></button>
   <button class="mrow" data-more="leveltest" id="mrowLevelTest"><span class="mi">🧪</span><span><span class="mt">Level check</span><br><span class="msub">Re-check your English level</span></span></button>
@@ -4151,7 +4166,7 @@ function show(id, pathOverride){
   try{ syncUrl(id, pathOverride); }catch(_){}   // keep the browser URL mirroring the visible screen (override for shared screens)
   try{ window.PR && PR.syncEntries(); }catch(_){}   // Practice Room entry points (hidden until the owner switches it on)
   try{ window.PL && PL.syncEntries(); }catch(_){}   // My Day entry points (hidden until the owner switches it on)
-  try{ window.RI && RI.syncEntries(); }catch(_){}   // Resume Interview entry points (hidden until the owner switches it on)
+  try{ window.RI && RI.syncEntries(); }catch(_){}   // Job Interview Practice entry points (hidden until the owner switches it on)
   if(cur === "pl" && id !== "pl"){ try{ window.PL && PL.leave(); }catch(_){} }
   if(cur === "ri" && id !== "ri"){ try{ window.RI && RI.leave(); }catch(_){} }   // stop the voice / keep an unfinished recording
 }
@@ -4197,7 +4212,7 @@ function openMore(){
   const b = document.querySelector('.btab[data-tab="more"]'); if(b) b.classList.add("active");
   const ad = $("mrowAdmin"); if(ad) ad.hidden = !(userState && userState.role === "owner");
   try{ window.PL && PL.syncEntries(); }catch(_){}   // My Day row (hidden unless /me says planner)
-  try{ window.RI && RI.syncEntries(); }catch(_){}   // Resume Interview row (hidden unless /me says resume_interview)
+  try{ window.RI && RI.syncEntries(); }catch(_){}   // Job Interview Practice row (hidden unless /me says resume_interview)
   // Level check hidden entirely while the owner has the assessment switched off.
   const lt = $("mrowLevelTest"); if(lt) lt.hidden = !!(userState && userState.level_test === false);
   // Keys row: office-approved users, users who must BYOK, and anyone already holding
@@ -4662,9 +4677,9 @@ async function openAdmin(){
       <select class="pr-sel" id="homeSel"><option value="off" ${d.home_ai === "off" ? "selected" : ""}>Off</option><option value="owner" ${d.home_ai === "on" || d.home_ai === "off" ? "" : "selected"}>Owner + early access</option><option value="on" ${d.home_ai === "on" ? "selected" : ""}>Everyone</option></select></label>
       <label class="swrow"><span><b>My Day (tasks · habits · goals · reminders)</b><br><span class="msub">Stores each learner's plan and sends reminders, so it ships dark. Off = nobody (default). Owner + early access = you and the early-access testers. Everyone = all users. Its Hindi / English switch is the one above.</span></span>
       <select class="pr-sel" id="plSel"><option value="off" ${d.planner === "on" || d.planner === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.planner === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.planner === "on" ? "selected" : ""}>Everyone</option></select></label>
-      <label class="swrow"><span><b>Resume Interview</b><br><span class="msub">A learner uploads a resume and a job description and DuSu interviews them for that job. It stores resume and job text, so it ships dark. Off = nobody (default). Owner + early access = you and the early-access testers. Everyone = all users.</span></span>
+      <label class="swrow"><span><b>Job Interview Practice</b><br><span class="msub">A learner uploads a resume and a job description and DuSu interviews them for that job. It stores resume and job text, so it ships dark. Off = nobody (default). Owner + early access = you and the early-access testers. Everyone = all users.</span></span>
       <select class="pr-sel" id="riSel"><option value="off" ${d.resume_interview === "on" || d.resume_interview === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.resume_interview === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.resume_interview === "on" ? "selected" : ""}>Everyone</option></select></label>
-      ${d.resume_interview_health && typeof d.resume_interview_health.documents === "number" ? `<p class="keys-note" style="margin:-4px 0 8px">Resume Interview: ${d.resume_interview_health.documents} document(s) · ${d.resume_interview_health.sessions} interview(s), ${d.resume_interview_health.finished} finished · answers today ${d.resume_interview_health.answers_today} · feedback failed today ${d.resume_interview_health.feedback_failed_today}</p>` : ""}
+      ${d.resume_interview_health && typeof d.resume_interview_health.documents === "number" ? `<p class="keys-note" style="margin:-4px 0 8px">Job Interview Practice: ${d.resume_interview_health.documents} document(s) · ${d.resume_interview_health.sessions} interview(s), ${d.resume_interview_health.finished} finished · answers today ${d.resume_interview_health.answers_today} · feedback failed today ${d.resume_interview_health.feedback_failed_today}</p>` : ""}
       ${d.planner_health ? `<p class="keys-note" style="margin:-4px 0 8px">Reminders: ${d.planner_health.scheduled} waiting · ${d.planner_health.queue_late} late · ${d.planner_health.sending_stuck} stuck · sent in 24 h ${d.planner_health.sent_24h} (push accepted ${d.planner_health.push_accepted_24h}, failed ${d.planner_health.push_failed_24h}) · ${d.planner_health.push_devices} device(s) · push ${d.planner_health.push_available ? "available" : "UNAVAILABLE (library missing)"}${d.planner_health.last_error ? " · last loop error: " + esc(d.planner_health.last_error) : ""}</p>` : ""}
       <button class="uBtn bad" id="wipeBtn" style="width:100%;margin:2px 0 4px">🗑 Reset test users</button>`;
     // Early access: invited testers see every feature whose switch is "Owner + early access" (main.staged_visible) - visibility only.
@@ -6832,7 +6847,7 @@ async function deleteAccount(){
       body: JSON.stringify({ token: authToken, confirm: "delete" }) });
     if(!r.ok) throw new Error("delete failed");
     try{ if(window.PR) await PR.wipeLocal(); }catch(_){}   // Practice Room recordings/transcripts exist only on this device — clear them too
-    try{ if(window.RI) await RI.wipeLocal(); }catch(_){}   // ...and so do the Resume Interview answer recordings
+    try{ if(window.RI) await RI.wipeLocal(); }catch(_){}   // ...and so do the Job Interview Practice answer recordings
     logout();
   }catch(_){
     if(st){ st.textContent = "Couldn't delete — try again."; st.style.color = "#e08585"; }
@@ -7679,7 +7694,7 @@ function speakWelcome(){
 function logout(){
   authToken = ""; authUser = null; aActive = false; try{ LG.clear(); }catch(_){}   // the language choice belongs to the account, not the device
   try{ window.PL && PL.reset(); }catch(_){}   // My Day: stop polling, drop the cached plan
-  try{ window.RI && RI.reset(); }catch(_){}   // Resume Interview: stop the mic + voice, drop in-memory state (the on-device recordings are NOT wiped here)
+  try{ window.RI && RI.reset(); }catch(_){}   // Job Interview Practice: stop the mic + voice, drop in-memory state (the on-device recordings are NOT wiped here)
   localStorage.removeItem("dusu_token"); localStorage.removeItem("dusu_user"); localStorage.removeItem("dusu_state"); localStorage.removeItem("dusu_letter"); localStorage.removeItem("dusu_daily_resume"); localStorage.removeItem("dusu_keys_ok"); localStorage.removeItem("dusu_office_keys"); localStorage.removeItem("dusu_keys_owner");
   $("hdrRight").hidden = true; $("tagline").style.display = "";
   try{ ws && ws.close(); }catch(_){}
@@ -7760,7 +7775,7 @@ function refreshMe(initial){
       try{ LG.syncFromState(); }catch(_){}   // Hindi/English choice (server-saved, default Hindi) + show/hide the switch
       try{ window.PR && PR.syncEntries(); }catch(_){}   // the owner may have just switched Practice Room on/off
       try{ if(window.PL){ PL.syncEntries(); if(PL.enabled()) PL.start(); } }catch(_){}   // My Day: entry points + the in-app reminder poll
-      try{ window.RI && RI.syncEntries(); }catch(_){}   // Resume Interview: the owner may have just switched it on/off
+      try{ window.RI && RI.syncEntries(); }catch(_){}   // Job Interview Practice: the owner may have just switched it on/off
       localStorage.setItem("dusu_onboarded", st.onboarded ? "true" : "false");
       // cache the whole state so the next boot paints mood/note/Continue instantly (no /me wait)
       try{ localStorage.setItem("dusu_state", JSON.stringify(st)); }catch(_){}
@@ -10039,7 +10054,7 @@ const RI = (function(){
 
   /* ---------- words: English only in v1. Every string the module shows lives here, so a Hindi table can be added later without touching the code ---------- */
   const TXT = { en: {
-    back:"Back", settings:"Settings", off:"Resume Interview isn't available yet.", loading:"Loading…", retry:"Try again", cancel:"Cancel", close:"Close",
+    back:"Back", settings:"Settings", off:"Job Interview Practice isn't available yet.", loading:"Loading…", retry:"Try again", cancel:"Cancel", close:"Close",
     del:"Delete", copy:"Copy", copied:"Copied ✓", copyFail:"Couldn't copy — select the text and copy it by hand.", untitled:"Untitled",
     stResume:"Resume", stJob:"Job", stMatch:"Match", stInterview:"Interview", stReport:"Report",     sHub:"Mock interviews built from your own resume", sResume:"Step 1 · Your resume", sJob:"Step 2 · The job", sMatch:"Step 3 · How you match", sReport:"Report", sSettings:"Settings",
     hubIntro:"Upload your resume and a job description. DuSu shows what doesn't match, then interviews you for that job. You record each answer and get your mistakes and a stronger answer back.",
@@ -10100,12 +10115,21 @@ const RI = (function(){
     sttNone:"One free key needed", sttNoneB:"To turn your voice into text, DuSu needs a free Groq key. Your recording is safe on this phone.", addGroq:"Add my Groq key",
     sttKey:"Your Groq key was rejected", sttKeyB:"Check or replace it in More → DuSu keys. Your recording is safe on this phone.", sttBusy:"The transcription service is busy", sttBusyB:"Your recording is saved on this phone. Try again in a minute.",
     sttDown:"Couldn't turn the recording into text", sttDownB:"Your recording is saved on this phone. Try again in a minute.", sttServer:"DuSu's own transcription isn't working",
-    sttServerB:"Add your own free Groq key (More → DuSu keys) to use Resume Interview. Your recording is safe on this phone.", netT:"No connection", netB:"Your recording and text are saved on this phone. Try again when you're back online.",
+    sttServerB:"Add your own free Groq key (More → DuSu keys) to use Job Interview Practice. Your recording is safe on this phone.", netT:"No connection", netB:"Your recording and text are saved on this phone. Try again when you're back online.",
     keysT:"Add your AI keys first", keysB:"DuSu needs your free AI keys to write the feedback. Your recording and text are saved.", addKeys:"Add my keys", quotaT:"Your AI keys are at their limit",
     quotaB:"Try again in a bit, or add another key in More → DuSu keys. Your recording and text are saved.", dailyT:"That's a lot of practice today!", dailyB:"You've reached today's limit. Come back tomorrow.",
     unavT:"Couldn't write your feedback", unavB:"The AI providers are busy. Your answer is saved — try again in a minute.", micBlocked:"Microphone permission is blocked. Allow it for DuSu in your phone's app settings, then try again.",
     micNone:"No microphone was found on this device.", micNoRec:"This browser can't record audio. Please use Chrome.", micFail:"Couldn't start the microphone. Close other apps that use it and try again.", micT:"The microphone isn't ready",
     rpOverall:"overall", rpCounted:"{r} of {a} answers counted", rpMin:"{m} min of speaking", rpPartial:"Some answers have no written feedback, so they are left out of the numbers.",
+    hubFocusH:"Your focus for next time", hubFocusFrom:"From “{title}”, finished {date}. DuSu will check these in your next interview.", hubFocusSee:"Read the full report",
+    mFocusH:"Work on these today", mFocusSub:"From your last interview. DuSu checks every answer against them.",
+    iFocusH:"Your focus today ({n})", fbFocusH:"Your focus points", fcOk:"done in this answer", fcNo:"not in this answer yet",
+    rpProgH:"Since your last interview", rpProgVs:"Compared with “{title}” ({date}).", rpProgSt_improved:"Better", rpProgSt_same:"Same", rpProgSt_worse:"Worse", rpProgThen:"Then", rpProgNow:"Now",
+    rpPlanH:"Your improvement plan", rpPlanSub:"These points will help you most. Practise them, and DuSu will check them in your next interview.", rpPlanDetail:"Full explanation below",
+    rpWkH:"Your weaknesses, in detail", rpWkSub:"What happened, why it matters, how to fix it and a short drill. Tap one to open it.", rpWkSeen:"What happened", rpWkWhy:"Why it matters", rpWkHow:"How to fix it",
+    rpWkDrill:"Practise this (3 to 5 minutes)", rpWkGoal:"Goal for next time", rpWkEx:"Your own words, fixed", rpWkModel:"Your answer to question {q}, written stronger", rpWkIn:"Happened in", rpWkReq:"Requirements none of your answers showed",
+    rpSev_high:"Work on first", rpSev_medium:"Important", rpSev_low:"Smaller", rpQTap:"Tap a question to read your answer and the full feedback.", rpQNoFb:"No written feedback was saved for this answer.",
+    rpQSaid:"What you said", rpNoWeak:"Nothing stands out as a weak spot in this interview. Keep practising to stay sharp.", rpOpenQ:"Open your answer to question {n}",
     rpNoScore:"There is no overall score: DuSu could not write feedback for these answers (the AI was not reachable). The delivery numbers below are real. Practise again for a full report.",
     rpCatH:"Your five skills", rpNotMeasured:"Not measured", rpCovH:"What the job asked for", rpCovered:"Covered in your answers", rpNot:"Not covered yet", rpPatH:"Patterns across your answers",
     rpStrH:"Strengths", rpFixH:"What to fix first", rpRedoH:"The answer to redo", rpRedoSub:"Your weakest answer. Try it again with the stronger version in mind.", rpQsH:"Question by question",
@@ -10113,9 +10137,9 @@ const RI = (function(){
     rpAgain:"Practice again", rpNewJob:"New job", rpHub:"All interviews", rpXp:"+{n} XP", rpMinutes:"{n} practised", rpStreak:"{n}-day streak", rpRank:"Rank: {r}", rpRankUp:"Rank up!",     rpNote:"Scores are DuSu's estimate from your answers. This is practice, not a prediction of any hiring decision.", rpAgainBusy:"Setting up another round…", rpNoReport:"This report isn't available.",
     sCat_relevance:"Answering the question", sCat_specificity:"Specifics and examples", sCat_structure:"Structure", sCat_language:"Language", sCat_delivery:"Delivery",
     stFbH:"Explain my mistakes in", stFbSub:"Used for the next interview you set up.", stLocalH:"Recordings on this phone", stLocalN:"{n} recordings · about {mb} MB", stLocalNone:"No recordings on this phone.",
-    stLocalDel:"Delete recordings from this phone", stLocalAsk:"Delete all Resume Interview recordings from this phone? The feedback and reports stay.", stDataH:"Your data", stExport:"Download my data",
-    stDelAll:"Delete all my Resume Interview data", stDelAsk:"This permanently deletes your saved resumes, job descriptions, interviews, answers and reports. Recordings on this phone are deleted too. Continue?",
-    stDeleted:"All your Resume Interview data was deleted.", stExported:"Your data was downloaded.", stLocalDone:"Recordings deleted from this phone.",
+    stLocalDel:"Delete recordings from this phone", stLocalAsk:"Delete all Job Interview Practice recordings from this phone? The feedback and reports stay.", stDataH:"Your data", stExport:"Download my data",
+    stDelAll:"Delete all my Job Interview Practice data", stDelAsk:"This permanently deletes your saved resumes, job descriptions, interviews, answers and reports. Recordings on this phone are deleted too. Continue?",
+    stDeleted:"All your Job Interview Practice data was deleted.", stExported:"Your data was downloaded.", stLocalDone:"Recordings deleted from this phone.",
     eGeneric:"Something went wrong. Please try again.", eBadFile:"We couldn't read that file. Try another one, or paste the text instead.", eExtract:"We can't read files right now. Paste the text instead, or try again in a bit.", eBlocked:"Your access is paused right now. Please contact the DuSu team.", eNet:"No connection. Check your internet and try again.", eSlow:"That took too long. Please try again.", eKeys:"Add your own AI keys to continue (More → DuSu keys).",
     eTooLarge:"That file is larger than 5 MB. Try a smaller file or paste the text.", eDoc:"That's an old Word (.doc) file. Open it and save it as .docx or PDF, then upload again — or paste the text.",
     eType:"That file type isn't supported. Use a PDF, a Word (.docx) file or plain text — or paste the text.", eEmpty:"There is no text there yet.",
@@ -10127,7 +10151,7 @@ const RI = (function(){
     eFeedback:"DuSu couldn't write the feedback right now.", eStt:"Couldn't turn the recording into text. Your recording is safe on this phone. Try again.", eNoGroq:"Add a free Groq key to turn your voice into text (More → DuSu keys).",
     eNeedMore:"Finish unlocks after {n} more real answers.", eAnswered:"That question was already answered.", eCap:"You've reached the most answers allowed in one interview. Finish to see your report.",
     eWrongState:"This interview has moved on. Refreshing it.", eFinished:"This interview is already finished.", eLimDocs:"You have too many saved documents. Delete one you don't need first.",
-    eLimSess:"You have too many saved interviews. Delete one you don't need first.", eNotFound:"That wasn't found. It may have been deleted.", eOffServer:"Resume Interview isn't available right now."
+    eLimSess:"You have too many saved interviews. Delete one you don't need first.", eNotFound:"That wasn't found. It may have been deleted.", eOffServer:"Job Interview Practice isn't available right now."
   } };
   function t(k, v){
     let s = TXT.en[k]; if(s === undefined) return k;
@@ -10402,7 +10426,7 @@ const RI = (function(){
           if(S.sid) await loadSession(S.sid);
         }catch(e){
           if(ep !== S.epoch || (e && e.auth)) return;
-          if(e && e.status === 404 && e.code && e.code !== "Not found"){ offNow(); return; }                 // "Resume Interview is not available yet": the owner switched it off
+          if(e && e.status === 404 && e.code && e.code !== "Not found"){ offNow(); return; }                 // "Job Interview Practice is not available yet": the owner switched it off
           if(e && e.status === 404){ S.sid = null; S.sess = null; }                                            // that interview is gone (deleted on another phone): back to the hub
           else { setView("hub", true); paintView(); note("err", eText(e)); focusTitle(); return; }
         }
@@ -10484,6 +10508,7 @@ const RI = (function(){
     if(act) kids.push(h("div", { class:"ri-card ri-cont" }, h("div", { class:"ri-lab" }, t("hubContinue")), h("div", { class:"ri-h" }, act.title || t("untitled")),
       h("div", { class:"ri-small" }, statusText(act) + " · " + sessLine(act)), h("div", { class:"ri-acts-row" }, btn(t("hubContinueBtn"), "primary", () => continueSession(act), { attrs:{ id:"riContinue" } }))));
     kids.push(h("div", { class:"ri-cta" }, btn(t("hubNew"), act ? "ghost" : "primary", () => startNew(), { icon:"file", attrs:{ id:"riNew" } })));
+    if(st.focus && (st.focus.points || []).length) kids.push(focusCard(st.focus, true, "hubFocusH"));
     if(td && td.sessions_cap) kids.push(h("p", { class:"ri-small ri-center" }, t("hubToday", { s:td.sessions, sc:td.sessions_cap, a:td.answers, ac:td.answers_cap })));
     const ss = st.sessions || [], rs = st.resumes || [], js = st.jds || [];
     const more = st.olderMore !== undefined ? st.olderMore : (typeof st.has_more === "boolean" ? st.has_more : ss.length >= 30);   // the server says whether an older page exists; without it, exactly 30 may mean "there are more"
@@ -10929,6 +10954,8 @@ const RI = (function(){
       h("p", { class:"ri-small" }, t("mScoreCap"))));
     if(a.low_match) kids.push(h("div", { class:"ri-note info ri-inline", id:"riLow" }, h("div", { class:"ri-note-t" }, t("mLow"))));
     if(a.prev) kids.push(prevCard(a));
+    const fp = s.focus_prev !== undefined ? s.focus_prev : (S.state && S.state.focus);                 // the previous interview's improvement points: read them before you start
+    if(!started && fp && (fp.points || []).length) kids.push(focusCard(fp, false, "mFocusH"));
     kids.push(reqsSection(a), editsSection(a, started));
     if((a.strengths || []).length) kids.push(section(t("mStrH"), h("ul", { class:"ri-ul ri-good" }, a.strengths.map(x => h("li", null, String(x))))));
     if((a.notes || []).length) kids.push(section(t("mNotesH"), a.notes.map(n => h("div", { class:"ri-card" }, h("b", null, String(n.issue || "")), n.fix ? h("p", { class:"ri-small" }, t("mFix") + " " + n.fix) : null))));
@@ -11467,6 +11494,8 @@ const RI = (function(){
     const f = turn.feedback, b = f.bands || {}, kids = [];
     kids.push(h("div", { class:"ri-bands", id:"riBands" }, b.content ? bandChip(b.content, t("fbBandC")) : null, b.language ? bandChip(b.language, t("fbBandL")) : null, b.delivery ? bandChip(b.delivery, t("fbBandD")) : null));
     if(turn.real === false) kids.push(h("p", { class:"ri-warn" }, t("iNotCounted", { n:finishMin() })));
+    const fc = focusCheck(turn);
+    if(fc) kids.push(fc);
     kids.push(transcriptBlock(turn));
     if((f.worked || []).length) kids.push(fsec("✓ " + t("fbWorked"), h("ul", { class:"ri-ul ri-good" }, f.worked.map(x => h("li", null, String(x))))));
     if((f.mistakes || []).length) kids.push(fsec("✗ " + t("fbMistakes"), mistakeRows(turn, f)));
@@ -11604,10 +11633,10 @@ const RI = (function(){
     }
     put(b,
       h("div", { class:"ri-qhead" }, h("span", { class:"ri-cnt", id:"riCnt" }), h("button", { type:"button", class:"btn ri-btn ghost ri-fin", id:"riFin", onclick:finishInterview }, h("span", null, ""))),
-      h("div", { class:"ri-card ri-q", id:"riQ" }), h("div", { id:"riStage" }), h("div", { id:"riFb" }));
+      h("div", { id:"riFocusBar" }), h("div", { class:"ri-card ri-q", id:"riQ" }), h("div", { id:"riStage" }), h("div", { id:"riFb" }));
     await loadTakes();
     if(S.view !== "interview" || S.sid !== sid || S.epoch !== ep) return;
-    paintQuestion(); paintFeedback(); paintBar(); paintStage(); paintFinish();
+    paintFocusBar(); paintQuestion(); paintFeedback(); paintBar(); paintStage(); paintFinish();
     maybeSpeak(curTurn());
   }
   /* ---------- Step 5: the report (computed on the server from the real answers: overall, five skills, coverage, patterns, what to fix, the answer to redo) ---------- */
@@ -11636,10 +11665,102 @@ const RI = (function(){
     put(slot, btn(t("rpListen"), "ghost sm", () => { put(slot, audioEl(tk.blob)); try{ slot.querySelector("audio").play().catch(() => {}); }catch(_){} }, { icon:"play" }));
     return slot;
   }
+  // ---- the coaching sections of a report (v2): since last time, the improvement plan, every weakness explained ----
+  function progressCard(pg){
+    const v = pg.vs || {};
+    return h("div", { class:"ri-card ri-prog", id:"riProgress" }, h("h3", { class:"ri-h" }, t("rpProgH")), h("p", { class:"ri-small" }, t("rpProgVs", { title:v.title || t("untitled"), date:shortDate(v.finished_at) })),
+      pg.summary ? h("p", { class:"ri-p ri-prog-sum" }, String(pg.summary)) : null,
+      (pg.items || []).map(i => h("div", { class:"ri-prow" }, h("div", { class:"ri-prow-h" }, h("span", { class:"ri-st " + (i.status || "same") }, t("rpProgSt_" + (i.status || "same"))), h("span", null, String(i.title || ""))),
+        h("p", { class:"ri-small" }, t("rpProgThen") + ": " + String(i.was || "") + "  →  " + t("rpProgNow") + ": " + String(i.now || "") + (i.note ? " · " + i.note : "")))));
+  }
+  function planCard(points){
+    return h("div", { class:"ri-card ri-focus", id:"riPlan" }, h("h3", { class:"ri-h" }, t("rpPlanH")), h("p", { class:"ri-small" }, t("rpPlanSub")),
+      h("ol", { class:"ri-ol" }, points.map(f => h("li", null, h("b", null, String(f.title || "")), f.goal ? " — " + f.goal : ""))), h("p", { class:"ri-small" }, t("rpPlanDetail") + " ↓"));
+  }
+  function openQ(idx){            // "Happened in: Q2" -> open that question's details and scroll to it
+    const el = document.getElementById("riPQ-" + idx); if(!el) return;
+    el.open = true; try{ el.scrollIntoView({ block:"start", behavior:"smooth" }); }catch(_){}
+  }
+  function weaknessCard(w, openIt){
+    const sev = ({ high:"rose", medium:"amber", low:"" })[w.severity] || "";
+    const kids = [h("div", { class:"ri-lab" }, t("rpWkSeen")), h("p", null, h("b", null, String(w.seen || "")))];
+    kids.push(h("div", { class:"ri-lab" }, t("rpWkWhy")), h("p", null, String(w.why || "")));
+    if((w.items || []).length) kids.push(h("div", { class:"ri-lab" }, t("rpWkReq")), h("ul", { class:"ri-ul ri-warnl" }, w.items.map(x => h("li", null, String(x)))));
+    if((w.examples || []).length) kids.push(h("div", { class:"ri-lab" }, t("rpWkEx")), w.examples.map(e => h("div", { class:"ri-fix" },
+      h("div", null, h("span", { class:"ri-dl" }, t("fbSaid") + ": "), h("span", { class:"ri-said" }, "“" + e.said + "”")), h("div", null, h("span", { class:"ri-dl" }, t("fbBetter") + ": "), h("span", { class:"ri-better" }, "“" + e.better + "”")))));
+    kids.push(h("div", { class:"ri-lab" }, t("rpWkHow")), h("ol", { class:"ri-ol" }, (w.how || []).map(x => h("li", null, String(x)))));
+    kids.push(h("div", { class:"ri-lab" }, t("rpWkDrill")), h("p", null, String(w.drill || "")));
+    if(w.model && w.model.text) kids.push(h("div", { class:"ri-lab" }, t("rpWkModel", { q:w.model.q })), h("p", { class:"ri-better-ans" }, String(w.model.text)),
+      btn(t("fbHear"), "ghost sm", () => sayLine(w.model.text), { icon:"speaker" }));
+    kids.push(h("div", { class:"ri-lab ri-gap" }, t("rpWkGoal")), h("p", null, String(w.goal || "")));
+    if((w.answers || []).length) kids.push(h("div", { class:"ri-lab" }, t("rpWkIn")), h("div", { class:"ri-chips" }, w.answers.map(i => h("button", { type:"button", class:"ri-chip", "aria-label":t("rpOpenQ", { n:i }), onclick:() => openQ(i) }, "Q" + i))));
+    return h("details", { class:"ri-det ri-wk", id:"riWk-" + String(w.key).replace(/[^\w-]/g, ""), open:!!openIt },
+      h("summary", null, h("span", { class:"ri-tag " + sev }, t("rpSev_" + (w.severity || "low"))), h("span", null, String(w.title || ""))), h("div", { class:"ri-wk-body" }, kids));
+  }
+  // everything DuSu knows about one answer, read-only (the interview screen shows the same while it is open)
+  function turnDetail(turn){
+    const f = turn.feedback || {}, b = f.bands || {}, kids = [];
+    kids.push(h("div", { class:"ri-lab" }, t("rpQSaid")), h("blockquote", { class:"ri-quote" }, String(turn.answer || "")));
+    if(b.content || b.language || b.delivery) kids.push(h("div", { class:"ri-bands" }, b.content ? bandChip(b.content, t("fbBandC")) : null, b.language ? bandChip(b.language, t("fbBandL")) : null, b.delivery ? bandChip(b.delivery, t("fbBandD")) : null));
+    if(!f.bands) kids.push(h("p", { class:"ri-small" }, t("rpQNoFb")));
+    if((f.worked || []).length) kids.push(fsec("✓ " + t("fbWorked"), h("ul", { class:"ri-ul ri-good" }, f.worked.map(x => h("li", null, String(x))))));
+    if((f.mistakes || []).length) kids.push(fsec("✗ " + t("fbMistakes"), (f.mistakes || []).map(m => h("div", { class:"ri-fix" },
+      h("div", null, h("span", { class:"ri-dl" }, t("fbSaid") + ": "), h("span", { class:"ri-said" }, "“" + m.said + "”")), h("div", null, h("span", { class:"ri-dl" }, t("fbBetter") + ": "), h("span", { class:"ri-better" }, "“" + m.better + "”")),
+      m.why ? h("div", { class:"ri-small" }, m.why) : null))));
+    if((f.content_notes || []).length) kids.push(fsec(t("fbContent"), h("ul", { class:"ri-ul" }, f.content_notes.map(x => h("li", null, String(x))))));
+    if((f.improvements || []).length) kids.push(fsec(t("fbFix"), h("ul", { class:"ri-ul ri-warnl" }, f.improvements.map(x => h("li", null, h("b", null, String(x.issue || "")), x.how ? " — " + x.how : "")))));
+    if(f.better_answer) kids.push(fsec(t("fbBetterAns"), h("p", { class:"ri-better-ans" }, String(f.better_answer)), btn(t("fbHear"), "ghost sm", () => sayLine(f.better_answer), { icon:"speaker" })));
+    kids.push(deliveryBlock(f.delivery));
+    return kids;
+  }
   function perQRow(q, n){
     const tk = S.takes.find(x => x.tid === q.turn_id && x.blob);
-    return h("div", { class:"ri-pq" }, h("div", { class:"ri-pq-h" }, h("span", { class:"ri-pq-n" }, "Q" + n), q.band ? bandChip(q.band) : null),
-      h("p", { class:"ri-pq-q" }, q.question || ""), q.short ? h("p", { class:"ri-small" }, q.short) : null, tk ? listenBtn(tk) : null);
+    const turn = turns().find(x => x.id === q.turn_id);
+    const head = [h("span", { class:"ri-pq-n" }, "Q" + n), q.band ? bandChip(q.band) : null];
+    const listen = tk ? listenBtn(tk) : null;
+    if(!turn || turn.status !== "answered" || !turn.answer)       // skipped / not counted: nothing more to read
+      return h("div", { class:"ri-pq" }, h("div", { class:"ri-pq-h" }, head), h("p", { class:"ri-pq-q" }, q.question || ""), q.short ? h("p", { class:"ri-small" }, q.short) : null, listen);
+    return h("div", { class:"ri-pq" },
+      h("details", { class:"ri-det ri-pqd", id:"riPQ-" + (q.idx != null ? q.idx : n) }, h("summary", null, head, h("span", { class:"ri-pq-q" }, q.question || "")),
+        h("div", { class:"ri-pq-body" }, q.short ? h("p", { class:"ri-small" }, q.short) : null, turnDetail(turn))), listen);
+  }
+  // the focus points the learner was given after the previous interview: a reminder card, and a ✓ / ✗ for each one on every answer
+  function focusCard(f, withSee, headKey){
+    return h("div", { class:"ri-card ri-focus", id:"riFocusCard" }, h("div", { class:"ri-lab" }, t(headKey)),
+      h("p", { class:"ri-small" }, headKey === "hubFocusH" ? t("hubFocusFrom", { title:f.title || t("untitled"), date:shortDate(f.finished_at) }) : t("mFocusSub")),
+      h("ul", { class:"ri-ul ri-warnl" }, (f.points || []).map(p => h("li", null, h("b", null, String(p.title || "")), p.goal ? " — " + p.goal : ""))),
+      withSee ? h("div", { class:"ri-acts-row" }, btn(t("hubFocusSee"), "ghost", () => continueSession({ id:f.session_id, status:"finished" }), { attrs:{ id:"riFocusSee" } })) : null);
+  }
+  const fillerCount = f => ((f && f.delivery && f.delivery.fillers) || []).reduce((a, x) => a + (+x.n || 0), 0);
+  // can this answer tell whether the point was applied? -> true / false / null (cannot judge: the point is about the whole interview, or was not measured)
+  function applied(key, turn){
+    const f = turn.feedback || {}, ev = f.evidence || {}, dl = f.delivery || {};
+    switch(key){
+      case "no_number": return "has_number" in ev ? !!ev.has_number : null;
+      case "no_result": return "has_result" in ev ? !!ev.has_result : null;
+      case "named_item": return "named_item" in ev ? !!ev.named_item : null;
+      case "short": return turn.answer_words ? turn.answer_words >= 40 : null;
+      case "fillers": return dl.fillers ? fillerCount(f) * 50 <= (dl.words || turn.answer_words || 1) : null;
+      case "pace": return dl.wpm ? dl.wpm >= 95 && dl.wpm <= 165 : null;
+      case "pauses": return dl.measured ? (dl.pauses || 0) < 4 : null;
+      case "grammar": return f.bands ? !(f.mistakes || []).some(m => m.type !== "other") : null;
+      default: return null;
+    }
+  }
+  function focusCheck(turn){
+    const fp = S.sess && S.sess.focus_prev; if(!fp || !(fp.points || []).length) return null;
+    const rows = [];
+    for(const p of fp.points){
+      const ok = applied(p.key, turn); if(ok === null) continue;
+      rows.push(h("li", { class:ok ? "ok" : "no" }, h("b", null, (ok ? "✓ " : "✗ ") + String(p.title || "")), " — " + t(ok ? "fcOk" : "fcNo")));
+    }
+    return rows.length ? h("div", { class:"ri-fsec ri-fchk", id:"riFocusCheck" }, h("h4", { class:"ri-fh" }, t("fbFocusH")), h("ul", { class:"ri-ul" }, rows)) : null;
+  }
+  function paintFocusBar(){
+    const box = $("riFocusBar"), fp = S.sess && S.sess.focus_prev; if(!box) return;
+    if(!fp || !(fp.points || []).length){ put(box); return; }
+    put(box, h("details", { class:"ri-det ri-focusbar" }, h("summary", null, t("iFocusH", { n:fp.points.length })),
+      h("ul", { class:"ri-ul ri-warnl" }, fp.points.map(p => h("li", null, h("b", null, String(p.title || "")), p.goal ? " — " + p.goal : "")))));
   }
   async function paintReport(){
     const b = $b(), s = S.sess, r = s && s.report, sid = S.sid, ep = S.epoch;
@@ -11652,22 +11773,27 @@ const RI = (function(){
     if(pr) kids.push(progressStrip(pr));
     if(r.overall == null) kids.push(h("p", { class:"ri-warn", id:"riNoScore" }, t("rpNoScore")));      // no judged answer at all (the AI was down): no made-up 0
     else if(r.partial) kids.push(h("p", { class:"ri-warn", id:"riPartial" }, t("rpPartial")));
+    const wk = r.weaknesses || [], v2 = r.v >= 2;                                                       // v2 reports carry the coaching fields; older ones are upgraded by the server on read
+    if(r.progress && (r.progress.items || []).length) kids.push(progressCard(r.progress));
+    if((r.focus || []).length) kids.push(planCard(r.focus));
+    else if(v2 && r.overall != null) kids.push(h("div", { class:"ri-card", id:"riNoWeak" }, h("p", { class:"ri-p" }, t("rpNoWeak"))));
     if(r.delta) kids.push(h("div", { class:"ri-card", id:"riDelta" }, h("h3", { class:"ri-h" }, t("rpDeltaH")), h("ul", { class:"ri-ul" }, deltaLine(t("rpDeltaLang"), r.delta.language), deltaLine(t("rpDeltaDeliv"), r.delta.delivery))));
     kids.push(h("div", { class:"ri-card" }, h("h3", { class:"ri-h" }, t("rpCatH")), h("div", { class:"ri-cats", id:"riCats" }, (r.categories || []).map(catRow))));
     if((cov.covered || []).length || (cov.not_yet || []).length)
       kids.push(h("div", { class:"ri-card", id:"riCov" }, h("h3", { class:"ri-h" }, t("rpCovH") + (cov.pct != null ? " · " + cov.pct + "%" : "")),
         (cov.covered || []).length ? h("div", { class:"ri-lab" }, t("rpCovered")) : null, h("ul", { class:"ri-ul ri-good" }, (cov.covered || []).map(x => h("li", null, String(x.text || "")))),
         (cov.not_yet || []).length ? h("div", { class:"ri-lab ri-gap" }, t("rpNot")) : null, h("ul", { class:"ri-ul ri-warnl" }, (cov.not_yet || []).map(x => h("li", null, String(x.text || ""))))));
-    if((r.patterns || []).length) kids.push(h("div", { class:"ri-card", id:"riPatterns" }, h("h3", { class:"ri-h" }, t("rpPatH")), h("ul", { class:"ri-ul ri-warnl" }, r.patterns.map(p => h("li", null, String(p.text || ""))))));
+    if(!v2 && (r.patterns || []).length) kids.push(h("div", { class:"ri-card", id:"riPatterns" }, h("h3", { class:"ri-h" }, t("rpPatH")), h("ul", { class:"ri-ul ri-warnl" }, r.patterns.map(p => h("li", null, String(p.text || ""))))));
     const pair = [];
     if((r.strengths || []).length) pair.push(h("div", { class:"ri-card" }, h("h3", { class:"ri-h" }, "✓ " + t("rpStrH")), h("ul", { class:"ri-ul ri-good" }, r.strengths.map(x => h("li", null, String(x))))));
-    if(fixes.length) pair.push(h("div", { class:"ri-card", id:"riFixes" }, h("h3", { class:"ri-h" }, "✗ " + t("rpFixH")), fixes.map(f => h("div", { class:"ri-fixc" }, h("b", null, String(f.title || "")), f.tip ? h("p", { class:"ri-small" }, f.tip) : null,
+    if(!v2 && fixes.length) pair.push(h("div", { class:"ri-card", id:"riFixes" }, h("h3", { class:"ri-h" }, "✗ " + t("rpFixH")), fixes.map(f => h("div", { class:"ri-fixc" }, h("b", null, String(f.title || "")), f.tip ? h("p", { class:"ri-small" }, f.tip) : null,
       (f.examples || []).map(e => h("div", { class:"ri-fix" }, h("div", null, h("span", { class:"ri-dl" }, t("fbSaid") + ": "), h("span", { class:"ri-said" }, "“" + e.said + "”")), h("div", null, h("span", { class:"ri-dl" }, t("fbBetter") + ": "), h("span", { class:"ri-better" }, "“" + e.better + "”"))))))));
     if(pair.length) kids.push(h("div", { class:"ri-grid" }, pair));
+    if(wk.length) kids.push(section(t("rpWkH"), h("p", { class:"ri-small" }, t("rpWkSub")), wk.map((w, i) => weaknessCard(w, i === 0))));
     if(r.redo) kids.push(h("div", { class:"ri-card", id:"riRedo" }, h("h3", { class:"ri-h" }, t("rpRedoH")), h("p", { class:"ri-small" }, t("rpRedoSub")), h("p", { class:"ri-qt ri-qt-s" }, r.redo.question || ""),
       (r.redo.mistakes || []).map(m => h("div", { class:"ri-fix" }, h("div", null, h("span", { class:"ri-dl" }, t("fbSaid") + ": "), h("span", { class:"ri-said" }, "“" + m.said + "”")), h("div", null, h("span", { class:"ri-dl" }, t("fbBetter") + ": "), h("span", { class:"ri-better" }, "“" + m.better + "”")))),
       r.redo.better_answer ? [h("div", { class:"ri-lab ri-gap" }, t("fbBetterAns")), h("p", { class:"ri-better-ans" }, r.redo.better_answer), btn(t("fbHear"), "ghost sm", () => sayLine(r.redo.better_answer), { icon:"speaker" })] : null));
-    if((r.per_question || []).length) kids.push(section(t("rpQsH"), h("div", { id:"riPerQ" }, r.per_question.map((q, i) => perQRow(q, i + 1)))));
+    if((r.per_question || []).length) kids.push(section(t("rpQsH"), h("p", { class:"ri-small" }, t("rpQTap")), h("div", { id:"riPerQ" }, r.per_question.map((q, i) => perQRow(q, i + 1)))));
     kids.push(h("p", { class:"ri-small ri-center" }, t("rpNote")));
     put(b, kids);
     bar(btn(t("rpAgain"), "primary", practiceAgain, { cls:"ri-w2", attrs:{ id:"riPracticeAgain" } }), btn(t("rpNewJob"), "ghost", newJob, { cls:"ri-w1", attrs:{ id:"riNewJob" } }));

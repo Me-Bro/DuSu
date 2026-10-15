@@ -80,7 +80,7 @@ const fs = require('fs');
     const w = await world(); const { page } = w;
     await page.waitForSelector('#home.on');
     await page.waitForFunction(() => !document.getElementById('riHomeCard').hidden);
-    T.has(await H.txt(page, '#riHomeCard'), 'Resume Interview', 'Home card');
+    T.has(await H.txt(page, '#riHomeCard'), 'Job Interview Practice', 'Home card');
     await page.click('#riHomeCard'); await H.waitView(page, 'hub'); T.ok(true, 'Home card -> hub');
     await page.evaluate(() => show('practice'));
     await page.waitForFunction(() => !document.getElementById('riEntry').hidden);
@@ -129,8 +129,8 @@ const fs = require('fs');
     await page.evaluate(() => openAdmin()); await page.waitForSelector('#riSel');
     T.eq(await page.evaluate(() => [...document.getElementById('riSel').options].map(o => o.value + ':' + o.textContent)), ['off:Off', 'owner:Owner + early access', 'on:Everyone'], 'Off / Owner + early access / Everyone');
     T.eq(await page.evaluate(() => document.getElementById('riSel').value), 'owner', 'it shows the server value');
-    T.has(await page.evaluate(() => document.getElementById('riSel').closest('label').textContent), 'Resume Interview', 'labelled');
-    T.has(await H.txt(page, '#adminBody'), 'Resume Interview: 7 document(s) · 4 interview(s), 2 finished · answers today 9 · feedback failed today 1', 'the health line (counts only, never text) sits under the switches');
+    T.has(await page.evaluate(() => document.getElementById('riSel').closest('label').textContent), 'Job Interview Practice', 'labelled');
+    T.has(await H.txt(page, '#adminBody'), 'Job Interview Practice: 7 document(s) · 4 interview(s), 2 finished · answers today 9 · feedback failed today 1', 'the health line (counts only, never text) sits under the switches');
     await page.selectOption('#riSel', 'on'); await page.waitForTimeout(300);
     T.eq(posted.length, 1, 'one POST to /admin/settings');
     T.eq(posted[0].resume_interview, 'on', 'with resume_interview: "on"');
@@ -161,7 +161,8 @@ const fs = require('fs');
     const keys = await (async () => { const w = await world(); const k = await w.page.evaluate(() => Object.keys(RI._txt.en)); await w.close(); return k; })();
     T.ok(keys.length > 150, 'RI._txt exposes the string table (' + keys.length + ' strings)');
     const quoted = new Set([...rest.matchAll(/"([A-Za-z][A-Za-z0-9_]*)"/g)].map(m => m[1]));
-    const dyn = new Set(['sCat_relevance', 'sCat_specificity', 'sCat_structure', 'sCat_language', 'sCat_delivery']);   // looked up as "sCat_" + c.key
+    const dyn = new Set(['sCat_relevance', 'sCat_specificity', 'sCat_structure', 'sCat_language', 'sCat_delivery',
+      'rpProgSt_improved', 'rpProgSt_same', 'rpProgSt_worse', 'rpSev_high', 'rpSev_medium', 'rpSev_low']);   // looked up as "sCat_" + c.key, "rpProgSt_" + status, "rpSev_" + severity
     T.eq(keys.filter(k => !quoted.has(k) && !dyn.has(k)), [], 'no unused strings in TXT');
     // every t("literal") in the code is a real key
     const calls = new Set([...rest.matchAll(/\bt\(\s*"([A-Za-z][A-Za-z0-9_]*)"\s*[,)]/g)].map(m => m[1]));
@@ -177,8 +178,8 @@ const fs = require('fs');
     const mqs = [...css.matchAll(/@media\s*\(([^)]*)\)/g)].map(m => m[1]);
     T.eq(mqs, ['prefers-reduced-motion: reduce', 'min-width:1200px'], 'only a reduced-motion query and the >= 1200px desktop block');
     const svh = fs.readFileSync(H.HTML_SRC.replace('test_client.html', 'sw.js'), 'utf8');
-    T.has(svh, 'const CACHE = "dusu-v27"', 'sw.js: cache bumped to dusu-v27');
-    T.has(svh.split('\n').find(l => l.includes('const CACHE')), 'Resume Interview', 'with a note in the version comment');
+    T.has(svh, 'const CACHE = "dusu-v28"', 'sw.js: cache bumped to dusu-v28');
+    T.has(svh.split('\n').find(l => l.includes('const CACHE')), 'Job Interview Practice', 'with a note in the version comment');
   }
 
   /* ------------------------------------------------------------------------------------ 6 accessibility */

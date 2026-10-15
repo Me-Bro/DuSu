@@ -99,9 +99,10 @@ async def main():
     eve = {"sub": "u-eve", "email": "eve@example.com", "name": "Eve", "picture": ""}
     fay = {"sub": "u-fay", "email": "fay@example.com", "name": "Fay", "picture": ""}
     gus = {"sub": "u-gus", "email": "gus@example.com", "name": "Gus", "picture": ""}
-    for u in (owner, ann, bob, cat, dan, eve, fay, gus):
+    hal = {"sub": "u-hal", "email": "hal@example.com", "name": "Hal", "picture": ""}
+    for u in (owner, ann, bob, cat, dan, eve, fay, gus, hal):
         await db.login(u)
-    T = {k: auth.make_session(u) for k, u in (("owner", owner), ("ann", ann), ("bob", bob), ("cat", cat), ("dan", dan), ("eve", eve), ("fay", fay), ("gus", gus))}
+    T = {k: auth.make_session(u) for k, u in (("owner", owner), ("ann", ann), ("bob", bob), ("cat", cat), ("dan", dan), ("eve", eve), ("fay", fay), ("gus", gus), ("hal", hal))}
     tr = httpx.ASGITransport(app=M.app)
     async with httpx.AsyncClient(transport=tr, base_url="http://t", timeout=60) as c:
         def H(who, **extra):
@@ -514,10 +515,10 @@ async def main():
             await POST(who, f"/sessions/{s_}/analyze", KEYS)
             return rid, jid, s_, (await POST(who, f"/sessions/{s_}/start", KEYS)).json()["turn"]
 
-        async def answer_n(who, sid_, turn, n=3):
+        async def answer_n(who, sid_, turn, n=3, text=ANSWER_GOOD):
             codes_, t_ = [], turn
             for i in range(n):
-                r_ = await POST(who, f"/sessions/{sid_}/turns/{t_['id']}/answer", answer_body(ANSWER_GOOD, key=f"{who}-{sid_}-{i}"))
+                r_ = await POST(who, f"/sessions/{sid_}/turns/{t_['id']}/answer", answer_body(text, key=f"{who}-{sid_}-{i}"))
                 codes_.append(r_.status_code)
                 if i < n - 1:
                     t_ = (await POST(who, f"/sessions/{sid_}/next")).json()["turn"]
@@ -703,6 +704,53 @@ async def main():
             convs_after = (await s_.execute(select(func.count()).select_from(db.Conversation).where(db.Conversation.user_id == "u-eve", db.Conversation.mode == "resume_interview"))).scalar()
             xp_after = (await s_.execute(select(func.count()).select_from(db.SessionScore).where(db.SessionScore.user_id == "u-eve"))).scalar()
         check("delete-all also removes DuSu's one-line notes about the interviews; XP (shared with the other modes) stays", r.status_code == 200 and convs_after == 0 and xp_after == xp_before >= 1, (convs_after, xp_before, xp_after))
+
+        # ------------------------------------------------------------------ detailed weaknesses, saved focus points, "did it work?"
+        section("coach: weaknesses in detail, focus points saved, the next interview checks them, old reports are upgraded")
+        _r1, _j1, sid_h1, th1 = await new_session("hal", start=True)
+        await answer_n("hal", sid_h1, th1, 3, text=ANSWER_WEAK)
+        r = await POST("hal", f"/sessions/{sid_h1}/finish")
+        rep1 = r.json()["report"]
+        check("a finished interview carries the coaching fields (v2): habits, ranked weaknesses, at most 3 focus points", r.status_code == 200 and rep1["v"] == 2 and rep1["weaknesses"] and 0 < len(rep1["focus"]) <= 3 and rep1["habits"]["n"] == 3, json.dumps(rep1)[:300])
+        w0 = rep1["weaknesses"][0]
+        check("each weakness explains itself: what was seen, why it matters, three steps, a drill, a goal, the questions it happened in", all(w["seen"] and w["why"] and len(w["how"]) == 3 and w["drill"] and w["goal"] and w["answers"] is not None for w in rep1["weaknesses"]) and w0["title"], w0)
+        check("the FIRST interview has nothing to compare with (progress is null, not invented)", rep1["progress"] is None)
+        gs = (await GET("hal", f"/sessions/{sid_h1}")).json()
+        check("opening the finished interview later returns the same report + every answer with its full feedback (so nothing is lost)", gs["report"]["focus"] == rep1["focus"] and len([t for t in gs["turns"] if t["status"] == "answered" and t["feedback"] and t["answer"]]) == 3)
+        st = (await GET("hal", "/state")).json()
+        check("the hub's 'focus for next time' = the points of the latest finished interview", st["focus"] and st["focus"]["session_id"] == sid_h1 and st["focus"]["points"] == rep1["focus"] and st["focus"]["title"], st.get("focus"))
+        _r2, _j2, sid_h2, th2 = await new_session("hal", start=True)
+        g2 = (await GET("hal", f"/sessions/{sid_h2}")).json()
+        check("an interview in progress is handed the previous interview's focus points (before the first question, and for the per-answer check)", g2["focus_prev"] and g2["focus_prev"]["session_id"] == sid_h1 and g2["focus_prev"]["points"] == rep1["focus"], g2.get("focus_prev"))
+        check("... a finished interview does not carry focus_prev (its report holds the comparison)", "focus_prev" not in gs)
+        await answer_n("hal", sid_h2, th2, 3, text=ANSWER_GOOD)
+        r = await POST("hal", f"/sessions/{sid_h2}/finish")
+        rep2 = r.json()["report"]
+        pg = rep2["progress"]
+        check("the NEXT interview's report judges each tracked focus point of the previous one, with real numbers", pg and pg["vs"]["session_id"] == sid_h1 and pg["items"] and all(i["status"] in ("improved", "same", "worse") and i["was"] and i["now"] for i in pg["items"]), json.dumps(pg)[:300])
+        check("... strong answers after weak ones: at least one point improved and none got worse", pg["improved"] >= 1 and not any(i["status"] == "worse" for i in pg["items"]), [(i["key"], i["status"]) for i in pg["items"]])
+        check("... and the comparison is saved with the interview (reopening shows the same)", (await GET("hal", f"/sessions/{sid_h2}")).json()["report"]["progress"] == pg)
+        lines = await life_lines.resume_interview_lines("u-hal", "hal@example.com")
+        check("DuSu's life line carries the improvement points (titles only)", lines and "improvement points" in lines[0] and "resume" not in lines[0].lower().split("improvement points")[-1], lines)
+
+        # a report written BEFORE the coaching fields existed is upgraded the first time it is read (computed from the stored answers - no model call)
+        async with db._Session() as s_:
+            row = (await s_.execute(select(RiSession_).where(RiSession_.id == sid_h1))).scalars().first()
+            old_rep = {k: v for k, v in row.report.items() if k not in ("v", "habits", "weaknesses", "focus", "progress")}
+            await s_.execute(sa_update(RiSession_).where(RiSession_.id == sid_h1).values(report=old_rep))
+            await s_.commit()
+        STUB.n.clear()
+        up = (await GET("hal", f"/sessions/{sid_h1}")).json()["report"]
+        async with db._Session() as s_:
+            saved = (await s_.execute(select(RiSession_.report).where(RiSession_.id == sid_h1))).scalar()
+        check("an old-format report is upgraded on read: v2 fields appear, the v1 fields are untouched, no model call, and it is SAVED", up["v"] == 2 and up["weaknesses"] and up["overall"] == rep1["overall"] and up["per_question"] == rep1["per_question"] and saved["v"] == 2 and STUB.n["answer"] == 0, up.get("v"))
+        check("... the upgrade is idempotent (same focus points, same weaknesses on the next read)", (await GET("hal", f"/sessions/{sid_h1}")).json()["report"]["focus"] == up["focus"] == rep1["focus"])
+        async with db._Session() as s_:
+            row = (await s_.execute(select(RiSession_).where(RiSession_.id == sid_h2))).scalars().first()
+            await s_.execute(sa_update(RiSession_).where(RiSession_.id == sid_h2).values(report={k: v for k, v in row.report.items() if k not in ("v", "habits", "weaknesses", "focus", "progress")}))
+            await s_.commit()
+        st = (await GET("hal", "/state")).json()
+        check("/state upgrades the latest old-format report too (the hub's focus card works for interviews finished before this feature)", st["focus"] and st["focus"]["session_id"] == sid_h2 and "v" not in (st["focus"] or {}), st.get("focus"))
 
         # ------------------------------------------------------------------ data rights + deletion
         section("export, delete, wipe, account deletion")

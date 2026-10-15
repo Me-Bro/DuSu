@@ -20,7 +20,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 
 from .. import db, practice as P
-from . import docs, engine, rules
+from . import coach, docs, engine, rules
 from .models import RI_TABLES, RiAnalysis, RiDocument, RiSession, RiTurn
 
 UTC = dt.timezone.utc
@@ -313,10 +313,11 @@ async def state(uid: str) -> dict:
         sessions = await _session_rows(s, uid, None, 31)          # one more than a page: that is how "is there an older page?" is known
         today = await _today_counts(s, uid)
         active = await _active_row(s, uid)
+        focus = await _focus_prev(s, uid)
         await s.commit()
     has_more = len(sessions) > 30
     return {"limits": limits_json(), "today": today, "resumes": [doc_json(d) for d in docs_ if d.kind == "resume"],
-            "jds": [doc_json(d) for d in docs_ if d.kind == "jd"], "sessions": sessions[:30], "has_more": has_more, "active": active}
+            "jds": [doc_json(d) for d in docs_ if d.kind == "jd"], "sessions": sessions[:30], "has_more": has_more, "active": active, "focus": focus}
 
 
 async def list_sessions(uid: str, before: int | None = None, limit: int = 30) -> dict:
@@ -389,10 +390,13 @@ async def get_state(uid: str, sid: int) -> dict:
                                  .order_by(RiTurn.idx))).scalars().all()
         counts = await _counts(s, sid)
         open_t = next((t for t in turns if t.status == "asked"), None)
+        report = await _ensure_v2(s, uid, sess) if sess.status == "finished" else sess.report
         out = {"session": session_json(sess, counts["answered"], counts["real"]), "rev": sess.rev, "analysis": _analysis_payload(an, now),
                "turns": [turn_json(t, now) for t in turns if t.status != "dropped"], "queued_count": counts["queued"],
-               "open_turn_id": open_t.id if open_t else None, "counts": counts, "can_finish": can_finish_of(counts), "report": sess.report,
+               "open_turn_id": open_t.id if open_t else None, "counts": counts, "can_finish": can_finish_of(counts), "report": report,
                "server_now": _iso(now)}
+        if sess.status != "finished":                                   # an interview in progress carries the points from the PREVIOUS one: shown before the first question and checked per answer
+            out["focus_prev"] = await _focus_prev(s, uid, exclude_id=sid)
         await s.commit()
         return out
 
@@ -944,6 +948,52 @@ def _turn_dict(t: RiTurn) -> dict:
             "metrics": t.metrics or {}}
 
 
+async def _turn_dicts(s, uid: str, sid: int) -> list[dict]:
+    rows = (await s.execute(select(RiTurn).where(RiTurn.session_id == sid, RiTurn.user_id == uid).order_by(RiTurn.idx.nulls_last()))).scalars().all()
+    return [_turn_dict(t) for t in rows]
+
+
+async def _ensure_v2(s, uid: str, row: RiSession) -> dict:
+    """The row's report WITH the coaching fields. A report written before they existed is upgraded the first time it is read - computed from the stored
+    answers (no model, no cost) and saved; the caller's transaction commits it. Idempotent: two readers upgrading at once write the same thing."""
+    rep = row.report or {}
+    if not rep or rep.get("v") == coach.REPORT_VERSION:
+        return rep
+    new = rules.safe_json(coach.enrich_report(rep, await _turn_dicts(s, uid, row.id), prev_any=None))
+    row.report = new
+    return new
+
+
+async def _latest_finished(s, uid: str, exclude_id: int | None = None) -> RiSession | None:
+    q = select(RiSession).where(RiSession.user_id == uid, RiSession.status == "finished", RiSession.report.is_not(None))
+    if exclude_id is not None:
+        q = q.where(RiSession.id != exclude_id)
+    return (await s.execute(q.order_by(RiSession.finished_at.desc(), RiSession.id.desc()).limit(1))).scalars().first()
+
+
+def _info_of(row: RiSession, rep: dict) -> dict:
+    return {"session_id": row.id, "title": row.title, "finished_at": _iso(row.finished_at), "overall": rep.get("overall"), "real": rep.get("real", 0),
+            "habits": rep.get("habits"), "focus": rep.get("focus")}
+
+
+async def _prev_info(s, uid: str, exclude_id: int | None = None) -> dict | None:
+    """The learner's previous finished interview (any job) with its saved habits and focus points - what this interview's report compares itself with."""
+    row = await _latest_finished(s, uid, exclude_id)
+    if row is None:
+        return None
+    return _info_of(row, await _ensure_v2(s, uid, row))
+
+
+async def _focus_prev(s, uid: str, exclude_id: int | None = None) -> dict | None:
+    """The improvement points the learner was given after their previous interview: {session_id, title, finished_at, overall, points}."""
+    row = await _latest_finished(s, uid, exclude_id)
+    if row is None:
+        return None
+    rep = await _ensure_v2(s, uid, row)
+    pts = rep.get("focus") or []
+    return {"session_id": row.id, "title": row.title, "finished_at": _iso(row.finished_at), "overall": rep.get("overall"), "points": pts} if pts else None
+
+
 async def finish(uid: str, sid: int) -> dict:
     """Close the interview and build the report from the stored turns - no model, so Finish cannot fail on quota. Idempotent: a second call
     returns the stored report."""
@@ -976,6 +1026,7 @@ async def finish(uid: str, sid: int) -> dict:
                         "delivery_measured": pv.report.get("delivery_measured", False)}
         fl = (sess.settings or {}).get("feedback_lang", "hinglish")
         report = rules.build_report([_turn_dict(t) for t in turns], requirements=reqs, feedback_lang=fl, prev=prev)
+        report = coach.enrich_report(report, [_turn_dict(t) for t in turns], prev_any=await _prev_info(s, uid, exclude_id=sid))      # weaknesses, focus points, "since last time"
         report["generated_at"] = _iso(now)
         report["session_id"] = sid
         sess.report, sess.overall, sess.status, sess.finished_at, sess.last_activity_at = rules.safe_json(report), report["overall"], "finished", now, now
@@ -1070,7 +1121,8 @@ async def life_data(uid: str) -> dict:
             r = fin[0].report or {}
             cats = {c["key"]: c["score"] for c in r.get("categories", []) if c.get("score") is not None}
             weakest = min(cats.items(), key=lambda kv: kv[1])[0] if cats else ""
-            out["last"] = {"title": fin[0].title, "overall": fin[0].overall, "answers": r.get("real", 0), "finished_at": fin[0].finished_at, "weakest": weakest}
+            out["last"] = {"title": fin[0].title, "overall": fin[0].overall, "answers": r.get("real", 0), "finished_at": fin[0].finished_at, "weakest": weakest,
+                           "focus": [str(f.get("title") or "")[:60] for f in (r.get("focus") or [])][:3]}
             if len(fin) > 1 and fin[0].jd_id is not None and fin[0].jd_id == fin[1].jd_id and fin[1].overall is not None and fin[0].overall is not None:
                 out["last"]["delta"] = fin[0].overall - fin[1].overall
         if act is not None:

@@ -100,7 +100,7 @@ async function capture(htmlPath, tag, T) {
   const B = await capture(H.HTML_SRC, 'MODIFIED', T);
 
   T.section('1+2: visible text and element order, flag OFF');
-  const allowed = new Map([['admin', /Resume Interview|riSel|A learner uploads a resume/]]);
+  const allowed = new Map([['admin', /Job Interview Practice|Resume Interview|riSel|A learner uploads a resume/]]);
   let identical = 0;
   for (const id of Object.keys(A.dumps)) {
     const a = A.dumps[id], b = B.dumps[id];

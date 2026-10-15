@@ -36,7 +36,8 @@ async def seed():
     users = {"owner": {"sub": "e2e-owner", "email": "david123rana@gmail.com", "name": "Owner", "picture": ""},
              "ann": {"sub": "e2e-ann", "email": "ann@example.com", "name": "Ann Learner", "picture": ""},
              "bob": {"sub": "e2e-bob", "email": "bob@example.com", "name": "Bob Learner", "picture": ""},
-             "cat": {"sub": "e2e-cat", "email": "cat@example.com", "name": "Cat Learner", "picture": ""}}
+             "cat": {"sub": "e2e-cat", "email": "cat@example.com", "name": "Cat Learner", "picture": ""},
+             "dan": {"sub": "e2e-dan", "email": "dan@example.com", "name": "Dan Learner", "picture": ""}}
     for u in users.values():
         await db.login(u)
         await db.save_assessment(u["sub"], {"goal": "job", "comfort": "ok", "practice_time": "10", "level": "A2", "scores": {}, "weak_areas": []})
