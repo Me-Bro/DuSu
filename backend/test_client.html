@@ -2146,6 +2146,250 @@
   .pl-banner .pl-x{ position:absolute; top:4px; right:4px; width:36px; height:36px; font:inherit; font-size:16px; background:none; border:none; color:var(--ink-faint); cursor:pointer; }
   .pl-banner .pl-remcard{ border:none; background:none; padding:0; margin:0; }
   @media (prefers-reduced-motion: reduce){ .pl-sheet, .pl-banner{ animation:none !important; transition:none !important; } }
+
+  /* ===================== RESUME INTERVIEW (resume + job description -> a mock interview) =====================
+     Every class is ri-* and every id #ri*: this file's class names are global and unscoped, so nothing here may touch an old screen. Mobile-first (320 / 360 / 390 px);
+     every tap target is >= 44px; the action bar is `position:sticky` (an animated .screen is the containing block of any fixed child, so fixed would anchor to the
+     screen, not the viewport); nothing is signalled by colour alone (every state also has a word or a glyph). The desktop layer at the end changes nothing below 1200px. */
+  .ri-top{ flex-wrap:wrap; }
+  .ri-ttl{ min-width:0; flex:1; }
+  .ri-ttl .sess-title{ outline:none; overflow-wrap:anywhere; }
+  .ri-ttl .sess-sub{ overflow-wrap:anywhere; }
+  #ri .ri-back{ width:44px; height:44px; flex:none; }
+  .ri-ic{ font:inherit; font-size:18px; width:44px; height:44px; border-radius:14px; cursor:pointer; flex:none; background:var(--glass); border:1px solid var(--glass-brd); color:var(--ink); }
+  .ri-ic.on{ border-color:var(--gold); background:rgba(111,140,255,.18); }
+  .ri-sr{ position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+  .ri-steps{ list-style:none; display:flex; gap:4px; margin:12px 0 2px; padding:0; }
+  .ri-step{ flex:1 1 0; min-width:0; text-align:center; font-size:11px; line-height:1.2; color:var(--ink-faint); padding-top:7px; border-top:3px solid rgba(255,255,255,.1); border-radius:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ri-step.done{ border-top-color:color-mix(in srgb,var(--gold) 55%,transparent); color:var(--ink-dim); }
+  .ri-step.cur{ border-top-color:var(--gold); color:var(--ink); font-weight:600; }
+  .ri-body{ margin-top:12px; }
+
+  /* cards, text, lists */
+  .ri-card{ background:var(--glass); border:1px solid var(--glass-brd); border-radius:18px; padding:14px 16px; margin:0 0 12px; }
+  .ri-h{ font-family:var(--font-d); font-size:19px; font-weight:600; margin:0 0 6px; overflow-wrap:anywhere; }
+  .ri-h2{ font-family:var(--font-d); font-size:24px; font-weight:600; line-height:1.2; margin:4px 2px 6px; }
+  .ri-p{ font-size:13.5px; line-height:1.55; color:var(--ink-dim); margin:0 0 10px; overflow-wrap:anywhere; }
+  .ri-small{ font-size:12.5px; line-height:1.5; color:var(--ink-faint); margin:4px 0 8px; overflow-wrap:anywhere; }
+  .ri-center{ text-align:center; }
+  .ri-lab{ display:block; font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-faint); margin:0 0 7px 2px; }
+  .ri-gap{ margin-top:14px; }
+  .ri-empty{ text-align:center; color:var(--ink-faint); font-size:13.5px; line-height:1.55; padding:14px 10px; }
+  .ri-priv{ margin-top:18px; text-align:center; }
+  .ri-cta{ margin:2px 0 8px; display:flex; }
+  .ri-cta .btn{ width:100%; }
+  .ri-more{ margin:12px 0 2px; display:flex; }
+  .ri-more .btn{ width:100%; }
+  .ri-acts-row{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+  .ri-acts-row .btn{ flex:1 1 150px; }
+  .ri-stack .btn{ flex:1 1 100%; }
+  .ri-sec{ margin:20px 0 0; }
+  .ri-sh{ font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); font-weight:600; margin:0 0 8px 3px; }
+  .ri-ul{ list-style:none; display:flex; flex-direction:column; gap:7px; margin:0; padding:0; }
+  .ri-ul li{ font-size:13.5px; color:var(--ink-dim); padding-left:20px; position:relative; line-height:1.5; overflow-wrap:anywhere; }
+  .ri-ul li::before{ content:""; position:absolute; left:2px; top:8px; width:7px; height:7px; border-radius:50%; background:var(--ink-faint); }
+  .ri-ul.ri-good li::before{ background:var(--green); }
+  .ri-ul.ri-warnl li::before{ background:var(--amber); }
+  .ri-tag{ display:inline-flex; align-items:center; font-size:11.5px; padding:2px 9px; border-radius:999px; background:rgba(255,255,255,.06); color:var(--ink-dim); white-space:nowrap; flex:none; }
+  .ri-tag.gold{ background:rgba(111,140,255,.16); color:var(--gold-lt); }
+  .ri-tag.green{ background:rgba(79,214,160,.14); color:var(--green); }
+  .ri-tag.amber{ background:rgba(240,169,82,.16); color:var(--amber); }
+  .ri-tag.rose{ background:rgba(224,138,122,.14); color:#f2c4ba; }
+  .ri-warn{ font-size:13px; line-height:1.45; color:#ffd9a8; background:rgba(240,169,82,.1); border:1px solid rgba(240,169,82,.35); border-radius:12px; padding:9px 12px; margin:6px 0 8px; overflow-wrap:anywhere; }
+  .ri-quote{ border-left:3px solid color-mix(in srgb,var(--gold) 50%,transparent); padding:2px 0 2px 12px; margin:8px 0 6px; color:var(--ink-dim); font-size:13.5px; line-height:1.6; overflow-wrap:anywhere; }
+  .ri-ql{ color:var(--ink-faint); font-size:12px; }
+  .ri-dl{ color:var(--ink-faint); font-size:12px; margin-right:6px; }
+  .ri-said{ color:var(--rose); text-decoration:line-through; text-decoration-color:rgba(224,138,122,.5); }
+  .ri-better{ color:var(--green); }
+
+  /* rows: my interviews / resumes / jobs */
+  .ri-list{ display:flex; flex-direction:column; gap:8px; }
+  .ri-row{ display:flex; align-items:center; gap:8px; padding:4px 4px 4px 12px; border-radius:16px; background:var(--glass); border:1px solid var(--glass-brd); }
+  .ri-main{ flex:1; min-width:0; text-align:left; font:inherit; color:inherit; background:none; border:0; cursor:pointer; padding:6px 0; min-height:44px; display:flex; flex-direction:column; justify-content:center; }
+  .ri-main.static{ cursor:default; }
+  .ri-rt{ font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; }
+  .ri-rs{ font-size:12px; color:var(--ink-faint); margin-top:2px; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ri-ib{ width:44px; height:44px; flex:none; display:inline-flex; align-items:center; justify-content:center; background:none; border:0; border-radius:12px; color:var(--ink-dim); cursor:pointer; }
+  .ri-ib svg{ width:18px; height:18px; display:block; }
+  .ri-ib:hover, .ri-ib:focus-visible{ background:rgba(255,255,255,.08); color:var(--ink); }
+  .ri-ib.del{ color:#e9a99b; }
+  .ri-score{ min-width:42px; text-align:center; font-weight:700; font-size:14px; border-radius:11px; padding:6px 8px; background:rgba(111,140,255,.14); border:1px solid color-mix(in srgb,var(--gold) 40%,transparent); }
+  .ri-line{ display:flex; align-items:center; gap:10px; padding:8px 12px 8px 16px; }
+  .ri-line .ri-lab{ margin:0; flex:none; }
+  .ri-line-t{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
+
+  /* buttons, inputs, chips */
+  .ri-btn{ min-height:44px; display:inline-flex; align-items:center; justify-content:center; gap:8px; line-height:1.25; text-align:center; }
+  .ri-btn svg{ width:18px; height:18px; flex:none; }
+  .ri-btn.sm{ padding:9px 14px; font-size:14px; }
+  .ri-btn[disabled]{ opacity:.5; cursor:not-allowed; filter:grayscale(.3); box-shadow:none; }
+  .ri-btn:focus-visible, .ri-chip:focus-visible, .ri-ib:focus-visible, .ri-link:focus-visible, .ri-ic:focus-visible, #ri .ri-back:focus-visible, .ri-file:focus-visible + .ri-pick{ outline:2px solid var(--gold-lt); outline-offset:2px; }
+  .ri-stopbtn{ background:rgba(224,138,122,.18); border:1px solid rgba(224,138,122,.5); color:#ffd7cf; min-width:200px; }
+  .ri-drop{ position:relative; border:1.5px dashed var(--glass-brd); border-radius:16px; padding:14px 12px 8px; text-align:center; }
+  .ri-drop.over{ border-color:var(--gold); background:rgba(111,140,255,.1); }
+  .ri-drop .ri-pick{ width:100%; cursor:pointer; }
+  .ri-file{ position:absolute; width:1px; height:1px; opacity:0; overflow:hidden; pointer-events:none; }
+  .ri-or{ display:flex; align-items:center; gap:10px; color:var(--ink-faint); font-size:12px; margin:14px 0; }
+  .ri-or::before, .ri-or::after{ content:""; flex:1; height:1px; background:rgba(255,255,255,.1); }
+  .ri-in{ width:100%; min-height:46px; font:inherit; font-size:16px; color:var(--ink); padding:11px 14px; border-radius:14px; color-scheme:dark; background:rgba(255,255,255,.05); border:1px solid var(--glass-brd); outline:none; }
+  .ri-in:focus{ border-color:var(--gold); box-shadow:0 0 0 3px rgba(111,140,255,.2); }
+  .ri-in[disabled]{ opacity:.6; }
+  textarea.ri-in{ display:block; min-height:150px; resize:vertical; line-height:1.5; }
+  textarea.ri-big{ min-height:260px; }
+  .ri-group{ margin:0 0 14px; }
+  .ri-group:last-child{ margin-bottom:0; }
+  .ri-chips{ display:flex; flex-wrap:wrap; gap:8px; }
+  .ri-chip{ font:inherit; font-size:14px; min-height:44px; padding:0 16px; border-radius:999px; cursor:pointer; background:var(--glass); border:1px solid var(--glass-brd); color:var(--ink-dim); }
+  .ri-chip.on{ background:linear-gradient(135deg,rgba(111,140,255,.3),rgba(122,92,240,.2)); border-color:var(--gold); color:var(--ink); }
+  .ri-link{ background:none; border:none; color:var(--ink-dim); font:inherit; font-size:12.5px; text-decoration:underline; cursor:pointer; min-height:44px; padding:0 4px; }
+  .ri-keep{ display:flex; align-items:center; gap:8px; color:var(--green); }
+  .ri-keep svg{ width:18px; height:18px; flex:none; }
+  .ri-keep b{ color:var(--ink); font-weight:600; }
+  .ri-pre{ white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; max-height:300px; overflow:auto; font:13px/1.55 var(--font-b); color:var(--ink-dim); background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:12px; margin:8px 0 4px; }
+  .ri-pre:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:2px; }
+
+  /* the dock: this step's actions + any message, sticky just above the bottom nav */
+  /* sticky `bottom` is measured from the scroll container's CONTENT edge, and .wrap already pads its bottom by the nav's height, so 0 puts the dock just above the nav */
+  .ri-bar{ position:sticky; bottom:0; z-index:6; margin:14px -16px 0; padding:18px 16px 6px; background:linear-gradient(180deg,rgba(7,10,20,0) 0,rgba(7,10,20,.97) 16px); }   /* bleeds into .wrap's side padding so the fade has no seam; its buttons stay inside the content width */
+  .ri-acts{ display:flex; gap:10px; }
+  .ri-acts .btn{ flex:1 1 0; min-width:0; padding-left:12px; padding-right:12px; }
+  .ri-acts .btn.ri-w2{ flex:1.25 1 0; }
+  .ri-note{ position:relative; border-radius:14px; padding:11px 44px 11px 13px; font-size:13.5px; line-height:1.45; margin:0 0 8px; border:1px solid; overflow-wrap:anywhere; }
+  .ri-note.err{ color:#ffd7cf; background:rgba(224,138,122,.16); border-color:rgba(224,138,122,.5); }
+  .ri-note.ok{ color:#c8f3e2; background:rgba(79,214,160,.13); border-color:rgba(79,214,160,.4); }
+  .ri-note.info{ color:var(--ink); background:rgba(35,48,96,.96); border-color:color-mix(in srgb,var(--gold) 40%,transparent); }
+  .ri-note.ri-inline{ padding-right:13px; margin:0 0 12px; }
+  #riTopNote{ margin:10px 0 0; }
+  .ri-note-a{ display:flex; gap:8px; margin-top:8px; }
+  .ri-note-x{ position:absolute; top:0; right:0; width:44px; height:44px; background:none; border:0; color:inherit; cursor:pointer; opacity:.8; display:grid; place-items:center; }
+  .ri-note-x svg{ width:16px; height:16px; }
+  #ri.ri-kbd{ padding-bottom:var(--ri-kb,0px); }
+  #ri.ri-kbd .ri-bar{ position:static; }
+
+  /* analysing */
+  .ri-load{ display:flex; flex-direction:column; align-items:center; padding:30px 4px 6px; }
+  .ri-lsteps{ list-style:none; margin:14px 0 4px; padding:0; width:100%; max-width:320px; display:flex; flex-direction:column; gap:10px; }
+  .ri-ls{ display:flex; align-items:center; gap:10px; font-size:14px; color:var(--ink-faint); }
+  .ri-ls.cur{ color:var(--ink); font-weight:600; }
+  .ri-ls.done{ color:var(--ink-dim); }
+  .ri-lsg{ width:22px; height:22px; border-radius:50%; flex:none; display:grid; place-items:center; font-size:13px; border:1.5px solid var(--ink-faint); }
+  .ri-ls.done .ri-lsg{ background:var(--green); border-color:var(--green); color:#07231a; }
+  .ri-ls.done .ri-lsg::before{ content:"✓"; font-weight:800; }
+  .ri-ls.cur .ri-lsg{ border-color:var(--gold); }
+  .ri-ls.cur .ri-lsg::before{ content:"…"; color:var(--gold-lt); }
+
+  /* match */
+  .ri-hero{ text-align:center; }
+  .ri-role{ font-size:13px; color:var(--ink-dim); margin:0 0 2px; overflow-wrap:anywhere; }
+  .ri-ring{ margin:6px auto 8px; }
+  .ri-verdict{ font-size:14.5px; line-height:1.5; color:var(--ink); margin:4px auto 6px; max-width:36ch; overflow-wrap:anywhere; }
+  .ri-meta{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:4px; }
+  .ri-band{ display:inline-flex; align-items:center; gap:6px; font-size:13px; padding:6px 11px; border-radius:12px; border:1px solid var(--glass-brd); background:var(--glass); }
+  .ri-band b{ font-weight:600; }
+  .ri-band i{ font-style:normal; letter-spacing:1px; font-size:10px; }
+  .ri-bl{ color:var(--ink-dim); }
+  .ri-band.strong{ color:var(--green); border-color:rgba(79,214,160,.4); }
+  .ri-band.good{ color:var(--gold-lt); border-color:color-mix(in srgb,var(--gold) 45%,transparent); }
+  .ri-band.fair{ color:var(--amber); border-color:rgba(240,169,82,.4); }
+  .ri-band.needs_work, .ri-band.weak{ color:#f2c4ba; border-color:rgba(224,138,122,.45); }
+  .ri-band.unknown{ color:var(--ink-dim); }
+  .ri-det{ margin:0 0 10px; border-radius:16px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.07); padding:0 12px 4px; }
+  .ri-det summary{ cursor:pointer; min-height:44px; display:flex; align-items:center; font-weight:600; font-size:14px; list-style:none; }
+  .ri-det summary::-webkit-details-marker{ display:none; }
+  .ri-det summary::before{ content:"▸"; margin-right:8px; color:var(--ink-faint); transition:transform .15s; }
+  .ri-det[open] summary::before{ transform:rotate(90deg); }
+  .ri-det.missing summary{ color:#f2c4ba; }
+  .ri-det.partial summary{ color:var(--amber); }
+  .ri-det.met summary{ color:var(--green); }
+  .ri-req{ padding:10px 0; border-top:1px solid rgba(255,255,255,.06); }
+  .ri-req-h{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:5px; }
+  .ri-st{ display:inline-flex; font-size:12px; font-weight:700; padding:2px 10px; border-radius:999px; border:1px solid; }
+  .ri-st.met{ color:var(--green); border-color:rgba(79,214,160,.45); background:rgba(79,214,160,.1); }
+  .ri-st.partial{ color:var(--amber); border-color:rgba(240,169,82,.45); background:rgba(240,169,82,.1); }
+  .ri-st.missing{ color:#f2c4ba; border-color:rgba(224,138,122,.5); background:rgba(224,138,122,.1); }
+  .ri-req-t{ font-size:14px; line-height:1.45; overflow-wrap:anywhere; }
+  .ri-edit{ padding:12px 14px; margin:0 0 10px; border-radius:16px; background:var(--glass); border:1px solid var(--glass-brd); }
+  .ri-edit.done{ border-color:rgba(79,214,160,.4); }
+  .ri-edit-h{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+  .ri-diff{ font-size:13.5px; line-height:1.5; margin:4px 0; overflow-wrap:anywhere; }
+  .ri-edit-f{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; flex-wrap:wrap; }
+  .ri-pk{ display:flex; align-items:center; gap:12px; min-height:44px; cursor:pointer; font-size:14px; }
+  .ri-cb{ -webkit-appearance:none; appearance:none; width:26px; height:26px; flex:none; border-radius:8px; cursor:pointer; display:inline-grid; place-content:center; background:rgba(255,255,255,.05); border:2px solid var(--ink-faint); }
+  .ri-cb:checked{ background:var(--gold); border-color:var(--gold); }
+  .ri-cb:checked::after{ content:"✓"; color:#fff; font-size:17px; font-weight:800; line-height:1; }
+  .ri-cb:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:2px; }
+  .ri-cb[disabled]{ opacity:.55; cursor:not-allowed; }
+  .ri-prevrow{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 0 4px; }
+  .ri-arrow{ color:var(--ink-faint); font-size:18px; }
+
+  /* interview */
+  .ri-qhead{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin:0 0 10px; }
+  .ri-cnt{ font-size:12.5px; color:var(--ink-faint); }
+  .ri-fin{ font-size:13.5px; padding:9px 14px; }
+  .ri-q{ padding:16px; }
+  .ri-qk{ font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); }
+  .ri-qt{ font-family:var(--font-d); font-size:23px; line-height:1.3; margin:6px 0 10px; overflow-wrap:anywhere; }
+  .ri-qt.ri-qt-s{ font-size:18px; }
+  .ri-q-acts{ margin:0 0 8px; }
+  .ri-why{ font-size:12.5px; line-height:1.5; color:var(--ink-dim); margin:0; overflow-wrap:anywhere; }
+  .ri-stage{ display:flex; flex-direction:column; align-items:center; text-align:center; gap:8px; padding:8px 0 4px; }
+  .ri-miclab{ font-size:14px; font-weight:600; }
+  .ri-hint{ font-size:12.5px; line-height:1.5; color:var(--ink-faint); max-width:34ch; margin:0; }
+  .ri-hint.ri-center{ margin:0 auto; }
+  #riCnt:empty{ display:none; }
+  .ri-rec{ display:inline-flex; align-items:center; gap:8px; padding:6px 14px; border-radius:999px; background:var(--glass); border:1px solid var(--glass-brd); font-size:12.5px; color:var(--ink-dim); }
+  .ri-dot{ width:10px; height:10px; border-radius:50%; background:#ff5a6a; animation:riPulse 1.4s ease-in-out infinite; }
+  @keyframes riPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(255,90,106,.55); } 50%{ box-shadow:0 0 0 8px rgba(255,90,106,0); } }
+  /* recording + waiting live in the dock (always on screen) */
+  .ri-recdock{ flex:1; min-width:0; display:flex; flex-direction:column; gap:6px; }
+  .ri-recrow{ display:flex; align-items:center; gap:10px; padding:0 2px; }
+  .ri-timer{ font-family:var(--font-d); font-size:24px; font-weight:600; font-variant-numeric:tabular-nums; line-height:1; }
+  .ri-timer.over{ color:var(--amber); }
+  .ri-of{ font-size:12.5px; color:var(--ink-faint); white-space:nowrap; }
+  .ri-meter{ flex:1; min-width:30px; height:8px; border-radius:6px; background:rgba(255,255,255,.1); overflow:hidden; }
+  .ri-recdock .ri-hint{ max-width:none; text-align:center; margin:0; }
+  .ri-workrow{ flex:1; min-width:0; display:flex; align-items:center; gap:12px; padding:8px 4px; }
+  .ri-workt{ display:flex; flex-direction:column; min-width:0; font-size:14px; }
+  .ri-workt small{ font-size:12px; color:var(--ink-faint); }
+  .spin.ri-spin-s{ width:24px; height:24px; margin:0; flex:none; }
+  .ri-meter i{ display:block; height:100%; width:0; border-radius:6px; background:var(--grad); transition:width .08s linear; }
+  .ri-audio{ width:100%; margin:4px 0 8px; color-scheme:dark; }
+  .ri-bands{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px; }
+  .ri-fsec{ margin:14px 0 0; }
+  .ri-fh{ font-size:13px; font-weight:600; margin:0 0 6px; color:var(--ink); }
+  .ri-fix{ padding:10px 12px; border-radius:12px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06); margin:0 0 8px; font-size:13.5px; line-height:1.55; overflow-wrap:anywhere; }
+  .ri-fix.hidden{ opacity:.7; }
+  .ri-better-ans{ font-size:14px; line-height:1.6; color:var(--ink); padding:12px 14px; border-radius:12px; background:rgba(79,214,160,.09); border:1px solid rgba(79,214,160,.22); margin:0 0 6px; overflow-wrap:anywhere; }
+  .ri-follow{ margin-top:14px; }
+  .ri-pending{ text-align:center; }
+
+  /* report */
+  .ri-cats{ display:flex; flex-direction:column; gap:14px; }
+  .ri-cat-t{ display:flex; justify-content:space-between; gap:10px; font-size:13px; margin-bottom:6px; }
+  .ri-cat-t span{ color:var(--ink-faint); }
+  .ri-pbar{ height:8px; border-radius:6px; background:rgba(255,255,255,.07); overflow:hidden; }
+  .ri-pbar i{ display:block; height:100%; border-radius:6px; background:var(--grad); width:0; transition:width 1s ease; }
+  .ri-strip{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:0 0 12px; }
+  .ri-strip span{ padding:6px 13px; border-radius:999px; background:var(--glass); border:1px solid var(--glass-brd); font-size:13px; color:var(--ink-dim); }
+  .ri-strip .up{ color:var(--green); border-color:rgba(79,214,160,.35); }
+  .ri-strip .gold{ color:var(--ink); border-color:color-mix(in srgb,var(--gold) 55%,transparent); background:rgba(111,140,255,.14); }
+  .ri-fixc{ margin:0 0 12px; }
+  .ri-pq{ padding:12px 14px; border-radius:16px; background:var(--glass); border:1px solid var(--glass-brd); margin:0 0 8px; }
+  .ri-pq-h{ display:flex; align-items:center; gap:10px; margin-bottom:4px; }
+  .ri-pq-n{ font-weight:700; color:var(--gold-lt); }
+  .ri-pq-q{ font-size:14px; line-height:1.45; margin:0 0 4px; overflow-wrap:anywhere; }
+  @media (prefers-reduced-motion: reduce){ .ri-dot{ animation:none; } .ri-pbar i, .ri-meter i, .ri-det summary::before{ transition:none; } }
+  /* desktop layer: only at >= 1200px, so nothing below it (the phone / PWA / TWA) changes */
+  @media (min-width:1200px){
+    #ri{ max-width:720px; margin:0 auto; }
+    #ri[data-view="match"], #ri[data-view="report"]{ max-width:980px; }
+    #ri[data-view="match"] .ri-body{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:18px; align-items:start; align-content:start; }
+    #ri[data-view="match"] .ri-body > *{ grid-column:1 / -1; }
+    #ri[data-view="match"] .ri-body > .ri-sec{ grid-column:auto; }
+    #ri .ri-acts, #ri .ri-bar .ri-note{ max-width:560px; margin-left:auto; margin-right:auto; }
+    #ri[data-view="report"] .ri-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:16px; align-items:start; }
+    textarea.ri-in{ resize:vertical; }
+  }
 </style>
 </head>
 <body>
@@ -2320,6 +2564,11 @@
     <button class="pr-entry" id="plHomeCard" hidden>
       <span class="pr-ic">✅</span>
       <span><b id="plHomeT">My Day</b><small id="plHomeS">Tasks, habits, goals and reminders</small></span>
+      <span class="pr-go">→</span>
+    </button>
+    <button class="pr-entry" id="riHomeCard" hidden>
+      <span class="pr-ic">📄</span>
+      <span><b>Resume Interview</b><small>Upload your resume and a job description — DuSu interviews you for that job.</small></span>
       <span class="pr-go">→</span>
     </button>
     <div id="letterCard" class="letter-card" hidden></div>
@@ -2613,6 +2862,11 @@
     <button class="pr-entry" id="prEntry" hidden>
       <span class="pr-ic">🎤</span>
       <span><b>Practice Room</b><small>Rehearse a talk, face a viva or a group discussion — get a scored report and try again.</small></span>
+      <span class="pr-go">→</span>
+    </button>
+    <button class="pr-entry" id="riEntry" hidden>
+      <span class="pr-ic">📄</span>
+      <span><b>Resume Interview</b><small>Upload your resume and a job description — DuSu interviews you for that job.</small></span>
       <span class="pr-go">→</span>
     </button>
     <div class="modes">
@@ -3309,6 +3563,25 @@
     <div class="pl-addrow" id="plAddRow" hidden></div>
     <div class="pl-body" id="plBody" aria-live="polite"></div>
   </section>
+
+  <!-- ===================== RESUME INTERVIEW - shown only when /me says `resume_interview`. One screen, several views (hub / resume / job /
+       analysing / match / interview / report / settings): the RI module paints #riBody with DOM calls only - never innerHTML - because it
+       renders resume text, job text and model output that a learner (or an attacker) controls. ===================== -->
+  <section id="ri" class="screen" data-view="hub">
+    <div class="sess-head ri-top">
+      <button class="back ri-back" id="riBack" type="button" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+      <div class="ri-ttl"><div class="sess-title" id="riTitle" tabindex="-1">Resume Interview</div><div class="sess-sub" id="riSub"></div></div>
+      <button class="ri-ic" id="riGear" type="button" aria-label="Settings">⚙️</button>
+    </div>
+    <ol class="ri-steps" id="riSteps" aria-label="Your progress" hidden></ol>
+    <div class="ri-sr" id="riLive" role="status" aria-live="polite"></div>
+    <div class="ri-note" id="riTopNote" hidden></div>
+    <div class="ri-body" id="riBody"></div>
+    <div class="ri-bar" id="riBar" hidden>
+      <div class="ri-note" id="riNote" hidden></div>
+      <div class="ri-acts" id="riActs"></div>
+    </div>
+  </section>
 </div>
 
 <!-- ===================== BOTTOM NAV + MORE SHEET ===================== -->
@@ -3317,6 +3590,7 @@
   <h3>More</h3>
   <button class="mrow" data-more="admin" id="mrowAdmin" hidden><span class="mi">📊</span><span><span class="mt">Dashboard</span><br><span class="msub">Users &amp; activity (owner)</span></span></button>
   <button class="mrow" data-more="myday" id="mrowMyDay" hidden><span class="mi">✅</span><span><span class="mt">My Day</span><br><span class="msub">Tasks, habits, goals &amp; reminders</span></span></button>
+  <button class="mrow" data-more="resume-interview" id="mrowRI" hidden><span class="mi">📄</span><span><span class="mt">Resume Interview</span><br><span class="msub">Your resume + a job → a mock interview</span></span></button>
   <button class="mrow" data-more="profile"><span class="mi">👤</span><span><span class="mt">Profile</span><br><span class="msub">Streaks, badges, memories</span></span></button>
   <button class="mrow" data-more="keys"><span class="mi">🔑</span><span><span class="mt">DuSu keys / Mode</span><br><span class="msub">Personal or Office (own keys)</span></span></button>
   <button class="mrow" data-more="leveltest" id="mrowLevelTest"><span class="mi">🧪</span><span><span class="mt">Level check</span><br><span class="msub">Re-check your English level</span></span></button>
@@ -3877,14 +4151,17 @@ function show(id, pathOverride){
   try{ syncUrl(id, pathOverride); }catch(_){}   // keep the browser URL mirroring the visible screen (override for shared screens)
   try{ window.PR && PR.syncEntries(); }catch(_){}   // Practice Room entry points (hidden until the owner switches it on)
   try{ window.PL && PL.syncEntries(); }catch(_){}   // My Day entry points (hidden until the owner switches it on)
+  try{ window.RI && RI.syncEntries(); }catch(_){}   // Resume Interview entry points (hidden until the owner switches it on)
   if(cur === "pl" && id !== "pl"){ try{ window.PL && PL.leave(); }catch(_){} }
+  if(cur === "ri" && id !== "ri"){ try{ window.RI && RI.leave(); }catch(_){} }   // stop the voice / keep an unfinished recording
 }
 // ---- Bottom navigation: which tab lights up per screen; nav hidden only on login/onboarding ----
 const NAV_TAB = { about:"home", home:"home", journey:"journey", daily:"daily", practice:"practice",
   learning:"practice", session:"practice", setup:"practice", lesson:"practice", report:"practice",
   leaderboard:"leaderboard", profile:"more", keys:"more", admin:"more", help:"more", career:"home", league:"leaderboard", achievements:"more", interviewReports:"more",
-  prHub:"practice", prSetup:"practice", prTalk:"practice", prLive:"practice", prWork:"practice", prReport:"practice", prBridge:"practice", pl:"more" };
-const PATH_TAB = { "/profile":"more", "/keys":"more", "/more":"more", "/my-day":"more", "/my-day/tasks":"more", "/my-day/goals":"more", "/my-day/habits":"more", "/my-day/reminders":"more", "/my-day/settings":"more" };
+  prHub:"practice", prSetup:"practice", prTalk:"practice", prLive:"practice", prWork:"practice", prReport:"practice", prBridge:"practice", pl:"more", ri:"practice" };
+const PATH_TAB = { "/profile":"more", "/keys":"more", "/more":"more", "/my-day":"more", "/my-day/tasks":"more", "/my-day/goals":"more", "/my-day/habits":"more", "/my-day/reminders":"more", "/my-day/settings":"more",
+  "/resume-interview":"practice", "/resume-interview/resume":"practice", "/resume-interview/job":"practice", "/resume-interview/match":"practice", "/resume-interview/interview":"practice", "/resume-interview/report":"practice", "/resume-interview/settings":"practice" };
 function syncNav(id, pathOverride){
   const nav = $("bnav"); if(nav) nav.classList.toggle("hide", id === "login" || id === "assessment");
   const t = (pathOverride && PATH_TAB[pathOverride]) || (id === "session" && currentMode === "home" ? "home" : NAV_TAB[id]);
@@ -3920,6 +4197,7 @@ function openMore(){
   const b = document.querySelector('.btab[data-tab="more"]'); if(b) b.classList.add("active");
   const ad = $("mrowAdmin"); if(ad) ad.hidden = !(userState && userState.role === "owner");
   try{ window.PL && PL.syncEntries(); }catch(_){}   // My Day row (hidden unless /me says planner)
+  try{ window.RI && RI.syncEntries(); }catch(_){}   // Resume Interview row (hidden unless /me says resume_interview)
   // Level check hidden entirely while the owner has the assessment switched off.
   const lt = $("mrowLevelTest"); if(lt) lt.hidden = !!(userState && userState.level_test === false);
   // Keys row: office-approved users, users who must BYOK, and anyone already holding
@@ -3938,6 +4216,7 @@ document.querySelectorAll(".mrow").forEach(r => r.onclick = () => {
   else if(a === "help") openHelp();
   else if(a === "confidence") startConfidenceCheck();
   else if(a === "myday") navTo("/my-day");
+  else if(a === "resume-interview") navTo("/resume-interview");
   else if(a === "achievements") navTo("/achievements");
   else if(a === "interview-reports") navTo("/interview-reports");
   else if(a === "rewards") toggleRewardsGuide(true);
@@ -4031,6 +4310,7 @@ function pathForScreen(id){
     // every Practice Room screen shares one URL: a reload mid-take can't resume a live recording anyway, so it lands on the hub
     prHub:"/practice-room", prSetup:"/practice-room", prTalk:"/practice-room", prLive:"/practice-room", prWork:"/practice-room", prReport:"/practice-room", prBridge:"/practice-room",
     pl:(window.PL && PL.path()) || "/my-day",
+    ri:(window.RI && RI.path()) || "/resume-interview",
     superadmin:"/superadmin", subscribe:"/subscribe", login:"/", assessment:"/test" })[id] || null;
 }
 function syncUrl(id, pathOverride){
@@ -4382,6 +4662,9 @@ async function openAdmin(){
       <select class="pr-sel" id="homeSel"><option value="off" ${d.home_ai === "off" ? "selected" : ""}>Off</option><option value="owner" ${d.home_ai === "on" || d.home_ai === "off" ? "" : "selected"}>Owner + early access</option><option value="on" ${d.home_ai === "on" ? "selected" : ""}>Everyone</option></select></label>
       <label class="swrow"><span><b>My Day (tasks · habits · goals · reminders)</b><br><span class="msub">Stores each learner's plan and sends reminders, so it ships dark. Off = nobody (default). Owner + early access = you and the early-access testers. Everyone = all users. Its Hindi / English switch is the one above.</span></span>
       <select class="pr-sel" id="plSel"><option value="off" ${d.planner === "on" || d.planner === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.planner === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.planner === "on" ? "selected" : ""}>Everyone</option></select></label>
+      <label class="swrow"><span><b>Resume Interview</b><br><span class="msub">A learner uploads a resume and a job description and DuSu interviews them for that job. It stores resume and job text, so it ships dark. Off = nobody (default). Owner + early access = you and the early-access testers. Everyone = all users.</span></span>
+      <select class="pr-sel" id="riSel"><option value="off" ${d.resume_interview === "on" || d.resume_interview === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.resume_interview === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.resume_interview === "on" ? "selected" : ""}>Everyone</option></select></label>
+      ${d.resume_interview_health && typeof d.resume_interview_health.documents === "number" ? `<p class="keys-note" style="margin:-4px 0 8px">Resume Interview: ${d.resume_interview_health.documents} document(s) · ${d.resume_interview_health.sessions} interview(s), ${d.resume_interview_health.finished} finished · answers today ${d.resume_interview_health.answers_today} · feedback failed today ${d.resume_interview_health.feedback_failed_today}</p>` : ""}
       ${d.planner_health ? `<p class="keys-note" style="margin:-4px 0 8px">Reminders: ${d.planner_health.scheduled} waiting · ${d.planner_health.queue_late} late · ${d.planner_health.sending_stuck} stuck · sent in 24 h ${d.planner_health.sent_24h} (push accepted ${d.planner_health.push_accepted_24h}, failed ${d.planner_health.push_failed_24h}) · ${d.planner_health.push_devices} device(s) · push ${d.planner_health.push_available ? "available" : "UNAVAILABLE (library missing)"}${d.planner_health.last_error ? " · last loop error: " + esc(d.planner_health.last_error) : ""}</p>` : ""}
       <button class="uBtn bad" id="wipeBtn" style="width:100%;margin:2px 0 4px">🗑 Reset test users</button>`;
     // Early access: invited testers see every feature whose switch is "Owner + early access" (main.staged_visible) - visibility only.
@@ -4498,9 +4781,10 @@ function wireOffice(){
     const bil = ($("bilSel") && $("bilSel").value) || undefined;
     const hom = ($("homeSel") && $("homeSel").value) || undefined;
     const pln = ($("plSel") && $("plSel").value) || undefined;
+    const rin = ($("riSel") && $("riSel").value) || undefined;
     try{ await fetch("/admin/settings",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({token:authToken, access_phase: growth ? "growth" : "quota",
-                           level_test: lvl, owner_byok: obk, practice_room: prm, life_context: lcx, bilingual: bil, home_ai: hom, planner: pln})}); }catch(_){}
+                           level_test: lvl, owner_byok: obk, practice_room: prm, life_context: lcx, bilingual: bil, home_ai: hom, planner: pln, resume_interview: rin})}); }catch(_){}
   };
   if($("reqKeysSw")) $("reqKeysSw").onchange = saveSettings;
   if($("lvlTestSw")) $("lvlTestSw").onchange = saveSettings;
@@ -4510,6 +4794,7 @@ function wireOffice(){
   if($("bilSel")) $("bilSel").onchange = saveSettings;
   if($("homeSel")) $("homeSel").onchange = saveSettings;
   if($("plSel")) $("plSel").onchange = saveSettings;
+  if($("riSel")) $("riSel").onchange = saveSettings;
   if($("wipeBtn")) $("wipeBtn").onclick = async () => {
     if(!confirm("Delete ALL users except david, shuhani, free-access and early-access emails? This cannot be undone.")) return;
     try{ const r = await fetch("/admin/wipe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:authToken})});
@@ -6547,6 +6832,7 @@ async function deleteAccount(){
       body: JSON.stringify({ token: authToken, confirm: "delete" }) });
     if(!r.ok) throw new Error("delete failed");
     try{ if(window.PR) await PR.wipeLocal(); }catch(_){}   // Practice Room recordings/transcripts exist only on this device — clear them too
+    try{ if(window.RI) await RI.wipeLocal(); }catch(_){}   // ...and so do the Resume Interview answer recordings
     logout();
   }catch(_){
     if(st){ st.textContent = "Couldn't delete — try again."; st.style.color = "#e08585"; }
@@ -7393,6 +7679,7 @@ function speakWelcome(){
 function logout(){
   authToken = ""; authUser = null; aActive = false; try{ LG.clear(); }catch(_){}   // the language choice belongs to the account, not the device
   try{ window.PL && PL.reset(); }catch(_){}   // My Day: stop polling, drop the cached plan
+  try{ window.RI && RI.reset(); }catch(_){}   // Resume Interview: stop the mic + voice, drop in-memory state (the on-device recordings are NOT wiped here)
   localStorage.removeItem("dusu_token"); localStorage.removeItem("dusu_user"); localStorage.removeItem("dusu_state"); localStorage.removeItem("dusu_letter"); localStorage.removeItem("dusu_daily_resume"); localStorage.removeItem("dusu_keys_ok"); localStorage.removeItem("dusu_office_keys"); localStorage.removeItem("dusu_keys_owner");
   $("hdrRight").hidden = true; $("tagline").style.display = "";
   try{ ws && ws.close(); }catch(_){}
@@ -7473,6 +7760,7 @@ function refreshMe(initial){
       try{ LG.syncFromState(); }catch(_){}   // Hindi/English choice (server-saved, default Hindi) + show/hide the switch
       try{ window.PR && PR.syncEntries(); }catch(_){}   // the owner may have just switched Practice Room on/off
       try{ if(window.PL){ PL.syncEntries(); if(PL.enabled()) PL.start(); } }catch(_){}   // My Day: entry points + the in-app reminder poll
+      try{ window.RI && RI.syncEntries(); }catch(_){}   // Resume Interview: the owner may have just switched it on/off
       localStorage.setItem("dusu_onboarded", st.onboarded ? "true" : "false");
       // cache the whole state so the next boot paints mood/note/Continue instantly (no /me wait)
       try{ localStorage.setItem("dusu_state", JSON.stringify(st)); }catch(_){}
@@ -8624,7 +8912,8 @@ const HM = (function(){
     career_path:   '<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>',
     league:        '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
     achievements:  '<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>',
-    goals_planning:'<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>'
+    goals_planning:'<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
+    resume_interview:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>'
   };
   function renderFeats(){
     const nav = $("hmFeats"); if(!nav) return;
@@ -9729,6 +10018,1761 @@ const PL = (function(){
   return { enabled, open, path, syncEntries, onLang, start, reset, pollDue, leave, _txt:TXT };
 })();
 window.PL = PL;
+
+/* ================= RESUME INTERVIEW - a resume + a job description in, a mock interview built from them out =================
+   Plan: ~/.claude/plans/one-more-feture-needed-sunny-swing.md · API: /rinterview/* (backend/app/resume_interview). One screen (#ri) with the
+   views hub / resume / job / analysing / match / interview / report / settings and one URL per step (/resume-interview[/resume|job|match|
+   interview|report|settings]). Everything is behind userState.resume_interview: until the owner flips the switch no entry point is drawn and
+   open() bounces home, so shipping this changes nothing for anyone. Ids are #ri*, classes ri-* (this file's class names are global).
+   SECURITY - this module NEVER uses innerHTML. Resume text, job text, titles, companies, transcripts, questions and model output reach the
+   page only through textContent (the h() builder below). A stored XSS here would hand over the session token and the BYOK keys that live in
+   localStorage. Audio stays on the phone (IndexedDB "dusu-interview", tagged with the account); the server keeps text, scores and reports. */
+const RI = (function(){
+  "use strict";
+  const API = "/rinterview", BASE = "/resume-interview";
+  const PATHS = { hub:BASE, resume:BASE + "/resume", job:BASE + "/job", analysing:BASE + "/match", match:BASE + "/match",
+                  interview:BASE + "/interview", report:BASE + "/report", settings:BASE + "/settings" };
+  const STEP_OF = { resume:0, job:1, analysing:2, match:2, interview:3, report:4 };
+  const STEP_KEYS = ["stResume", "stJob", "stMatch", "stInterview", "stReport"];
+  const ACCEPT = ".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain";
+  const GLYPH = { strong:"●●●●", good:"●●●○", fair:"●●○○", needs_work:"●○○○", weak:"●○○○", unknown:"○○○○" };
+
+  /* ---------- words: English only in v1. Every string the module shows lives here, so a Hindi table can be added later without touching the code ---------- */
+  const TXT = { en: {
+    back:"Back", settings:"Settings", off:"Resume Interview isn't available yet.", loading:"Loading…", retry:"Try again", cancel:"Cancel", close:"Close",
+    del:"Delete", copy:"Copy", copied:"Copied ✓", copyFail:"Couldn't copy — select the text and copy it by hand.", untitled:"Untitled",
+    stResume:"Resume", stJob:"Job", stMatch:"Match", stInterview:"Interview", stReport:"Report",     sHub:"Mock interviews built from your own resume", sResume:"Step 1 · Your resume", sJob:"Step 2 · The job", sMatch:"Step 3 · How you match", sReport:"Report", sSettings:"Settings",
+    hubIntro:"Upload your resume and a job description. DuSu shows what doesn't match, then interviews you for that job. You record each answer and get your mistakes and a stronger answer back.",
+    hubNew:"New interview", hubOlder:"Show older interviews", hubOlderAdded:"Older interviews were added to the list.", hubContinue:"Continue where you left off", hubContinueBtn:"Continue", hubPast:"My interviews", hubResumes:"My resumes", hubJobs:"My job descriptions",
+    hubNoSessions:"No interviews yet. Start one above.", hubNoResumes:"No saved resumes yet. You add one in step 1.", hubNoJobs:"No saved job descriptions yet.",
+    hubToday:"Today: {s} of {sc} interviews · {a} of {ac} answers", hubLoadErr:"Couldn't load your interviews right now.",
+    hubPrivacy:"DuSu saves the text of your resume (contact details removed) and of the job description, your answers as text and the feedback, until you delete them. The uploaded file and the audio of your answers are not stored on DuSu's servers: recordings stay on this phone.",
+    hubCap:"You've started the most interviews allowed for today. Come back tomorrow.",
+    sFinished:"Finished", sActive:"In progress", sMatched:"Ready to start", sDraft:"Not started", answersN:"{n} answers", answers1:"1 answer", noAnswers:"No answers yet", score:"Score {n}",
+    delDocAsk:"Delete this saved {what}? Interviews that used it stay, but lose the link to it.", whatResume:"resume", whatJd:"job description",
+    delSessAsk:"Delete this interview and its report? This cannot be undone.", docMeta:"{n} characters",
+    rTitle:"Your resume", rSub:"Upload it or paste the text. DuSu removes your email, phone number and address before saving it, and shows you exactly what it kept.",
+    rSwapTitle:"Your improved resume", rSwapSub:"Upload the new version. DuSu checks it against the same job and shows what changed.",
+    pickH:"Upload a file", pickFile:"Choose a file", pickHint:"PDF, Word (.docx) or text · up to {mb} MB", or:"or paste the text", pasteLab:"Paste your resume text", pastePh:"Paste your resume here…",
+    nameLab:"Name this version (optional)", namePh:"e.g. Data Analyst resume", useText:"Use this text", uploading:"Reading your file…", saving:"Saving…",
+    savedH:"Or use one you saved", use:"Use", versionsH:"Earlier versions of this resume", useVersion:"Use this version",
+    kept:"DuSu kept {n} characters", removed:"Removed before saving: {list}", removedNone:"Nothing needed removing.", previewAria:"The text DuSu kept", dupNote:"You saved this exact text before, so DuSu reused it.",
+    pickOther:"Use a different file", editText:"Edit the text", editHint:"Fix anything that was read wrongly: columns and tables in a PDF can come out jumbled. Saving creates a new version.",
+    saveEdit:"Save as a new version", looksRight:"Looks right — continue", editShort:"That's too short to be a resume ({n} characters, at least {min} needed).",
+    defResume:"Resume", defJd:"Job",
+    jTitle:"The job", jSub:"Paste the job description or upload it. DuSu reads what the job asks for and compares it with your resume.", jResume:"Resume", jChange:"Change",
+    jTitleLab:"Job title (optional)", jTitlePh:"e.g. Data Analyst", jCompanyLab:"Company (optional)", jCompanyPh:"e.g. Acme Corp", jPasteLab:"Paste the job description",
+    jPastePh:"Paste the whole job description: responsibilities and requirements…",     jShort:"That looks too short ({n} characters). Paste the whole job description, at least {min} characters.", jNext:"Next: match my resume", jNoResume:"Choose your resume first.",
+    typeLab:"Interview type", tMixed:"Mixed", tHr:"HR", tTech:"Technical", levelLab:"Your level", lFresher:"Fresher", lExp:"Experienced", fbLab:"Explain my mistakes in", fbHinglish:"Hinglish", fbEn:"English",
+    aTitle:"Matching your resume with the job", aTitleSwap:"Checking your new resume", aTitleStart:"Preparing your interview",
+    aSteps:["Reading your resume", "Reading the job", "Matching the two"], aStepsSwap:["Reading your new resume", "Matching it with the job"], aStepsStart:["Reading the match", "Writing questions for this job", "Opening question 1"],
+    aWait:"This usually takes 10 to 20 seconds.", aSlow:"Still working — the AI is a little slow right now. Your documents are safe; you can wait here or come back later.",
+    aErrT:"That didn't work", aBackJob:"Back to the job", aRedacted:"Removed from the job text: {list}.", iPrep:"Getting your first question ready…",
+    mScoreCap:"Match score — DuSu's estimate", mNotScored:"Not scored", mNotScoredWhy:"DuSu couldn't build a reliable score from this job text. Paste the full job description for a match score. You can still start the interview.",
+    mLow:"This job looks quite different from your resume right now. That's fine for practice: DuSu will lean on your projects, education, transferable skills and why you want this role.",
+    mReqH:"What the job asks for", mMust:"Must-have", mNice:"Nice-to-have", mGMissing:"Missing", mGPartial:"Partly there", mGMet:"Matched",
+    stMissing:"Missing", stPartial:"Partly there", stMet:"Matched", mEvidence:"From your resume:",     mEditsH:"Suggested edits to your resume", mEditsSub:"Tick the ones you'll do. DuSu never writes your resume for you: it only suggests wording.", mPrioHigh:"High priority", mPrioMedium:"Medium", mPrioLow:"Low",
+    mTypeAdd:"Add", mTypeReword:"Reword", mTypeQuantify:"Add a number", mNow:"Now:", mSuggest:"Suggested:", mOnlyTrue:"Only if true for you", mPick:"I'll do this", mAddressed:"Done in your new resume",
+    mNoEdits:"No edits suggested.", mStrH:"Already strong", mNotesH:"Also worth knowing", mFix:"How to fix:", mPicksErr:"Couldn't save your ticks. They will be saved with your next change.",
+    mPrevH:"Compared with your previous resume", mPrevBand:"{a} → {b}", mPrevChanged:"What changed", mPrevNone:"No requirement changed status.", mPrevDone:"Edits you've now made: {n}",
+    mReupload:"Re-upload improved resume", mStart:"Start interview", mToInterview:"Back to the interview", mToReport:"See the report", mStarted:"This interview has already started, so the resume can't be swapped any more.",
+    mNotDone:"The match isn't ready yet.", mAnalyse:"Analyse now", stFrom:"was {a}, now {b}",
+    iQ:"Question {n}", iSrcPlan:"From your resume and the job", iSrcFollow:"Follow-up", iSrcBank:"Common question", iWhy:"Why this question:",
+    iHear:"Hear again", iHearStop:"Stop voice", iHearAria:"Hear the question again", iAsking:"DuSu is asking…", iSkipVoice:"Skip the voice", iTap:"Tap to answer",
+    iTapHint:"Answer out loud, as in a real interview. Aim for 1 to 2 minutes (3 at most). A real example with a result or a number works best.",
+    iRec:"Recording", iRecAnn:"Recording started", iStop:"Stop and send", iOf:"of {t}", iWrap:"Time to wrap up — about 30 seconds left.", iKeepGoing:"Keep going — DuSu needs at least {s} seconds.",
+    iGood:"Good. Most answers run 1 to 2 minutes.", iMicWait:"Allowing the microphone…", iSaving:"Saving your recording…", iTranscribing:"Writing down what you said…", iTranscribingSub:"A one-minute answer takes about 10 seconds.",
+    iAnalysing:"DuSu is reading your answer…", iAnalysingSub:"Usually 10 to 20 seconds.", iSlow:"Still working…",
+    iHeldH:"Recorded, but not sent yet", iHeldB:"Listen to it if you like, then send it or record it again.", iHeldHidden:"Recording stopped because you switched away.",
+    iHeldTrack:"The microphone was interrupted (a call or another app?). What you recorded so far is saved.", iHeldError:"Recording hit a problem. What you recorded so far is saved.", iHeldRecovered:"The app was closed while you were recording. This is what was saved.", iSend:"Send it", iRerecord:"Re-record",
+    iShortH:"That was too short", iShortB:"DuSu needs about {w} words and {s} seconds to give feedback. Nothing was counted. Record your answer again.", iShortLocal:"That recording was only a moment long. Tap the microphone and answer again.",
+    iNoSpeechH:"We couldn't hear any words", iNoSpeechB:"Check that the level bar moved while you spoke and that the microphone isn't blocked, then record again.",
+    iSkipped:"Skipped. Tap Next question when you're ready.", iAnsweredElsewhere:"This question was already answered (maybe on another device), so DuSu is showing that answer's feedback. The recording on this phone wasn't used.",
+    iNotCounted:"This answer is saved, but it didn't count toward the {n} needed to finish (too short or hard to hear).",
+    iSkip:"Skip", iNext:"Next question", iFinish:"Finish interview", iFinishLock:"Finish interview — {n} more to unlock", iCounted:"{a} answers counted",         fbBandC:"Content", fbBandL:"Language", fbBandD:"Delivery", fbHeard:"What DuSu heard (from the transcript)",
+    fbHeardNote:"Speech-to-text can tidy your grammar, so what you actually said may differ a little. If a mistake below isn't what you said, tap “not what I said”.",
+    fbListen:"Listen to my answer", fbOther:"The recording is on your other phone.", fbNoAudio:"Recording not available.", fbWorked:"What worked", fbMistakes:"Mistakes to fix",
+    fbSaid:"You said", fbBetter:"Better", fbNot:"not what I said", fbHidden:"Hidden.", fbUndo:"Undo", fbContent:"About the content", fbFix:"Fix next time", fbBetterAns:"A stronger answer",
+    fbBetterNote:"A sample, not a script: use your own facts. Anything in [brackets] needs your real detail.", fbHear:"Hear it", fbDelivery:"Delivery", fbFollow:"DuSu might ask next:", fbResume:"Checked against your resume",
+    fbPending:"DuSu is reading your answer…", fbFailedT:"Feedback isn't ready", fbFailedB:"Your answer is saved. The AI couldn't write the feedback just now.", fbRetry:"Retry feedback",
+    dvWords:"{w} words in {s} s", dvWpm:"{n} words per minute", dvWpmEst:"about {n} words per minute (estimated from the length)",
+    dvPauses:"{n} long pauses", dvPause1:"1 long pause", dvLongest:"longest pause {s} s", dvRestarts:"{n} restarts", dvRestart1:"1 restart", dvNot:"Pauses and restarts weren't measured for this answer (no word timings).", dvFill:"Filler words",
+    sttNone:"One free key needed", sttNoneB:"To turn your voice into text, DuSu needs a free Groq key. Your recording is safe on this phone.", addGroq:"Add my Groq key",
+    sttKey:"Your Groq key was rejected", sttKeyB:"Check or replace it in More → DuSu keys. Your recording is safe on this phone.", sttBusy:"The transcription service is busy", sttBusyB:"Your recording is saved on this phone. Try again in a minute.",
+    sttDown:"Couldn't turn the recording into text", sttDownB:"Your recording is saved on this phone. Try again in a minute.", sttServer:"DuSu's own transcription isn't working",
+    sttServerB:"Add your own free Groq key (More → DuSu keys) to use Resume Interview. Your recording is safe on this phone.", netT:"No connection", netB:"Your recording and text are saved on this phone. Try again when you're back online.",
+    keysT:"Add your AI keys first", keysB:"DuSu needs your free AI keys to write the feedback. Your recording and text are saved.", addKeys:"Add my keys", quotaT:"Your AI keys are at their limit",
+    quotaB:"Try again in a bit, or add another key in More → DuSu keys. Your recording and text are saved.", dailyT:"That's a lot of practice today!", dailyB:"You've reached today's limit. Come back tomorrow.",
+    unavT:"Couldn't write your feedback", unavB:"The AI providers are busy. Your answer is saved — try again in a minute.", micBlocked:"Microphone permission is blocked. Allow it for DuSu in your phone's app settings, then try again.",
+    micNone:"No microphone was found on this device.", micNoRec:"This browser can't record audio. Please use Chrome.", micFail:"Couldn't start the microphone. Close other apps that use it and try again.", micT:"The microphone isn't ready",
+    rpOverall:"overall", rpCounted:"{r} of {a} answers counted", rpMin:"{m} min of speaking", rpPartial:"Some answers have no written feedback, so they are left out of the numbers.",
+    rpNoScore:"There is no overall score: DuSu could not write feedback for these answers (the AI was not reachable). The delivery numbers below are real. Practise again for a full report.",
+    rpCatH:"Your five skills", rpNotMeasured:"Not measured", rpCovH:"What the job asked for", rpCovered:"Covered in your answers", rpNot:"Not covered yet", rpPatH:"Patterns across your answers",
+    rpStrH:"Strengths", rpFixH:"What to fix first", rpRedoH:"The answer to redo", rpRedoSub:"Your weakest answer. Try it again with the stronger version in mind.", rpQsH:"Question by question",
+    rpListen:"Listen to my answer", rpDeltaH:"Compared with your last interview for this job", rpDeltaLang:"Language", rpDeltaDeliv:"Delivery", rpBetterBy:"better by {n}", rpLowerBy:"lower by {n}", rpSame:"about the same",
+    rpAgain:"Practice again", rpNewJob:"New job", rpHub:"All interviews", rpXp:"+{n} XP", rpMinutes:"{n} practised", rpStreak:"{n}-day streak", rpRank:"Rank: {r}", rpRankUp:"Rank up!",     rpNote:"Scores are DuSu's estimate from your answers. This is practice, not a prediction of any hiring decision.", rpAgainBusy:"Setting up another round…", rpNoReport:"This report isn't available.",
+    sCat_relevance:"Answering the question", sCat_specificity:"Specifics and examples", sCat_structure:"Structure", sCat_language:"Language", sCat_delivery:"Delivery",
+    stFbH:"Explain my mistakes in", stFbSub:"Used for the next interview you set up.", stLocalH:"Recordings on this phone", stLocalN:"{n} recordings · about {mb} MB", stLocalNone:"No recordings on this phone.",
+    stLocalDel:"Delete recordings from this phone", stLocalAsk:"Delete all Resume Interview recordings from this phone? The feedback and reports stay.", stDataH:"Your data", stExport:"Download my data",
+    stDelAll:"Delete all my Resume Interview data", stDelAsk:"This permanently deletes your saved resumes, job descriptions, interviews, answers and reports. Recordings on this phone are deleted too. Continue?",
+    stDeleted:"All your Resume Interview data was deleted.", stExported:"Your data was downloaded.", stLocalDone:"Recordings deleted from this phone.",
+    eGeneric:"Something went wrong. Please try again.", eBadFile:"We couldn't read that file. Try another one, or paste the text instead.", eExtract:"We can't read files right now. Paste the text instead, or try again in a bit.", eBlocked:"Your access is paused right now. Please contact the DuSu team.", eNet:"No connection. Check your internet and try again.", eSlow:"That took too long. Please try again.", eKeys:"Add your own AI keys to continue (More → DuSu keys).",
+    eTooLarge:"That file is larger than 5 MB. Try a smaller file or paste the text.", eDoc:"That's an old Word (.doc) file. Open it and save it as .docx or PDF, then upload again — or paste the text.",
+    eType:"That file type isn't supported. Use a PDF, a Word (.docx) file or plain text — or paste the text.", eEmpty:"There is no text there yet.",
+    eDocShort:"There's very little text in that file. If it is a scan or a photo, paste the text instead.", eNoText:"DuSu couldn't read any text from that file. It may be a scan or a photo — paste the text instead.",
+    eEncrypted:"That PDF is password-protected. Remove the password and upload it again, or paste the text.", eJdVague:"That job description is too short to compare with. Paste the whole job description.",
+    eBadInput:"That didn't look right. Please check it and try again.", eNoResume:"Choose your resume first.", eNoJd:"Add the job description first.", eDaily:"You've reached today's limit. Come back tomorrow.",
+    eQuota:"Your AI keys are at their limit. Try again in a bit, or add another key in More → DuSu keys.", eRate:"A lot of requests at once. Wait a minute and try again.",
+    eAnalysis:"DuSu couldn't analyse this right now. Your documents are saved. Try again in a minute.", ePlan:"DuSu couldn't prepare the questions right now. Try again in a minute.",
+    eFeedback:"DuSu couldn't write the feedback right now.", eStt:"Couldn't turn the recording into text. Your recording is safe on this phone. Try again.", eNoGroq:"Add a free Groq key to turn your voice into text (More → DuSu keys).",
+    eNeedMore:"Finish unlocks after {n} more real answers.", eAnswered:"That question was already answered.", eCap:"You've reached the most answers allowed in one interview. Finish to see your report.",
+    eWrongState:"This interview has moved on. Refreshing it.", eFinished:"This interview is already finished.", eLimDocs:"You have too many saved documents. Delete one you don't need first.",
+    eLimSess:"You have too many saved interviews. Delete one you don't need first.", eNotFound:"That wasn't found. It may have been deleted.", eOffServer:"Resume Interview isn't available right now."
+  } };
+  function t(k, v){
+    let s = TXT.en[k]; if(s === undefined) return k;
+    if(v && typeof s === "string") s = s.replace(/\{(\w+)\}/g, (_, x) => v[x] != null ? v[x] : "");
+    return s;
+  }
+
+  /* ---------- a tiny DOM builder: the ONLY way this module puts anything on the page ---------- */
+  const NS = "http://www.w3.org/2000/svg";
+  // attributes are allow-listed, and an on* attribute only ever takes a function - a model- or user-supplied string can never become markup or script
+  const ATTR_OK = /^(class|id|type|role|title|placeholder|rows|maxlength|accept|for|name|tabindex|autocomplete|autocapitalize|spellcheck|inputmode|enterkeyhint|controls|preload|multiple|lang|dir|min|max|step|open|aria-[a-z]+|data-[a-z0-9-]+)$/;
+  function add(el, c){
+    if(c == null || c === false || c === true) return;
+    if(Array.isArray(c)){ for(const x of c) add(el, x); return; }
+    el.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
+  }
+  function h(tag, a, ...kids){
+    const el = document.createElement(tag);
+    if(a && typeof a === "object" && !(a instanceof Node) && !Array.isArray(a)){
+      for(const k of Object.keys(a)){
+        const v = a[k];
+        if(v == null || v === false) continue;
+        if(k === "class") el.className = v;
+        else if(k.slice(0, 2) === "on"){ if(typeof v === "function") el.addEventListener(k.slice(2), v); }
+        else if(k === "value") el.value = v;
+        else if(k === "checked") el.checked = !!v;
+        else if(k === "disabled") el.disabled = !!v;
+        else if(k === "hidden") el.hidden = !!v;
+        else if(ATTR_OK.test(k)) el.setAttribute(k, v === true ? "" : String(v));
+      }
+    } else if(a != null) kids.unshift(a);
+    add(el, kids);
+    return el;
+  }
+  function put(el, ...kids){ while(el.firstChild) el.removeChild(el.firstChild); add(el, kids); return el; }
+  const ICONS = {
+    back:["M19 12H5M12 19l-7-7 7-7"], mic:["M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z", "M19 10v2a7 7 0 0 1-14 0v-2", "M12 19v3"], stop:["M7 7h10v10H7z"],
+    speaker:["M11 5 6 9H2v6h4l5 4V5z", "M15.5 8.5a5 5 0 0 1 0 7", "M19 5a9 9 0 0 1 0 14"], copy:["M9 9h11v11H9z", "M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"],
+    trash:["M5 7h14M9 7V4.5h6V7M6.5 7l.9 12a2 2 0 0 0 2 1.9h5.2a2 2 0 0 0 2-1.9l.9-12M10 11v6M14 11v6"], check:["M5 13l4 4L19 7"], x:["M6 6l12 12M18 6L6 18"],
+    upload:["M12 16V4M7 9l5-5 5 5M5 20h14"], file:["M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z", "M14 2v4a2 2 0 0 0 2 2h4"], play:["M7 5v14l12-7z"],
+    pencil:["M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z", "M14.5 7.5l3 3"], refresh:["M21 12a9 9 0 1 1-3-6.7", "M21 4v5h-5"], send:["M5 12h14M13 6l6 6-6 6"]
+  };
+  function ic(name){
+    const s = document.createElementNS(NS, "svg");
+    s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("fill", "none"); s.setAttribute("stroke", "currentColor"); s.setAttribute("stroke-width", "1.8");
+    s.setAttribute("stroke-linecap", "round"); s.setAttribute("stroke-linejoin", "round"); s.setAttribute("aria-hidden", "true"); s.setAttribute("focusable", "false");
+    (ICONS[name] || []).forEach(d => { const p = document.createElementNS(NS, "path"); p.setAttribute("d", d); s.appendChild(p); });
+    return s;
+  }
+  function svgEl(tag, at){ const e = document.createElementNS(NS, tag); for(const k in at) e.setAttribute(k, String(at[k])); return e; }
+  // a button in the house style; kind = "primary" | "ghost" | "danger" | ""; extra classes via o.cls, attributes via o.attrs
+  function btn(label, kind, fn, o){
+    o = o || {};
+    return h("button", Object.assign({ type:"button", class:"btn ri-btn" + (kind ? " " + kind : "") + (o.cls ? " " + o.cls : ""), onclick:fn }, o.attrs || {}), o.icon ? ic(o.icon) : null, h("span", null, label));
+  }
+  const spinner = () => h("div", { class:"spin", role:"presentation" });
+
+  /* ---------- small helpers ---------- */
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+  const mmss = s => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+  const shortDate = iso => { try{ return new Date(iso).toLocaleDateString([], { day:"numeric", month:"short" }); }catch(_){ return ""; } };
+  const fmtNum = n => { try{ return Number(n).toLocaleString(); }catch(_){ return String(n); } };
+  const uid = () => { try{ if(window.crypto && crypto.randomUUID) return crypto.randomUUID(); }catch(_){} return "k" + Date.now().toString(36) + Math.random().toString(36).slice(2, 12); };
+  const mkErr = (code, status) => { const e = new Error(code); e.code = code; e.status = status || 0; return e; };
+  const enabled = () => !!(userState && userState.resume_interview);
+  const journeyLang = () => { try{ return userState.progress.journey.lang || ""; }catch(_){ return ""; } };
+  const ownerId = () => String((authUser && (authUser.sub || authUser.email)) || (userState && userState.email) || "");
+  const groqKey = () => String(savedKeys().groq || "").trim();
+  const sttPlan = () => groqKey() ? "direct" : (userState && userState.ri_server_stt ? "server" : "none");
+  // the phone's id, stored with every answer: a second phone can then say "the recording is on your other phone"
+  function device(){
+    let d = "";
+    try{ d = localStorage.getItem("dusu_ri_device") || ""; if(!d){ d = "d" + uid().replace(/-/g, "").slice(0, 14); localStorage.setItem("dusu_ri_device", d); } }catch(_){}
+    return d || "d0";
+  }
+  function fbPref(){
+    let v = ""; try{ v = localStorage.getItem("dusu_ri_fb") || ""; }catch(_){}
+    return v === "hinglish" || v === "en" ? v : (journeyLang() === "hi" ? "hinglish" : "en");
+  }
+  const RED = { email:["email address", "email addresses"], phone:["phone number", "phone numbers"], link:["link", "links"], aadhaar:["Aadhaar number", "Aadhaar numbers"],
+                pan:["PAN number", "PAN numbers"], name:["name line", "name lines"], personal_block:["personal-details section", "personal-details sections"],
+                address:["address line", "address lines"] };
+  function redactionList(r){
+    const out = [];
+    for(const k of Object.keys(RED)){ const n = +(r && r[k]) || 0; if(n > 0) out.push(n + " " + RED[k][n === 1 ? 0 : 1]); }
+    return out.join(", ");
+  }
+  const bandText = b => ({ strong:"Strong", good:"Good", fair:"Fair", needs_work:"Needs work", weak:"Weak", unknown:"Not scored" })[b] || "";
+
+  /* ---------- the on-device store: chunks while recording, finished takes afterwards (a SEPARATE database from the Practice Room's) ---------- */
+  const IDB = (function(){
+    let dbp = null;
+    function open(){
+      if(dbp) return dbp;
+      dbp = new Promise((res, rej) => {
+        if(!window.indexedDB){ rej(new Error("no-idb")); return; }
+        const rq = indexedDB.open("dusu-interview", 1);
+        rq.onupgradeneeded = () => {
+          const d = rq.result;
+          if(!d.objectStoreNames.contains("chunks")) d.createObjectStore("chunks", { keyPath:["take", "seq"] });
+          if(!d.objectStoreNames.contains("takes")) d.createObjectStore("takes", { keyPath:"id" });
+        };
+        rq.onsuccess = () => res(rq.result);
+        rq.onerror = () => rej(rq.error);
+      });
+      dbp.catch(() => { dbp = null; });
+      return dbp;
+    }
+    // every call resolves (undefined on any failure): private mode or a full disk must degrade to "this take lives in memory only", never break the interview
+    function run(store, mode, fn){
+      return open().then(d => new Promise((res, rej) => {
+        const tx = d.transaction(store, mode);
+        const rq = fn(tx.objectStore(store));
+        tx.oncomplete = () => res(rq ? rq.result : undefined);
+        tx.onerror = tx.onabort = () => rej(tx.error);
+      })).catch(() => undefined);
+    }
+    return {
+      put: (store, obj) => run(store, "readwrite", s => s.put(obj)),
+      all: store => run(store, "readonly", s => s.getAll()).then(r => r || []),
+      del: (store, key) => run(store, "readwrite", s => s.delete(key)),
+      chunks: take => run("chunks", "readonly", s => s.getAll(IDBKeyRange.bound([take, 0], [take, 1e9]))).then(r => r || []),
+      delChunks: take => run("chunks", "readwrite", s => s.delete(IDBKeyRange.bound([take, 0], [take, 1e9]))),
+      reset: () => {   // drop the whole database (account deletion): close our own connection first, or the delete just waits forever
+        const p = dbp; dbp = null;
+        return (p ? p.then(d => { try{ d.close(); }catch(_){} }, () => {}) : Promise.resolve())
+          .then(() => new Promise(res => { try{ const rq = indexedDB.deleteDatabase("dusu-interview"); rq.onsuccess = rq.onerror = rq.onblocked = () => res(); }catch(_){ res(); } }));
+      }
+    };
+  })();
+  // the store is per BROWSER, not per account: every take carries its owner and each screen only ever looks at its own
+  const mine = takes => takes.filter(x => x.owner === ownerId());
+
+  /* ---------- state ---------- */
+  let S = fresh(), W = freshWiz();
+  const INFL = new Map();   // turn id -> "transcribing" | "analysing": answers being processed. They outlive a view change, so they live outside S
+  let R = null;             // the live recording (null when nothing is being recorded)
+  let popGuard = 0;         // when WE called history.back() to drop the Back-sentinel (so the popstate it causes isn't mistaken for the learner's Back)
+  function fresh(){
+    return { epoch:0, view:"hub", state:null, sid:null, sess:null, job:null, stage:{}, takes:[], progress:null, spoken:0, busy:false, fresh:0, flash:"",
+             dismissed:new Set(), picksDirty:false, picksSid:0, picksT:0, urls:[], refs:{}, watch:0, stageNote:false };
+  }
+  function pane(kind){ return { kind, doc:null, preview:"", redactions:null, warnings:[], dup:false, editing:false, text:"", title:"", company:"", busy:false }; }
+  function freshWiz(){ return { resume:pane("resume"), jd:pane("jd"), swap:false, type:"mixed", level:"fresher", fb:fbPref(), pre:null }; }
+  const lim = (k, d) => { const l = S.state && S.state.limits; return l && l[k] != null ? l[k] : d; };
+  const $b = () => $("riBody");
+
+  /* ---------- the API: bearer token, JSON, a retry for GETs, a timeout on every call, and one error shape ---------- */
+  function errOf(status, j){
+    const d = j && typeof j === "object" && "detail" in j ? j.detail : j;
+    let code = "", data = {};
+    if(typeof d === "string") code = d;
+    else if(Array.isArray(d)) code = "bad_input";
+    else if(d && typeof d === "object"){ data = d; code = d.error || d.code || ""; }
+    return { status, code, data };
+  }
+  async function api(method, path, body, o){
+    o = o || {};
+    const tries = method === "GET" ? 2 : 1;
+    let r = null, aborted = false;
+    for(let i = 0; i < tries; i++){
+      const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), o.timeout || 30000);
+      try{
+        const init = { method, headers:{ Authorization:"Bearer " + authToken }, cache:"no-store", signal:ctl.signal };
+        if(o.raw !== undefined){ Object.assign(init.headers, o.headers || {}); init.body = o.raw; }
+        else if(body !== undefined){ init.headers["Content-Type"] = "application/json"; init.body = JSON.stringify(body); }
+        r = await fetch(API + path, init);
+      }catch(e){ r = null; aborted = !!(e && e.name === "AbortError"); }
+      clearTimeout(to);
+      if(r && r.status < 500) break;
+      if(i < tries - 1) await sleep(500);   // a GET that hit a hiccup (a dropped connection, a 5xx during a restart) is tried once more
+    }
+    if(!r) throw { net:true, aborted };
+    if(r.status === 401){ try{ logout(); }catch(_){} throw { auth:true }; }
+    let j = null; try{ j = await r.json(); }catch(_){}
+    if(r.status === 202) return Object.assign({}, j && typeof j === "object" ? j : {}, { pending:true });   // the same work is already running: the caller polls the matching GET
+    if(!r.ok) throw errOf(r.status, j);
+    return j;
+  }
+  // a plain-language message for every failure the contract can produce; never shows server text
+  function eText(e){
+    if(!e) return t("eGeneric");
+    if(e.net) return e.aborted ? t("eSlow") : t("eNet");
+    const c = e.code, s = e.status;
+    if(c === "unsupported_type") return e.data && e.data.hint === "doc" ? t("eDoc") : t("eType");
+    if(c === "need_more") return t("eNeedMore", { n: e.data && e.data.need != null ? e.data.need : "" });
+    const k = ({ keys_required:"eKeys", too_large:"eTooLarge", empty:"eEmpty", doc_too_short:"eDocShort", no_text:"eNoText", encrypted:"eEncrypted", bad_file:"eBadFile", extract_unavailable:"eExtract", jd_too_vague:"eJdVague", bad_input:"eBadInput",
+      no_resume:"eNoResume", no_jd:"eNoJd", daily_limit:"eDaily", quota:"eQuota", rate:"eRate", analysis_unavailable:"eAnalysis", plan_unavailable:"ePlan", feedback_unavailable:"eFeedback",
+      stt_failed:"eStt", no_groq_key:"eNoGroq", already_answered:"eAnswered", session_cap:"eCap", wrong_state:"eWrongState", finished:"eFinished", limit_documents:"eLimDocs", limit_sessions:"eLimSess" })[c];
+    if(k) return t(k);
+    if(s === 402) return t("eKeys"); if(s === 403) return t("eBlocked"); if(s === 413) return t("eTooLarge"); if(s === 415) return t("eType"); if(s === 429) return t("eQuota"); if(s === 404) return t("eNotFound");
+    return t("eGeneric");
+  }
+  /* ---------- the chrome: a "dock" at the bottom (the step's actions + any message, sticky above the nav), the step bar, the header ---------- */
+  function dock(){ const d = $("riBar"); if(d) d.hidden = $("riNote").hidden && !$("riActs").firstChild; }
+  function bar(...acts){ put($("riActs"), ...acts); dock(); }
+  // kind: err | ok | info. When the step has buttons in the dock the message sits there, next to the button the learner just pressed (even on a long page);
+  // when the dock has no buttons of its own it goes inline at the top instead - a message floating over the page would only cover the field they have to tap next
+  function note(kind, msg, ...acts){
+    const dn = $("riNote"), tn = $("riTopNote"); if(!dn || !tn) return;
+    for(const n of [dn, tn]){ put(n); n.hidden = true; n.className = "ri-note"; }
+    if(msg){
+      const n = $("riActs").firstChild ? dn : tn;
+      n.hidden = false; n.className = "ri-note " + kind; n.setAttribute("role", kind === "err" ? "alert" : "status");
+      add(n, h("div", { class:"ri-note-t" }, msg));
+      if(acts.length) add(n, h("div", { class:"ri-note-a" }, acts));
+      add(n, h("button", { type:"button", class:"ri-note-x", "aria-label":t("close"), onclick:() => note() }, ic("x")));
+      if(n === tn){ try{ n.scrollIntoView({ block:"nearest", behavior:"smooth" }); }catch(_){} }
+    }
+    dock();
+  }
+  function announce(msg){ const l = $("riLive"); if(!l) return; l.textContent = ""; setTimeout(() => { l.textContent = msg; }, 40); }
+  function paintSteps(v){
+    const ol = $("riSteps"), i = STEP_OF[v];
+    ol.hidden = i == null;
+    if(i == null) return;
+    put(ol, STEP_KEYS.map((k, n) => h("li", { class:"ri-step" + (n < i ? " done" : n === i ? " cur" : ""), "aria-current": n === i ? "step" : null }, (n < i ? "✓ " : "") + t(k))));
+  }
+  const SUB = { hub:"sHub", resume:"sResume", job:"sJob", analysing:"sMatch", match:"sMatch", report:"sReport", settings:"sSettings" };
+  function paintHeader(){
+    const v = S.view;
+    $("riSub").textContent = v === "interview" ? ((S.sess && S.sess.session && S.sess.session.title) || "") : t(SUB[v] || "sHub");
+    $("riGear").classList.toggle("on", v === "settings");
+  }
+  function revokeUrls(){ S.urls.forEach(u => { try{ URL.revokeObjectURL(u); }catch(_){} }); S.urls = []; }
+  function stopLive(){ if(S.job && S.job.tick){ clearInterval(S.job.tick); S.job.tick = 0; } clearInterval(S.refs.slowT); }
+
+  /* ---------- navigation: one URL per step, entered through the router so Back / Forward / reload all work ---------- */
+  const go = view => navTo(PATHS[view] || PATHS.hub);
+  function setView(v, noPaint){
+    S.view = v;
+    const root = $("ri"); if(root) root.dataset.view = v;
+    show("ri", PATHS[v] || PATHS.hub);
+    if(!noPaint) paintView();
+  }
+  function paintView(){
+    const v = S.view;
+    stopLive(); revokeUrls(); paintSteps(v); paintHeader();
+    ({ hub:paintHub, resume:paintResume, job:paintJob, analysing:paintLoading, match:paintMatch, interview:paintInterview, report:paintReport, settings:paintSettings })[v]();
+  }
+  const viewFor = s => s.status === "finished" ? "report" : s.status === "active" ? "interview" : "match";
+  async function loadState(){ const st = await api("GET", "/state"); S.state = st; return st; }
+  async function loadSession(sid){ const d = await api("GET", "/sessions/" + sid); S.sid = sid; S.sess = d; return d; }
+  // the server says the feature is off (the owner flipped the switch while the app was open): hide it and go home
+  function offNow(){
+    if(userState) userState.resume_interview = false;
+    try{ syncEntries(); }catch(_){}
+    try{ showNotif(t("eOffServer")); }catch(_){}
+    try{ goHome(); }catch(_){}
+  }
+  // the router's entry for every /resume-interview[/...] path. Re-checks the flag, and (for a step that needs a session) restores the learner's
+  // session from the server - so a reload, a Back press or a link on a second phone all land on the real state, never on a blank step.
+  async function open(view){
+    if(!enabled()){ try{ showNotif(t("off")); }catch(_){} try{ goHome(); }catch(_){} return; }
+    if(view === "analysing") view = "match";
+    if(!PATHS[view]) view = "hub";
+    // a recording is running: this is the Back-sentinel's popstate. The popstate handler below stops-and-keeps the take; nothing to re-render
+    if(R && R.state === "recording"){ show("ri", PATHS[S.view] || PATHS.hub); return; }
+    if(popGuard && Date.now() - popGuard < 1500){ show("ri", PATHS[S.view] || PATHS.hub); return; }   // our own history.back() after a normal stop
+    const ep = ++S.epoch;
+    stopLive(); note();
+    if(S.flash){ note("ok", S.flash); S.flash = ""; }                                      // a message that has to survive the navigation that follows an action
+    const needs = view === "match" || view === "interview" || view === "report";
+    if(needs && S.job){ setView("analysing"); focusTitle(); return; }                      // an analysis / start is running: show it
+    if(needs){
+      const have = S.fresh && S.fresh === S.sid && S.sess; S.fresh = 0;                      // a flow just loaded this session: no second round trip
+      if(!have){
+        S.view = view; $("ri").dataset.view = view; show("ri", PATHS[view]); paintSteps(view); paintHeader(); put($b(), h("div", { class:"ri-load" }, spinner())); bar();
+        try{
+          if(!S.sid){ const st = await loadState(); if(ep !== S.epoch) return; if(st.active) S.sid = st.active.id; }
+          if(S.sid) await loadSession(S.sid);
+        }catch(e){
+          if(ep !== S.epoch || (e && e.auth)) return;
+          if(e && e.status === 404 && e.code && e.code !== "Not found"){ offNow(); return; }                 // "Resume Interview is not available yet": the owner switched it off
+          if(e && e.status === 404){ S.sid = null; S.sess = null; }                                            // that interview is gone (deleted on another phone): back to the hub
+          else { setView("hub", true); paintView(); note("err", eText(e)); focusTitle(); return; }
+        }
+        if(ep !== S.epoch) return;
+      }
+      if(!S.sid || !S.sess){ view = "hub"; }
+      else {
+        const s = S.sess.session;
+        if(view === "report" && s.status !== "finished") view = viewFor(s);
+        else if(view === "interview" && s.status !== "active") view = viewFor(s);
+      }
+    }
+    if(view === "resume" || view === "job"){
+      const s = S.sess && S.sess.session;
+      if(S.sid && s && (s.status === "active" || s.status === "finished") && !W.swap) view = "hub";   // the interview has started: the wizard steps are behind it
+      else if(view === "job" && !W.resume.doc) view = "resume";
+    }
+    setView(view, true);
+    if(view === "hub"){ paintView(); loadHub(ep); }               // paintView, not paintHub: the step bar and the subtitle belong to the view too
+    else if(view === "resume" && W.pre){ const pre = W.pre; W.pre = null; paintView(); await prefill(pre); if(ep === S.epoch && S.view === "resume") paintView(); }
+    else paintView();
+    // a reload on a wizard step has no hub list yet: fetch it in the background (the saved resumes / jobs and the real limits), and repaint only if the learner hasn't started typing
+    if((view === "resume" || view === "job") && !S.state) api("GET", "/state").then(st => { if(!S.state){ S.state = st; if(ep === S.epoch && S.view === view && !W.resume.text && !W.jd.text && !W.resume.title && !W.jd.title) paintView(); } }).catch(() => {});
+    focusTitle();
+  }
+  const focusTitle = () => { try{ $("riTitle").focus({ preventScroll:true }); }catch(_){} };
+  async function loadHub(ep){
+    let st;
+    try{ st = await api("GET", "/state"); }
+    catch(e){
+      if(ep !== S.epoch || (e && e.auth)) return;
+      if(e && e.status === 404){ offNow(); return; }
+      if(S.view === "hub"){ put($b(), h("p", { class:"ri-empty" }, t("hubLoadErr")), h("div", { class:"ri-center" }, btn(t("retry"), "ghost", () => { put($b(), h("div", { class:"ri-load" }, spinner())); loadHub(S.epoch); }))); }
+      return;
+    }
+    if(ep !== S.epoch || S.view !== "hub") return;       // (a late answer must not replace the lists the learner has since added to)
+    S.state = st;
+    paintHub(); pruneTakes(st);
+  }
+  // the Back button of each step
+  function back(){
+    const s = S.sess && S.sess.session, started = s && (s.status === "active" || s.status === "finished");
+    switch(S.view){
+      case "hub": return navTo("/practice");
+      case "resume": return W.swap ? go("match") : go("hub");
+      case "job": return go("resume");
+      case "analysing": return S.job && S.job.kind === "start" ? go("match") : go("job");
+      case "match": return !started && W.resume.doc && W.jd.doc ? go("job") : go("hub");
+      default: return go("hub");
+    }
+  }
+
+  /* ---------- Hub: continue, new interview, my interviews / resumes / job descriptions ---------- */
+  const statusText = s => ({ finished:t("sFinished"), active:t("sActive"), matched:t("sMatched"), draft:t("sDraft") })[s.status] || "";
+  const statusTone = s => ({ finished:"green", active:"gold", matched:"gold" })[s.status] || "";
+  function sessLine(s){
+    const n = +s.answered || 0;
+    return [shortDate(s.finished_at || s.started_at || s.created_at), n === 1 ? t("answers1") : n ? t("answersN", { n }) : t("noAnswers")].filter(Boolean).join(" · ");
+  }
+  const section = (title, ...kids) => h("section", { class:"ri-sec" }, h("h3", { class:"ri-sh" }, title), kids);
+  function sessRow(s){
+    const fin = s.status === "finished", name = s.title || t("untitled");
+    return h("div", { class:"ri-row" },
+      h("button", { type:"button", class:"ri-main", onclick:() => continueSession(s), "aria-label":name + ", " + statusText(s) }, h("span", { class:"ri-rt" }, name), h("span", { class:"ri-rs" }, (fin ? statusText(s) + " · " : "") + sessLine(s))),
+      fin && s.overall != null ? h("span", { class:"ri-score", "aria-label":t("score", { n:s.overall }) }, String(s.overall)) : h("span", { class:"ri-tag " + statusTone(s) }, statusText(s)),
+      h("button", { type:"button", class:"ri-ib del", "aria-label":t("del") + ": " + name, onclick:() => delSession(s) }, ic("trash")));
+  }
+  function docRow(kind, d){
+    const name = d.title || t("untitled");
+    return h("div", { class:"ri-row" },
+      h("button", { type:"button", class:"ri-main", onclick:() => startNew({ pre:{ kind, id:d.id } }), "aria-label":t("use") + ": " + name },
+        h("span", { class:"ri-rt" }, name), h("span", { class:"ri-rs" }, [d.company, shortDate(d.created_at), t("docMeta", { n:fmtNum(d.chars || 0) })].filter(Boolean).join(" · "))),
+      h("button", { type:"button", class:"ri-ib del", "aria-label":t("del") + ": " + name, onclick:() => delDoc(kind, d) }, ic("trash")));
+  }
+  function paintHub(){
+    const st = S.state, b = $b();
+    if(!st){ put(b, h("div", { class:"ri-load" }, spinner())); bar(); return; }
+    const act = st.active, td = st.today, kids = [h("p", { class:"ri-p" }, t("hubIntro"))];
+    if(act) kids.push(h("div", { class:"ri-card ri-cont" }, h("div", { class:"ri-lab" }, t("hubContinue")), h("div", { class:"ri-h" }, act.title || t("untitled")),
+      h("div", { class:"ri-small" }, statusText(act) + " · " + sessLine(act)), h("div", { class:"ri-acts-row" }, btn(t("hubContinueBtn"), "primary", () => continueSession(act), { attrs:{ id:"riContinue" } }))));
+    kids.push(h("div", { class:"ri-cta" }, btn(t("hubNew"), act ? "ghost" : "primary", () => startNew(), { icon:"file", attrs:{ id:"riNew" } })));
+    if(td && td.sessions_cap) kids.push(h("p", { class:"ri-small ri-center" }, t("hubToday", { s:td.sessions, sc:td.sessions_cap, a:td.answers, ac:td.answers_cap })));
+    const ss = st.sessions || [], rs = st.resumes || [], js = st.jds || [];
+    const more = st.olderMore !== undefined ? st.olderMore : (typeof st.has_more === "boolean" ? st.has_more : ss.length >= 30);   // the server says whether an older page exists; without it, exactly 30 may mean "there are more"
+    kids.push(section(t("hubPast"), ss.length ? h("div", { class:"ri-list", id:"riSessions" }, ss.map(sessRow)) : h("p", { class:"ri-empty" }, t("hubNoSessions")),
+      more ? h("div", { class:"ri-more" }, btn(t("hubOlder"), "ghost", showOlder, { attrs:{ id:"riOlder" } })) : null));
+    kids.push(section(t("hubResumes"), rs.length ? h("div", { class:"ri-list", id:"riResumes" }, rs.map(d => docRow("resume", d))) : h("p", { class:"ri-empty" }, t("hubNoResumes"))));
+    kids.push(section(t("hubJobs"), js.length ? h("div", { class:"ri-list", id:"riJds" }, js.map(d => docRow("jd", d))) : h("p", { class:"ri-empty" }, t("hubNoJobs"))));
+    kids.push(h("p", { class:"ri-small ri-priv" }, t("hubPrivacy")));
+    put(b, kids); bar();
+  }
+  let olderBusy = false;
+  async function showOlder(){
+    const st = S.state, ss = (st && st.sessions) || []; if(!ss.length || olderBusy) return;
+    olderBusy = true; const had = ss.length, bt = $("riOlder"); if(bt) bt.disabled = true;
+    try{
+      const r = await api("GET", "/sessions?before=" + ss[ss.length - 1].id + "&limit=30");
+      const got = r.sessions || [];
+      st.sessions = ss.concat(got.filter(x => !ss.some(y => y.id === x.id)));
+      st.olderMore = r.next_before != null && got.length > 0;
+    }catch(e){ if(e && e.auth){ olderBusy = false; return; } note("err", eText(e)); }
+    olderBusy = false;
+    if(S.view !== "hub") return;
+    paintHub();
+    if(st.sessions.length > had){
+      announce(t("hubOlderAdded"));
+      const rows = document.querySelectorAll("#riSessions .ri-row .ri-main");
+      if(rows[had]){ try{ rows[had].focus(); }catch(_){} }       // the button that was pressed is gone: keep the keyboard / screen reader where the new rows start
+    }
+  }
+  function startNew(o){
+    const td = S.state && S.state.today;
+    if(td && td.sessions_cap && td.sessions >= td.sessions_cap){ note("err", t("hubCap")); return; }
+    W = freshWiz(); W.pre = (o && o.pre) || null; S.sid = null; S.sess = null; S.stage = {}; S.progress = null; S.job = null;
+    go("resume");
+  }
+  function continueSession(s){
+    W = freshWiz(); S.sid = s.id; S.sess = null; S.stage = {}; S.job = null; S.fresh = 0;
+    go(viewFor(s));
+  }
+  async function delSession(s){
+    if(!confirm(t("delSessAsk"))) return;
+    try{
+      await api("DELETE", "/sessions/" + s.id);
+      for(const x of mine(await IDB.all("takes"))) if(x.sid === s.id){ await IDB.delChunks(x.id); await IDB.del("takes", x.id); }
+      if(S.sid === s.id){ S.sid = null; S.sess = null; }
+      await loadState();
+    }catch(e){ if(!(e && e.auth)) note("err", eText(e)); }
+    if(S.view === "hub") paintHub();
+  }
+  async function delDoc(kind, d){
+    if(!confirm(t("delDocAsk", { what: kind === "jd" ? t("whatJd") : t("whatResume") }))) return;
+    try{
+      await api("DELETE", "/documents/" + d.id);
+      const P = kind === "jd" ? W.jd : W.resume; if(P.doc && P.doc.id === d.id) resetPane(P, true);
+      await loadState();
+    }catch(e){ if(!(e && e.auth)) note("err", eText(e)); }
+    if(S.view === "hub") paintHub();
+  }
+
+  /* ---------- documents: a file or pasted text in; what DuSu KEPT (and what it removed) shown back, and the learner taps "Looks right" ---------- */
+  const paneOf = kind => kind === "jd" ? W.jd : W.resume;
+  function displayTitle(P){
+    const typed = (P.title || "").trim().slice(0, 80);
+    return typed || (P.kind === "jd" ? t("defJd") : t("defResume")) + " · " + shortDate(Date.now());
+  }
+  function takeResult(P, res){
+    P.doc = res.document; P.preview = String(res.preview || ""); P.redactions = res.redactions || {}; P.warnings = Array.isArray(res.warnings) ? res.warnings : []; P.dup = !!res.duplicate;
+    P.editing = false; P.text = "";
+    const key = P.kind === "jd" ? "jds" : "resumes";
+    if(S.state){ const a = S.state[key] || (S.state[key] = []), i = a.findIndex(x => x.id === P.doc.id); if(i < 0) a.unshift(P.doc); else a[i] = P.doc; }
+  }
+  // run one document action with a busy flag: the buttons dim, the message says what is happening, any failure becomes a plain sentence
+  async function withBusy(P, msg, fn){
+    if(P.busy) return false;
+    P.busy = true; note("info", msg); if(S.view === "resume" || S.view === "job") paintView();
+    let ok = false;
+    try{ await fn(); ok = true; note(); }
+    catch(e){ if(e && e.auth) return false; note("err", eText(e)); }
+    finally{ P.busy = false; if(S.view === "resume" || S.view === "job") paintView(); }
+    return ok;
+  }
+  async function upload(P, file){
+    if(P.busy) return;
+    if(file.size > lim("max_upload_bytes", 5242880)){ note("err", t("eTooLarge")); return; }
+    await withBusy(P, t("uploading"), async () => {
+      // the file name is never sent (it usually holds the learner's name): only a display title the learner can see and change
+      const res = await api("POST", "/documents/upload?kind=" + P.kind, undefined,
+        { raw:file, headers:{ "Content-Type":file.type || "application/octet-stream", "X-RI-Name":encodeURIComponent(displayTitle(P)) }, timeout:60000 });
+      takeResult(P, res);
+    });
+    if(P.doc) announce(t("kept", { n:fmtNum(P.doc.chars || P.preview.length) }));
+  }
+  async function savePaste(P, text, extra){
+    const body = Object.assign({ kind:P.kind, text, title:(P.title || "").trim() || undefined, client_key:uid() }, extra || {});
+    if(P.kind === "jd" && (P.company || "").trim()) body.company = P.company.trim();
+    const res = await api("POST", "/documents/paste", body, { timeout:30000 });
+    takeResult(P, res);
+    return res;
+  }
+  async function usePaste(P){
+    const text = (P.text || "").trim(), min = P.kind === "jd" ? lim("jd_min_chars", 200) : lim("resume_min_chars", 300);
+    if(P.busy) return;
+    if(text.length < min){ note("err", text.length ? (P.kind === "jd" ? t("jShort", { n:text.length, min }) : t("editShort", { n:text.length, min })) : t("eEmpty")); return; }
+    await withBusy(P, t("saving"), () => savePaste(P, text));
+  }
+  async function saveEdit(P){
+    const text = (P.text || "").trim(), min = P.kind === "jd" ? lim("jd_min_chars", 200) : lim("resume_min_chars", 300);
+    if(P.busy) return;
+    if(text.length < min){ note("err", t("editShort", { n:text.length, min })); return; }
+    await withBusy(P, t("saving"), () => savePaste(P, text, { parent_id:P.doc.id, title:P.doc.title || undefined }));
+  }
+  async function useSaved(kind, id){
+    const P = paneOf(kind);
+    await withBusy(P, t("loading"), async () => {
+      const d = await api("GET", "/documents/" + id);
+      P.doc = d.document; P.preview = String(d.text || ""); P.redactions = d.redactions || {}; P.warnings = []; P.dup = false; P.editing = false; P.text = "";
+    });
+  }
+  const prefill = pre => pre && (pre.kind === "jd" || pre.kind === "resume") ? useSaved(pre.kind, pre.id) : Promise.resolve();
+  function resetPane(P, keepView){
+    const np = pane(P.kind); np.title = P.title; np.company = P.company;
+    if(P.kind === "jd") W.jd = np; else W.resume = np;
+    if(!keepView) paintView();
+  }
+  function ancestors(doc){
+    const m = new Map(((S.state && S.state.resumes) || []).map(d => [d.id, d])), out = [], seen = new Set();
+    let p = doc && doc.parent_id;
+    while(p && m.has(p) && !seen.has(p)){ seen.add(p); out.push(m.get(p)); p = m.get(p).parent_id; }
+    return out;
+  }
+  function pickCard(P){
+    const jd = P.kind === "jd", pre = jd ? "riJd" : "riRes";
+    const inp = h("input", { type:"file", accept:ACCEPT, class:"ri-file", id:pre + "File", disabled:P.busy, onchange:e => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if(f) upload(P, f); } });
+    const drop = h("div", { class:"ri-drop" }, inp,
+      h("label", { class:"btn primary ri-btn ri-pick", for:pre + "File" }, ic("upload"), h("span", null, t("pickFile"))),
+      h("p", { class:"ri-small" }, t("pickHint", { mb:Math.round(lim("max_upload_bytes", 5242880) / 1048576) })));
+    drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+    drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+    drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if(f) upload(P, f); });
+    const ta = h("textarea", { class:"ri-in ri-ta", id:pre + "Text", rows:"8", maxlength:"60000", placeholder:t(jd ? "jPastePh" : "pastePh"), "aria-label":t(jd ? "jPasteLab" : "pasteLab"), value:P.text, disabled:P.busy,
+      oninput:e => { P.text = e.target.value; } });
+    return h("div", { class:"ri-card" },
+      h("div", { class:"ri-lab" }, t("pickH")), drop,
+      h("div", { class:"ri-or", role:"separator" }, h("span", null, t("or"))),
+      h("label", { class:"ri-lab", for:pre + "Text" }, t(jd ? "jPasteLab" : "pasteLab")), ta,
+      jd ? null : [h("label", { class:"ri-lab", for:"riResName" }, t("nameLab")),
+        h("input", { type:"text", class:"ri-in", id:"riResName", maxlength:"80", autocomplete:"off", placeholder:t("namePh"), value:P.title, oninput:e => { P.title = e.target.value; } })],
+      jd ? null : h("div", { class:"ri-acts-row" }, btn(t("useText"), "primary", () => usePaste(P), { attrs:{ id:"riUseText", disabled:P.busy } })));
+  }
+  function savedCard(P, docs){
+    return h("div", { class:"ri-card" }, h("div", { class:"ri-lab" }, t("savedH")),
+      h("div", { class:"ri-list" }, docs.map(d => h("div", { class:"ri-row" },
+        h("div", { class:"ri-main static" }, h("span", { class:"ri-rt" }, d.title || t("untitled")), h("span", { class:"ri-rs" }, [d.company, shortDate(d.created_at), t("docMeta", { n:fmtNum(d.chars || 0) })].filter(Boolean).join(" · "))),
+        btn(t("use"), "ghost sm", () => useSaved(P.kind, d.id), { attrs:{ "aria-label":t("use") + ": " + (d.title || t("untitled")), disabled:P.busy } })))));
+  }
+  function previewCard(P){
+    const list = redactionList(P.redactions);
+    return h("div", { class:"ri-card", id:"riPreview" },
+      h("div", { class:"ri-keep" }, ic("check"), h("b", null, t("kept", { n:fmtNum((P.doc && P.doc.chars) || P.preview.length) }))),
+      h("p", { class:"ri-small" }, list ? t("removed", { list }) : t("removedNone")),
+      P.dup ? h("p", { class:"ri-small" }, t("dupNote")) : null,
+      (P.warnings || []).map(w => h("p", { class:"ri-warn" }, "⚠ " + String(w))),
+      h("pre", { class:"ri-pre", id:"riPre", tabindex:"0", "aria-label":t("previewAria") }, P.preview),
+      h("div", { class:"ri-acts-row" },
+        btn(t("editText"), "ghost", () => { P.editing = true; P.text = P.preview; paintView(); }, { icon:"pencil", attrs:{ id:"riEdit", disabled:P.busy } }),
+        btn(t("pickOther"), "ghost", () => resetPane(P), { attrs:{ disabled:P.busy } })));
+  }
+  function editCard(P){
+    return h("div", { class:"ri-card" }, h("label", { class:"ri-lab", for:"riEditText" }, t("editText")), h("p", { class:"ri-small" }, t("editHint")),
+      h("textarea", { class:"ri-in ri-ta ri-big", id:"riEditText", rows:"14", maxlength:"60000", "aria-label":t("editText"), value:P.text, disabled:P.busy, oninput:e => { P.text = e.target.value; } }),
+      h("div", { class:"ri-acts-row" }, btn(t("cancel"), "ghost", () => { P.editing = false; paintView(); }, { attrs:{ disabled:P.busy } }),
+        btn(t("saveEdit"), "primary", () => saveEdit(P), { attrs:{ id:"riSaveEdit", disabled:P.busy } })));
+  }
+  function versionsCard(P, list){
+    return h("div", { class:"ri-card" }, h("div", { class:"ri-lab" }, t("versionsH")),
+      h("div", { class:"ri-list" }, list.map(d => h("div", { class:"ri-row" },
+        h("div", { class:"ri-main static" }, h("span", { class:"ri-rt" }, d.title || t("untitled")), h("span", { class:"ri-rs" }, [shortDate(d.created_at), t("docMeta", { n:fmtNum(d.chars || 0) })].join(" · "))),
+        btn(t("useVersion"), "ghost sm", () => useSaved("resume", d.id), { attrs:{ disabled:P.busy } })))));
+  }
+
+  /* ---------- Step 1: the resume ---------- */
+  function paintResume(){
+    const P = W.resume, b = $b(), kids = [];
+    kids.push(h("h2", { class:"ri-h2" }, W.swap ? t("rSwapTitle") : t("rTitle")), h("p", { class:"ri-p" }, W.swap ? t("rSwapSub") : t("rSub")));
+    if(W.swap && S.sess && S.sess.session) kids.push(h("div", { class:"ri-card ri-line" }, h("span", { class:"ri-lab" }, t("stJob")), h("b", { class:"ri-line-t" }, S.sess.session.title || t("untitled"))));
+    if(P.editing) kids.push(editCard(P));
+    else if(P.doc){ kids.push(previewCard(P)); const v = ancestors(P.doc); if(v.length) kids.push(versionsCard(P, v)); }
+    else {
+      kids.push(pickCard(P));
+      const saved = ((S.state && S.state.resumes) || []).filter(d => !(S.sess && S.sess.session && W.swap && d.id === S.sess.session.resume_id));
+      if(saved.length) kids.push(savedCard(P, saved));
+    }
+    put(b, kids);
+    bar(P.doc && !P.editing ? btn(t("looksRight"), "primary", looksRight, { icon:"check", attrs:{ id:"riLooks", disabled:P.busy } }) : null);
+  }
+  function looksRight(){
+    if(!W.resume.doc || W.resume.busy) return;
+    if(W.swap) return doSwap();
+    go("job");
+  }
+
+  /* ---------- Step 2: the job ---------- */
+  function chipRow(label, opts, cur, on, id){
+    return h("div", { class:"ri-group", role:"group", "aria-label":label, id }, h("div", { class:"ri-lab" }, label),
+      h("div", { class:"ri-chips" }, opts.map(o => h("button", { type:"button", class:"ri-chip" + (o[0] === cur ? " on" : ""), "aria-pressed":o[0] === cur ? "true" : "false", "data-v":o[0], onclick:() => on(o[0]) }, (o[0] === cur ? "✓ " : "") + o[1]))));
+  }
+  function settingsCard(){
+    return h("div", { class:"ri-card" },
+      chipRow(t("typeLab"), [["mixed", t("tMixed")], ["hr", t("tHr")], ["technical", t("tTech")]], W.type, v => { W.type = v; paintView(); }, "riType"),
+      chipRow(t("levelLab"), [["fresher", t("lFresher")], ["experienced", t("lExp")]], W.level, v => { W.level = v; paintView(); }, "riLevel"),
+      chipRow(t("fbLab"), [["hinglish", t("fbHinglish")], ["en", t("fbEn")]], W.fb, v => { W.fb = v; try{ localStorage.setItem("dusu_ri_fb", v); }catch(_){} paintView(); }, "riFbLang"));
+  }
+  function paintJob(){
+    const P = W.jd, b = $b(), kids = [];
+    kids.push(h("h2", { class:"ri-h2" }, t("jTitle")), h("p", { class:"ri-p" }, t("jSub")));
+    kids.push(h("div", { class:"ri-card ri-line" }, h("span", { class:"ri-lab" }, t("jResume")), h("b", { class:"ri-line-t" }, (W.resume.doc && W.resume.doc.title) || t("untitled")),
+      btn(t("jChange"), "ghost sm", () => go("resume"), { attrs:{ id:"riChangeResume" } })));
+    if(P.editing) kids.push(editCard(P));
+    else if(P.doc) kids.push(previewCard(P));
+    else {
+      kids.push(h("div", { class:"ri-card" },
+        h("label", { class:"ri-lab", for:"riJobTitle" }, t("jTitleLab")), h("input", { type:"text", class:"ri-in", id:"riJobTitle", maxlength:"80", autocomplete:"off", placeholder:t("jTitlePh"), value:P.title, oninput:e => { P.title = e.target.value; } }),
+        h("label", { class:"ri-lab ri-gap", for:"riJobCompany" }, t("jCompanyLab")), h("input", { type:"text", class:"ri-in", id:"riJobCompany", maxlength:"80", autocomplete:"off", placeholder:t("jCompanyPh"), value:P.company, oninput:e => { P.company = e.target.value; } })));
+      kids.push(pickCard(P));
+      const saved = (S.state && S.state.jds) || [];
+      if(saved.length) kids.push(savedCard(P, saved));
+    }
+    kids.push(settingsCard());
+    put(b, kids); paintJobBar();
+  }
+  function paintJobBar(){
+    const P = W.jd;
+    bar(P.editing ? null : btn(t("jNext"), "primary", onNext, { icon:"send", attrs:{ id:"riNext", disabled:P.busy || S.busy } }));
+  }
+  const sameSettings = (a, b) => !!a && a.type === b.type && a.level === b.level && a.feedback_lang === b.feedback_lang;
+  const blankSess = s => ({ session:s, rev:0, analysis:null, turns:[], queued_count:0, open_turn_id:null, counts:{ asked:0, answered:0, real:0, skipped:0, queued:0 },
+    can_finish:{ ok:false, need:lim("finish_min", 3), reasons:["need_real_answers"] }, report:null });
+  // one session per (resume, job, settings): going back and forward through the steps reuses it, and a replaced draft is deleted so drafts never pile up
+  async function ensureSession(){
+    const r = W.resume.doc, j = W.jd.doc, st = { type:W.type, level:W.level, feedback_lang:W.fb };
+    const cur = S.sess && S.sess.session, open = cur && S.sid === cur.id && (cur.status === "draft" || cur.status === "matched");
+    if(open && cur.resume_id === r.id && cur.jd_id === j.id && sameSettings(cur.settings, st)) return S.sid;
+    const res = await api("POST", "/sessions", { resume_id:r.id, jd_id:j.id, settings:st, client_key:uid() });
+    const old = open ? S.sid : 0;
+    S.sid = res.session.id; S.sess = blankSess(res.session); S.stage = {}; S.progress = null;
+    if(old && old !== S.sid) api("DELETE", "/sessions/" + old).catch(() => {});
+    return S.sid;
+  }
+  async function onNext(){
+    const P = W.jd;
+    if(P.busy || S.busy) return;
+    if(!W.resume.doc){ note("err", t("jNoResume")); go("resume"); return; }
+    if(guardKeys()) return;
+    note(); S.busy = true; P.busy = true; paintJobBar();
+    let redacted = "", ok = false;
+    try{
+      if(!P.doc){
+        const text = (P.text || "").trim(), min = lim("jd_min_chars", 200);
+        if(text.length < min){ note("err", text.length ? t("jShort", { n:text.length, min }) : t("eNoJd")); return; }
+        redacted = redactionList((await savePaste(P, text)).redactions);
+      }
+      await ensureSession();
+      ok = true;
+    }catch(e){ if(!(e && e.auth)) note("err", eText(e)); }
+    finally{ S.busy = false; P.busy = false; if(S.view === "job") paintView(); }
+    if(ok) runAnalysis("analyze", {}, redacted);
+  }
+
+  /* ---------- analysing (the first match, a re-check after a new resume, and "preparing your interview") ---------- */
+  async function pollSession(sid, pred, job, maxMs){
+    const t0 = Date.now(); let fails = 0;
+    while(Date.now() - t0 < (maxMs || 75000)){
+      await sleep(2000);
+      if(job && S.job !== job) return null;                       // another flow took over
+      try{
+        const d = await api("GET", "/sessions/" + sid); fails = 0;
+        if(pred(d)) return d;
+      }catch(e){ if(e && (e.auth || e.status === 404)) return null; if(++fails >= 4) return null; }
+    }
+    return null;
+  }
+  async function runAnalysis(kind, body, redacted, thenStart){
+    const sid = S.sid; if(!sid) return;
+    const job = { kind, sid, started:Date.now(), tick:0, err:null, body:body || {}, note:redacted ? t("aRedacted", { list:redacted }) : "", thenStart:!!thenStart,
+                  title:t(kind === "swap" ? "aTitleSwap" : "aTitle"), steps:kind === "swap" ? t("aStepsSwap") : t("aSteps") };
+    S.job = job; note(); go("match");
+    try{
+      let res = null;
+      try{ res = await api("POST", "/sessions/" + sid + (kind === "swap" ? "/swap-resume" : "/analyze"), Object.assign({ keys:officeKeys() }, job.body), { timeout:75000 }); }
+      catch(e){ if(!(e && e.net)) throw e; res = null; }          // the connection dropped or the call was slow: the server may well still be working
+      let full;
+      if(res && !res.pending && res.analysis && res.session) full = Object.assign({}, S.sess || blankSess(res.session), { session:res.session, analysis:res.analysis });
+      else{
+        full = await pollSession(sid, s => s.analysis && s.analysis.state !== "pending", job);
+        if(!full && S.job !== job) return;
+        if(!full) throw res === null ? { net:true } : { status:504, code:"analysis_unavailable", data:{} };
+      }
+      if(S.job !== job) return;
+      if(!full.analysis || full.analysis.state === "failed") throw { status:502, code:"analysis_unavailable", data:{} };
+      S.sess = full; S.job = null; W.swap = false; clearInterval(job.tick);
+      if(job.thenStart){ if(S.sid === sid) startInterview(); return; }                  // "Practice again": the match is already known, go straight to the questions
+      if(S.view === "analysing" && S.sid === sid && currentScreen() === "ri") setView("match");
+    }catch(e){
+      if(S.job !== job || (e && e.auth)) return;
+      job.err = e; clearInterval(job.tick);
+      if(S.view === "analysing" && S.sid === sid) paintLoading();
+    }
+  }
+  async function startInterview(){
+    if(S.busy || guardKeys()) return;
+    await flushPicks();
+    const sid = S.sid; if(!sid) return;
+    const job = { kind:"start", sid, started:Date.now(), tick:0, err:null, body:{}, note:"", title:t("aTitleStart"), steps:t("aStepsStart") };
+    S.job = job; note(); setView("analysing");
+    try{
+      let res = null;
+      try{ res = await api("POST", "/sessions/" + sid + "/start", { keys:officeKeys() }, { timeout:75000 }); }
+      catch(e){ if(!(e && e.net)) throw e; res = null; }
+      let full;
+      if(res && !res.pending && res.turn) full = await api("GET", "/sessions/" + sid);
+      else{
+        full = await pollSession(sid, s => s.session && s.session.status === "active" && (s.turns || []).length > 0, job);
+        if(!full && S.job !== job) return;
+        if(!full) throw res === null ? { net:true } : { status:504, code:"plan_unavailable", data:{} };
+      }
+      if(S.job !== job) return;
+      S.sess = full; S.job = null; S.stage = {}; S.spoken = 0; S.fresh = sid; clearInterval(job.tick);
+      if(S.sid === sid && S.view === "analysing" && currentScreen() === "ri") go("interview");
+    }catch(e){
+      if(S.job !== job || (e && e.auth)) return;
+      job.err = e; clearInterval(job.tick);
+      if(S.view === "analysing") paintLoading();
+    }
+  }
+  // The three steps are a time-based ESTIMATE (the server runs one call, so there is nothing real to report between them). The last one stays
+  // active until the answer arrives, and after 15 seconds the page says plainly that it is slow instead of pretending to progress.
+  function paintLoading(){
+    const j = S.job, b = $b();
+    bar();
+    if(!j){ put(b, h("div", { class:"ri-load" }, spinner(), h("p", { class:"ri-p ri-center" }, t("loading")))); return; }
+    if(j.err){ paintJobErr(j); return; }
+    put(b, h("div", { class:"ri-load", id:"riLoad" }, h("div", { class:"ri-h2 ri-center" }, j.title),
+      h("ol", { class:"ri-lsteps" }, j.steps.map((s, i) => h("li", { class:"ri-ls todo", id:"riLS" + i }, h("span", { class:"ri-lsg", "aria-hidden":"true" }), h("span", null, s)))),
+      spinner(), h("p", { class:"ri-p ri-center", id:"riLWait" }, t("aWait")), j.note ? h("p", { class:"ri-small ri-center" }, j.note) : null));
+    tickLoader(); j.tick = setInterval(tickLoader, 1000);
+  }
+  function tickLoader(){
+    const j = S.job; if(!j || j.err) return;
+    const el = Date.now() - j.started, cur = Math.min(j.steps.length - 1, Math.floor(el / 4500));
+    j.steps.forEach((_, i) => {
+      const li = $("riLS" + i); if(!li) return;
+      li.className = "ri-ls " + (i < cur ? "done" : i === cur ? "cur" : "todo");
+      if(i === cur) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current");
+    });
+    const w = $("riLWait"); if(w && el > 15000 && w.dataset.slow !== "1"){ w.dataset.slow = "1"; w.textContent = t("aSlow"); announce(t("aSlow")); }
+  }
+  function paintJobErr(j){
+    const e = j.err, vague = e && e.code === "jd_too_vague", keys = e && (e.code === "keys_required" || e.status === 402);
+    put($b(), h("div", { class:"ri-card ri-errcard" }, h("h3", { class:"ri-h" }, t("aErrT")), h("p", { class:"ri-p", id:"riJobErr" }, eText(e))));
+    const back = () => { S.job = null; go(j.kind === "analyze" ? "job" : "match"); };
+    bar(vague ? btn(t("aBackJob"), "primary", back)
+              : keys ? btn(t("addKeys"), "primary", () => { S.job = null; navTo("/keys"); })
+              : btn(t("retry"), "primary", () => { S.job = null; if(j.kind === "start") startInterview(); else runAnalysis(j.kind, j.body); }, { attrs:{ id:"riRetryJob" } }),
+        (vague || keys) ? null : btn(j.kind === "analyze" ? t("aBackJob") : t("back"), "ghost", back));
+  }
+
+  /* ---------- Step 3: the match ---------- */
+  const stText = s => ({ met:t("stMet"), partial:t("stPartial"), missing:t("stMissing") })[s] || "";
+  const stGlyph = s => ({ met:"✓", partial:"◐", missing:"✕" })[s] || "";
+  function bandChip(b, label){
+    return h("span", { class:"ri-band " + b }, label ? h("span", { class:"ri-bl" }, label + ": ") : null, h("b", null, bandText(b)), h("i", { "aria-hidden":"true" }, GLYPH[b] || ""));
+  }
+  function ringEl(score, cap){
+    const has = typeof score === "number" && isFinite(score);
+    const svg = svgEl("svg", { width:150, height:150, "aria-hidden":"true" });
+    const defs = svgEl("defs", {}), g = svgEl("linearGradient", { id:"riG", x1:0, y1:0, x2:1, y2:1 });
+    g.appendChild(svgEl("stop", { offset:0, "stop-color":"#9db4ff" })); g.appendChild(svgEl("stop", { offset:1, "stop-color":"#7a5cf0" })); defs.appendChild(g); svg.appendChild(defs);
+    svg.appendChild(svgEl("circle", { cx:75, cy:75, r:66, stroke:"rgba(255,255,255,.07)", "stroke-width":12, fill:"none" }));
+    const arc = svgEl("circle", { cx:75, cy:75, r:66, stroke:"url(#riG)", "stroke-width":12, fill:"none", "stroke-linecap":"round", "stroke-dasharray":415, "stroke-dashoffset":415 });
+    svg.appendChild(arc);
+    requestAnimationFrame(() => requestAnimationFrame(() => arc.setAttribute("stroke-dashoffset", String(has ? 415 * (1 - clamp(score, 0, 100) / 100) : 415))));
+    return h("div", { class:"score-ring ri-ring", role:"img", "aria-label":has ? cap + ": " + Math.round(score) + " out of 100" : cap }, svg, h("div", { class:"val" }, h("b", null, has ? String(Math.round(score)) : "—"), h("small", null, cap)));
+  }
+  function reqCard(r){
+    return h("div", { class:"ri-req " + r.status },
+      h("div", { class:"ri-req-h" }, h("span", { class:"ri-st " + r.status }, h("span", { "aria-hidden":"true" }, stGlyph(r.status) + " "), stText(r.status)), h("span", { class:"ri-tag" }, r.type === "must" ? t("mMust") : t("mNice"))),
+      h("div", { class:"ri-req-t" }, r.text),
+      r.evidence ? h("blockquote", { class:"ri-quote" }, h("span", { class:"ri-ql" }, t("mEvidence") + " "), "“" + r.evidence + "”") : null,
+      r.note ? h("div", { class:"ri-small" }, r.note) : null);
+  }
+  function reqsSection(a){
+    const rs = a.requirements || [], groups = [["missing", "mGMissing", true], ["partial", "mGPartial", true], ["met", "mGMet", false]];
+    return section(t("mReqH"), groups.map(([k, lk, open]) => {
+      const list = rs.filter(r => r.status === k);
+      return list.length ? h("details", { class:"ri-det " + k, open }, h("summary", null, t(lk) + " (" + list.length + ")"), list.map(reqCard)) : null;
+    }));
+  }
+  const prioText = p => ({ high:t("mPrioHigh"), medium:t("mPrioMedium"), low:t("mPrioLow") })[p] || "";
+  const prioTone = p => ({ high:"rose", medium:"amber", low:"" })[p] || "";
+  const typeText = x => ({ add:t("mTypeAdd"), reword:t("mTypeReword"), quantify:t("mTypeQuantify") })[x] || "";
+  function editCardEl(e, started){
+    const id = "riPick" + String(e.id).replace(/[^\w-]/g, "");
+    const cb = h("input", { type:"checkbox", class:"ri-cb", id, checked:!!e.picked, disabled:started, onchange:ev => onPick(e, ev.target.checked) });
+    const copyBtn = btn(t("copy"), "ghost sm", () => copyText(String(e.to || ""), copyBtn), { icon:"copy", attrs:{ "aria-label":t("copy") + ": " + String(e.to || "").slice(0, 40) } });
+    return h("div", { class:"ri-edit" + (e.addressed ? " done" : "") },
+      h("div", { class:"ri-edit-h" },
+        prioText(e.priority) ? h("span", { class:"ri-tag " + prioTone(e.priority) }, prioText(e.priority)) : null,
+        typeText(e.type) ? h("span", { class:"ri-tag" }, typeText(e.type)) : null,
+        e.section ? h("span", { class:"ri-tag" }, String(e.section)) : null,
+        e.only_if_true ? h("span", { class:"ri-tag amber" }, t("mOnlyTrue")) : null,
+        e.addressed ? h("span", { class:"ri-tag green" }, "✓ " + t("mAddressed")) : null),
+      e.from ? h("div", { class:"ri-diff" }, h("span", { class:"ri-dl" }, t("mNow")), h("span", { class:"ri-said" }, "“" + e.from + "”")) : null,
+      h("div", { class:"ri-diff" }, h("span", { class:"ri-dl" }, t("mSuggest")), h("span", { class:"ri-better" }, "“" + (e.to || "") + "”")),
+      e.why ? h("div", { class:"ri-small" }, e.why) : null,
+      h("div", { class:"ri-edit-f" }, h("label", { class:"ri-pk", for:id }, cb, h("span", null, t("mPick"))), copyBtn));
+  }
+  function editsSection(a, started){
+    const es = a.edits || [];
+    return section(t("mEditsH"), h("p", { class:"ri-small" }, t("mEditsSub")), es.length ? es.map(e => editCardEl(e, started)) : h("p", { class:"ri-empty" }, t("mNoEdits")));
+  }
+  function prevCard(a){
+    const p = a.prev, ch = p.changed || [], done = (p.addressed_edits || []).length;
+    return h("div", { class:"ri-card ri-prev", id:"riPrev" }, h("h3", { class:"ri-h" }, t("mPrevH")),
+      h("div", { class:"ri-prevrow" }, bandChip(p.band), h("span", { class:"ri-arrow", "aria-hidden":"true" }, "→"), bandChip(a.band), h("span", { class:"ri-sr" }, t("mPrevBand", { a:bandText(p.band), b:bandText(a.band) }))),
+      h("div", { class:"ri-lab ri-gap" }, t("mPrevChanged")),
+      ch.length ? h("ul", { class:"ri-ul" }, ch.map(c => h("li", null, h("b", null, String(c.text || "")), " — ", t("stFrom", { a:stText(c.from).toLowerCase(), b:stText(c.to).toLowerCase() })))) : h("p", { class:"ri-small" }, t("mPrevNone")),
+      done ? h("p", { class:"ri-small" }, "✓ " + t("mPrevDone", { n:done })) : null);
+  }
+  function paintMatch(){
+    const s = S.sess, b = $b(), a = s && s.analysis, sess = s && s.session;
+    if(!sess){ put(b, h("p", { class:"ri-empty" }, t("mNotDone"))); bar(); return; }
+    if(!a || a.state !== "done"){
+      put(b, h("div", { class:"ri-card" }, h("h3", { class:"ri-h" }, t("mNotDone")), a && a.state === "failed" ? h("p", { class:"ri-p" }, t("eAnalysis")) : null));
+      bar(btn(t("mAnalyse"), "primary", () => runAnalysis("analyze"), { attrs:{ id:"riAnalyse" } }));
+      return;
+    }
+    const started = sess.status === "active" || sess.status === "finished", has = typeof a.match_score === "number" && a.band !== "unknown", kids = [];
+    kids.push(h("div", { class:"ri-card ri-hero", id:"riHero" },
+      h("div", { class:"ri-role" }, [a.role && a.role.title, a.role && a.role.company].filter(Boolean).join(" · ")),
+      ringEl(has ? a.match_score : null, has ? bandText(a.band) : t("mNotScored")),
+      has && a.verdict ? h("p", { class:"ri-verdict" }, a.verdict) : null,
+      has ? null : h("p", { class:"ri-verdict", id:"riNotScored" }, t("mNotScoredWhy")),
+      h("p", { class:"ri-small" }, t("mScoreCap"))));
+    if(a.low_match) kids.push(h("div", { class:"ri-note info ri-inline", id:"riLow" }, h("div", { class:"ri-note-t" }, t("mLow"))));
+    if(a.prev) kids.push(prevCard(a));
+    kids.push(reqsSection(a), editsSection(a, started));
+    if((a.strengths || []).length) kids.push(section(t("mStrH"), h("ul", { class:"ri-ul ri-good" }, a.strengths.map(x => h("li", null, String(x))))));
+    if((a.notes || []).length) kids.push(section(t("mNotesH"), a.notes.map(n => h("div", { class:"ri-card" }, h("b", null, String(n.issue || "")), n.fix ? h("p", { class:"ri-small" }, t("mFix") + " " + n.fix) : null))));
+    if(started) kids.push(h("p", { class:"ri-small ri-center" }, t("mStarted")));
+    put(b, kids);
+    bar(...(started ? [btn(sess.status === "finished" ? t("mToReport") : t("mToInterview"), "primary", () => go(sess.status === "finished" ? "report" : "interview"))]
+                    : [btn(t("mReupload"), "ghost", reupload, { cls:"ri-w2", attrs:{ id:"riReupload" } }), btn(t("mStart"), "primary", startInterview, { cls:"ri-w1", attrs:{ id:"riStart" } })]));
+  }
+  // "I'll do this" ticks are saved a moment after the last change (and always before the learner leaves, re-uploads or starts)
+  function onPick(e, v){
+    e.picked = v; S.picksDirty = true; S.picksSid = S.sid;
+    clearTimeout(S.picksT); S.picksT = setTimeout(flushPicks, 600);
+  }
+  async function flushPicks(){
+    clearTimeout(S.picksT);
+    const sid = S.picksSid;
+    if(!S.picksDirty || !sid || !S.sess || S.sid !== sid || !S.sess.analysis) return;
+    S.picksDirty = false;
+    try{ await api("PATCH", "/sessions/" + sid + "/picks", { edit_ids:(S.sess.analysis.edits || []).filter(x => x.picked).map(x => x.id) }); }
+    catch(e){ if(e && e.auth) return; S.picksDirty = true; note("err", t("mPicksErr")); }
+  }
+  async function copyText(text, el){
+    let ok = false;
+    try{ if(navigator.clipboard && navigator.clipboard.writeText){ await navigator.clipboard.writeText(text); ok = true; } }catch(_){}
+    if(!ok){
+      try{ const ta = h("textarea", { class:"ri-sr", "aria-hidden":"true", tabindex:"-1" }); ta.value = text; document.body.appendChild(ta); ta.select(); ok = document.execCommand("copy"); ta.remove(); }catch(_){}
+    }
+    announce(ok ? t("copied") : t("copyFail"));
+    if(!ok){ note("err", t("copyFail")); return; }
+    const sp = el && el.querySelector("span");
+    if(sp){ sp.textContent = t("copied"); setTimeout(() => { sp.textContent = t("copy"); }, 1600); }
+  }
+  async function reupload(){
+    await flushPicks();
+    W.swap = true; W.resume = pane("resume"); W.pre = null;
+    go("resume");
+  }
+  async function doSwap(){
+    if(S.busy || guardKeys()) return;
+    const P = W.resume; if(!P.doc || !S.sid) return;
+    await flushPicks();
+    runAnalysis("swap", { resume_id:P.doc.id });
+  }
+  /* ---------- Step 4: the interview — one question at a time: DuSu asks, the learner records, transcribes, gets feedback, taps Next ---------- */
+  const turns = () => (S.sess && S.sess.turns) || [];
+  const openTurn = () => { const id = S.sess && S.sess.open_turn_id; return id != null ? turns().find(x => x.id === id) || null : null; };
+  const curTurn = () => openTurn() || turns().slice().reverse().find(x => x.status !== "dropped") || null;
+  const maxSec = () => +lim("max_answer_sec", 180) || 180;
+  const minWords = () => +lim("min_answer_words", 25) || 25;
+  const minSec = () => +lim("min_answer_sec", 10) || 10;
+  const finishMin = () => +lim("finish_min", 3) || 3;
+  // a recording shorter than half of the server's minimum can never be counted (5 s with the real 10 s limit): don't spend a transcription call on it
+  const localMinMs = () => Math.round(Math.min(5, minSec() / 2) * 1000);
+  const showing = () => currentScreen() === "ri" && S.view === "interview";
+  function upsertTurn(tn){
+    if(!S.sess || !tn) return;
+    const a = S.sess.turns || (S.sess.turns = []), i = a.findIndex(x => x.id === tn.id);
+    if(i < 0) a.push(tn); else a[i] = tn;
+  }
+  // merge a {turn, counts, can_finish, queued_count} response into the loaded session
+  function applyTurnRes(sid, res){
+    if(!S.sess || S.sid !== sid || !res || !res.turn) return;
+    upsertTurn(res.turn);
+    if(res.counts) S.sess.counts = res.counts;
+    if(res.can_finish) S.sess.can_finish = res.can_finish;
+    if(res.queued_count != null) S.sess.queued_count = res.queued_count;
+    if(res.turn.status === "asked") S.sess.open_turn_id = res.turn.id;
+    else if(S.sess.open_turn_id === res.turn.id) S.sess.open_turn_id = null;
+  }
+  const repaintStage = sid => { if(!showing() || (sid && S.sid !== sid)) return; paintQuestion(); paintBar(); paintStage(); paintFinish(); };
+  const repaintFeedback = sid => { if(!showing() || (sid && S.sid !== sid)) return; paintFeedback(); paintBar(); paintFinish(); };
+  function setStage(tid, o){ if(o) S.stage[tid] = o; else delete S.stage[tid]; repaintStage(); }
+
+  /* the takes of this interview on THIS phone */
+  async function loadTakes(){
+    const sid = S.sid;
+    const all = mine(await IDB.all("takes")).filter(x => x.sid === sid);
+    for(const x of all){
+      if(x.status === "recording" && !(R && R.id === x.id)){   // the app was closed mid-recording: rebuild the take from the chunks that were mirrored to disk
+        const parts = (await IDB.chunks(x.id)).sort((a, b) => a.seq - b.seq).map(c => c.blob);
+        if(parts.length){ x.blob = new Blob(parts, { type:x.mime || "audio/webm" }); x.status = "recorded"; x.durMs = x.durMs || 0; x.note = "recovered"; x.key = x.key || uid(); x.stt = null; await IDB.put("takes", x); await IDB.delChunks(x.id); }
+        else await IDB.del("takes", x.id);
+      }
+    }
+    const mem = mine(S.takes).filter(x => x.sid === sid && !all.some(y => y.id === x.id));   // a take that only lives in memory (private mode) - still only the signed-in account's
+    S.takes = all.filter(x => x.blob).concat(mem);
+  }
+  const heldTake = tid => S.takes.find(x => x.tid === tid && (x.status === "recorded" || x.status === "transcribed") && x.blob);
+  async function dropTake(take){ S.takes = S.takes.filter(x => x.id !== take.id); await IDB.delChunks(take.id); await IDB.del("takes", take.id); }
+  // keep the audio of the 10 newest finished interviews (and of every unfinished one); an UNSENT take is the learner's work and is never pruned.
+  // It works from a FRESH /state (a stale list once made it delete the recording of the interview that had just been started) and never touches the open session
+  async function pruneTakes(freshState){
+    let st = freshState;
+    if(!st){ try{ st = await loadState(); }catch(_){ return; } }
+    const ss = st.sessions || [], keep = new Set([S.sid]);
+    ss.filter(x => x.status !== "finished").forEach(x => keep.add(x.id));
+    ss.filter(x => x.status === "finished").sort((a, b) => String(b.finished_at || "").localeCompare(String(a.finished_at || "")) || b.id - a.id).slice(0, 10).forEach(x => keep.add(x.id));
+    for(const x of mine(await IDB.all("takes"))){
+      if(x.status !== "sent" || keep.has(x.sid)) continue;
+      await IDB.del("takes", x.id);
+    }
+  }
+
+  /* DuSu's voice: the question is read aloud; the microphone stays off until she has finished (otherwise Whisper would transcribe her) */
+  async function speakQ(turn){
+    if(R) return;                                    // never while a microphone is open
+    killSpeech(); const ep = speakEpoch;
+    setStage(turn.id, { ui:"speaking" });
+    try{ await say(turn.question, ENG_NORM()); }catch(_){}
+    if(ep !== speakEpoch) return;                    // someone else (record / skip / leave) owns the voice now
+    const e = S.stage[turn.id]; if(e && e.ui === "speaking") setStage(turn.id, null);
+  }
+  function stopVoice(turn){ killSpeech(); const e = S.stage[turn.id]; if(e && e.ui === "speaking") setStage(turn.id, null); }
+  function maybeSpeak(turn){ if(turn && turn.status === "asked" && S.spoken !== turn.id && stageUi(turn) === "idle"){ S.spoken = turn.id; speakQ(turn); } }
+  function sayLine(text){ try{ killSpeech(); say(text, ENG_NORM()); }catch(_){} }
+
+  /* what the stage under the question shows */
+  function stageUi(turn){
+    if(!turn || turn.status !== "asked") return "none";
+    const inf = INFL.get(turn.id); if(inf) return inf.phase;
+    if(R && R.tid === turn.id) return R.state === "recording" ? "recording" : R.state === "stopping" ? "saving" : "starting";
+    const e = S.stage[turn.id]; if(e && e.ui) return e.ui;
+    return heldTake(turn.id) ? "held" : "idle";
+  }
+  const srcText = s => ({ plan:t("iSrcPlan"), followup:t("iSrcFollow"), bank:t("iSrcBank") })[s] || "";
+  function paintQuestion(){
+    const box = $("riQ"), turn = curTurn(); if(!box || !turn) return;
+    const n = turns().filter(x => x.status !== "dropped").indexOf(turn) + 1, speaking = (S.stage[turn.id] || {}).ui === "speaking";
+    put(box,
+      h("div", { class:"ri-qk" }, t("iQ", { n }) + (srcText(turn.source) ? " · " + srcText(turn.source) : "")),
+      h("p", { class:"ri-qt", id:"riQText" }, turn.question || ""),
+      h("div", { class:"ri-q-acts" }, btn(speaking ? t("iHearStop") : t("iHear"), "ghost sm", () => speaking ? stopVoice(turn) : speakQ(turn), { icon:"speaker", attrs:{ id:"riHear", disabled:!!(R && R.tid === turn.id), "aria-label":speaking ? t("iHearStop") : t("iHearAria") } })),
+      turn.why ? h("p", { class:"ri-why" }, h("b", null, t("iWhy") + " "), turn.why) : null);
+  }
+  // compact status rows for the DOCK: while the learner waits, "what is happening" must be on screen (the page body can be scrolled away)
+  function workRow(title, sub, slowOk, since){
+    const slow = slowOk && since && Date.now() - since > 15000;
+    if(slowOk && since && !slow) S.refs.slowT = setTimeout(() => repaintStage(), Math.max(200, 15000 - (Date.now() - since) + 50));
+    return h("div", { class:"ri-workrow", id:"riWork", role:"status" }, h("span", { class:"spin ri-spin-s", "aria-hidden":"true" }),
+      h("span", { class:"ri-workt" }, h("b", null, slow ? t("iSlow") : title), sub ? h("small", null, sub) : null));
+  }
+  function recDock(){
+    const r = R;
+    S.refs.timer = h("span", { class:"ri-timer", id:"riTimer", role:"timer", "aria-live":"off" }, "0:00");
+    S.refs.meter = h("i");
+    S.refs.hint = h("p", { class:"ri-hint", id:"riRecHint", "aria-live":"polite" }, r.soft ? t("iWrap") : r.good ? t("iGood") : t("iKeepGoing", { s:minSec() }));
+    return h("div", { class:"ri-recdock", id:"riRec" },
+      h("div", { class:"ri-recrow" }, h("span", { class:"ri-rec" }, h("i", { class:"ri-dot", "aria-hidden":"true" }), h("span", null, t("iRec"))), S.refs.timer, h("span", { class:"ri-of" }, t("iOf", { t:mmss(maxSec()) })),
+        h("div", { class:"ri-meter", "aria-hidden":"true" }, S.refs.meter)),
+      S.refs.hint,
+      btn(t("iStop"), "ri-stopbtn", () => stopRec("user"), { icon:"stop", attrs:{ id:"riStop" } }));
+  }
+  function audioEl(blob){
+    const a = h("audio", { controls:true, preload:"metadata", class:"ri-audio" });
+    const u = URL.createObjectURL(blob); S.urls.push(u); a.src = u;
+    return a;
+  }
+  // The dock's buttons for the OPEN question, by what the learner is doing. The primary action (Record / Stop / Send / Try again) is always on screen,
+  // however long the question is - on a 640px phone a record button in the page body ended up under the sticky dock
+  function micButton(ui){
+    return btn(ui === "speaking" ? t("iAsking") : ui === "starting" ? t("iMicWait") : t("iTap"), "primary", startRec, { icon:"mic", cls:"ri-w2", attrs:{ id:"riMic", disabled:ui !== "idle" } });
+  }
+  function stageActions(turn, ui, e){
+    const skip = dis => btn(t("iSkip"), "ghost", skipTurn, { cls:"ri-w1", attrs:{ id:"riSkip", disabled:dis } });
+    switch(ui){
+      case "idle": case "speaking": case "starting": return [skip(S.busy || ui === "starting"), micButton(ui)];
+      case "recording": return [recDock()];
+      case "held": { const tk = heldTake(turn.id); return [btn(t("iRerecord"), "ghost", () => rerecord(turn), { icon:"mic", cls:"ri-w1", attrs:{ id:"riRerecord" } }), btn(t("iSend"), "primary", () => processTake(tk), { icon:"send", cls:"ri-w2", attrs:{ id:"riSend", disabled:!tk } })]; }
+      case "short": return [skip(S.busy), btn(t("iRerecord"), "primary", () => { setStage(turn.id, null); startRec(); }, { icon:"mic", cls:"ri-w2", attrs:{ id:"riAgain" } })];
+      case "error": {
+        const acts = [e.again ? btn(t("iRerecord"), "ghost", () => rerecord(turn), { icon:"mic", cls:"ri-w1", attrs:{ id:"riRerecord" } }) : skip(S.busy)];
+        if(e.retry) acts.push(btn(t("retry"), "primary", e.retry, { icon:"refresh", cls:"ri-w2", attrs:{ id:"riRetryAns" } }));
+        if(e.keys) acts.push(btn(e.keys === "groq" ? t("addGroq") : t("addKeys"), "primary", () => navTo("/keys"), { cls:"ri-w2", attrs:{ id:"riAddKeys" } }));
+        return acts;
+      }
+      case "saving": return [workRow(t("iSaving"), "")];
+      case "transcribing": return [workRow(t("iTranscribing"), t("iTranscribingSub"))];
+      case "analysing": { const inf = INFL.get(turn.id); return [workRow(t("iAnalysing"), t("iAnalysingSub"), true, inf && inf.since)]; }
+      default: return [];
+    }
+  }
+  // the words for a "too short" / failed take: they go in the dock, right above the buttons that fix it
+  function stageMessage(turn, ui, e){
+    if(ui === "short") return { kind:"err", msg:e.kind === "nospeech" ? t("iNoSpeechH") + ". " + t("iNoSpeechB") : t("iShortH") + ". " + (e.kind === "local" ? t("iShortLocal") : t("iShortB", { w:e.minWords || minWords(), s:e.minSec || minSec() })) };
+    if(ui === "error") return { kind:"err", msg:(e.title || t("eGeneric")) + ". " + (e.msg || "") };
+    if(ui === "held"){ const tk = heldTake(turn.id); return { kind:"info", msg:t("iHeldH") + ". " + (({ hidden:t("iHeldHidden"), track:t("iHeldTrack"), error:t("iHeldError"), recovered:t("iHeldRecovered") })[tk && tk.note] || t("iHeldB")) }; }
+    return { kind:"", msg:"" };
+  }
+  function paintStage(){
+    const box = $("riStage"); if(!box || S.view !== "interview") return;
+    const turn = curTurn(), ui = stageUi(turn), e = (turn && S.stage[turn.id]) || {}, m = stageMessage(turn, ui, e);
+    if(m.msg){ note(m.kind, m.msg); S.stageNote = true; } else if(S.stageNote){ note(); S.stageNote = false; }
+    switch(ui){
+      case "idle": put(box, h("p", { class:"ri-hint ri-center" }, t("iTapHint"))); break;
+      case "speaking": put(box, h("div", { class:"ri-stage" }, h("div", { class:"ri-miclab", role:"status" }, t("iAsking")), btn(t("iSkipVoice"), "ghost sm", () => stopVoice(turn), { attrs:{ id:"riSkipVoice" } }))); break;
+      case "starting": put(box, h("div", { class:"ri-stage" }, h("div", { class:"ri-miclab", role:"status" }, t("iMicWait")))); break;
+      case "held": put(box, heldStage(turn)); break;
+      default: put(box);                 // none / recording / saving / transcribing / analysing / short / error: the dock shows it
+    }
+  }
+  function heldStage(turn){
+    const tk = heldTake(turn.id);
+    return h("div", { class:"ri-card ri-held", id:"riHeld" }, h("div", { class:"ri-lab" }, t("fbListen")), tk ? audioEl(tk.blob) : null);
+  }
+  async function rerecord(turn){
+    for(const x of S.takes.filter(y => y.tid === turn.id && y.status !== "sent")) await dropTake(x);
+    delete S.stage[turn.id]; repaintStage();
+    startRec();
+  }
+
+  /* the recorder (adapted from the Practice Room's: webm/opus at 24 kbps, 10 s chunks mirrored to IndexedDB, a level meter, a wake lock) */
+  function pickMime(){
+    if(!window.MediaRecorder) return "";
+    for(const m of ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"]){ try{ if(MediaRecorder.isTypeSupported(m)) return m; }catch(_){} }
+    return "";
+  }
+  const extFor = m => /ogg/.test(m) ? "ogg" : /mp4|aac/.test(m) ? "m4a" : "webm";
+  function micFail(e, tid){
+    const n = e && (e.name || e.code) || "";
+    const msg = n === "NotAllowedError" || n === "SecurityError" ? t("micBlocked") : n === "NotFoundError" ? t("micNone") : n === "no_rec" ? t("micNoRec") : t("micFail");
+    setStage(tid, { ui:"error", title:t("micT"), msg, retry:() => { delete S.stage[tid]; startRec(); } });
+  }
+  async function startRec(){
+    const turn = openTurn();
+    if(!turn || R || S.busy || INFL.has(turn.id)) return;
+    if(guardKeys()) return;
+    if(sttPlan() === "none"){ setStage(turn.id, { ui:"error", title:t("sttNone"), msg:t("sttNoneB"), keys:"groq" }); return; }
+    killSpeech();                                    // DuSu's voice must be silent BEFORE the microphone opens, or the question would be in the recording
+    try{ if(window.speechSynthesis) window.speechSynthesis.cancel(); }catch(_){}
+    const r = { id:"a" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), owner:ownerId(), sid:S.sid, tid:turn.id, state:"starting", stream:null, mr:null, chunks:[], seq:0,
+                mime:"", accMs:0, segStart:0, ctx:null, an:null, raf:0, lock:null, tick:0, done:false, cancel:false, reason:"", sentinel:false, soft:false, good:false, heard:false };
+    R = r; delete S.stage[turn.id]; repaintStage();
+    try{
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) throw mkErr("no_rec");
+      r.stream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true, channelCount:1 } });
+    }catch(e){ if(R === r){ R = null; micFail(e, turn.id); } return; }
+    if(R !== r){ r.stream.getTracks().forEach(x => x.stop()); return; }      // the learner left while the permission dialog was up
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(AC){
+      try{
+        r.ctx = new AC();
+        try{ r.ctx.resume().catch(() => {}); }catch(_){}                       // NOT awaited: under some autoplay policies resume() never settles, and a cosmetic meter must never hold the recording back
+        const src = r.ctx.createMediaStreamSource(r.stream);
+        r.an = r.ctx.createAnalyser(); r.an.fftSize = 512; src.connect(r.an);   // not connected to the speakers: no feedback
+        meterLoop(r);
+      }catch(_){ r.an = null; }
+    }
+    r.mime = pickMime();
+    try{ const o = { audioBitsPerSecond:24000 }; if(r.mime) o.mimeType = r.mime; r.mr = new MediaRecorder(r.stream, o); }
+    catch(e){ releaseRec(r); if(R === r) R = null; micFail(e, turn.id); return; }
+    r.mr.ondataavailable = ev => { if(ev.data && ev.data.size){ r.chunks.push(ev.data); IDB.put("chunks", { take:r.id, seq:r.seq++, blob:ev.data }); } };
+    r.mr.onstop = () => onStopped(r);
+    r.mr.onerror = () => stopRec("error");
+    IDB.put("takes", { id:r.id, owner:r.owner, sid:r.sid, tid:r.tid, at:Date.now(), status:"recording", mime:r.mime || "audio/webm" });   // so a crash can be recovered
+    r.mr.start(10000);                                                         // a 10 s chunk is mirrored to IndexedDB as it arrives
+    r.state = "recording"; r.segStart = performance.now();
+    lockScreen(r);
+    const tr = r.stream.getAudioTracks()[0];                                   // a phone call or another app taking the microphone must keep what was recorded, not lose it
+    if(tr){ tr.addEventListener("ended", () => stopRec("track")); tr.addEventListener("mute", () => stopRec("track")); }
+    pushSentinel(r);
+    r.tick = setInterval(() => tick(r), 250);
+    try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(_){}
+    repaintStage(); tick(r); announce(t("iRecAnn")); scrollShellTop();   // the question stays in view while the learner answers
+  }
+  async function lockScreen(r){
+    try{
+      if(!navigator.wakeLock) return;
+      const l = await navigator.wakeLock.request("screen");
+      if(r.done || R !== r){ try{ l.release(); }catch(_){} return; }          // the recording ended while the request was in flight
+      r.lock = l; l.addEventListener("release", () => { r.lock = null; });
+    }catch(_){}
+  }
+  function meterLoop(r){
+    const buf = new Uint8Array(r.an.fftSize);
+    (function loop(){
+      if(R !== r || !r.an) return;
+      r.an.getByteTimeDomainData(buf);
+      let sum = 0; for(let i = 0; i < buf.length; i++){ const v = (buf[i] - 128) / 128; sum += v * v; }
+      const lvl = Math.min(1, Math.sqrt(sum / buf.length) * 5);
+      if(S.refs.meter) S.refs.meter.style.width = Math.round(lvl * 100) + "%";
+      if(lvl > 0.1) r.heard = true;
+      r.raf = requestAnimationFrame(loop);
+    })();
+  }
+  function tick(r){
+    if(R !== r || r.state !== "recording") return;
+    const s = (r.accMs + performance.now() - r.segStart) / 1000, max = maxSec();
+    if(S.refs.timer){ S.refs.timer.textContent = mmss(s); S.refs.timer.classList.toggle("over", s >= max - 30); }
+    if(s >= max - 30){ if(!r.soft){ r.soft = true; if(S.refs.hint) S.refs.hint.textContent = t("iWrap"); } }
+    else if(s >= minSec() && !r.good){ r.good = true; if(S.refs.hint) S.refs.hint.textContent = t("iGood"); }
+    if(s >= max) stopRec("auto");
+  }
+  // reason: user (the Stop button) / auto (the time limit) -> sent straight away; back / leave / hidden / track / error -> the take is KEPT ("recorded, not sent")
+  function stopRec(reason){
+    const r = R; if(!r || r.state !== "recording") return;
+    r.reason = reason; r.accMs += performance.now() - r.segStart; r.state = "stopping"; clearInterval(r.tick);
+    repaintStage();
+    try{ if(r.mr && r.mr.state !== "inactive") r.mr.stop(); else onStopped(r); }catch(_){ onStopped(r); }
+  }
+  function releaseRec(r){
+    clearInterval(r.tick); if(r.raf) cancelAnimationFrame(r.raf);
+    try{ r.stream && r.stream.getTracks().forEach(x => x.stop()); }catch(_){}
+    try{ r.ctx && r.ctx.close(); }catch(_){}
+    try{ r.lock && r.lock.release(); }catch(_){}
+    r.an = null; r.lock = null;
+  }
+  async function onStopped(r){
+    if(r.done) return; r.done = true;
+    releaseRec(r);
+    if(r.cancel){ await IDB.delChunks(r.id); await IDB.del("takes", r.id); if(R === r) R = null; return; }
+    const blob = new Blob(r.chunks, { type:r.mime || (r.mr && r.mr.mimeType) || "audio/webm" });
+    const take = { id:r.id, owner:r.owner, sid:r.sid, tid:r.tid, at:Date.now(), status:"recorded", mime:blob.type, blob, durMs:Math.round(r.accMs), key:uid(), stt:null, note:r.reason };
+    await IDB.put("takes", take); await IDB.delChunks(r.id);
+    if(R === r) R = null;
+    if(S.sid === r.sid){ S.takes = S.takes.filter(x => x.id !== take.id); S.takes.push(take); }
+    popSentinel(r);
+    const auto = r.reason === "user" || r.reason === "auto";
+    if(auto && take.durMs < localMinMs()){ await dropTake(take); if(S.sid === r.sid) setStage(r.tid, { ui:"short", kind:"local" }); return; }
+    if(auto && S.sid === r.sid){ processTake(take); return; }
+    repaintStage(r.sid);
+  }
+  // Back during a recording must not throw the take away (the Practice Room's popstate path does): a sentinel history entry is pushed while recording,
+  // so the learner's Back pops THAT entry - and the handler below stops the recorder and keeps what was recorded.
+  function pushSentinel(r){ try{ history.pushState({ riRec:r.id }, "", location.pathname); r.sentinel = true; }catch(_){} }
+  function popSentinel(r){
+    if(!r.sentinel) return; r.sentinel = false;
+    try{ if(currentScreen() === "ri" && history.state && history.state.riRec === r.id){ popGuard = Date.now(); history.back(); } }catch(_){}
+  }
+  window.addEventListener("popstate", () => {
+    if(popGuard && Date.now() - popGuard < 1500){ popGuard = 0; return; }
+    const r = R;
+    if(r && r.sentinel && r.state === "recording" && !(history.state && history.state.riRec === r.id)){ r.sentinel = false; stopRec("back"); }
+  });
+  document.addEventListener("visibilitychange", () => { if(document.hidden && R && R.state === "recording") stopRec("hidden"); });
+
+  /* transcription: the learner's own Groq key straight from the phone, else DuSu's proxy, else one "add a free Groq key" card. Short clips: 30 s x 2 tries */
+  async function sttFetch(url, init, same){
+    let last = null;
+    for(let a = 0; a < 2; a++){
+      const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 30000);
+      try{
+        const r = await fetch(url, Object.assign({ signal:ctl.signal }, init));
+        clearTimeout(to);
+        if(r.ok) return await r.json();
+        if(r.status === 401 && same){ try{ logout(); }catch(_){} throw mkErr("auth", 401); }
+        if(r.status === 401 || r.status === 403) throw mkErr(same ? "stt_server" : "stt_key", r.status);
+        if(r.status === 413) throw mkErr("too_large", r.status);
+        let d = null; if(same){ try{ d = await r.clone().json(); }catch(_){} }
+        const dc = d && d.detail ? (typeof d.detail === "string" ? d.detail : d.detail.error) : "";
+        if(same && r.status === 400 && dc === "no_groq_key") throw mkErr("no_stt", 400);
+        if(same && r.status === 429 && dc === "daily_limit") throw mkErr("daily_limit", 429);
+        if(r.status === 429 || r.status >= 500){
+          last = mkErr(r.status === 429 ? "stt_busy" : "stt_down", r.status);
+          const ra = parseInt(r.headers.get("retry-after") || "0", 10) || 0;
+          if(a < 1) await sleep(Math.min(5000, Math.max(1200, ra * 1000)));
+          continue;
+        }
+        throw mkErr("stt_down", r.status);
+      }catch(e){
+        clearTimeout(to);
+        if(e && e.code && e.code !== "stt_busy" && e.code !== "stt_down") throw e;
+        last = e && e.code ? e : mkErr("net", 0);
+        if(a < 1) await sleep(1000);
+      }
+    }
+    throw last || mkErr("net", 0);
+  }
+  function parseStt(j, eng){
+    const words = (j.words || []).map(w => [String(w.word || w.w || "").trim(), +w.start, +w.end]).filter(w => w[0] && isFinite(w[1]) && isFinite(w[2]));
+    const segments = (j.segments || []).map(s => [+s.start, +s.end, +s.avg_logprob, +(s.no_speech_prob || 0)]).filter(s => isFinite(s[0]) && isFinite(s[1]) && isFinite(s[2]));
+    return { text:String(j.text || "").trim(), duration:+j.duration || 0, words, segments, engine:eng || (j.engine === "gemini" ? "gemini" : "groq") };
+  }
+  // Whisper hears tool names better with a hint: a disfluency-friendly seed (so "um" and "uh" survive) + the role and the top skill words of THIS job. At most 200 characters.
+  const STOPW = new Set(["Experience", "Strong", "Knowledge", "Good", "Ability", "Years", "Excellent", "Skills", "Proficiency", "Understanding", "Working", "Required", "Preferred", "Familiarity", "Must", "Should",
+    "Responsible", "Bachelor", "Degree", "Communication", "Team", "Hands", "The", "And", "With", "Proven", "Basic", "Solid", "Demonstrated", "Ability", "Plus", "Nice"]);
+  function skillWords(a){
+    const out = [];
+    const reqs = ((a && a.requirements) || []).slice().sort((x, y) => (x.type === "must" ? 0 : 1) - (y.type === "must" ? 0 : 1));
+    for(const r of reqs){
+      const toks = String(r.text || "").match(/[A-Za-z][A-Za-z0-9+#.\-]*/g) || [];
+      for(let i = 0; i < toks.length; i++){
+        const w = toks[i].replace(/[.\-]+$/, "");
+        const looks = /[0-9+#]/.test(w) || /^[A-Z]{2,}/.test(w) || (i > 0 && /^[A-Z]/.test(w));   // tool names usually carry a capital, a digit or a + / #
+        if(!looks || w.length < 2 || STOPW.has(w) || out.indexOf(w) >= 0) continue;
+        out.push(w); if(out.length >= 5) return out;
+      }
+    }
+    return out;
+  }
+  function sttPrompt(){
+    const a = S.sess && S.sess.analysis, role = a && a.role && a.role.title ? String(a.role.title).replace(/[\r\n]+/g, " ").slice(0, 60) : "", sk = skillWords(a);
+    let p = "Um, so, uh, I worked on it, you know, like.";
+    if(role) p += " Role: " + role + ".";
+    if(sk.length) p += " Terms: " + sk.join(", ") + ".";
+    return p.slice(0, 200);
+  }
+  async function transcribe(take){
+    const plan = sttPlan();
+    if(plan === "none") throw mkErr("no_stt", 0);
+    if(plan === "direct"){
+      const fd = new FormData();
+      fd.append("file", take.blob, "answer." + extFor(take.blob.type));
+      fd.append("model", "whisper-large-v3-turbo"); fd.append("response_format", "verbose_json");
+      fd.append("timestamp_granularities[]", "word"); fd.append("timestamp_granularities[]", "segment");
+      fd.append("temperature", "0"); fd.append("language", "en"); fd.append("prompt", sttPrompt());
+      return parseStt(await sttFetch("https://api.groq.com/openai/v1/audio/transcriptions", { method:"POST", headers:{ Authorization:"Bearer " + groqKey() }, body:fd }, false), "groq");
+    }
+    return parseStt(await sttFetch(API + "/transcribe?lang=en&prompt=" + encodeURIComponent(sttPrompt()), { method:"POST", headers:{ Authorization:"Bearer " + authToken, "Content-Type":take.blob.type || "audio/webm" }, body:take.blob }, true), "");
+  }
+
+  /* the answer pipeline: transcribe -> send -> feedback. Each step is saved (recorded -> transcribed -> sent), so a dropped connection never costs a recording or a transcript,
+     and a take that is still in flight when the learner leaves the screen simply carries on */
+  async function pollTurn(sid, tid){
+    const t0 = Date.now(); let fails = 0;
+    while(Date.now() - t0 < 75000){
+      await sleep(2000);
+      try{
+        const d = await api("GET", "/sessions/" + sid + "/turns/" + tid); fails = 0;
+        if(d.turn && d.turn.feedback_state !== "pending") return d;
+      }catch(e){ if(e && (e.auth || e.status === 404)) return null; if(++fails >= 4) return null; }
+    }
+    return null;
+  }
+  // the connection dropped mid-answer: ask the server what it has. Answered -> carry on from there; still open after a few looks -> it never arrived
+  async function recoverTurn(sid, tid){
+    for(let i = 0; i < 3; i++){
+      await sleep(i ? 1500 : 800);
+      try{
+        const d = await api("GET", "/sessions/" + sid + "/turns/" + tid);
+        if(d.turn && d.turn.status !== "asked") return d.turn.feedback_state === "pending" ? await pollTurn(sid, tid) : d;
+      }catch(e){ if(e && e.auth) return null; }
+    }
+    return null;
+  }
+  // a 502 feedback_unavailable (answer saved) carries only the turn - ask for the counts, because Finish counts real ANSWERS, not feedbacks
+  async function syncCounts(sid, tid){
+    try{ applyTurnRes(sid, await api("GET", "/sessions/" + sid + "/turns/" + tid)); }catch(_){}
+  }
+  async function processTake(take){
+    if(!take || INFL.has(take.tid)) return;
+    const sid = take.sid, tid = take.tid;
+    delete S.stage[tid];
+    try{
+      if(!take.stt){
+        INFL.set(tid, { phase:"transcribing", since:Date.now() }); repaintStage(sid);
+        take.stt = await transcribe(take);
+        take.status = "transcribed"; await IDB.put("takes", take);
+      }
+      if(take.stt.text.split(/\s+/).filter(Boolean).length < 5){
+        await dropTake(take); S.stage[tid] = { ui:"short", kind:"nospeech" }; return;
+      }
+      INFL.set(tid, { phase:"analysing", since:Date.now() }); repaintStage(sid);
+      await sendTake(take);
+    }catch(e){ failTake(take, e); }
+    finally{ INFL.delete(tid); repaintStage(sid); repaintFeedback(sid); }
+  }
+  async function sendTake(take){
+    const sid = take.sid, tid = take.tid, st = take.stt, r2 = n => Math.round(n * 100) / 100;
+    const body = { transcript:st.text, words:st.words.map(w => [w[0], r2(w[1]), r2(w[2])]),
+      segments:st.segments.map(g => [r2(g[0]), r2(g[1]), Math.round(g[2] * 1000) / 1000, Math.round(g[3] * 1000) / 1000]),
+      duration_sec:Math.round((st.duration > 0 ? st.duration : take.durMs / 1000) * 10) / 10, engine:st.engine, audio_device:device(), client_key:take.key, keys:officeKeys() };
+    let res = null;
+    try{ res = await api("POST", "/sessions/" + sid + "/turns/" + tid + "/answer", body, { timeout:75000 }); }
+    catch(e){
+      if(e && e.net){ res = await recoverTurn(sid, tid); if(!res) throw e; }
+      else if(e && e.status === 409 && e.code === "already_answered" && e.data && e.data.turn){
+        applyTurnRes(sid, { turn:e.data.turn }); await syncCounts(sid, tid); await dropTake(take); note("info", t("iAnsweredElsewhere")); return;   // (the 409 body has no counts: Finish must still reflect the other phone's answer)
+      }
+      else if(e && e.status === 502 && e.code === "feedback_unavailable" && e.data && e.data.turn) res = { turn:e.data.turn, saved:true };   // the answer IS saved; only the feedback failed
+      else throw e;
+    }
+    if(res.pending){ res = await pollTurn(sid, tid); if(!res) throw { net:true }; }
+    if(res.too_short){ await dropTake(take); S.stage[tid] = { ui:"short", kind:res.reason === "no_speech" ? "nospeech" : "server", minWords:res.min_words, minSec:res.min_seconds }; return; }   // reason "no_speech": the recording had no real speech in it (silence / noise), not too few words
+    applyTurnRes(sid, res);
+    if(!res.counts) await syncCounts(sid, tid);
+    take.status = "sent"; await IDB.put("takes", take);
+  }
+  function failTake(take, e){
+    if(e && e.auth) return;
+    const tid = take.tid, c = e && (e.code || (e.net ? "net" : ""));
+    const retry = () => { delete S.stage[tid]; processTake(take); };
+    let o;
+    switch(c){
+      case "no_stt": case "no_groq_key": o = { title:t("sttNone"), msg:t("sttNoneB"), keys:"groq" }; break;
+      case "stt_key": o = { title:t("sttKey"), msg:t("sttKeyB"), keys:"keys" }; break;
+      case "stt_server": o = { title:t("sttServer"), msg:t("sttServerB"), keys:"groq" }; break;
+      case "stt_busy": o = { title:t("sttBusy"), msg:t("sttBusyB"), retry }; break;
+      case "stt_down": case "stt_failed": o = { title:t("sttDown"), msg:t("sttDownB"), retry }; break;
+      case "net": o = { title:t("netT"), msg:t("netB"), retry }; break;
+      case "too_large": o = { title:t("sttDown"), msg:t("eTooLarge"), again:false }; break;
+      case "keys_required": o = { title:t("keysT"), msg:t("keysB"), keys:"keys" }; break;
+      case "quota": case "rate": o = { title:t("quotaT"), msg:t("quotaB"), retry }; break;
+      case "daily_limit": o = { title:t("dailyT"), msg:t("dailyB"), again:false }; break;
+      default: o = { title:t("unavT"), msg:t("unavB"), retry };
+    }
+    S.stage[tid] = Object.assign({ ui:"error", again:true }, o);
+  }
+
+  /* feedback: bands (never a raw number per answer), what was heard, what worked, mistakes as exact quote -> better -> why, a stronger answer, delivery */
+  function deliveryBlock(d){
+    if(!d) return null;
+    const parts = [t("dvWords", { w:d.words, s:Math.round(+d.seconds || 0) })];
+    if(d.measured){
+      if(d.wpm != null) parts.push(t("dvWpm", { n:d.wpm }));
+      if(d.pauses != null) parts.push(d.pauses === 1 ? t("dvPause1") : t("dvPauses", { n:d.pauses }));
+      if(d.longest_pause) parts.push(t("dvLongest", { s:(+d.longest_pause).toFixed(1) }));
+      if(d.restarts) parts.push(d.restarts === 1 ? t("dvRestart1") : t("dvRestarts", { n:d.restarts }));
+    } else if(d.wpm != null) parts.push(t("dvWpmEst", { n:d.wpm }));
+    const fill = (d.fillers || []).map(x => "“" + x.word + "” ×" + x.n);
+    return h("div", { class:"ri-fsec", id:"riDelivery" }, h("h4", { class:"ri-fh" }, t("fbDelivery")), h("p", { class:"ri-p" }, parts.join(" · ")),
+      d.measured ? null : h("p", { class:"ri-small" }, t("dvNot")), fill.length ? h("p", { class:"ri-p" }, t("dvFill") + ": " + fill.join(", ")) : null);
+  }
+  function transcriptBlock(turn){
+    return h("div", { class:"ri-fsec ri-heard" }, h("h4", { class:"ri-fh" }, t("fbHeard")), h("blockquote", { class:"ri-quote", id:"riHeard" }, turn.answer || ""),
+      h("p", { class:"ri-small" }, t("fbHeardNote")), h("div", { class:"ri-listen", id:"riListen" }));
+  }
+  function fillAudio(turn){
+    const slot = $("riListen"); if(!slot) return;
+    const tk = S.takes.find(x => x.tid === turn.id && x.blob);
+    if(tk) put(slot, h("div", { class:"ri-lab" }, t("fbListen")), audioEl(tk.blob));
+    else put(slot, h("p", { class:"ri-small ri-nolisten" }, turn.audio_device && turn.audio_device !== device() ? t("fbOther") : t("fbNoAudio")));
+  }
+  const fsec = (title, ...kids) => h("div", { class:"ri-fsec" }, h("h4", { class:"ri-fh" }, title), kids);
+  function mistakeRows(turn, f){
+    return (f.mistakes || []).map((m, i) => {
+      const key = turn.id + ":" + i;
+      if(S.dismissed.has(key)) return h("div", { class:"ri-fix hidden" }, h("span", { class:"ri-small" }, t("fbHidden") + " "), h("button", { type:"button", class:"ri-link", onclick:() => { S.dismissed.delete(key); repaintFeedback(); } }, t("fbUndo")));
+      return h("div", { class:"ri-fix" },
+        h("div", null, h("span", { class:"ri-dl" }, t("fbSaid") + ": "), h("span", { class:"ri-said" }, "“" + m.said + "”")),
+        h("div", null, h("span", { class:"ri-dl" }, t("fbBetter") + ": "), h("span", { class:"ri-better" }, "“" + m.better + "”")),
+        m.why ? h("div", { class:"ri-small" }, m.why) : null,
+        h("button", { type:"button", class:"ri-link", onclick:() => { S.dismissed.add(key); repaintFeedback(); } }, t("fbNot") + " ✕"));
+    });
+  }
+  function fbCard(turn){
+    const f = turn.feedback, b = f.bands || {}, kids = [];
+    kids.push(h("div", { class:"ri-bands", id:"riBands" }, b.content ? bandChip(b.content, t("fbBandC")) : null, b.language ? bandChip(b.language, t("fbBandL")) : null, b.delivery ? bandChip(b.delivery, t("fbBandD")) : null));
+    if(turn.real === false) kids.push(h("p", { class:"ri-warn" }, t("iNotCounted", { n:finishMin() })));
+    kids.push(transcriptBlock(turn));
+    if((f.worked || []).length) kids.push(fsec("✓ " + t("fbWorked"), h("ul", { class:"ri-ul ri-good" }, f.worked.map(x => h("li", null, String(x))))));
+    if((f.mistakes || []).length) kids.push(fsec("✗ " + t("fbMistakes"), mistakeRows(turn, f)));
+    if((f.content_notes || []).length) kids.push(fsec(t("fbContent"), h("ul", { class:"ri-ul" }, f.content_notes.map(x => h("li", null, String(x))))));
+    if(f.resume_check && (f.resume_check.note || f.resume_check.quote)) kids.push(fsec(t("fbResume"), h("p", { class:"ri-p" }, f.resume_check.note || ""), f.resume_check.quote ? h("blockquote", { class:"ri-quote" }, "“" + f.resume_check.quote + "”") : null));
+    if((f.improvements || []).length) kids.push(fsec(t("fbFix"), h("ul", { class:"ri-ul ri-warnl" }, f.improvements.map(x => h("li", null, h("b", null, String(x.issue || "")), x.how ? " — " + x.how : "")))));
+    if(f.better_answer) kids.push(fsec(t("fbBetterAns"), h("p", { class:"ri-better-ans", id:"riBetterAns" }, f.better_answer), h("p", { class:"ri-small" }, t("fbBetterNote")),
+      btn(t("fbHear"), "ghost sm", () => sayLine(f.better_answer), { icon:"speaker", attrs:{ id:"riHearBetter", "aria-label":t("fbHear") } })));
+    kids.push(deliveryBlock(f.delivery));
+    if(f.follow_up) kids.push(h("p", { class:"ri-small ri-follow" }, h("b", null, t("fbFollow") + " "), f.follow_up));
+    return h("div", { class:"ri-card ri-fb", id:"riFbCard" }, kids);
+  }
+  function failedCard(turn){
+    const f = turn.feedback || {};
+    return h("div", { class:"ri-card ri-fbfail", id:"riFbFail" }, h("h3", { class:"ri-h" }, t("fbFailedT")), h("p", { class:"ri-p" }, t("fbFailedB")), transcriptBlock(turn), deliveryBlock(f.delivery),
+      h("div", { class:"ri-acts-row" }, btn(t("fbRetry"), "primary", () => retryFeedback(turn), { icon:"refresh", attrs:{ id:"riRetryFb" } })));
+  }
+  function paintFeedback(){
+    const box = $("riFb"); if(!box || S.view !== "interview") return;
+    const turn = curTurn();
+    if(!turn || turn.status === "asked" || turn.status === "dropped"){ put(box); return; }
+    if(turn.status === "skipped"){ put(box, h("div", { class:"ri-card ri-skipped", id:"riSkipped" }, t("iSkipped"))); return; }
+    if(INFL.has(turn.id) || turn.feedback_state === "pending"){
+      put(box, h("div", { class:"ri-card ri-pending", id:"riPending", role:"status" }, spinner(), h("p", { class:"ri-p ri-center" }, t("fbPending"))));
+      watchTurn(turn); return;
+    }
+    if(turn.feedback_state !== "done" || !turn.feedback || !turn.feedback.bands){ put(box, failedCard(turn)); fillAudio(turn); return; }
+    put(box, fbCard(turn));
+    fillAudio(turn);
+  }
+  // feedback another device (or an earlier request) is still writing: poll until it lands, then show it
+  function watchTurn(turn){
+    if(S.watch === turn.id || INFL.has(turn.id)) return;
+    S.watch = turn.id; const sid = S.sid;
+    pollTurn(sid, turn.id).then(res => {
+      if(S.watch === turn.id) S.watch = 0;
+      if(res) applyTurnRes(sid, res);
+      else if(S.sess && S.sid === sid){ const x = turns().find(y => y.id === turn.id); if(x && x.feedback_state === "pending") x.feedback_state = "failed"; }   // give up politely: the learner can press Retry (a stale claim is re-taken)
+      repaintStage(sid); repaintFeedback(sid);
+    });
+  }
+  async function retryFeedback(turn){
+    if(INFL.has(turn.id) || guardKeys()) return;
+    const sid = S.sid, tid = turn.id;
+    note(); INFL.set(tid, { phase:"analysing", since:Date.now() }); repaintFeedback(sid);
+    try{
+      let r = null;
+      try{ r = await api("POST", "/sessions/" + sid + "/turns/" + tid + "/feedback", { keys:officeKeys() }, { timeout:75000 }); }
+      catch(e){
+        if(e && e.net){ r = await recoverTurn(sid, tid); if(!r) throw e; }
+        else if(e && e.status === 502 && e.code === "feedback_unavailable" && e.data && e.data.turn){ r = { turn:e.data.turn }; note("err", t("eFeedback")); }
+        else throw e;
+      }
+      if(r.pending){ r = await pollTurn(sid, tid); if(!r) throw { net:true }; }
+      applyTurnRes(sid, r);
+      if(!r.counts) await syncCounts(sid, tid);
+    }catch(e){ if(!(e && e.auth)) note("err", eText(e)); }
+    finally{ INFL.delete(tid); repaintStage(sid); repaintFeedback(sid); }
+  }
+
+  /* Next / Skip / Finish */
+  function paintFinish(){
+    const fin = $("riFin"); if(!fin || S.view !== "interview") return;
+    const cf = (S.sess && S.sess.can_finish) || { ok:false, need:finishMin() }, c = (S.sess && S.sess.counts) || {};
+    const working = !!R || INFL.size > 0 || S.busy;
+    fin.disabled = !cf.ok || working;
+    put(fin, h("span", null, cf.ok || !cf.need ? t("iFinish") : t("iFinishLock", { n:cf.need })));
+    const cnt = $("riCnt"); if(cnt) cnt.textContent = cf.ok ? t("iCounted", { a:c.real || 0 }) : "";
+  }
+  function paintBar(){
+    if(S.view !== "interview") return;
+    const turn = curTurn(); if(!turn){ bar(); return; }
+    S.refs.timer = S.refs.meter = S.refs.hint = null; clearTimeout(S.refs.slowT);
+    if(turn.status === "asked") bar(...stageActions(turn, stageUi(turn), S.stage[turn.id] || {}));
+    else bar(btn(t("iNext"), "primary", nextTurn, { icon:"send", attrs:{ id:"riNextQ", disabled:S.busy || INFL.has(turn.id) || (turn.status === "answered" && turn.feedback_state === "pending") } }));
+  }
+  function handleNavErr(e, sid){
+    if(e && e.status === 409 && e.code === "finished"){ go("report"); return; }
+    if(e && e.status === 409 && e.code === "wrong_state"){ loadSession(sid).then(() => { if(showing()) paintInterview(); }).catch(() => {}); }
+    note("err", eText(e));
+  }
+  async function doNext(sid){
+    const r = await api("POST", "/sessions/" + sid + "/next", {}, { timeout:40000 });
+    if(S.sid !== sid) return;
+    applyTurnRes(sid, r);
+    S.spoken = 0; S.stage = {};
+    if(showing()){ paintInterview(); scrollShellTop(); }
+  }
+  async function nextTurn(){
+    if(S.busy || R) return;
+    const sid = S.sid;
+    S.busy = true; note(); paintBar(); paintFinish();
+    try{ await doNext(sid); }
+    catch(e){ if(!(e && e.auth)) handleNavErr(e, sid); }
+    finally{ S.busy = false; repaintStage(sid); repaintFeedback(sid); }
+  }
+  async function skipTurn(){
+    const turn = openTurn(); if(!turn || S.busy || R) return;
+    const sid = S.sid;
+    S.busy = true; note(); killSpeech(); paintBar(); paintFinish();
+    try{
+      applyTurnRes(sid, await api("POST", "/sessions/" + sid + "/turns/" + turn.id + "/skip", {}));
+      await doNext(sid);                           // Skip moves straight on to the next question; if that fails the learner still has the Next button
+    }catch(e){ if(!(e && e.auth)) handleNavErr(e, sid); }
+    finally{ S.busy = false; repaintStage(sid); repaintFeedback(sid); }
+  }
+  async function finishInterview(){
+    if(S.busy || R || INFL.size) return;
+    const cf = S.sess && S.sess.can_finish; if(!cf || !cf.ok) return;
+    const sid = S.sid;
+    S.busy = true; note(); killSpeech(); paintFinish(); paintBar();
+    try{
+      const res = await api("POST", "/sessions/" + sid + "/finish", {}, { timeout:40000 });
+      if(S.sid !== sid) return;
+      S.sess.report = res.report; if(res.session) S.sess.session = res.session;
+      S.progress = { sid, p:res.progress || null, mission:res.mission || null };
+      S.fresh = 0;
+      try{ refreshMe(); }catch(_){}                // XP / streak / rank on Home
+      pruneTakes();
+      go("report");
+    }catch(e){
+      if(e && e.auth) return;
+      if(e && e.status === 409 && e.code === "need_more") S.sess.can_finish = { ok:false, need:+(e.data && e.data.need) || finishMin(), reasons:(e.data && e.data.reasons) || [] };
+      else if(e && e.status === 409 && e.code === "finished"){ go("report"); return; }
+      note("err", eText(e));
+    }finally{ S.busy = false; paintFinish(); paintBar(); }
+  }
+  async function paintInterview(){
+    const b = $b(), sid = S.sid, ep = S.epoch, turn = curTurn();
+    bar();
+    if(!turn){                                      // active, but the first question isn't there yet (the plan is still being written, maybe on another phone)
+      put(b, h("div", { class:"ri-load" }, spinner(), h("p", { class:"ri-p ri-center" }, t("iPrep"))));
+      pollSession(sid, s => S.epoch !== ep || (s.turns || []).length > 0, null, 75000).then(d => { if(d && S.epoch === ep && S.sid === sid && S.view === "interview"){ S.sess = d; paintInterview(); } });
+      return;
+    }
+    put(b,
+      h("div", { class:"ri-qhead" }, h("span", { class:"ri-cnt", id:"riCnt" }), h("button", { type:"button", class:"btn ri-btn ghost ri-fin", id:"riFin", onclick:finishInterview }, h("span", null, ""))),
+      h("div", { class:"ri-card ri-q", id:"riQ" }), h("div", { id:"riStage" }), h("div", { id:"riFb" }));
+    await loadTakes();
+    if(S.view !== "interview" || S.sid !== sid || S.epoch !== ep) return;
+    paintQuestion(); paintFeedback(); paintBar(); paintStage(); paintFinish();
+    maybeSpeak(curTurn());
+  }
+  /* ---------- Step 5: the report (computed on the server from the real answers: overall, five skills, coverage, patterns, what to fix, the answer to redo) ---------- */
+  function catRow(c){
+    const has = c.score != null && isFinite(+c.score), pct = has ? clamp(Math.round(+c.score), 0, 100) : 0, label = c.label ? String(c.label) : t("sCat_" + c.key);
+    const fill = h("i"); fill.style.width = "0";
+    requestAnimationFrame(() => requestAnimationFrame(() => { fill.style.width = pct + "%"; }));
+    return h("div", { class:"ri-cat", "data-key":c.key }, h("div", { class:"ri-cat-t" }, h("b", null, label), h("span", null, has ? String(pct) : t("rpNotMeasured"))),
+      h("div", { class:"ri-pbar", role:"img", "aria-label":label + ": " + (has ? pct + " out of 100" : t("rpNotMeasured")) }, fill));
+  }
+  function progressStrip(p){
+    const out = [];
+    if(p.xp_earned != null) out.push(h("span", { class:"up" }, t("rpXp", { n:p.xp_earned })));
+    if(p.minutes != null){ let m = ""; try{ m = fmtMin(p.minutes); }catch(_){ m = String(p.minutes); } out.push(h("span", null, t("rpMinutes", { n:m }))); }
+    if(p.streak_days) out.push(h("span", null, t("rpStreak", { n:p.streak_days })));
+    if(p.speaker_rank){ let r = ""; try{ r = rankLabel(p.speaker_rank); }catch(_){ r = String(p.speaker_rank); } out.push(h("span", null, t("rpRank", { r }) + (p.rank_up ? " 🎉 " + t("rpRankUp") : ""))); }
+    (p.new_badges || []).forEach(x => { let l = String(x); try{ l = BADGE_LABELS[x] || l; }catch(_){} out.push(h("span", { class:"gold" }, "🏅 " + l)); });
+    return out.length ? h("div", { class:"ri-strip", id:"riStrip" }, out) : null;
+  }
+  function deltaLine(label, d){
+    if(!d) return null;
+    return h("li", null, h("b", null, label + ": "), d.significant ? (d.delta > 0 ? t("rpBetterBy", { n:Math.abs(d.delta) }) : t("rpLowerBy", { n:Math.abs(d.delta) })) : t("rpSame"));
+  }
+  function listenBtn(tk){
+    const slot = h("div", { class:"ri-pq-a" });
+    put(slot, btn(t("rpListen"), "ghost sm", () => { put(slot, audioEl(tk.blob)); try{ slot.querySelector("audio").play().catch(() => {}); }catch(_){} }, { icon:"play" }));
+    return slot;
+  }
+  function perQRow(q, n){
+    const tk = S.takes.find(x => x.tid === q.turn_id && x.blob);
+    return h("div", { class:"ri-pq" }, h("div", { class:"ri-pq-h" }, h("span", { class:"ri-pq-n" }, "Q" + n), q.band ? bandChip(q.band) : null),
+      h("p", { class:"ri-pq-q" }, q.question || ""), q.short ? h("p", { class:"ri-small" }, q.short) : null, tk ? listenBtn(tk) : null);
+  }
+  async function paintReport(){
+    const b = $b(), s = S.sess, r = s && s.report, sid = S.sid, ep = S.epoch;
+    if(!r){ put(b, h("p", { class:"ri-empty" }, t("rpNoReport"))); bar(btn(t("rpHub"), "primary", () => go("hub"))); return; }
+    await loadTakes();
+    if(S.view !== "report" || S.sid !== sid || S.epoch !== ep) return;
+    const kids = [], pr = S.progress && S.progress.sid === sid ? S.progress.p : null, cov = r.coverage || {}, fixes = r.fixes || [];
+    kids.push(h("div", { class:"ri-card ri-hero", id:"riRepHero" }, h("div", { class:"ri-role" }, (s.session && s.session.title) || ""), ringEl(r.overall == null ? null : Math.round(+r.overall), bandText(r.band) || t("rpOverall")),
+      h("div", { class:"ri-meta" }, h("span", { class:"ri-tag" }, t("rpCounted", { r:r.real, a:r.answers })), h("span", { class:"ri-tag" }, t("rpMin", { m:Math.max(1, Math.round((+r.seconds || 0) / 60)) })))));
+    if(pr) kids.push(progressStrip(pr));
+    if(r.overall == null) kids.push(h("p", { class:"ri-warn", id:"riNoScore" }, t("rpNoScore")));      // no judged answer at all (the AI was down): no made-up 0
+    else if(r.partial) kids.push(h("p", { class:"ri-warn", id:"riPartial" }, t("rpPartial")));
+    if(r.delta) kids.push(h("div", { class:"ri-card", id:"riDelta" }, h("h3", { class:"ri-h" }, t("rpDeltaH")), h("ul", { class:"ri-ul" }, deltaLine(t("rpDeltaLang"), r.delta.language), deltaLine(t("rpDeltaDeliv"), r.delta.delivery))));
+    kids.push(h("div", { class:"ri-card" }, h("h3", { class:"ri-h" }, t("rpCatH")), h("div", { class:"ri-cats", id:"riCats" }, (r.categories || []).map(catRow))));
+    if((cov.covered || []).length || (cov.not_yet || []).length)
+      kids.push(h("div", { class:"ri-card", id:"riCov" }, h("h3", { class:"ri-h" }, t("rpCovH") + (cov.pct != null ? " · " + cov.pct + "%" : "")),
+        (cov.covered || []).length ? h("div", { class:"ri-lab" }, t("rpCovered")) : null, h("ul", { class:"ri-ul ri-good" }, (cov.covered || []).map(x => h("li", null, String(x.text || "")))),
+        (cov.not_yet || []).length ? h("div", { class:"ri-lab ri-gap" }, t("rpNot")) : null, h("ul", { class:"ri-ul ri-warnl" }, (cov.not_yet || []).map(x => h("li", null, String(x.text || ""))))));
+    if((r.patterns || []).length) kids.push(h("div", { class:"ri-card", id:"riPatterns" }, h("h3", { class:"ri-h" }, t("rpPatH")), h("ul", { class:"ri-ul ri-warnl" }, r.patterns.map(p => h("li", null, String(p.text || ""))))));
+    const pair = [];
+    if((r.strengths || []).length) pair.push(h("div", { class:"ri-card" }, h("h3", { class:"ri-h" }, "✓ " + t("rpStrH")), h("ul", { class:"ri-ul ri-good" }, r.strengths.map(x => h("li", null, String(x))))));
+    if(fixes.length) pair.push(h("div", { class:"ri-card", id:"riFixes" }, h("h3", { class:"ri-h" }, "✗ " + t("rpFixH")), fixes.map(f => h("div", { class:"ri-fixc" }, h("b", null, String(f.title || "")), f.tip ? h("p", { class:"ri-small" }, f.tip) : null,
+      (f.examples || []).map(e => h("div", { class:"ri-fix" }, h("div", null, h("span", { class:"ri-dl" }, t("fbSaid") + ": "), h("span", { class:"ri-said" }, "“" + e.said + "”")), h("div", null, h("span", { class:"ri-dl" }, t("fbBetter") + ": "), h("span", { class:"ri-better" }, "“" + e.better + "”"))))))));
+    if(pair.length) kids.push(h("div", { class:"ri-grid" }, pair));
+    if(r.redo) kids.push(h("div", { class:"ri-card", id:"riRedo" }, h("h3", { class:"ri-h" }, t("rpRedoH")), h("p", { class:"ri-small" }, t("rpRedoSub")), h("p", { class:"ri-qt ri-qt-s" }, r.redo.question || ""),
+      (r.redo.mistakes || []).map(m => h("div", { class:"ri-fix" }, h("div", null, h("span", { class:"ri-dl" }, t("fbSaid") + ": "), h("span", { class:"ri-said" }, "“" + m.said + "”")), h("div", null, h("span", { class:"ri-dl" }, t("fbBetter") + ": "), h("span", { class:"ri-better" }, "“" + m.better + "”")))),
+      r.redo.better_answer ? [h("div", { class:"ri-lab ri-gap" }, t("fbBetterAns")), h("p", { class:"ri-better-ans" }, r.redo.better_answer), btn(t("fbHear"), "ghost sm", () => sayLine(r.redo.better_answer), { icon:"speaker" })] : null));
+    if((r.per_question || []).length) kids.push(section(t("rpQsH"), h("div", { id:"riPerQ" }, r.per_question.map((q, i) => perQRow(q, i + 1)))));
+    kids.push(h("p", { class:"ri-small ri-center" }, t("rpNote")));
+    put(b, kids);
+    bar(btn(t("rpAgain"), "primary", practiceAgain, { cls:"ri-w2", attrs:{ id:"riPracticeAgain" } }), btn(t("rpNewJob"), "ghost", newJob, { cls:"ri-w1", attrs:{ id:"riNewJob" } }));
+  }
+  // another round on the same job: a new session (the match is cached on the server, so it is quick) that goes straight to the first question
+  async function practiceAgain(){
+    if(S.busy || guardKeys()) return;
+    const s = S.sess && S.sess.session; if(!s) return;
+    if(!s.resume_id || !s.jd_id){ note("err", t(!s.resume_id ? "eNoResume" : "eNoJd")); return; }
+    S.busy = true; note("info", t("rpAgainBusy"));
+    let ok = false;
+    try{
+      const res = await api("POST", "/sessions", { resume_id:s.resume_id, jd_id:s.jd_id, settings:s.settings || { type:W.type, level:W.level, feedback_lang:W.fb }, client_key:uid() });
+      S.sid = res.session.id; S.sess = blankSess(res.session); S.stage = {}; S.progress = null; S.dismissed = new Set(); S.takes = [];
+      ok = true;
+    }catch(e){ if(!(e && e.auth)) note("err", eText(e)); }
+    finally{ S.busy = false; }
+    if(ok) runAnalysis("analyze", {}, "", true);
+  }
+  function newJob(){
+    const s = S.sess && S.sess.session;
+    startNew(s && s.resume_id ? { pre:{ kind:"resume", id:s.resume_id } } : null);
+  }
+
+  /* ---------- Settings: the explanation language, the recordings on this phone, export, delete everything ---------- */
+  async function delLocalQuiet(){ for(const x of mine(await IDB.all("takes"))){ await IDB.delChunks(x.id); await IDB.del("takes", x.id); } S.takes = []; }
+  async function delLocal(){
+    if(!confirm(t("stLocalAsk"))) return;
+    await delLocalQuiet(); note("ok", t("stLocalDone")); paintSettings();
+  }
+  async function exportData(){
+    try{
+      const j = await api("GET", "/export", undefined, { timeout:60000 });
+      const u = URL.createObjectURL(new Blob([JSON.stringify(j, null, 2)], { type:"application/json" }));
+      const a = document.createElement("a"); a.href = u; a.download = "dusu-resume-interview.json"; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(u), 4000);
+      note("ok", t("stExported"));
+    }catch(e){ if(!(e && e.auth)) note("err", eText(e)); }
+  }
+  async function deleteAll(){
+    if(!confirm(t("stDelAsk"))) return;
+    try{
+      await api("POST", "/delete-all", { confirm:true });
+      await delLocalQuiet();
+      S.sid = null; S.sess = null; S.state = null; S.stage = {}; S.progress = null; S.job = null; W = freshWiz(); S.flash = t("stDeleted");
+      go("hub");
+    }catch(e){ if(!(e && e.auth)) note("err", eText(e)); }
+  }
+  async function paintSettings(){
+    const b = $b(), ep = S.epoch; bar();
+    const all = mine(await IDB.all("takes")).filter(x => x.blob), bytes = all.reduce((a, x) => a + ((x.blob && x.blob.size) || 0), 0);
+    if(S.view !== "settings" || S.epoch !== ep) return;
+    put(b,
+      h("div", { class:"ri-card" }, chipRow(t("stFbH"), [["hinglish", t("fbHinglish")], ["en", t("fbEn")]], fbPref(), v => { W.fb = v; try{ localStorage.setItem("dusu_ri_fb", v); }catch(_){} paintSettings(); }, "riSetFb"), h("p", { class:"ri-small" }, t("stFbSub"))),
+      section(t("stLocalH"), h("p", { class:"ri-p", id:"riLocalN" }, all.length ? t("stLocalN", { n:all.length, mb:(bytes / 1048576).toFixed(1) }) : t("stLocalNone")),
+        all.length ? btn(t("stLocalDel"), "ghost", delLocal, { icon:"trash", attrs:{ id:"riDelLocal" } }) : null),
+      section(t("stDataH"), h("div", { class:"ri-acts-row ri-stack" }, btn(t("stExport"), "ghost", exportData, { icon:"file", attrs:{ id:"riExport" } }), btn(t("stDelAll"), "danger", deleteAll, { icon:"trash", attrs:{ id:"riDelAll" } }))));
+  }
+
+  /* ---------- entry points, lifecycle, routes ---------- */
+  function syncEntries(){
+    const on = enabled();
+    const e = $("riEntry"); if(e) e.hidden = !on;
+    const m = $("mrowRI"); if(m) m.hidden = !on;
+    const c = $("riHomeCard"); if(c) c.hidden = !(on && userState && userState.onboarded);
+  }
+  const path = () => PATHS[S.view] || PATHS.hub;
+  // called by show() when another screen replaces this one: stop the voice and the mic. A recording in progress is KEPT (never discarded), and an answer
+  // being processed carries on in the background
+  function leave(){
+    S.epoch++;
+    stopLive(); try{ killSpeech(); }catch(_){}
+    if(R){ if(R.state === "recording") stopRec("leave"); else if(R.state === "starting"){ R.cancel = true; releaseRec(R); R = null; } }
+    revokeUrls(); flushPicks(); note();
+  }
+  // logout: drop everything held in memory. The on-device recordings stay (they are tagged with their owner), only deleting the account wipes them
+  function reset(){
+    try{ if(R && R.state === "recording") stopRec("leave"); else if(R){ R.cancel = true; releaseRec(R); R = null; } }catch(_){}
+    stopLive(); try{ killSpeech(); }catch(_){}
+    revokeUrls(); INFL.clear(); clearTimeout(S.picksT); clearTimeout(S.refs.slowT);
+    S = fresh(); W = freshWiz();
+    try{ put($b()); note(); bar(); }catch(_){}
+  }
+  const wipeLocal = () => IDB.reset();
+  [["hub", PATHS.hub], ["resume", PATHS.resume], ["job", PATHS.job], ["match", PATHS.match], ["interview", PATHS.interview], ["report", PATHS.report], ["settings", PATHS.settings]]
+    .forEach(([v, p]) => { ROUTES[p] = { enter: () => open(v) }; });
+  $("riBack").onclick = back;
+  $("riGear").onclick = () => go(S.view === "settings" ? "hub" : "settings");
+  if($("riEntry")) $("riEntry").onclick = () => navTo(BASE);
+  if($("riHomeCard")) $("riHomeCard").onclick = () => navTo(BASE);
+  // soft keyboard: Chrome on Android shrinks only the VISUAL viewport, so a focused field near the bottom can end up behind the keyboard. While it is open the screen is
+  // padded by its height, the sticky dock steps out of the way (it would sit on top of the field) and the focused field is scrolled into view.
+  (function(){
+    const vv = window.visualViewport, root = $("ri"); if(!vv || !root) return;
+    function onVV(){
+      const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)), open = kb > 120;
+      root.classList.toggle("ri-kbd", open); root.style.setProperty("--ri-kb", open ? kb + "px" : "0px");
+      const a = document.activeElement;
+      if(open && a && root.contains(a) && /^(TEXTAREA|INPUT)$/.test(a.tagName)) setTimeout(() => { try{ a.scrollIntoView({ block:"center", behavior:"smooth" }); }catch(_){} }, 60);
+    }
+    vv.addEventListener("resize", onVV); vv.addEventListener("scroll", onVV);
+  })();
+  return { open, syncEntries, leave, reset, wipeLocal, enabled, path, _txt:TXT };
+})();
+window.RI = RI;
 
 if($("assessExit")) $("assessExit").onclick = skipAssessment;
 try{ LG.mount(); }catch(e){ console.warn("LG.mount", e); }   // Hindi/English controls (hidden until the switch is on for this learner)

@@ -44,7 +44,7 @@ _RANK_LABELS = {"starter": "Starter", "speaker": "Speaker", "confident_speaker":
                 "fluent_communicator": "Fluent Communicator", "english_pro": "English Pro"}
 _MODE_LABELS = {"conversation": "Face-to-Face", "daily": "Daily Talk", "interview": "Interview",
                 "presentation": "Presentation", "viva": "Viva", "speech": "Speech", "seminar": "Seminar",
-                "discussion": "Discussion", "custom": "Practice Room"}
+                "discussion": "Discussion", "custom": "Practice Room", "resume_interview": "Resume Interview"}
 _SKILLS = ("confidence", "pronunciation", "listening", "vocabulary", "grammar", "thinking")
 _BADGES = {
     "first_lesson": "First Lesson", "first_converse": "First Chat", "streak_3": "Getting Started (3 days)",

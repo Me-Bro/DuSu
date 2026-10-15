@@ -42,10 +42,14 @@ from . import auth
 from . import db
 from .planner import models as _planner_models  # noqa: F401  (registers the pl_* tables on db.Base before init_db runs)
 from .planner import api as planner_api, life_lines as planner_life, scheduler as planner_scheduler
+from .resume_interview import models as _ri_models  # noqa: F401  (registers the ri_* tables on db.Base before init_db runs)
+from .resume_interview import api as ri_api, life_lines as ri_life
 
 app = FastAPI(title="DuSu")
 app.include_router(planner_api.router)      # My Day: /planner/* (404 while the `planner` switch is off for the account)
 planner_life.register()                      # DuSu reads the plan through the "knows your data" block (life.EXTRA_LINES)
+app.include_router(ri_api.router)           # Resume Interview: /rinterview/* (404 while the `resume_interview` switch is off for the account)
+ri_life.register()                           # ... and reads the learner's interview scores the same way
 
 # --- Roles ---
 # Only the owner rides the app's own keys (the ones in .env). EVERY other account —
@@ -282,6 +286,26 @@ async def planner_mode() -> str:
 
 async def planner_enabled(email: str) -> bool:
     m = await planner_mode()
+    if m == "on":
+        return True
+    if m == "owner":
+        return await staged_visible(email)
+    return False
+
+
+async def resume_interview_mode() -> str:
+    """Resume Interview rollout switch (Settings table, no migration; DUSU_RESUME_INTERVIEW_PLAN.md D4). It stores a learner's resume text, job
+    text and answer transcripts, so it ships DARK: 'off' = nobody, the endpoints answer 404 (export / delete excepted) - the DEFAULT; 'owner' = the
+    owner / unlimited allowlist plus the early-access testers; 'on' = everyone."""
+    try:
+        v = await _cached("resume_interview", lambda: db.get_setting("resume_interview", "off"))
+        return v if v in ("off", "owner", "on") else "off"
+    except Exception:
+        return "off"
+
+
+async def resume_interview_enabled(email: str) -> bool:
+    m = await resume_interview_mode()
     if m == "on":
         return True
     if m == "owner":
@@ -715,6 +739,17 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
             _pr_server_stt = False
     _home_ai = await home_ai_enabled(email)
     _planner = await planner_enabled(email)
+    # Resume Interview (flag-gated, DUSU_RESUME_INTERVIEW_PLAN.md): the client draws its entry points only when true; `ri_server_stt` = can the server
+    # transcribe an answer for this learner (same rule as `practice_server_stt`, but computed on THIS feature's flag - the Practice Room may be off).
+    _ri = await resume_interview_enabled(email)
+    _ri_stt = False
+    if _ri:
+        try:
+            _ok, _eff, _ = await resolve_keys(email, {}, uid)
+            _ri_stt = bool(_ok and ((_eff is None and (settings.groq_api_key or settings.gemini_api_key))
+                                    or (_eff and (_eff.get("groq") or _eff.get("gemini")))))
+        except Exception:
+            _ri_stt = False
     common = {"role": _role, "email": email, "office": _office, "office_allowed": _office,
               "unlimited": _unlim, "plan": plan, "requests_left": req_left,
               "request_limit": req_limit, "trial_days_left": trial_days, "trial_over": trial_over,
@@ -730,6 +765,7 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
               # the learner on Home (default yes); overridden from the saved prefs once the state is loaded.
               "home_ai": _home_ai, "home_personal": True,
               "planner": _planner,                  # My Day (DUSU_GOALS_PLAN.md): the client draws its entry points only when true
+              "resume_interview": _ri, "ri_server_stt": _ri_stt,   # Resume Interview (DUSU_RESUME_INTERVIEW_PLAN.md)
               "level_test": await level_test_on(),
               # The public name this user appears as on the leaderboard / league.
               # Boards are alias-only for privacy (§18), so without this the user
@@ -738,7 +774,7 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
     if _home_ai:
         # The Home page's feature icons (home_content.tiles): what exists for THIS learner, both languages' titles, each with
         # the route a tap opens. Only the learners who have the new Home get the key, so /me is unchanged for everyone else.
-        common["home_tiles"] = home_content.tiles({"practice_room": _pr, "planner": _planner})
+        common["home_tiles"] = home_content.tiles({"practice_room": _pr, "planner": _planner, "resume_interview": _ri})
     if not db.db_enabled:
         return {"onboarded": None, **common}
     try:
@@ -1162,12 +1198,17 @@ async def admin_overview(token: str = "", authorization: str | None = Header(Non
            "access_phase": await access_phase(), "level_test": await level_test_on(),
            "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode(),
            "life_context": await life_context_mode(), "bilingual": await bilingual_mode(),
-           "home_ai": await home_ai_mode(), "planner": await planner_mode()}
+           "home_ai": await home_ai_mode(), "planner": await planner_mode(), "resume_interview": await resume_interview_mode()}
     if db.db_enabled:
         try:
             out["planner_health"] = await planner_scheduler.health()
         except Exception as e:
             print(f"[admin] planner health failed: {type(e).__name__}")
+        try:
+            from .resume_interview import service as ri_service
+            out["resume_interview_health"] = await ri_service.health()
+        except Exception as e:
+            print(f"[admin] resume interview health failed: {type(e).__name__}")
         try:
             users = await db.admin_list_users()
             early = await db.early_list()
@@ -1205,6 +1246,7 @@ class SettingsIn(BaseModel):
     bilingual: str | None = None          # off | owner | on  (Hindi / English modes, CLAUDE.md §11)
     home_ai: str | None = None            # off | owner | on  (Home 2.0 - the AI companion Home, CLAUDE.md §12)
     planner: str | None = None            # off | owner | on  (My Day - tasks, habits, goals, reminders; DUSU_GOALS_PLAN.md)
+    resume_interview: str | None = None   # off | owner | on  (Resume Interview - resume + job description -> recorded mock interview; DUSU_RESUME_INTERVIEW_PLAN.md)
 
 
 @app.post("/admin/settings")
@@ -1229,11 +1271,13 @@ async def admin_settings(inp: SettingsIn, authorization: str | None = Header(Non
         await db.set_setting("home_ai", inp.home_ai if inp.home_ai in ("off", "owner", "on") else "owner")
     if inp.planner is not None:
         await db.set_setting("planner", inp.planner if inp.planner in ("off", "owner", "on") else "off")
+    if inp.resume_interview is not None:
+        await db.set_setting("resume_interview", inp.resume_interview if inp.resume_interview in ("off", "owner", "on") else "off")
     invalidate_access_cache()
     return {"access_phase": await access_phase(), "level_test": await level_test_on(),
             "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode(),
             "life_context": await life_context_mode(), "bilingual": await bilingual_mode(),
-            "home_ai": await home_ai_mode(), "planner": await planner_mode()}
+            "home_ai": await home_ai_mode(), "planner": await planner_mode(), "resume_interview": await resume_interview_mode()}
 
 
 class WipeIn(BaseModel):
@@ -1739,7 +1783,7 @@ async def _home_flags(email: str) -> dict:
     """Which optional features exist for this learner (feeds home_content: the Know About page, the model's catalogue and
     the validation of the ids it suggests - one source, so they cannot disagree)."""
     return {"practice_room": await practice_room_enabled(email), "bilingual": await bilingual_enabled(email),
-            "planner": await planner_enabled(email)}
+            "planner": await planner_enabled(email), "resume_interview": await resume_interview_enabled(email)}
 
 
 def _home_tod(hour) -> str:

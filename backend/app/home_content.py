@@ -72,6 +72,16 @@ FEATURES: list[dict] = [
      "hi": {"title": "Practice Room",
             "desc": "Presentation की rehearsal करो - record करो, score और specific feedback पाओ, खुद को सुनो और फिर से try करो।",
             "best": "किसके लिए: जब कोई presentation या talk आने वाला हो।"}},
+    # Resume Interview (DUSU_RESUME_INTERVIEW_PLAN.md): a mock interview built from the learner's OWN resume and a job description. Named for what differs from
+    # "Interview Prep" (the generic HR mock above). Exists only for learners who have the `resume_interview` switch; hidden (not "coming soon") otherwise.
+    {"id": "resume_interview", "icon": "📄", "route": "/resume-interview", "status": "live", "needs": "resume_interview", "group": "main",
+     "en": {"title": "Resume Interview",
+            "desc": "Upload your resume and a job description. DuSu shows where they do not match and how to fix your resume, then interviews you for that exact job: you record each answer, hear yourself back and get your mistakes after every question.",
+            "best": "Best for: a real interview coming up for a specific job.",
+            "say": "a mock interview built from the learner's own resume and a job description (not the general HR mock): the learner records each answer, hears it back and gets feedback on their mistakes after every question"},
+     "hi": {"title": "Resume Interview",
+            "desc": "अपना resume और job description upload करो। DuSu बताती है कि दोनों में क्या मेल नहीं खाता और resume कैसे बेहतर करें, फिर उसी job का interview लेती है - हर answer record करो, खुद को सुनो और हर सवाल के बाद अपनी mistakes पर feedback पाओ।",
+            "best": "किसके लिए: किसी खास job के असली interview की तैयारी।"}},
     {"id": "career_path", "icon": "🧭", "route": "/career-path", "status": "live", "needs": None, "group": "more",
      "en": {"title": "Career Path",
             "desc": "Tell DuSu what you want to become and she builds a step-by-step roadmap of stages and skills.",

@@ -145,8 +145,13 @@ def _trim_to_last_sentence(text: str) -> str:
 # amount of waiting fixes a bad key or a shut-down endpoint. Retrying these on the
 # 90s rate-limit schedule burns a real round-trip on every fallback (measured: dead
 # Gemini 0.69s, retired GitHub Models 1.30s) against a sub-second turn-latency goal.
-_DEAD_MARKERS = ("401", "403", "404", "410", "invalid authentication",
-                 "invalid api key", "unauthorized", "retirement", "brownout")
+_DEAD_CODES = re.compile(r"(?<![\w.])(?:401|403|404|410)(?!\w|\.\d)")      # an HTTP status as its own token ...
+_DEAD_WORDS = ("invalid authentication", "invalid api key", "unauthorized", "retirement", "brownout")
+_RATE_WORDS = ("rate limit", "rate_limit", "tokens per minute", "too many requests")
+_RATE_CODE = re.compile(r"(?<![\w.])429(?!\w|\.\d)")                  # 429 as its own token - like the dead codes above, not a digit run inside an id
+# ... NOT a digit run inside a number: a Groq rate-limit message such as "Limit 8000, Used 4041, Requested 4500" contains "404" as a SUBSTRING, which
+# used to put the whole provider on a 6-hour cooldown for every user (the cooldown map is keyed by provider name only). A message that reads as a
+# rate limit is always the short, rate-limit kind of cooldown.
 
 
 def cooling_down() -> list[str]:
@@ -159,7 +164,8 @@ def _mark_cooldown(name: str, err: str) -> None:
     """A rate-limited/exhausted provider is skipped for a while so we don't
     waste a failing round-trip on it every single turn."""
     low = err.lower()
-    if any(k in low for k in _DEAD_MARKERS):
+    rate_limited = any(k in low for k in _RATE_WORDS) or _RATE_CODE.search(low) is not None
+    if not rate_limited and (_DEAD_CODES.search(low) or any(k in low for k in _DEAD_WORDS)):
         _cooldown[name] = time.time() + 21600        # 6h — misconfigured/retired, not busy
         return
     daily = any(k in low for k in ("day", "quota", "free_tier", "free-models"))
