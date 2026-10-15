@@ -591,3 +591,9 @@ Code: validates, shows the preview card, asks the one question, saves on **Add**
 ## Appendix C — push payload (≈ 700 bytes of the 4 KB limit)
 
 `{"title":"DuSu · Important task","body":"Have you shut down your AWS server?","tag":"t123:0","data":{"rid":456,"url":"/my-day?r=456","act":{"done":"…","later":"…","skip":"…"}},"actions":[{"action":"done","title":"Done"},{"action":"later","title":"Later"},{"action":"skip","title":"Skip"}]}` — with D6 on, title/body become "You have a reminder".
+
+---
+
+## Appendix D — repeating reminders (built 2026-10-15)
+
+The owner asked for a reminder that can be set **once for chosen weekdays and then rings forever** ("Mon, Tue" / "Saturday"). Tasks and habits already repeated on weekdays and everything was already stored; only a reminder was one-shot. Design, files, verification and the two fixes found on the way: `CLAUDE.md` §14, update 2026-10-15. In short: a new table `pl_reminder_rules` holds the rule; its rings are ordinary reminder rows made for today + tomorrow (so the whole delivery path is unchanged); one ring is never edited on its own - the rule is the unit; the Reminders tab lists the rules ("Repeating reminders") because only two days of rings exist as rows. Tests: `tests/my_day/` (unit, scratch Postgres on a fake clock, planted-bug runs, a real browser against the real reminder loop).

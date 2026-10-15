@@ -12,7 +12,7 @@ from __future__ import annotations
 import datetime as dt
 
 from .. import life
-from . import service as svc, timeutil as tu
+from . import rules, service as svc, timeutil as tu
 
 
 def _t12(iso: str | None, tz: str) -> str:
@@ -24,6 +24,12 @@ def _t12(iso: str | None, tz: str) -> str:
     except ValueError:
         return ""
     return f"{d.hour % 12 or 12}:{d.minute:02d} {'AM' if d.hour < 12 else 'PM'}"
+
+
+def _hhmm12(hhmm) -> str:
+    """'07:00' -> '7:00 AM'."""
+    t = tu.parse_hhmm(hhmm)
+    return "" if t is None else f"{t.hour % 12 or 12}:{t.minute:02d} {'AM' if t.hour < 12 else 'PM'}"
 
 
 def _day_name(iso_day: str, today_iso: str) -> str:
@@ -114,8 +120,22 @@ def format_lines(t: dict) -> list[str]:
         if rem_later:
             parts.append("later - " + "; ".join(f"{_day_name(x.get('day') or '', t.get('date') or '')} {_t12(x.get('fire_at'), tz)} {c(x.get('title'))}" for x in rem_later[:5]))
         out.append(f"Reminders (their own My Day - exact, {len(due) + len(rem_today) + len(rem_later)} in all; when asked, read EVERY one, in this order): " + ". ".join(parts) + ".")
+    elif any(isinstance(x, dict) and x.get("status") == "active" for x in (t.get("repeating") or [])):
+        out.append("Reminders: nothing is due in the next two days (their repeating reminders are listed next).")
     else:
         out.append("Reminders: none set.")
+    # the repeating ones are set ONCE and ring on their days until the learner deletes or pauses them - listed whole, because only the next two days
+    # of rings exist as individual reminders, so a Saturday-only one is not above on a Monday
+    rep = [x for x in (t.get("repeating") or []) if isinstance(x, dict) and x.get("title")]
+    if rep:
+        bits = []
+        for x in rep[:8]:
+            bit = f"{c(x.get('title'))} - {rules.days_text(x.get('days'), 'en') or 'no days'} at {_hhmm12(x.get('time')) or '?'}"
+            if x.get("status") != "active":
+                bit += " (paused - not ringing)"
+            bits.append(bit)
+        out.append(f"Repeating reminders (their own, set once - each rings again on its days until they delete or pause it; exact, {len(rep)} in all): "
+                   + "; ".join(bits) + ".")
     out.append("You can NOT add, change or complete their tasks or reminders from a conversation. If they want to, tell them to open My Day and tap +; "
                "never say you added, saved or set a reminder.")
     return out

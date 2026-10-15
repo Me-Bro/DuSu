@@ -2077,6 +2077,10 @@
   .pl-fchip{ font:inherit; font-size:13px; min-height:38px; padding:0 14px; border-radius:999px; cursor:pointer; background:var(--glass);
     border:1px solid var(--glass-brd); color:var(--ink-dim); }
   .pl-fchip.on{ background:linear-gradient(135deg,rgba(111,140,255,.3),rgba(122,92,240,.2)); border-color:var(--gold); color:var(--ink); }
+  /* a reminder's repeat choice and its seven weekday chips: a full 44px target (seven in a row on a small phone share the row; a narrower screen wraps them) */
+  .pl-chips[data-chips="rrep"] .pl-fchip, .pl-chips[data-chips="rrdays"] .pl-fchip{ min-height:44px; }
+  .pl-chips[data-chips="rrdays"]{ gap:6px; }
+  .pl-chips[data-chips="rrdays"] .pl-fchip{ flex:1 1 0; min-width:40px; padding:0 4px; text-align:center; }
   .pl-remcard{ border:1px solid color-mix(in srgb,var(--amber) 55%,transparent); background:rgba(240,169,82,.08); border-radius:18px; padding:13px 14px; margin-bottom:10px; text-align:left; }
   .pl-remcard .pl-k{ font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--amber); }
   .pl-remcard .pl-ttl{ font-size:16px; margin:3px 0 10px; }
@@ -9233,6 +9237,11 @@ const PL = (function(){
       gProg:"{n}% done", gBehind:"about {n} days behind", gNext:"Next step: {t}", gTasks:"{o} open · {d} done", gPause:"Pause", gResume:"Resume", gDone:"Mark goal done", gReopen:"Reopen", gNoMs:"No steps yet.",
       gPaused:"Paused", gFinished:"Finished", gAddTask:"Add a task for this goal",
       fRTitle:"What should I remind you about?",
+      fRepeatRem:"Repeat", rrOnce:"Once", rrDaily:"Every day", rrDays:"Selected days", rrHint:"Set it once. It rings on each of these days, every week, until you pause or delete it.",
+      rrSection:"Repeating reminders", rrNext:"Next: {when}", rrPaused:"Paused", rrPause:"Pause", rrResume:"Resume", rrNone:"Nothing is due in the next two days.", editRule:"Edit repeating reminder",
+      rrSet:"Repeating reminder set: {days} at {time}. Next: {when}", rrDup:"That repeating reminder is already set: {days} at {time}", rrSaved:"Repeating reminder updated", rrDeleted:"Repeating reminder deleted",
+      rrDelAsk:"This reminder repeats. Delete it so it stops ringing on every one of its days? It cannot be undone.", rrPaused2:"Repeating reminder paused", rrResumed:"Repeating reminder is running again",
+      errDays:"Please pick at least one day.", errLimit_repeating:"You can keep 30 repeating reminders. Delete one first.",
       save:"Save", cancel:"Cancel", del:"Delete", delAsk:"Delete this? It cannot be undone.", skip:"Skip", reopen:"Reopen", done:"Done", later:"Later",
       later30:"Later", moveDay:"Move to another day", trigger:"▶ {l}", edit:"Edit", repeats:"Repeats",
       setTime:"Time and quiet hours", setTz:"Timezone", setTzAuto:"Use my phone's timezone", setQuiet:"Quiet hours", setQuietHint:"No reminders are sent in this window; they wait until it ends.", setFrom:"From", setTo:"To",
@@ -9284,6 +9293,11 @@ const PL = (function(){
       gProg:"{n}% पूरा", gBehind:"लगभग {n} दिन पीछे", gNext:"अगला step: {t}", gTasks:"{o} बाक़ी · {d} हुए", gPause:"रोको", gResume:"फिर शुरू करो", gDone:"Goal पूरा हुआ", gReopen:"फिर खोलो", gNoMs:"अभी कोई step नहीं है।",
       gPaused:"रुका हुआ", gFinished:"पूरा हुआ", gAddTask:"इस goal के लिए task जोड़ो",
       fRTitle:"किस बारे में याद दिलाऊँ?",
+      fRepeatRem:"दोहराओ", rrOnce:"एक बार", rrDaily:"हर दिन", rrDays:"चुने हुए दिन", rrHint:"एक बार लगाओ। ये इन सभी दिनों पर हर हफ़्ते बजेगा, जब तक तुम इसे रोको या हटाओ नहीं।",
+      rrSection:"बार-बार वाले reminders", rrNext:"अगला: {when}", rrPaused:"रुका हुआ", rrPause:"रोको", rrResume:"फिर चालू करो", rrNone:"अगले दो दिन में कुछ नहीं है।", editRule:"बार-बार वाला reminder बदलो",
+      rrSet:"बार-बार वाला reminder लग गया: {days}, {time} पर। अगला: {when}", rrDup:"ये बार-बार वाला reminder पहले से लगा है: {days}, {time} पर", rrSaved:"बार-बार वाला reminder बदल गया", rrDeleted:"बार-बार वाला reminder हट गया",
+      rrDelAsk:"ये reminder बार-बार आता है। इसे हटा दें ताकि ये अपने किसी भी दिन न बजे? ये वापस नहीं आएगा।", rrPaused2:"बार-बार वाला reminder रुक गया", rrResumed:"बार-बार वाला reminder फिर चालू है",
+      errDays:"कम से कम एक दिन चुनो।", errLimit_repeating:"बार-बार वाले reminders 30 तक ही रह सकते हैं। पहले एक हटाओ।",
       save:"Save करो", cancel:"रहने दो", del:"हटाओ", delAsk:"इसे हटाएँ? ये वापस नहीं आएगा।", skip:"छोड़ो", reopen:"फिर खोलो", done:"हो गया", later:"बाद में",
       later30:"बाद में", moveDay:"किसी और दिन पर", trigger:"▶ {l}", edit:"बदलो", repeats:"दोहराता है",
       setTime:"समय और quiet hours", setTz:"Timezone", setTzAuto:"मेरे phone का timezone use करो", setQuiet:"Quiet hours", setQuietHint:"इस समय में कोई reminder नहीं आएगा; वो खत्म होने तक रुका रहेगा।", setFrom:"से", setTo:"तक",
@@ -9334,6 +9348,8 @@ const PL = (function(){
   function fmtDate(iso){ const d = dateObj(iso); if(!d) return ""; try{ return new Intl.DateTimeFormat(loc(), { weekday:"short", day:"numeric", month:"short" }).format(d); }catch(_){ return iso; } }
   function fmtTime(hhmm){ if(!hhmm) return ""; const [h, m] = hhmm.split(":").map(Number); return (h % 12 || 12) + ":" + String(m).padStart(2, "0") + " " + (h < 12 ? "AM" : "PM"); }
   function fmtInstant(iso, tz){ try{ const d = new Date(iso); return new Intl.DateTimeFormat(loc(), { hour:"numeric", minute:"2-digit", hour12:true, timeZone: tz || undefined }).format(d); }catch(_){ return ""; } }
+  // "Every day" / "Mon, Tue" - how the days of a repeating reminder read (the server stores 'daily' or a list of 0..6, Mon = 0)
+  const daysText = d => d === "daily" ? t("rrDaily") : Array.isArray(d) ? d.map(i => (TXT[L()].daysShort || TXT.en.daysShort)[i]).filter(Boolean).join(", ") : "";
   const serverToday = () => (D.today && D.today.date) || D.remToday || localIso(new Date());
   function localIso(d){ return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
   function addDays(iso, n){ const d = dateObj(iso); d.setDate(d.getDate() + n); return localIso(d); }
@@ -9456,7 +9472,8 @@ const PL = (function(){
     w.style.bottom = (navAtBottom ? Math.round(window.innerHeight - nav.top) + 16 : 28) + "px";
   }
   window.addEventListener("resize", () => { try{ placeFab(); }catch(_){} });
-  function onLang(){ if(!enabled()) return; try{ syncEntries(); }catch(_){} if(currentScreen() === "pl"){ paint(); render(); } try{ paintBanner(); }catch(_){} if(sheetOpen()) closeSheet(); }
+  // /me answering (it calls this on every refresh) must not close a form the learner is typing in: a sheet is closed only when the language it was DRAWN in is no longer the current one
+  function onLang(){ if(!enabled()) return; try{ syncEntries(); }catch(_){} if(currentScreen() === "pl"){ paint(); render(); } try{ paintBanner(); }catch(_){} if(sheetOpen() && sheetLang !== L()) closeSheet(); }
 
   /* ---------- loading ---------- */
   async function load(){
@@ -9469,8 +9486,8 @@ const PL = (function(){
       else if(tab === "habits") D.habits = (await api("GET", "/habits")).habits;
       else if(tab === "reminders"){
         // the list and (only the first time) the notification state, side by side - one round trip of waiting, not two
-        const [r, pf] = await Promise.all([api("GET", "/reminders?view=" + rview), D.prefs ? Promise.resolve(null) : api("GET", "/prefs").catch(() => null)]);
-        D.rem = r.reminders; D.remToday = r.today; D.remTz = r.tz; if(pf) D.prefs = pf;
+        const [r, rr, pf] = await Promise.all([api("GET", "/reminders?view=" + rview), api("GET", "/reminder-rules").catch(() => null), D.prefs ? Promise.resolve(null) : api("GET", "/prefs").catch(() => null)]);
+        D.rem = r.reminders; D.remToday = r.today; D.remTz = r.tz; if(rr) D.rules = rr.rules; if(pf) D.prefs = pf;
       }
       else if(tab === "settings") D.prefs = await api("GET", "/prefs");
       if(tab === "goals" && goalId) D.goal = await api("GET", "/goals/" + goalId);
@@ -9519,13 +9536,24 @@ const PL = (function(){
     o = o || {};
     const done = x.status === "done", skp = x.status === "skipped", closed = done || skp;
     const chips = [];
+    // one ring of a REPEATING reminder: its pencil and bin act on the rule (every day it rings), not on this one ring; a ring whose rule is gone is just history
+    const ring = x.kind === "recurring" && !!x.rule_id, ruleGone = ring && !x.repeat;
     if(x.time) chips.push(`<span class="pl-chip">${A((o.day ? dayLabel(x.day) + " · " : "") + fmtTime(x.time))}</span>`);
+    if(ring && x.repeat) chips.push(`<span class="pl-chip gold">${A(daysText(x.repeat.days))}</span>`);       // the 🔁 is already in the title: the chip says how often
     if(x.status === "waiting") chips.push(`<span class="pl-chip gold">${A(t("remWaiting"))}</span>`);
     if(x.status === "sent") chips.push(`<span class="pl-chip gold">${A(t("remNow"))}</span>`);
     if(x.status === "expired") chips.push(`<span class="pl-chip amber">${A(t("remExpired"))}</span>`);
     if(skp) chips.push(`<span class="pl-chip">${A(t("remSkipped"))}</span>`);
     return `<div class="pl-row"><button class="pl-chk${done ? " done" : skp ? " skip" : ""}" data-act="${closed ? "remreopen" : "remdone"}" data-id="${x.id}" aria-label="${A((closed ? t("reopen") : t("done")) + ": " + x.title)}">${done ? "<span>✓</span>" : ""}</button>
-      <button class="pl-main" data-act="remedit" data-id="${x.id}" aria-label="${A(t("edit"))}: ${A(x.title)}"><div class="pl-ttl${closed ? " done" : ""}">🔔 ${A(x.title)}</div><div class="pl-meta">${chips.join("")}</div></button>${tools("remedit", "remdel2", x.id, x.title)}</div>`;
+      ${ruleGone ? `<div class="pl-main" style="cursor:default"><div class="pl-ttl${closed ? " done" : ""}">🔔 ${A(x.title)}</div><div class="pl-meta">${chips.join("")}</div></div>`
+        : `<button class="pl-main" data-act="${ring ? "ruleedit" : "remedit"}" data-id="${ring ? x.rule_id : x.id}" aria-label="${A(t("edit"))}: ${A(x.title)}"><div class="pl-ttl${closed ? " done" : ""}">${ring ? "🔁" : "🔔"} ${A(x.title)}</div><div class="pl-meta">${chips.join("")}</div></button>${ring ? tools("ruleedit", "ruledel2", x.rule_id, x.title) : tools("remedit", "remdel2", x.id, x.title)}`}</div>`;
+  }
+  // a repeating reminder itself (the thing that lasts): its days and time, when it rings next, or that it is paused
+  function ruleRow(r){
+    const paused = r.status === "paused", chips = [`<span class="pl-chip">${A(daysText(r.days))} · ${A(fmtTime(r.time))}</span>`];
+    if(paused) chips.push(`<span class="pl-chip amber">${A(t("rrPaused"))}</span>`);
+    else if(r.next_day) chips.push(`<span class="pl-chip gold">${A(t("rrNext", { when:dayLabel(r.next_day) + " · " + fmtTime(r.next_time) }))}</span>`);
+    return `<div class="pl-row"><span style="font-size:20px;line-height:1.3" aria-hidden="true">🔁</span><button class="pl-main" data-act="ruleedit" data-id="${r.id}" aria-label="${A(t("edit"))}: ${A(r.title)}"><div class="pl-ttl${paused ? " done" : ""}">${A(r.title)}</div><div class="pl-meta">${chips.join("")}</div></button>${tools("ruleedit", "ruledel2", r.id, r.title)}</div>`;
   }
   function habitCard(h, compact){
     const full = h.state_today === "done";
@@ -9638,8 +9666,8 @@ const PL = (function(){
   /* ---------- Reminders (bell) ---------- */
   function vReminders(){
     let h = `<div class="pl-chips"><button class="pl-fchip${rview === "all" ? " on" : ""}" data-act="rview" data-v="all">${A(t("remsAll"))}</button><button class="pl-fchip${rview === "upcoming" ? " on" : ""}" data-act="rview" data-v="upcoming">${A(t("remsUp"))}</button><button class="pl-fchip${rview === "history" ? " on" : ""}" data-act="rview" data-v="history">${A(t("remsHist"))}</button></div>`;
-    const list = D.rem || [];
-    if(!list.length) return h + `<div class="pl-empty">${A(rview === "history" ? t("emptyRem") : t("remNone"))}</div>`;
+    const list = D.rem || [], rl = rview === "history" ? [] : (D.rules || []);       // the repeating reminders are not "history": they are what lasts
+    if(!list.length && !rl.length) return h + `<div class="pl-empty">${A(rview === "history" ? t("emptyRem") : t("remNone"))}</div>`;
     const stat = r => r.status === "waiting" ? t("remWaiting") : r.status === "done" ? t("remDone") : r.status === "skipped" ? t("remSkipped") : r.status === "expired" ? t("remExpired") : r.status === "sent" ? t("remSent") : "";
     const flat = r => `<div class="pl-row"><span style="font-size:20px;line-height:1.3">${r.kind === "test" ? "🧪" : r.entity_type === "habit" ? "🌱" : "🔔"}</span><div class="pl-main" style="cursor:default"><div class="pl-ttl">${A(r.title)}</div>
       <div class="pl-meta">${r.fire_at ? `<span class="pl-chip">${A(fmtInstantDay(r.fire_at))}</span>` : ""}${stat(r) ? `<span class="pl-chip ${r.status === "done" ? "green" : r.status === "expired" ? "amber" : ""}">${A(stat(r))}</span>` : ""}</div></div></div>`;
@@ -9653,6 +9681,10 @@ const PL = (function(){
       h += `<div class="pl-card pad" style="margin-bottom:12px"><div class="pl-ttl" style="margin-bottom:4px">🔔 ${A(t("pushHintT"))}</div><div class="pl-note" style="margin-top:0">${A(why)}</div>
         <div class="pl-acts">${go}<button class="pl-act" data-act="pushhide">${A(t("pushHintNo"))}</button></div></div>`;
     }
+    // the repeating reminders: set once, they ring on their days until paused or deleted. Only the next two days of rings exist as rows below, so a
+    // Saturday-only reminder has no row on a Monday - this list is where it is always visible, with when it rings next
+    if(rl.length) h += `<div class="pl-sec">${A(t("rrSection"))}</div><div class="pl-card">${rl.map(ruleRow).join("")}</div>`;
+    if(!list.length) return h + `<div class="pl-note" style="text-align:center">${A(t("rrNone"))}</div>`;
     // coming up: grouped by the learner's own day. Their own reminders can be ticked off, changed and deleted; a task's or a habit's reminder is managed from that task / habit.
     const groups = [];
     list.forEach(r => { const day = r.day || ""; let g = groups[groups.length - 1]; if(!g || g.day !== day){ g = { day, items:[] }; groups.push(g); } g.items.push(r); });
@@ -9708,12 +9740,18 @@ const PL = (function(){
   }
   try{ if(window.visualViewport){ window.visualViewport.addEventListener("resize", fitSheet); window.visualViewport.addEventListener("scroll", fitSheet); } }catch(_){}
   document.addEventListener("focusin", ev => { if(ev.target && ev.target.closest && ev.target.closest("#plSheet")) setTimeout(() => { try{ ev.target.scrollIntoView({ block:"center" }); }catch(_){} }, 320); });
+  let sheetLang = "";                         // the language the open sheet was drawn in
   function openSheet(html){
+    sheetLang = L();
     const el = $("plSheet"); el.innerHTML = '<div class="pl-grip"></div>' + html; el.hidden = false; $("plSheetBg").hidden = false; fitSheet();
     const f = el.querySelector("input[type=text],textarea,.pl-in"); try{ if(f && !f.matches("[type=date],[type=time]")) f.focus({ preventScroll:true }); }catch(_){}
   }
   function closeSheet(){ sheet = null; const el = $("plSheet"); if(el){ el.hidden = true; el.innerHTML = ""; el.style.bottom = ""; el.style.maxHeight = ""; } const bg = $("plSheetBg"); if(bg) bg.hidden = true; }
   const chipRow = (name, opts, cur) => `<div class="pl-chips" data-chips="${name}">${opts.map(([v, l]) => `<button type="button" class="pl-fchip${String(cur) === String(v) ? " on" : ""}" data-v="${v}">${A(l)}</button>`).join("")}</div>`;
+  // the same, for a choice that matters to a screen reader (which option is on?): the state is also in aria-pressed, kept in step by the click handler
+  const chipRowP = (name, opts, cur) => `<div class="pl-chips" data-chips="${name}" role="group">${opts.map(([v, l]) => `<button type="button" class="pl-fchip${String(cur) === String(v) ? " on" : ""}" data-v="${v}" aria-pressed="${String(cur) === String(v)}">${A(l)}</button>`).join("")}</div>`;
+  const dayChips = (picked) => `<div class="pl-chips" data-chips="rrdays" data-multi="1" role="group">${(TXT[L()].daysShort || TXT.en.daysShort).map((d, i) => `<button type="button" class="pl-fchip${picked.includes(i) ? " on" : ""}" data-v="${i}" aria-pressed="${picked.includes(i)}">${A(d)}</button>`).join("")}</div>`;
+  const pickedDays = () => [...document.querySelectorAll('#plSheet [data-chips="rrdays"] .on')].map(b => +b.dataset.v);
   const val = (id) => { const e = $(id); return e ? e.value : ""; };
   const chipVal = (name, dflt) => { const e = $q(`#plSheet [data-chips="${name}"] .on`); return e ? e.dataset.v : dflt; };
 
@@ -9777,10 +9815,24 @@ const PL = (function(){
         ${x ? "" : `<div class="pl-f"><label for="plGMs">${A(t("gMs"))}</label><textarea class="pl-in" id="plGMs" rows="4"></textarea></div>`}
         <div class="pl-foot pl-sticky">${ERRBOX}<button class="btn primary" data-act="save">${A(t("save"))}</button><button class="btn ghost" data-act="cancel">${A(t("cancel"))}</button></div>`;
     }
+    if(kind === "rule"){
+      // a repeating reminder: change its words, time or days; pause it (it keeps its settings but stops ringing) or delete it for good
+      const mode = x.days === "daily" ? "daily" : "days", picked = Array.isArray(x.days) ? x.days : [], paused = x.status === "paused";
+      return `<h3>${A(t("editRule"))}</h3>
+        <div class="pl-f"><label for="plTitle2">${A(t("fRTitle"))}</label><input class="pl-in" id="plTitle2" maxlength="160" value="${A(x.title)}" autocomplete="off" /></div>
+        <div class="pl-f"><label>${A(t("fRepeatRem"))}</label>${chipRowP("rrep", [["daily", t("rrDaily")], ["days", t("rrDays")]], mode)}
+          <div id="plRrDays" style="margin-top:8px" ${mode === "days" ? "" : "hidden"}>${dayChips(picked)}</div><div class="pl-note">${A(t("rrHint"))}</div></div>
+        <div class="pl-f"><label for="plTime">${A(t("fTime"))}</label><input class="pl-in" id="plTime" type="time" value="${A(x.time || "")}" /></div>
+        <div class="pl-foot pl-sticky">${ERRBOX}<button class="btn primary" data-act="save">${A(t("save"))}</button><button class="btn ghost" data-act="cancel">${A(t("cancel"))}</button>
+          <button class="btn ghost" data-act="${paused ? "ruleresume" : "rulepause"}" data-id="${x.id}">${A(paused ? t("rrResume") : t("rrPause"))}</button><button class="btn danger" data-act="ruledel" data-id="${x.id}">${A(t("del"))}</button></div>`;
+    }
     const now = new Date(); const rd = x ? (x.day || localIso(now)) : (keep.date || localIso(now));
+    // a reminder is once (a day and a time) or REPEATS (a time, on every day or on chosen weekdays, until it is paused or deleted)
     return `<h3>${A(x ? t("editRem") : t("newRem"))}</h3>
       <div class="pl-f"><label for="plTitle2">${A(t("fRTitle"))}</label><input class="pl-in" id="plTitle2" maxlength="160" value="${A(x ? x.title : keep.title || "")}" autocomplete="off" /></div>
-      <div class="pl-two"><div class="pl-f"><label for="plDate">${A(t("fDate"))}</label><input class="pl-in" id="plDate" type="date" value="${A(rd)}" /></div>
+      <div class="pl-f"><label>${A(t("fRepeatRem"))}</label>${chipRowP("rrep", [["once", t("rrOnce")], ["daily", t("rrDaily")], ["days", t("rrDays")]], "once")}
+        <div id="plRrDays" style="margin-top:8px" hidden>${dayChips([])}</div><div class="pl-note" id="plRrHint" hidden>${A(t("rrHint"))}</div></div>
+      <div class="pl-two"><div class="pl-f" id="plRrDateWrap"><label for="plDate">${A(t("fDate"))}</label><input class="pl-in" id="plDate" type="date" value="${A(rd)}" /></div>
       <div class="pl-f"><label for="plTime">${A(t("fTime"))}</label><input class="pl-in" id="plTime" type="time" value="${A(x ? (x.time || "") : (keep.time || ""))}" /></div></div>
       <div class="pl-foot pl-sticky">${ERRBOX}<button class="btn primary" data-act="save">${A(t("save"))}</button><button class="btn ghost" data-act="cancel">${A(t("cancel"))}</button>${x ? `<button class="btn danger" data-act="remdel" data-id="${x.id}">${A(t("del"))}</button>` : ""}</div>`;
   }
@@ -9795,7 +9847,7 @@ const PL = (function(){
     const title = val("plTitle2").trim();
     if(!title){ showErr(t("errTitle")); return; }
     if(btn) btn.disabled = true;
-    let remSaved = null, savedObj = null;
+    let remSaved = null, savedObj = null, ruleSaved = null;
     try{
       if(kind === "task"){
         const series = ed && ed.is_series;
@@ -9837,13 +9889,37 @@ const PL = (function(){
         const body = { title, why:val("plWhy").trim(), target_date:val("plGDate") || null, daily_minutes:+val("plGMin") || null };
         if(ed) await api("PATCH", "/goals/" + ed.id, body);
         else { body.milestones = val("plGMs").split("\n").map(s => s.trim()).filter(Boolean).slice(0, 12); body.client_key = "pg" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); savedObj = await api("POST", "/goals", body); }
+      } else if(kind === "rule"){
+        // a repeating reminder being changed: the words, the time, the days (the rings still to come are re-made on the server)
+        const tt = val("plTime"); if(!tt){ showErr(t("errTime")); if(btn) btn.disabled = false; return; }
+        const days = chipVal("rrep", "daily") === "daily" ? "daily" : pickedDays();
+        if(Array.isArray(days) && !days.length){ showErr(t("errDays")); if(btn) btn.disabled = false; return; }
+        ruleSaved = await api("PATCH", "/reminder-rules/" + ed.id, { title, time:tt, days });
       } else {
         const tt = val("plTime"); if(!tt){ showErr(t("errTime")); if(btn) btn.disabled = false; return; }
-        if(ed) remSaved = await api("PATCH", "/reminders/" + ed.id, { title, date:val("plDate") || undefined, time:tt });
+        const rep = chipVal("rrep", "once");
+        if(rep !== "once"){
+          // it REPEATS: set once, rings on the chosen days until paused or deleted. (An existing one-time reminder that is now made to repeat is replaced by the rule.)
+          const days = rep === "daily" ? "daily" : pickedDays();
+          if(Array.isArray(days) && !days.length){ showErr(t("errDays")); if(btn) btn.disabled = false; return; }
+          ruleSaved = await api("POST", "/reminder-rules", { title, time:tt, days, client_key:"rr" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) });
+          if(ed){ try{ await api("DELETE", "/reminders/" + ed.id); }catch(_){} }
+        }
+        else if(ed) remSaved = await api("PATCH", "/reminders/" + ed.id, { title, date:val("plDate") || undefined, time:tt });
         else remSaved = await api("POST", "/reminders", { title, date:val("plDate") || undefined, time:tt, client_key:"pr" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) });
       }
     }catch(e){ if(btn) btn.disabled = false; showErr(errText(e)); return; }
     closeSheet();
+    if(ruleSaved){
+      // say plainly what happened (set / already there / changed) and, for a new one, when it rings first
+      try{
+        const when = ruleSaved.next_at ? fmtInstantDay(ruleSaved.next_at) : "";
+        showNotif(kind === "rule" ? t("rrSaved") : ruleSaved.duplicate ? t("rrDup", { days:daysText(ruleSaved.days), time:fmtTime(ruleSaved.time) }) : t("rrSet", { days:daysText(ruleSaved.days), time:fmtTime(ruleSaved.time), when }));
+      }catch(_){}
+      summaryAt = 0;
+      if(kind === "rule"){ await refreshKeep(); pollDue(); return; }             // changed in place: stay where you were
+      tab = "reminders"; rview = "all"; paint(); try{ navTo(PATHS.reminders); }catch(_){ load(); } return;
+    }
     if(kind === "rem"){
       // say plainly what happened (it was set / it already existed / it was changed) and show the list it is now part of
       try{ const when = remSaved && remSaved.fire_at ? fmtInstantDay(remSaved.fire_at) : ""; showNotif((remSaved && remSaved.rolled) ? t("remRolled", { when }) : ed ? t("saved") : (remSaved && remSaved.duplicate) ? t("remDup", { when }) : t("remSet", { when })); }catch(_){}
@@ -9880,6 +9956,16 @@ const PL = (function(){
       else if(a === "remdone"){ await api("POST", "/reminders/" + id + "/act", { action:"done" }); await refreshKeep(); summaryAt = 0; }
       else if(a === "remdel"){ if(confirm(t("delAsk"))){ await api("DELETE", "/reminders/" + id); closeSheet(); try{ showNotif(t("remDeleted")); }catch(_){} await refreshKeep(); summaryAt = 0; } }
       else if(a === "remall"){ navTo(PATHS.reminders); }
+      // a repeating reminder: open it (always the fresh one from the server - it may have been changed on another phone), pause / resume, delete the whole thing
+      else if(a === "ruleedit"){ const j = await api("GET", "/reminder-rules"); D.rules = j.rules; const x = findRule(id); if(x){ sheet = { kind:"rule", edit:x }; openSheet(formFor("rule", x)); } else { await refreshKeep(); } }
+      else if(a === "rulepause" || a === "ruleresume"){ await api("PATCH", "/reminder-rules/" + id, { action:a === "rulepause" ? "pause" : "resume" }); closeSheet(); try{ showNotif(t(a === "rulepause" ? "rrPaused2" : "rrResumed")); }catch(_){} await refreshKeep(); pollDue(); summaryAt = 0; }
+      else if(a === "ruledel" || a === "ruledel2"){
+        if(confirm(t("rrDelAsk"))){
+          try{ await api("DELETE", "/reminder-rules/" + id); }catch(e){ if(!(e && e.status === 404)) throw e; }      // already gone (deleted on another phone): same result
+          if(a === "ruledel") closeSheet();
+          try{ showNotif(t("rrDeleted")); }catch(_){} await refreshKeep(); pollDue(); summaryAt = 0;
+        }
+      }
       else if(a === "remreopen"){ await api("POST", "/reminders/" + id + "/act", { action:"reopen" }); try{ showNotif(t("remUndone")); }catch(_){} await refreshKeep(); pollDue(); summaryAt = 0; }
       // the row tools: delete straight from the list (after the usual "cannot be undone" question), edit opens the same sheet as a tap on the words
       else if(a === "remdel2"){ if(confirm(t("delAsk"))){ await api("DELETE", "/reminders/" + id); try{ showNotif(t("remDeleted")); }catch(_){} await refreshKeep(); pollDue(); summaryAt = 0; } }
@@ -9927,7 +10013,7 @@ const PL = (function(){
       else if(tab === "tasks") D.tasks = await api("GET", "/tasks?view=" + tview);
       else if(tab === "goals"){ D.goals = (await api("GET", "/goals")).goals; if(goalId) D.goal = await api("GET", "/goals/" + goalId); }
       else if(tab === "habits") D.habits = (await api("GET", "/habits")).habits;
-      else if(tab === "reminders"){ const r = await api("GET", "/reminders?view=" + rview); D.rem = r.reminders; D.remToday = r.today; D.remTz = r.tz; }
+      else if(tab === "reminders"){ const [r, rr] = await Promise.all([api("GET", "/reminders?view=" + rview), api("GET", "/reminder-rules").catch(() => null)]); D.rem = r.reminders; D.remToday = r.today; D.remTz = r.tz; if(rr) D.rules = rr.rules; }
       else if(tab === "settings") D.prefs = await api("GET", "/prefs");
     }catch(e){ warn(e); return; }
     if(seq !== loadSeq) return;
@@ -9940,6 +10026,7 @@ const PL = (function(){
     return null;
   }
   function findHabit(id){ for(const p of [D.habits, D.today && D.today.habits]) for(const h of (p || [])) if(h.id === id) return h; return null; }
+  function findRule(id){ return (D.rules || []).find(r => r.id === id) || null; }
   function findRem(id){ for(const p of [D.rem, D.today && D.today.reminders, D.today && D.today.reminders_done]) for(const r of (p || [])) if(r.id === id) return r; return null; }
 
   /* ---------- the in-app reminder card, the bell, polling ---------- */
@@ -10009,6 +10096,12 @@ const PL = (function(){
         if(name === "remind"){ const w = $("plRemAtWrap"); if(w) w.hidden = b.dataset.v !== "custom"; }
         if(name === "repeat"){ const w = $("plDaysWrap"); if(w) w.hidden = b.dataset.v !== "weekly"; }
         if(name === "hdays"){ const w = $("plHDaysWrap"); if(w) w.hidden = b.dataset.v !== "pick"; }
+        if(name === "rrep"){                       // a reminder: Once (a date) / Every day / Selected days (the weekday chips)
+          const dw = $("plRrDays"); if(dw) dw.hidden = b.dataset.v !== "days";
+          const dd = $("plRrDateWrap"); if(dd) dd.hidden = b.dataset.v !== "once";
+          const hn = $("plRrHint"); if(hn) hn.hidden = b.dataset.v === "once";
+        }
+        box.querySelectorAll(".pl-fchip[aria-pressed]").forEach(x => x.setAttribute("aria-pressed", x.classList.contains("on") ? "true" : "false"));
         return;
       }
     }

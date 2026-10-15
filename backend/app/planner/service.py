@@ -13,13 +13,13 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
-from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy import and_, delete, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 
 from .. import db
 from . import rules, timeutil as tu
-from .models import (PlEvent, PlGoal, PlHabit, PlHabitLog, PlMilestone, PlPrefs, PlPushSub, PlReminder, PlTask, PL_TABLES)
+from .models import (PlEvent, PlGoal, PlHabit, PlHabitLog, PlMilestone, PlPrefs, PlPushSub, PlReminder, PlReminderRule, PlTask, PL_TABLES)
 
 UTC = dt.timezone.utc
 STALE_MIN = 120                 # a reminder this late (the server was down) is shown in the app only, never pushed
@@ -157,7 +157,7 @@ async def _upsert_reminder(s, uid: str, *, entity_type: str, entity_id: int | No
         if r.status in ("cancelled", "expired"):               # the same moment was planned before and withdrawn: revive it
             r.status, r.fire_at, r.attempts, r.followups_sent, r.snooze_count = status, fire_at, 0, 0, 0
             r.push_state, r.last_error, r.sent_at, r.acted_at, r.action, r.claimed_at = "none", "", None, None, "", None
-            r.title, r.body = title, body
+            r.title, r.body, r.tz = title, body, tz
         return r
     r = PlReminder(user_id=uid, entity_type=entity_type, entity_id=entity_id, kind=kind, title=title[:160], body=body[:300], occurrence_key=key,
                    fire_at=fire_at, tz=tz, status=status, meta=meta or {})
@@ -1127,6 +1127,38 @@ async def _materialize_habit(s, h: PlHabit, p: PlPrefs, days: int = 1) -> int:
     return made
 
 
+def _rule_key(rule_id: int, day: dt.date, t: dt.time) -> str:
+    return f"rr{rule_id}:{day.isoformat()}:{t.hour:02d}{t.minute:02d}"
+
+
+async def _materialize_rule(s, rule: PlReminderRule, p: PlPrefs, days: int = 1) -> int:
+    """The reminders a repeating rule rings TODAY and TOMORROW (a rolling window, like a habit's): one `pl_reminders` row per selected day. Key
+    (rule, day, time): safe to run any number of times from any number of loops, and a day the learner already ticked off / skipped is never re-made.
+    A time that has already passed today is simply not made - the rule rings on its next selected day, it is never moved or refused."""
+    if rule.status != "active" or p.paused_all:
+        return 0
+    t = tu.parse_hhmm(rule.time)
+    if t is None or rules.clean_days(rule.days) is None:
+        return 0
+    now = _utc()
+    floor = now - dt.timedelta(minutes=2)
+    today = tu.local_today(p.tz, now)
+    made = 0
+    for off in range(days + 1):
+        d = today + dt.timedelta(days=off)
+        if not rules.days_scheduled(rule.days, d):
+            continue
+        fire = tu.to_utc(d, t, p.tz)
+        if fire < floor:
+            continue
+        key = _rule_key(rule.id, d, t)
+        before = (await s.execute(select(PlReminder.id).where(PlReminder.occurrence_key == key))).scalars().first()
+        await _upsert_reminder(s, rule.user_id, entity_type="custom", entity_id=rule.id, kind="recurring", title=rule.title, body="", key=key,
+                               fire_at=fire, tz=p.tz, status="scheduled", meta={"day": d.isoformat(), "time": tu.fmt_hhmm(t), "rule": rule.id})
+        made += 0 if before else 1
+    return made
+
+
 async def _materialize_user(s, uid: str, p: PlPrefs) -> None:
     tpls = (await s.execute(select(PlTask).where(PlTask.user_id == uid, PlTask.is_series.is_(True), PlTask.deleted_at.is_(None),
                                                  PlTask.status == "open"))).scalars().all()
@@ -1135,13 +1167,20 @@ async def _materialize_user(s, uid: str, p: PlPrefs) -> None:
     hs = (await s.execute(select(PlHabit).where(PlHabit.user_id == uid, PlHabit.deleted_at.is_(None), PlHabit.status == "active"))).scalars().all()
     for h in hs:
         await _materialize_habit(s, h, p)
+    # the repeating reminders: each rule row is LOCKED while its next two days are made, so a rule being edited right now (which holds the same lock)
+    # is never half-planned - whoever comes second sees the committed rule
+    rrs = (await s.execute(select(PlReminderRule).where(PlReminderRule.user_id == uid, PlReminderRule.status == "active")
+                           .order_by(PlReminderRule.id).with_for_update())).scalars().all()
+    for rr in rrs:
+        await _materialize_rule(s, rr, p)
 
 
 async def materialize_all() -> int:
-    """The scheduler's 10-minute pass: every learner with a repeat series or a timed habit gets the next 48 h planned."""
+    """The scheduler's 10-minute pass: every learner with a repeat series, a timed habit or a repeating reminder gets the next 48 h planned."""
     async with _S() as s:
         uids = set((await s.execute(select(PlTask.user_id).where(PlTask.is_series.is_(True), PlTask.deleted_at.is_(None), PlTask.status == "open"))).scalars().all())
         uids |= set((await s.execute(select(PlHabit.user_id).where(PlHabit.deleted_at.is_(None), PlHabit.status == "active"))).scalars().all())
+        uids |= set((await s.execute(select(PlReminderRule.user_id).where(PlReminderRule.status == "active"))).scalars().all())
     n = 0
     for uid in uids:
         try:
@@ -1166,7 +1205,14 @@ def reminder_json(r: PlReminder, task: PlTask | None = None, now: dt.datetime | 
     if task is not None:
         out["task_state"] = task.status
         out["due_at"] = _iso(task.due_at)
+    if is_rule_occurrence(r):
+        out["rule_id"] = r.entity_id                       # one ring of a repeating reminder: the client edits / deletes the RULE, not this one ring
     return out
+
+
+def is_rule_occurrence(r: PlReminder) -> bool:
+    """One ring of a repeating reminder (a habit's rows are also kind 'recurring', but their entity_type is 'habit')."""
+    return r.entity_type == "custom" and r.kind == "recurring"
 
 
 def reminder_brief(r: PlReminder, tz: str) -> dict:
@@ -1212,9 +1258,10 @@ async def list_reminders(uid: str, view: str = "upcoming") -> dict:
                                          func.coalesce(PlReminder.fire_at, PlReminder.created_at) >= since).order_by(PlReminder.fire_at.asc().nulls_last(), PlReminder.id.asc())
         else:
             q = select(PlReminder).where(PlReminder.user_id == uid, PlReminder.status.in_(("waiting", "scheduled"))).order_by(PlReminder.fire_at.asc().nulls_last())
-        rows = (await s.execute(q.limit(60))).scalars().all()
+        rows = (await s.execute(q.limit(150))).scalars().all()
+        rmap = await _rule_map(s, uid, [r.entity_id for r in rows if is_rule_occurrence(r)])
         await s.commit()
-        return {"reminders": [reminder_brief(r, p.tz) for r in rows], "view": view, "tz": p.tz, "today": tu.local_today(p.tz, now).isoformat()}
+        return {"reminders": [_brief_with_rule(r, p.tz, rmap) for r in rows], "view": view, "tz": p.tz, "today": tu.local_today(p.tz, now).isoformat()}
 
 
 async def create_custom_reminder(uid: str, body: dict) -> dict:
@@ -1262,7 +1309,7 @@ async def _own_custom_reminder(s, uid: str, rid: int) -> PlReminder:
     a test reminder and a deleted one are all NotFound."""
     r = (await s.execute(select(PlReminder).where(PlReminder.id == rid, PlReminder.user_id == uid, PlReminder.entity_type == "custom")
                          .with_for_update())).scalars().first()
-    if r is None or r.kind == "test" or r.status == "cancelled":
+    if r is None or r.kind in ("test", "recurring") or r.status == "cancelled":      # one ring of a repeating reminder is changed through its RULE
         raise NotFound("reminder")
     return r
 
@@ -1314,13 +1361,178 @@ async def delete_custom_reminder(uid: str, rid: int) -> dict:
     async with _S() as s:
         r = (await s.execute(select(PlReminder).where(PlReminder.id == rid, PlReminder.user_id == uid, PlReminder.entity_type == "custom")
                              .with_for_update())).scalars().first()
-        if r is None or r.kind == "test":
+        if r is None or r.kind in ("test", "recurring"):                   # a repeating reminder is deleted as a whole (its rule), never one ring at a time
             raise NotFound("reminder")
         if r.status != "cancelled":
             r.status, r.acted_at, r.action = "cancelled", _utc(), "deleted"
             _ev(s, uid, "custom", r.id, "deleted")
         await s.commit()
         return reminder_json(r)
+
+
+# ----------------------------------------------------------------------------- repeating reminders (rules)
+def rule_json(r: PlReminderRule, now: dt.datetime, tz: str) -> dict:
+    """A repeating reminder as the screens see it. `next_*` is worked out from the rule itself (not from the rows made ahead), so a Saturday-only
+    reminder shows its Saturday on a Monday, when no row for it exists yet."""
+    nxt = rules.next_rule_fire(r.days, tu.parse_hhmm(r.time), tz, now) if r.status == "active" else None
+    out = {"id": r.id, "title": r.title, "time": r.time, "days": r.days, "status": r.status, "next_at": _iso(nxt)}
+    if nxt is not None:
+        loc = tu.to_local(nxt, tz)
+        out["next_day"], out["next_time"] = loc.date().isoformat(), f"{loc.hour:02d}:{loc.minute:02d}"
+    return out
+
+
+async def _rule_map(s, uid: str, ids) -> dict:
+    ids = {int(i) for i in ids if i}
+    if not ids:
+        return {}
+    rows = (await s.execute(select(PlReminderRule).where(PlReminderRule.user_id == uid, PlReminderRule.id.in_(ids)))).scalars().all()
+    return {r.id: r for r in rows}
+
+
+def _brief_with_rule(r: PlReminder, tz: str, rmap: dict) -> dict:
+    """reminder_brief + (for one ring of a repeating reminder) the days it repeats on, so a row can say 'Mon, Tue' without another request."""
+    out = reminder_brief(r, tz)
+    if out.get("rule_id"):
+        rule = rmap.get(out["rule_id"])
+        out["repeat"] = {"days": rule.days, "status": rule.status} if rule is not None else None
+    return out
+
+
+async def _owned_rule(s, uid: str, rid: int, lock: bool = False) -> PlReminderRule:
+    if not (isinstance(rid, int) and 0 < rid < 2 ** 31):                    # an id outside the column's range is simply not anyone's
+        raise NotFound("reminder_rule")
+    q = select(PlReminderRule).where(PlReminderRule.id == rid, PlReminderRule.user_id == uid)
+    if lock:
+        q = q.with_for_update()
+    r = (await s.execute(q)).scalars().first()
+    if r is None:
+        raise NotFound("reminder_rule")
+    return r
+
+
+async def _cancel_rule_occurrences(s, uid: str, rule_id: int, statuses=("waiting", "scheduled")) -> None:
+    """Withdraw a rule's rows that have not rung yet (default) - or every open one, including a card waiting for a tap (`OPEN_REMINDER`, on delete)."""
+    await s.execute(update(PlReminder).where(PlReminder.user_id == uid, PlReminder.entity_type == "custom", PlReminder.kind == "recurring",
+                                             PlReminder.entity_id == rule_id, PlReminder.status.in_(statuses))
+                    .values(status="cancelled", claimed_at=None).execution_options(synchronize_session=False))
+
+
+async def create_reminder_rule(uid: str, body: dict) -> dict:
+    """'Remind me at 7:00 on Mon and Tue' - set once, rings on those days until deleted or paused. Idempotent: a retried create (same client_key) and
+    the same words + time + days all hand back the rule that exists (`duplicate: true`) instead of piling up a copy."""
+    title = rules.clean_str(body.get("title"), 160)
+    if not title:
+        raise Invalid("title")
+    t = tu.parse_hhmm(body.get("time"))
+    if t is None:
+        raise Invalid("time")
+    days = rules.clean_days(body.get("days"))
+    if days is None:
+        raise Invalid("days")
+    hhmm = tu.fmt_hhmm(t)
+    async with _S() as s:
+        p = await _prefs(s, uid)
+        now = _utc()
+        # one create at a time per learner (released at commit): the duplicate check and the limit below are check-then-insert, and two taps that
+        # arrive together would both pass them
+        await s.execute(text("SELECT pg_advisory_xact_lock(hashtext(:k))"), {"k": "plrr:" + uid})
+        key = rules.clean_str(body.get("client_key"), 64) or None
+        mine = (await s.execute(select(PlReminderRule).where(PlReminderRule.user_id == uid).order_by(PlReminderRule.id))).scalars().all()
+        ex = next((r for r in mine if key and r.client_key == key), None) or next(
+            (r for r in mine if r.title.lower() == title.lower() and r.time == hhmm and r.days == days), None)
+        if ex is not None:
+            await s.commit()
+            out = rule_json(ex, now, p.tz)
+            out["duplicate"] = True
+            return out
+        if len(mine) >= rules.LIMITS["reminder_rules"] or await _count_creates(s, uid) >= rules.LIMITS["creates_per_day"]:
+            raise LimitReached("repeating")
+        rule = PlReminderRule(user_id=uid, client_key=key, title=title, time=hhmm, days=days, status="active", tz=p.tz)
+        try:
+            async with s.begin_nested():                       # a concurrent create with the same client_key loses here, and takes the winner's rule
+                s.add(rule)
+                await s.flush()
+        except IntegrityError:
+            ex = (await s.execute(select(PlReminderRule).where(PlReminderRule.user_id == uid, PlReminderRule.client_key == key))).scalars().first() if key else None
+            if ex is None:
+                raise
+            await s.commit()
+            out = rule_json(ex, now, p.tz)
+            out["duplicate"] = True
+            return out
+        _ev(s, uid, "rule", rule.id, "created")
+        await _materialize_rule(s, rule, p)
+        await s.commit()
+        return rule_json(rule, now, p.tz)
+
+
+async def list_reminder_rules(uid: str) -> dict:
+    async with _S() as s:
+        p = await _prefs(s, uid)
+        now = _utc()
+        rows = (await s.execute(select(PlReminderRule).where(PlReminderRule.user_id == uid).order_by(PlReminderRule.id))).scalars().all()
+        await s.commit()
+        out = [rule_json(r, now, p.tz) for r in rows]
+        out.sort(key=lambda x: (x["status"] != "active", x["next_at"] or "9", x["id"]))              # the soonest first, paused ones last
+        return {"rules": out, "tz": p.tz, "today": tu.local_today(p.tz, now).isoformat()}
+
+
+async def update_reminder_rule(uid: str, rid: int, body: dict) -> dict:
+    """Change the words, the time or the days of a repeating reminder, or pause / resume it. The rings that have not happened yet are withdrawn and
+    made again from the new rule (a ring of the same day and time is brought back with the new words); nothing already ticked off is touched."""
+    action = body.get("action")
+    if action is not None and action not in ("pause", "resume"):
+        raise Invalid("action")
+    async with _S() as s:
+        p = await _prefs(s, uid)
+        rule = await _owned_rule(s, uid, rid, lock=True)
+        now = _utc()
+        changed = False
+        if "title" in body:
+            title = rules.clean_str(body.get("title"), 160)
+            if not title:
+                raise Invalid("title")
+            if title != rule.title:
+                rule.title, changed = title, True
+        if "time" in body:
+            tm = tu.parse_hhmm(body.get("time"))
+            if tm is None:
+                raise Invalid("time")
+            if tu.fmt_hhmm(tm) != rule.time:
+                rule.time, changed = tu.fmt_hhmm(tm), True
+        if "days" in body:
+            days = rules.clean_days(body.get("days"))
+            if days is None:
+                raise Invalid("days")
+            if days != rule.days:
+                rule.days, changed = days, True
+        paused = action == "pause" and rule.status != "paused"
+        resumed = action == "resume" and rule.status != "active"
+        if paused:
+            rule.status = "paused"
+        if resumed:
+            rule.status = "active"
+        if changed or paused or resumed:
+            rule.updated_at, rule.tz = now, p.tz
+            await _cancel_rule_occurrences(s, uid, rule.id)
+            await s.flush()
+            if rule.status == "active":
+                await _materialize_rule(s, rule, p)
+            _ev(s, uid, "rule", rule.id, "paused" if paused else "resumed" if resumed else "edited")
+        await s.commit()
+        return rule_json(rule, now, p.tz)
+
+
+async def delete_reminder_rule(uid: str, rid: int) -> dict:
+    """Delete a repeating reminder: it stops ringing at once (every ring still waiting, and a card waiting for a tap, is withdrawn) and leaves every list."""
+    async with _S() as s:
+        rule = await _owned_rule(s, uid, rid, lock=True)
+        await _cancel_rule_occurrences(s, uid, rule.id, OPEN_REMINDER)
+        await s.delete(rule)
+        _ev(s, uid, "rule", rid, "deleted")
+        await s.commit()
+        return {"ok": True, "id": rid}
 
 
 async def act_reminder(uid: str, rid: int, action: str, minutes: int | None = None, *, by_token: bool = False) -> dict:
@@ -1427,20 +1639,23 @@ async def today(uid: str) -> dict:
         # the learner's own note-to-self reminders that are still ahead (a reminder is part of the day: Today lists them, DuSu reads them all)
         rem_rows = (await s.execute(select(PlReminder).where(PlReminder.user_id == uid, PlReminder.entity_type == "custom", PlReminder.kind != "test",
                                                              PlReminder.status.in_(("scheduled", "waiting")), PlReminder.fire_at > now)
-                                    .order_by(PlReminder.fire_at.asc()).limit(12))).scalars().all()
-        reminders = [reminder_brief(r, p.tz) for r in rem_rows]
+                                    .order_by(PlReminder.fire_at.asc()).limit(30))).scalars().all()
+        rule_rows = (await s.execute(select(PlReminderRule).where(PlReminderRule.user_id == uid).order_by(PlReminderRule.id))).scalars().all()
+        rmap = {r.id: r for r in rule_rows}
+        reminders = [_brief_with_rule(r, p.tz, rmap) for r in rem_rows]
         rem_today = sum(1 for x in reminders if x.get("day") == td.isoformat()) + sum(1 for x in due if x.get("entity_type") == "custom")
         # ticked off today: they stay on the day's list (struck through) instead of vanishing - the learner can undo a tick or delete the reminder
         rem_done_rows = (await s.execute(select(PlReminder).where(PlReminder.user_id == uid, PlReminder.entity_type == "custom", PlReminder.kind != "test",
                                                                   PlReminder.status.in_(("done", "skipped")), PlReminder.acted_at >= lo, PlReminder.acted_at < hi)
                                          .order_by(PlReminder.fire_at.asc()).limit(20))).scalars().all()      # NOT `done_rows`: that is the done TASKS above
-        reminders_done = [reminder_brief(r, p.tz) for r in rem_done_rows]
+        reminders_done = [_brief_with_rule(r, p.tz, rmap) for r in rem_done_rows]
+        repeating = sorted((rule_json(r, now, p.tz) for r in rule_rows), key=lambda x: (x["status"] != "active", x["next_at"] or "9", x["id"]))
         await s.commit()
         return {"now": now.isoformat(), "tz": p.tz, "date": td.isoformat(), "dow": td.weekday(), "hour": tu.local_now(p.tz, now).hour,
                 "counts": {"open_today": len(due_today) + len([r for r in pinned if r not in due_today and r not in overdue]), "overdue": len(overdue),
                            "done_today": len(done_rows), "pinned": len(pinned), "reminders_today": rem_today,
                            "habits_done": sum(1 for h in sched_today if h["state_today"] in ("done", "skipped")), "habits_total": len(sched_today)},
-                "due": due, "reminders": reminders, "reminders_done": reminders_done, "priorities": [tj(r) for r in prio[:3]], "today": [tj(r) for r in due_today], "overdue": [tj(r) for r in overdue[:20]],
+                "due": due, "reminders": reminders, "reminders_done": reminders_done, "repeating": repeating, "priorities": [tj(r) for r in prio[:3]], "today": [tj(r) for r in due_today], "overdue": [tj(r) for r in overdue[:20]],
                 "done_today": [tj(r) for r in done_rows], "habits": habits, "goals": goals,
                 "next_reminder": ({"title": nxt.title, "fire_at": _iso(nxt.fire_at), "kind": nxt.kind} if nxt else None), "prefs": prefs_json(p)}
 
@@ -1490,7 +1705,7 @@ async def delete_all(uid: str) -> dict:
 
 async def delete_rows(s, uids: list) -> None:
     """FK-safe delete of every planner row for these users, inside the caller's transaction (also used by delete_user / admin_wipe_users)."""
-    for M in (PlEvent, PlReminder, PlHabitLog, PlHabit, PlMilestone, PlTask, PlGoal, PlPushSub, PlPrefs):
+    for M in (PlEvent, PlReminder, PlReminderRule, PlHabitLog, PlHabit, PlMilestone, PlTask, PlGoal, PlPushSub, PlPrefs):
         await s.execute(delete(M).where(M.user_id.in_(uids)))
 
 
