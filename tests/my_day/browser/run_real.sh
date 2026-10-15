@@ -7,7 +7,8 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../../.." && pwd)"
 IMG="${MD_TEST_IMAGE:-dusu-ri-test}"
-BACKEND="${MD_BACKEND:-$REPO/backend}"
+BACKEND="${MD_BACKEND:-$REPO/backend}"      # "baked" = test the code INSIDE the image (a built / deployed image) instead of a bind mount
+MOUNT=(-v "$BACKEND":/app); [ "$BACKEND" = baked ] && MOUNT=()
 PW="${PW_MODULES:-$HOME/.cache/dusu-ri-pwrun/node_modules}"
 OUT="${OUT_DIR:-$HOME/.cache/dusu-md-shots}"
 SPEC="${1:-real.spec.cjs}"
@@ -24,7 +25,7 @@ rm -rf "$REPO/tests/my_day/.e2e"
 docker run -d --name "$SRV" --network "$NET" \
   -e DATABASE_URL="postgresql://md:md@$PG:5432/md" -e DATABASE_SSL=false -e SESSION_SECRET=md-e2e-secret -e GOOGLE_CLIENT_ID=e2e-client \
   -e GROQ_API_KEY= -e GEMINI_API_KEY= -e OPENROUTER_API_KEY= -e GITHUB_TOKEN= \
-  -v "$BACKEND":/app -v "$REPO/tests":/tests "$IMG" python /tests/my_day/e2e_server.py >/dev/null
+  "${MOUNT[@]}" -v "$REPO/tests":/tests "$IMG" python /tests/my_day/e2e_server.py >/dev/null
 for _ in $(seq 1 90); do
   docker exec "$SRV" python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)" >/dev/null 2>&1 && break
   sleep 1

@@ -16,6 +16,8 @@ modules (`~/.cache/dusu-ri-pwrun/node_modules`, shared with the Resume Interview
 | 3 | **Do the tests catch a planted bug?** — copies the backend, plants ONE deliberate bug in the repeating-reminder code (weekdays ignored, delete leaves rings, an IDOR, no lock, ...), runs tier 2 against the copy, reports caught / survived | `tests/my_day/mutants.sh [M3 M5 ...]` (~35 s per bug) | docker |
 | 4 | **Browser** — a real Chromium against the real app (uvicorn + scratch Postgres, **the real reminder loop on the real clock**): the form, set-once for Mon + Tue / Saturday / every day, tick / change / pause / resume / delete, a one-time reminder made to repeat, Today, **a repeating reminder really rings (the loop delivers it, the in-app card appears)**, Hindi, layout at 360 / 390 / 1280, an XSS canary, isolation | `tests/my_day/browser/run_real.sh` (~4 min: it waits for a real ring) | docker (`mcr.microsoft.com/playwright`, the test image) |
 
+**Testing a BUILT image (before a deploy):** `MD_BACKEND=baked MD_TEST_IMAGE=dusu-backend:latest tests/my_day/run.sh selftest.py` (and the same variables for `browser/run_real.sh`) run the suites against the code **inside** the image instead of a bind mount - what runs in production is what was tested. Compare the image with the tested tree first (a sha256 over every `.py` / `.html` / `.js` / `.txt` in both). The deploy of 2026-10-15 did exactly this.
+
 `.mutants/` and `.e2e/` are generated and git-ignored. Screenshots go to `~/.cache/dusu-md-shots/`.
 
 ## How the fake clock works (tier 2)
