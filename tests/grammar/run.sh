@@ -5,6 +5,8 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 IMG="${GC_TEST_IMAGE:-dusu-ri-test}"
 TEST="${1:-selftest.py}"
+# GC_BACKEND_DIR=<dir> tests a copy (planted bugs); GC_BACKEND_DIR=baked tests the code INSIDE the image (set GC_TEST_IMAGE=dusu-backend:latest for a built image)
+MOUNT=(-v "${GC_BACKEND_DIR:-$PWD/backend}":/app); [ "${GC_BACKEND_DIR:-}" = baked ] && MOUNT=()
 NET="gc-test-net-$$"; PG="gc-test-pg-$$"
 cleanup() { docker rm -f "$PG" >/dev/null 2>&1 || true; docker network rm "$NET" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
@@ -14,4 +16,4 @@ for _ in $(seq 1 60); do docker exec "$PG" pg_isready -U gc -d gc >/dev/null 2>&
 sleep 2   # the entrypoint restarts postgres once after initdb
 docker run --rm --network "$NET" \
   -e DATABASE_URL="postgresql://gc:gc@$PG:5432/gc" -e DATABASE_SSL=false -e SESSION_SECRET=gc-test-secret -e GOOGLE_CLIENT_ID=gc-test-client -e GROQ_API_KEY= -e GEMINI_API_KEY= -e OPENROUTER_API_KEY= -e GITHUB_TOKEN= \
-  -v "${GC_BACKEND_DIR:-$PWD/backend}":/app -v "$PWD/tests":/tests "$IMG" python "/tests/grammar/$TEST"
+  "${MOUNT[@]}" -v "$PWD/tests":/tests "$IMG" python "/tests/grammar/$TEST"
