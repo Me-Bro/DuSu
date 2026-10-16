@@ -2336,6 +2336,8 @@ async def admin_wipe_users(keep_emails: set[str]) -> int:
         await _pl.delete_rows(s, del_ids)
         from .resume_interview import service as _ri  # Resume Interview: resumes, job texts, answer transcripts - personal data, same rule
         await _ri.delete_rows(s, del_ids)
+        from .grammar import service as _gc            # Grammar Coach: the sentences a learner needed to fix - personal data, same rule
+        await _gc.delete_rows(s, del_ids)
         for tbl in (Conversation, Memory, Progress, Profile, UserKey, Feedback, UsageDaily,
                     SessionScore, WeeklyStat, SeasonAward, PracticeAttempt):
             await s.execute(delete(tbl).where(tbl.user_id.in_(del_ids)))
@@ -2357,6 +2359,8 @@ async def delete_user(user_id: str) -> bool:
         await _pl.delete_rows(s, [user_id])
         from .resume_interview import service as _ri
         await _ri.delete_rows(s, [user_id])
+        from .grammar import service as _gc
+        await _gc.delete_rows(s, [user_id])
         for tbl in (Conversation, Memory, Progress, Profile, UserKey, Feedback, UsageDaily,
                     SessionScore, WeeklyStat, SeasonAward, PracticeAttempt):
             await s.execute(delete(tbl).where(tbl.user_id == user_id))
@@ -2660,8 +2664,13 @@ async def save_practice_attempt(user_id: str, data: dict) -> dict:
         if old:
             await s.execute(delete(PracticeAttempt).where(PracticeAttempt.id.in_(old)))
         await s.commit()
-        return {"id": row.id, "attempt_no": attempt_no, "parent_id": parent_id, "via": via,
-                "created_at": row.created_at.isoformat() if row.created_at else None}
+        out = {"id": row.id, "attempt_no": attempt_no, "parent_id": parent_id, "via": via,
+               "created_at": row.created_at.isoformat() if row.created_at else None}
+    if old:                                                # pruned attempts take their Grammar Coach sessions with them
+        from .grammar import service as _gc
+        for oid in old:
+            await _gc.delete_by_ref(user_id, f"pa:{int(oid)}")
+    return out
 
 
 async def list_practice_attempts(user_id: str, limit: int = 30) -> list[dict]:
@@ -2695,7 +2704,9 @@ async def delete_practice_attempt(user_id: str, attempt_id: int) -> bool:
                         .values(parent_id=None))          # don't leave children pointing at a deleted parent
         await s.delete(r)
         await s.commit()
-        return True
+    from .grammar import service as _gc                   # the Grammar Coach session made from this attempt (and its sentences) goes with it
+    await _gc.delete_by_ref(user_id, f"pa:{int(attempt_id)}")
+    return True
 
 
 async def mark_practice_invite(user_id: str, attempt_id: int, state: str) -> None:

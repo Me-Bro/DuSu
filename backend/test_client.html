@@ -2418,6 +2418,86 @@
     #ri[data-view="report"] .ri-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:16px; align-items:start; }
     textarea.ri-in{ resize:vertical; }
   }
+  /* ===================== GRAMMAR COACH (every English sentence checked, corrected and explained) =====================
+     Every class is gc-* and every id #gc*: this file's class names are global and unscoped, so nothing here may touch an old screen. Mobile-first
+     (320 / 360 / 390 px); tap targets >= 44px; nothing is signalled by colour alone (a word or glyph always goes with it). The sheet and its backdrop live
+     at body level (an animated .screen is the containing block of any fixed child). The desktop layer at the end changes nothing below 1200px. */
+  .gc-top{ flex-wrap:wrap; }
+  .gc-ttl{ min-width:0; flex:1; }
+  .gc-ttl .sess-title{ outline:none; overflow-wrap:anywhere; }
+  .gc-ttl .sess-sub{ overflow-wrap:anywhere; }
+  #gc .gc-back{ width:44px; height:44px; flex:none; }
+  .gc-ic{ font:inherit; font-size:18px; width:44px; height:44px; border-radius:14px; cursor:pointer; flex:none; background:var(--glass); border:1px solid var(--glass-brd); color:var(--ink); }
+  .gc-ic.on{ border-color:var(--gold); background:rgba(111,140,255,.18); }
+  .gc-sr{ position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+  .gc-tabs{ display:flex; gap:4px; margin:12px 0 4px; }
+  .gc-tab{ flex:1 1 0; min-width:0; min-height:44px; font:inherit; font-size:12.5px; line-height:1.2; padding:0 4px; border-radius:12px; cursor:pointer; background:var(--glass); border:1px solid var(--glass-brd); color:var(--ink-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gc-tab.on{ background:linear-gradient(135deg,rgba(111,140,255,.3),rgba(122,92,240,.2)); border-color:var(--gold); color:var(--ink); font-weight:600; }
+  .gc-body{ margin-top:12px; }
+  .gc-card{ background:var(--glass); border:1px solid var(--glass-brd); border-radius:18px; padding:14px 16px; margin:0 0 12px; }
+  .gc-h{ font-family:var(--font-d); font-size:19px; font-weight:600; margin:0 0 6px; overflow-wrap:anywhere; }
+  .gc-p{ font-size:13.5px; line-height:1.55; color:var(--ink-dim); margin:0 0 10px; overflow-wrap:anywhere; }
+  .gc-small{ font-size:12.5px; line-height:1.5; color:var(--ink-faint); margin:4px 0 8px; overflow-wrap:anywhere; }
+  .gc-center{ text-align:center; }
+  .gc-lab{ display:block; font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-faint); margin:0 0 7px 2px; }
+  .gc-sh{ font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); font-weight:600; margin:18px 0 8px 3px; }
+  .gc-empty{ text-align:center; color:var(--ink-faint); font-size:13.5px; line-height:1.55; padding:14px 10px; }
+  .gc-big{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin:2px 0 4px; }
+  .gc-num{ font-family:var(--font-d); font-size:44px; font-weight:600; line-height:1; }
+  .gc-unit{ font-size:13px; color:var(--ink-dim); }
+  .gc-row{ display:flex; align-items:center; gap:8px; padding:4px 4px 4px 12px; border-radius:16px; background:var(--glass); border:1px solid var(--glass-brd); margin:0 0 8px; }
+  .gc-main{ flex:1; min-width:0; text-align:left; font:inherit; color:inherit; background:none; border:0; cursor:pointer; padding:6px 0; min-height:44px; display:flex; flex-direction:column; justify-content:center; }
+  .gc-rt{ font-size:14px; font-weight:600; display:block; overflow-wrap:anywhere; }
+  .gc-rs{ font-size:12px; color:var(--ink-faint); margin-top:2px; display:block; overflow-wrap:anywhere; }
+  .gc-tag{ display:inline-flex; align-items:center; font-size:11.5px; padding:2px 9px; border-radius:999px; background:rgba(255,255,255,.06); color:var(--ink-dim); white-space:nowrap; flex:none; }
+  .gc-tag.gold{ background:rgba(111,140,255,.16); color:var(--gold-lt); }
+  .gc-tag.green{ background:rgba(79,214,160,.14); color:var(--green); }
+  .gc-tag.amber{ background:rgba(240,169,82,.16); color:var(--amber); }
+  .gc-tags{ display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 0; }
+  .gc-btn{ min-height:44px; display:inline-flex; align-items:center; justify-content:center; gap:8px; line-height:1.25; text-align:center; }
+  .gc-btn svg{ width:18px; height:18px; flex:none; }
+  .gc-btn[disabled]{ opacity:.5; cursor:not-allowed; }
+  .gc-btn:focus-visible, .gc-chip:focus-visible, .gc-tab:focus-visible, .gc-main:focus-visible, .gc-opt:focus-visible, #gc .gc-back:focus-visible, .gc-ic:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:2px; }
+  .gc-acts{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+  .gc-acts .btn{ flex:1 1 150px; }
+  .gc-chips{ display:flex; flex-wrap:wrap; gap:8px; }
+  .gc-chip{ font:inherit; font-size:14px; min-height:44px; padding:0 16px; border-radius:999px; cursor:pointer; background:var(--glass); border:1px solid var(--glass-brd); color:var(--ink-dim); }
+  .gc-chip.on{ background:linear-gradient(135deg,rgba(111,140,255,.3),rgba(122,92,240,.2)); border-color:var(--gold); color:var(--ink); }
+  .gc-link{ background:none; border:none; color:var(--ink-dim); font:inherit; font-size:12.5px; text-decoration:underline; cursor:pointer; min-height:44px; padding:0 4px; }
+  .gc-tl{ display:flex; flex-wrap:wrap; gap:4px; margin:6px 0 4px; }
+  .gc-tl span{ min-width:22px; height:22px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; font-size:12px; background:rgba(255,255,255,.06); color:var(--ink-dim); }
+  .gc-tl .x{ background:rgba(240,169,82,.2); color:var(--amber); }
+  .gc-tl .o{ background:rgba(79,214,160,.14); color:var(--green); }
+  .gc-tl .n{ background:rgba(111,140,255,.16); color:var(--gold-lt); }
+  .gc-sent{ background:var(--glass); border:1px solid var(--glass-brd); border-radius:16px; padding:10px 12px; margin:0 0 8px; }
+  .gc-said{ color:var(--rose); text-decoration:line-through; text-decoration-color:rgba(224,138,122,.5); }
+  .gc-fix{ color:var(--green); font-weight:600; }
+  .gc-line{ font-size:14px; line-height:1.6; overflow-wrap:anywhere; margin:0 0 4px; }
+  .gc-line.ok{ color:var(--ink); }
+  .gc-note{ font-size:12.5px; color:var(--ink-faint); line-height:1.5; overflow-wrap:anywhere; margin:2px 0; }
+  .gc-bar{ height:8px; border-radius:6px; background:rgba(255,255,255,.08); overflow:hidden; margin:3px 0 8px; }
+  .gc-bar i{ display:block; height:100%; background:var(--grad); border-radius:6px; }
+  .gc-sheet-bg{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:70; }
+  .gc-sheet{ position:fixed; left:50%; transform:translateX(-50%); bottom:0; width:100%; max-width:440px; max-height:90vh; max-height:90dvh; overflow-y:auto;
+    z-index:71; background:linear-gradient(180deg,#121a33,#0b1020); border:1px solid var(--glass-brd); border-bottom:none; border-radius:24px 24px 0 0;
+    padding:16px 18px calc(24px + env(safe-area-inset-bottom)); box-shadow:0 -20px 60px -10px rgba(0,0,0,.8); }
+  .gc-grip{ width:44px; height:4px; border-radius:2px; background:rgba(255,255,255,.2); margin:0 auto 12px; }
+  .gc-ol{ margin:6px 0 10px 4px; padding-left:20px; display:flex; flex-direction:column; gap:8px; }
+  .gc-ol li{ font-size:13.5px; line-height:1.5; color:var(--ink-dim); overflow-wrap:anywhere; }
+  .gc-opts{ display:flex; flex-direction:column; gap:8px; margin:10px 0; }
+  .gc-opt{ font:inherit; font-size:15px; line-height:1.4; text-align:left; min-height:48px; padding:10px 14px; border-radius:14px; cursor:pointer; background:var(--glass); border:1px solid var(--glass-brd); color:var(--ink); overflow-wrap:anywhere; }
+  .gc-opt.right{ border-color:var(--green); background:rgba(79,214,160,.12); }
+  .gc-opt.wrong{ border-color:var(--amber); background:rgba(240,169,82,.12); }
+  .gc-prog{ font-size:12px; color:var(--ink-faint); margin:0 0 6px; }
+  .gc-warn{ font-size:13px; line-height:1.45; color:#ffd9a8; background:rgba(240,169,82,.1); border:1px solid rgba(240,169,82,.35); border-radius:12px; padding:9px 12px; margin:6px 0 8px; overflow-wrap:anywhere; }
+  .gc-sum{ display:flex; align-items:center; gap:10px; width:100%; text-align:left; font:inherit; color:inherit; cursor:pointer; padding:12px 14px; border-radius:16px; background:var(--glass); border:1px solid var(--glass-brd); margin:10px 0 4px; min-height:56px; }
+  .gc-sum b{ display:block; font-size:14px; }
+  .gc-sum small{ display:block; font-size:12.5px; color:var(--ink-dim); line-height:1.4; margin-top:2px; }
+  .gc-spin{ display:flex; align-items:center; gap:10px; font-size:13px; color:var(--ink-dim); padding:10px 2px; }
+  @media (prefers-reduced-motion: reduce){ .gc-sheet{ animation:none !important; transition:none !important; } }
+  @media (min-width:1200px){
+    #gc{ max-width:720px; margin:0 auto; }
+  }
 </style>
 </head>
 <body>
@@ -2597,6 +2677,11 @@
     <button class="pr-entry" id="riHomeCard" hidden>
       <span class="pr-ic">📄</span>
       <span><b>Job Interview Practice</b><small>Upload your resume and a job description — DuSu interviews you for that job.</small></span>
+      <span class="pr-go">→</span>
+    </button>
+    <button class="pr-entry" id="gcHomeCard" hidden>
+      <span class="pr-ic">✍️</span>
+      <span><b>Grammar Coach</b><small>After you speak, see every sentence checked — what to fix, why, and quick drills.</small></span>
       <span class="pr-go">→</span>
     </button>
     <div id="letterCard" class="letter-card" hidden></div>
@@ -2895,6 +2980,11 @@
     <button class="pr-entry" id="riEntry" hidden>
       <span class="pr-ic">📄</span>
       <span><b>Job Interview Practice</b><small>Upload your resume and a job description — DuSu interviews you for that job.</small></span>
+      <span class="pr-go">→</span>
+    </button>
+    <button class="pr-entry" id="gcEntry" hidden>
+      <span class="pr-ic">✍️</span>
+      <span><b>Grammar Coach</b><small>Every English sentence you speak, checked — what to fix, why, and quick drills.</small></span>
       <span class="pr-go">→</span>
     </button>
     <div class="modes">
@@ -3610,6 +3700,18 @@
       <div class="ri-acts" id="riActs"></div>
     </div>
   </section>
+
+  <!-- ===================== GRAMMAR COACH (the GC module paints #gcBody with DOM calls only - never innerHTML) ===================== -->
+  <section id="gc" class="screen">
+    <div class="sess-head gc-top">
+      <button class="back gc-back" id="gcBack" type="button" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+      <div class="gc-ttl"><div class="sess-title" id="gcTitle" tabindex="-1">Grammar Coach</div><div class="sess-sub" id="gcSub"></div></div>
+      <button class="gc-ic" id="gcGear" type="button" aria-label="Settings">⚙️</button>
+    </div>
+    <div class="gc-tabs" id="gcTabs" role="tablist" hidden></div>
+    <div class="gc-warn" id="gcNote" role="status" hidden></div>
+    <div class="gc-body" id="gcBody"></div>
+  </section>
 </div>
 
 <!-- ===================== BOTTOM NAV + MORE SHEET ===================== -->
@@ -3619,6 +3721,7 @@
   <button class="mrow" data-more="admin" id="mrowAdmin" hidden><span class="mi">📊</span><span><span class="mt">Dashboard</span><br><span class="msub">Users &amp; activity (owner)</span></span></button>
   <button class="mrow" data-more="myday" id="mrowMyDay" hidden><span class="mi">✅</span><span><span class="mt">My Day</span><br><span class="msub">Tasks, habits, goals &amp; reminders</span></span></button>
   <button class="mrow" data-more="resume-interview" id="mrowRI" hidden><span class="mi">📄</span><span><span class="mt">Job Interview Practice</span><br><span class="msub">Your resume + a job → a mock interview</span></span></button>
+  <button class="mrow" data-more="grammar" id="mrowGC" hidden><span class="mi">✍️</span><span><span class="mt">Grammar Coach</span><br><span class="msub">Your English, sentence by sentence</span></span></button>
   <button class="mrow" data-more="profile"><span class="mi">👤</span><span><span class="mt">Profile</span><br><span class="msub">Streaks, badges, memories</span></span></button>
   <button class="mrow" data-more="keys"><span class="mi">🔑</span><span><span class="mt">DuSu keys / Mode</span><br><span class="msub">Personal or Office (own keys)</span></span></button>
   <button class="mrow" data-more="leveltest" id="mrowLevelTest"><span class="mi">🧪</span><span><span class="mt">Level check</span><br><span class="msub">Re-check your English level</span></span></button>
@@ -3659,6 +3762,8 @@
 <div class="pl-banner" id="plBanner" hidden role="status"></div>
 <div class="pl-sheet-bg" id="plSheetBg" hidden></div>
 <div class="pl-sheet" id="plSheet" role="dialog" aria-modal="true" hidden></div>
+<div class="gc-sheet-bg" id="gcSheetBg" hidden></div>
+<div class="gc-sheet" id="gcSheet" role="dialog" aria-modal="true" aria-label="Grammar details" hidden></div>
 <div class="notif" id="notifBar" hidden><span id="notifTxt"></span><button id="notifX" aria-label="Dismiss">✕</button></div>
 
 <!-- Post-login gate: held up until we know whether this account needs keys / the level check -->
@@ -4180,6 +4285,8 @@ function show(id, pathOverride){
   try{ window.PR && PR.syncEntries(); }catch(_){}   // Practice Room entry points (hidden until the owner switches it on)
   try{ window.PL && PL.syncEntries(); }catch(_){}   // My Day entry points (hidden until the owner switches it on)
   try{ window.RI && RI.syncEntries(); }catch(_){}   // Job Interview Practice entry points (hidden until the owner switches it on)
+  try{ window.GC && GC.syncEntries(); }catch(_){}   // Grammar Coach entry points (hidden until the owner switches it on)
+  if(cur === "gc" && id !== "gc"){ try{ window.GC && GC.leave(); }catch(_){} }
   if(cur === "pl" && id !== "pl"){ try{ window.PL && PL.leave(); }catch(_){} }
   if(cur === "ri" && id !== "ri"){ try{ window.RI && RI.leave(); }catch(_){} }   // stop the voice / keep an unfinished recording
 }
@@ -4187,9 +4294,10 @@ function show(id, pathOverride){
 const NAV_TAB = { about:"home", home:"home", journey:"journey", daily:"daily", practice:"practice",
   learning:"practice", session:"practice", setup:"practice", lesson:"practice", report:"practice",
   leaderboard:"leaderboard", profile:"more", keys:"more", admin:"more", help:"more", career:"home", league:"leaderboard", achievements:"more", interviewReports:"more",
-  prHub:"practice", prSetup:"practice", prTalk:"practice", prLive:"practice", prWork:"practice", prReport:"practice", prBridge:"practice", pl:"more", ri:"practice" };
+  prHub:"practice", prSetup:"practice", prTalk:"practice", prLive:"practice", prWork:"practice", prReport:"practice", prBridge:"practice", pl:"more", ri:"practice", gc:"more" };
 const PATH_TAB = { "/profile":"more", "/keys":"more", "/more":"more", "/my-day":"more", "/my-day/tasks":"more", "/my-day/goals":"more", "/my-day/habits":"more", "/my-day/reminders":"more", "/my-day/settings":"more",
-  "/resume-interview":"practice", "/resume-interview/resume":"practice", "/resume-interview/job":"practice", "/resume-interview/match":"practice", "/resume-interview/interview":"practice", "/resume-interview/report":"practice", "/resume-interview/settings":"practice" };
+  "/resume-interview":"practice", "/resume-interview/resume":"practice", "/resume-interview/job":"practice", "/resume-interview/match":"practice", "/resume-interview/interview":"practice", "/resume-interview/report":"practice", "/resume-interview/settings":"practice",
+  "/grammar":"more", "/grammar/mistakes":"more", "/grammar/sentences":"more", "/grammar/practice":"more", "/grammar/rules":"more", "/grammar/settings":"more" };
 function syncNav(id, pathOverride){
   const nav = $("bnav"); if(nav) nav.classList.toggle("hide", id === "login" || id === "assessment");
   const t = (pathOverride && PATH_TAB[pathOverride]) || (id === "session" && currentMode === "home" ? "home" : NAV_TAB[id]);
@@ -4226,6 +4334,7 @@ function openMore(){
   const ad = $("mrowAdmin"); if(ad) ad.hidden = !(userState && userState.role === "owner");
   try{ window.PL && PL.syncEntries(); }catch(_){}   // My Day row (hidden unless /me says planner)
   try{ window.RI && RI.syncEntries(); }catch(_){}   // Job Interview Practice row (hidden unless /me says resume_interview)
+  try{ window.GC && GC.syncEntries(); }catch(_){}   // Grammar Coach row (hidden unless /me says grammar_coach)
   // Level check hidden entirely while the owner has the assessment switched off.
   const lt = $("mrowLevelTest"); if(lt) lt.hidden = !!(userState && userState.level_test === false);
   // Keys row: office-approved users, users who must BYOK, and anyone already holding
@@ -4245,6 +4354,7 @@ document.querySelectorAll(".mrow").forEach(r => r.onclick = () => {
   else if(a === "confidence") startConfidenceCheck();
   else if(a === "myday") navTo("/my-day");
   else if(a === "resume-interview") navTo("/resume-interview");
+  else if(a === "grammar") navTo("/grammar");
   else if(a === "achievements") navTo("/achievements");
   else if(a === "interview-reports") navTo("/interview-reports");
   else if(a === "rewards") toggleRewardsGuide(true);
@@ -4339,6 +4449,7 @@ function pathForScreen(id){
     prHub:"/practice-room", prSetup:"/practice-room", prTalk:"/practice-room", prLive:"/practice-room", prWork:"/practice-room", prReport:"/practice-room", prBridge:"/practice-room",
     pl:(window.PL && PL.path()) || "/my-day",
     ri:(window.RI && RI.path()) || "/resume-interview",
+    gc:(window.GC && GC.path()) || "/grammar",
     superadmin:"/superadmin", subscribe:"/subscribe", login:"/", assessment:"/test" })[id] || null;
 }
 function syncUrl(id, pathOverride){
@@ -4692,6 +4803,9 @@ async function openAdmin(){
       <select class="pr-sel" id="plSel"><option value="off" ${d.planner === "on" || d.planner === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.planner === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.planner === "on" ? "selected" : ""}>Everyone</option></select></label>
       <label class="swrow"><span><b>Job Interview Practice</b><br><span class="msub">A learner uploads a resume and a job description and DuSu interviews them for that job. It stores resume and job text, so it ships dark. Off = nobody (default). Owner + early access = you and the early-access testers. Everyone = all users.</span></span>
       <select class="pr-sel" id="riSel"><option value="off" ${d.resume_interview === "on" || d.resume_interview === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.resume_interview === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.resume_interview === "on" ? "selected" : ""}>Everyone</option></select></label>
+      <label class="swrow"><span><b>Grammar Coach</b><br><span class="msub">After a session DuSu checks every English sentence and shows what to fix. It stores the sentences a learner needed to fix, so it ships dark. Off = nobody (default). Owner + early access = you and the early-access testers. Everyone = all users.</span></span>
+      <select class="pr-sel" id="gcSel"><option value="off" ${d.grammar_coach === "on" || d.grammar_coach === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.grammar_coach === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.grammar_coach === "on" ? "selected" : ""}>Everyone</option></select></label>
+      ${d.grammar_coach_health && typeof d.grammar_coach_health.sessions === "number" ? `<p class="keys-note" style="margin:-4px 0 8px">Grammar Coach: ${d.grammar_coach_health.sessions} session(s) · ${d.grammar_coach_health.partial} partial · ${d.grammar_coach_health.failed} failed${(d.grammar_coach_health.noisy || []).length ? " · noisiest rule: " + esc(d.grammar_coach_health.noisy[0].rule) + " (" + d.grammar_coach_health.noisy[0].contested + "/" + d.grammar_coach_health.noisy[0].shown + " contested)" : ""}</p>` : ""}
       ${d.resume_interview_health && typeof d.resume_interview_health.documents === "number" ? `<p class="keys-note" style="margin:-4px 0 8px">Job Interview Practice: ${d.resume_interview_health.documents} document(s) · ${d.resume_interview_health.sessions} interview(s), ${d.resume_interview_health.finished} finished · answers today ${d.resume_interview_health.answers_today} · feedback failed today ${d.resume_interview_health.feedback_failed_today}</p>` : ""}
       ${d.planner_health ? `<p class="keys-note" style="margin:-4px 0 8px">Reminders: ${d.planner_health.scheduled} waiting · ${d.planner_health.queue_late} late · ${d.planner_health.sending_stuck} stuck · sent in 24 h ${d.planner_health.sent_24h} (push accepted ${d.planner_health.push_accepted_24h}, failed ${d.planner_health.push_failed_24h}) · ${d.planner_health.push_devices} device(s) · push ${d.planner_health.push_available ? "available" : "UNAVAILABLE (library missing)"}${d.planner_health.last_error ? " · last loop error: " + esc(d.planner_health.last_error) : ""}</p>` : ""}
       <button class="uBtn bad" id="wipeBtn" style="width:100%;margin:2px 0 4px">🗑 Reset test users</button>`;
@@ -4810,9 +4924,10 @@ function wireOffice(){
     const hom = ($("homeSel") && $("homeSel").value) || undefined;
     const pln = ($("plSel") && $("plSel").value) || undefined;
     const rin = ($("riSel") && $("riSel").value) || undefined;
+    const gcs = ($("gcSel") && $("gcSel").value) || undefined;
     try{ await fetch("/admin/settings",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({token:authToken, access_phase: growth ? "growth" : "quota",
-                           level_test: lvl, owner_byok: obk, practice_room: prm, life_context: lcx, bilingual: bil, home_ai: hom, planner: pln, resume_interview: rin})}); }catch(_){}
+                           level_test: lvl, owner_byok: obk, practice_room: prm, life_context: lcx, bilingual: bil, home_ai: hom, planner: pln, resume_interview: rin, grammar_coach: gcs})}); }catch(_){}
   };
   if($("reqKeysSw")) $("reqKeysSw").onchange = saveSettings;
   if($("lvlTestSw")) $("lvlTestSw").onchange = saveSettings;
@@ -4823,6 +4938,7 @@ function wireOffice(){
   if($("homeSel")) $("homeSel").onchange = saveSettings;
   if($("plSel")) $("plSel").onchange = saveSettings;
   if($("riSel")) $("riSel").onchange = saveSettings;
+  if($("gcSel")) $("gcSel").onchange = saveSettings;
   if($("wipeBtn")) $("wipeBtn").onclick = async () => {
     if(!confirm("Delete ALL users except david, shuhani, free-access and early-access emails? This cannot be undone.")) return;
     try{ const r = await fetch("/admin/wipe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:authToken})});
@@ -5106,7 +5222,7 @@ function startSession(mode){
   ws.onopen = () => {
     running = true; srFails = 0;
     usageInc(); refreshUsage();   // count the session now that it actually started
-    ws.send(JSON.stringify({ type:"start", mode, name:$("name").value, role:$("role").value, token:authToken, mood:todayMood, hour:new Date().getHours(), day:localDay(), seed:_convSeed, keys:officeKeys(), lang:LG.lang(mode) }));
+    ws.send(JSON.stringify({ type:"start", mode, name:$("name").value, role:$("role").value, token:authToken, mood:todayMood, hour:new Date().getHours(), day:localDay(), seed:_convSeed, keys:officeKeys(), lang:LG.lang(mode), gref:(window.GC && GC.enabled() ? GC.newRef() : undefined) }));
     _convSeed = "";   // one-shot: the Companion Moment's spoken answer seeds turn 1
     orb("connecting", lgt("orbReady2"), lgt("orbReady2Hint"));
   };
@@ -5181,7 +5297,7 @@ function onMessage(ev){
       break;
     case "speaker_progress":
       if(currentMode === "interview") renderReportSpeakerStrip(m.data);
-      else { renderSessionResult(m.data); show("sessionResult"); }
+      else { renderSessionResult(m.data); show("sessionResult"); try{ window.GC && GC.afterSessionResult(m.data); }catch(_){} }
       break;
     case "mission_progress": {
       // §7 item 9 — was a dead message type client-side: server completed a weekly
@@ -5408,6 +5524,7 @@ function showReport(d){
   const ba = d.better_answer || {};
   $("repQ").textContent = ba.question ? lgt("repQ") + ba.question : "";
   $("repImp").textContent = ba.improved || "—";
+  try{ window.GC && GC.afterInterviewReport(d); }catch(_){}   // Grammar Coach: one summary line + "Grammar details" under the fillers card
 }
 
 // ================= Speaker Progression: post-session results (§7 item 3) =================
@@ -7707,6 +7824,7 @@ function speakWelcome(){
 function logout(){
   authToken = ""; authUser = null; aActive = false; try{ LG.clear(); }catch(_){}   // the language choice belongs to the account, not the device
   try{ window.PL && PL.reset(); }catch(_){}   // My Day: stop polling, drop the cached plan
+  try{ window.GC && GC.reset(); }catch(_){}   // Grammar Coach: drop in-memory state (everything else lives on the server)
   try{ window.RI && RI.reset(); }catch(_){}   // Job Interview Practice: stop the mic + voice, drop in-memory state (the on-device recordings are NOT wiped here)
   localStorage.removeItem("dusu_token"); localStorage.removeItem("dusu_user"); localStorage.removeItem("dusu_state"); localStorage.removeItem("dusu_letter"); localStorage.removeItem("dusu_daily_resume"); localStorage.removeItem("dusu_keys_ok"); localStorage.removeItem("dusu_office_keys"); localStorage.removeItem("dusu_keys_owner");
   $("hdrRight").hidden = true; $("tagline").style.display = "";
@@ -7789,6 +7907,7 @@ function refreshMe(initial){
       try{ window.PR && PR.syncEntries(); }catch(_){}   // the owner may have just switched Practice Room on/off
       try{ if(window.PL){ PL.syncEntries(); if(PL.enabled()) PL.start(); } }catch(_){}   // My Day: entry points + the in-app reminder poll
       try{ window.RI && RI.syncEntries(); }catch(_){}   // Job Interview Practice: the owner may have just switched it on/off
+      try{ window.GC && GC.syncEntries(); }catch(_){}   // Grammar Coach: likewise
       localStorage.setItem("dusu_onboarded", st.onboarded ? "true" : "false");
       // cache the whole state so the next boot paints mood/note/Continue instantly (no /me wait)
       try{ localStorage.setItem("dusu_state", JSON.stringify(st)); }catch(_){}
@@ -8559,9 +8678,9 @@ const PR = (function(){
       h += '<div class="card pr-full"><h4>🎧 Listen back</h4><audio class="pr-audio" id="prAudio" controls preload="metadata"></audio><div class="pr-tx" id="prTx"></div>' +
            '<button class="pr-link" id="prDelRec">Delete this recording from my phone</button></div>';
     } else if(res.talk){
-      h += '<p class="pr-hint dim pr-full">Your conversation isn’t stored — only this report is.</p>';
+      h += '<p class="pr-hint dim pr-full">Your conversation isn’t stored — only this report is' + ((window.GC && GC.enabled()) ? ' (Grammar Coach keeps only the sentences it corrected, if you choose)' : '') + '.</p>';
     } else {
-      h += '<p class="pr-hint dim pr-full">The recording and transcript stay on the phone you practised on.</p>';
+      h += '<p class="pr-hint dim pr-full">The recording and transcript stay on the phone you practised on' + ((window.GC && GC.enabled()) ? ' (Grammar Coach keeps only the sentences it corrected, if you choose)' : '') + '.</p>';
     }
     if(res.id) h += '<button class="pr-link pr-full" id="prDelAttempt" style="margin:6px 0 4px">Delete this attempt</button>';
     return h;
@@ -8582,6 +8701,7 @@ const PR = (function(){
     if(ov >= 80){ try{ Assistant.happy(); setTimeout(() => sparkle(document.querySelector("#prReport .score-ring")), 700); }catch(_){} }
     const body = $("prRepBody");
     body.innerHTML = reportHtml(res, take);
+    try{ window.GC && GC.afterPracticeReport(body, res, take); }catch(_){}   // Grammar Coach: one summary line + "Grammar details"
     setTimeout(() => body.querySelectorAll(".bar i[data-w]").forEach(i => { i.style.width = i.dataset.w + "%"; }), 120);
     body.querySelectorAll("[data-say]").forEach(b => b.onclick = () => { try{ killSpeech(); say(b.dataset.say, ENG_SLOW()); }catch(_){} });
     if($("prInvGo")) $("prInvGo").onclick = openBridge;
@@ -8717,7 +8837,7 @@ const PR = (function(){
     ws = new WebSocket(WS_URL);
     ws.onopen = () => {
       running = true; srFails = 0; usageInc(); refreshUsage();
-      ws.send(JSON.stringify({ type:"start", mode:"practice", kind:cfg.kind, topic:cfg.topic, plang:cfg.lang, level:cfg.level, rounds:cfg.rounds,
+      ws.send(JSON.stringify({ type:"start", mode:"practice", gref:(window.GC && GC.enabled() ? GC.newRef() : undefined), kind:cfg.kind, topic:cfg.topic, plang:cfg.lang, level:cfg.level, rounds:cfg.rounds,
         feedback_lang:cfg.feed, token:authToken, keys:officeKeys(), mood:todayMood, hour:new Date().getHours(), day:localDay() }));
       orb("connecting", lgt("orbReady2"), lgt("orbReady2Hint"));
     };
@@ -8941,7 +9061,8 @@ const HM = (function(){
     league:        '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
     achievements:  '<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>',
     goals_planning:'<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
-    resume_interview:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>'
+    resume_interview:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+    grammar_coach: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>'
   };
   function renderFeats(){
     const nav = $("hmFeats"); if(!nav) return;
@@ -11919,6 +12040,8 @@ const RI = (function(){
     kids.push(h("div", { class:"ri-card ri-hero", id:"riRepHero" }, h("div", { class:"ri-role" }, (s.session && s.session.title) || ""), ringEl(r.overall == null ? null : Math.round(+r.overall), bandText(r.band) || t("rpOverall")),
       h("div", { class:"ri-meta" }, h("span", { class:"ri-tag" }, t("rpCounted", { r:r.real, a:r.answers })), h("span", { class:"ri-tag" }, t("rpMin", { m:Math.max(1, Math.round((+r.seconds || 0) / 60)) })))));
     if(pr) kids.push(progressStrip(pr));
+    const gcHost = (window.GC && GC.enabled()) ? h("div", { class:"gc-host", id:"gcRiHost" }) : null;      // Grammar Coach summary / "Grammar details" button
+    if(gcHost) kids.push(gcHost);
     if(r.overall == null) kids.push(h("p", { class:"ri-warn", id:"riNoScore" }, t("rpNoScore")));      // no judged answer at all (the AI was down): no made-up 0
     else if(r.partial) kids.push(h("p", { class:"ri-warn", id:"riPartial" }, t("rpPartial")));
     const wk = r.weaknesses || [], v2 = r.v >= 2;                                                       // v2 reports carry the coaching fields; older ones are upgraded by the server on read
@@ -11944,6 +12067,7 @@ const RI = (function(){
     if((r.per_question || []).length) kids.push(section(t("rpQsH"), h("p", { class:"ri-small" }, t("rpQTap")), h("div", { id:"riPerQ" }, r.per_question.map((q, i) => perQRow(q, i + 1)))));
     kids.push(h("p", { class:"ri-small ri-center" }, t("rpNote")));
     put(b, kids);
+    if(gcHost){ try{ GC.mountRi(gcHost, sid, !!(pr)); }catch(_){} }
     bar(btn(t("rpAgain"), "primary", practiceAgain, { cls:"ri-w2", attrs:{ id:"riPracticeAgain" } }), btn(t("rpNewJob"), "ghost", newJob, { cls:"ri-w1", attrs:{ id:"riNewJob" } }));
   }
   // another round on the same job: a new session (the match is cached on the server, so it is quick) that goes straight to the first question
@@ -12047,6 +12171,446 @@ const RI = (function(){
   return { open, syncEntries, leave, reset, wipeLocal, enabled, path, _txt:TXT };
 })();
 window.RI = RI;
+
+/* ================= GRAMMAR COACH - every English sentence checked, corrected and explained, in its own section =================
+   One screen (#gc) with five tabs (Overview / Mistakes / Sentences / Practice / Rules), a Settings view, a session Grammar report, rule pages and
+   the two drill types - plus the small shared "summary" the session results and reports mount. Everything dynamic is built with DOM calls only (never
+   innerHTML): the learner's sentences and the model's notes are text a learner (or an attacker) controls. English chrome in v1; the explanations come
+   in Hinglish or English (the learner's setting). The server does all the thinking; this file only draws what GET /gcoach/* returns. */
+const GC = (function(){
+  const API = "/gcoach", BASE = "/grammar";
+  const PATHS = { overview:"/grammar", mistakes:"/grammar/mistakes", sentences:"/grammar/sentences", practice:"/grammar/practice", rules:"/grammar/rules", settings:"/grammar/settings" };
+  const TABS = [["overview", "tOverview"], ["mistakes", "tMistakes"], ["sentences", "tSentences"], ["practice", "tPractice"], ["rules", "tRules"]];
+  const TXT = { en:{
+    title:"Grammar Coach", back:"Back", settings:"Settings", close:"Close",
+    tOverview:"Overview", tMistakes:"Mistakes", tSentences:"Sentences", tPractice:"Practice", tRules:"Rules",
+    sOverview:"Your English, sentence by sentence", sMistakes:"What to fix, by rule", sSentences:"Your notebook", sPractice:"Five quick drills", sRules:"All the rules", sSettings:"Your settings", sReport:"Grammar report", sRule:"A rule", sDrill:"Drill",
+    per100:"mistakes per 100 words", ofSent:"{c} of {n} sentences with no mistake found", checkedN:"{n} sentences checked", notEnough:"Not enough English to count yet - keep speaking and this fills in.",
+    deltaBetter:"Fewer mistakes than the 30 days before.", deltaWorse:"A few more mistakes than the 30 days before - that is normal while you try harder sentences.", deltaSame:"About the same as the 30 days before.",
+    focusH:"What to fix first", focusNone:"Nothing stands out yet. Speak English in Face-to-Face, Interview Prep, the Practice Room or Job Interview Practice and DuSu checks every sentence.",
+    learn:"Learn this", practiceIt:"Practice this", trendH:"Your last weeks", famH:"Where your mistakes are", srcH:"Where you spoke", winsH:"Wins", winFixed:"Fixed: {r}", winRun:"Longest run with no mistake: {n} sentences",
+    latestH:"Latest sessions", dueH:"{n} rules ready to practise", dueGo:"Start today's 5", dueNone:"Nothing to practise yet - it fills in after you speak.",
+    sTalk:"Face-to-Face", sInterview:"Interview Prep", sPractice2:"Practice Room", sJob:"Job Interview Practice",
+    mistH:"Rules you slipped on", mistNone:"No mistakes recorded yet.", hits:"{n} times", stNew:"New", stNeeds:"Needs work", stImproving:"Improving", stFixed:"Fixed", stUnknown:"Not enough speaking to tell", regressed:"came back",
+    senNone:"No saved sentences yet. After a session, your sentences that needed fixing appear here.", senMore:"Show more", senDel:"Delete this session",
+    repChecking:"Checking your sentences...", repNone:"No English sentences were found to check.", repFailed:"Could not check this time. Your numbers are not affected.", repDetails:"Grammar details",
+    repHead:"Grammar report", repFix:"The sentences to fix", repFixNone:"No sentence needed fixing - well done.", repTimeline:"Your sentences", repTimelineSub:"Correct ones are counted here; their text is not stored.",
+    repFlow:"Your flow", repApprox:"approximate - speech-to-text has no pauses", repWins:"Wins", repTop:"What to fix first", repPractice:"Practice these 5",
+    repNote:"Checked by DuSu's AI from what the speech engine heard (it may tidy grammar, so it can miss mistakes). It can be wrong - use the buttons if it is.",
+    repPartial:"Checked {c} of {n} sentences - the AI keys were busy.", repDegraded:"Quick check only - the AI was busy, so some mistakes may be missing.",
+    avgWords:"avg {n} words per sentence", chains:"\"and then\" chains: {n}", starters:"starts with \"{w}\" in {p}% of sentences",
+    choiceH:"Keep your sentences that need fixing?", choiceP:"DuSu can save the sentences it corrected (with their corrections) so you can practise them later. Correct sentences are never saved, and your audio is never saved. You can change this any time in Settings. 18+.",
+    choiceKeep:"Keep my sentences", choiceCounts:"Counts only", choiceSaved:"Saved. You can change this in Settings.", choiceCountsSaved:"Okay - only counts are kept.",
+    sheetH:"Let us fix this sentence", youSaid:"You said", better:"Better", why:"Why", rule:"The rule", slip:"Why Hindi speakers often slip", hear:"Hear it", say:"Say it right", sayGo:"Listening...", sayOk:"Nice - that is the correct way.",
+    sayTry:"Close. Try once more, slowly.", sayNo:"No speech heard. Tap and try again.", notSaid:"I didn't say that", notCorrect:"That's correct English", contested:"Thanks - this sentence no longer counts.", sureLabel:"sure", softLabel:"could be smoother", natural:"Natural English tip",
+    drillQ:"Which sentence is correct?", drillNext:"Next", drillDone:"Done", drillRight:"Right!", drillWrong:"Not quite - the green one is correct.", drillSay:"Say the correct sentence", drillOf:"{i} of {n}", drillDoneH:"Drill finished", drillDoneP:"{r} of {n} right. Your next drills use your newest mistakes.",
+    drillNone:"No drills yet - speak some English first, or open a rule and practise it from there.", drillSkipSay:"Skip",
+    rulesH:"Rules", ruleRule:"The rule", rulePattern:"Pattern", ruleSlip:"Why Hindi speakers often slip", ruleTip:"Interview tip", ruleGood:"Correct examples", rulePairs:"Common mistakes", ruleYours:"Your own sentences", ruleNone:"No sentences of yours yet for this rule.", ruleDrill:"Practice this rule",
+    setChoice:"Your sentences", setKeep:"Keep my sentences that need fixing", setCounts:"Counts only", setChoiceP:"Counts only deletes the sentences already saved and keeps the numbers.", setLang:"Explain in", setHi:"Hinglish", setEn:"English",
+    setStrict:"How much to show", setAuto:"Auto", setGentle:"Gentle", setStd:"Standard", setStrictOpt:"Strict", setNat:"Natural-English tips", setOn:"On", setOff:"Off", setData:"Your data", setExport:"Export my data", setDelAll:"Delete all my Grammar Coach data", setDelConfirm:"Delete all your Grammar Coach sentences and counts? This cannot be undone.", setDeleted:"Deleted.",
+    eNet:"No connection - try again.", eGeneric:"Something went wrong - try again.", eOff:"Grammar Coach is not available yet.", eKeys:"Add your free AI keys first (More -> DuSu keys).",
+    delSess:"Delete this session?", ok:"OK" } };
+  const t = (k, v) => { let s = TXT.en[k]; if(s === undefined) return k; if(v && typeof s === "string") s = s.replace(/\{(\w+)\}/g, (_, x) => v[x] != null ? v[x] : ""); return s; };
+
+  /* ---------- a tiny DOM builder: the ONLY way this module puts anything on the page ---------- */
+  const NS = "http://www.w3.org/2000/svg";
+  const ATTR_OK = /^(class|id|type|role|title|placeholder|for|name|tabindex|lang|dir|open|aria-[a-z]+|data-[a-z0-9-]+)$/;
+  function add(el, c){ if(c == null || c === false || c === true) return; if(Array.isArray(c)){ for(const x of c) add(el, x); return; } el.appendChild(c instanceof Node ? c : document.createTextNode(String(c))); }
+  function h(tag, a, ...kids){
+    const el = document.createElement(tag);
+    if(a && typeof a === "object" && !(a instanceof Node) && !Array.isArray(a)){
+      for(const k of Object.keys(a)){
+        const v = a[k]; if(v == null || v === false) continue;
+        if(k === "class") el.className = v;
+        else if(k.slice(0, 2) === "on"){ if(typeof v === "function") el.addEventListener(k.slice(2), v); }
+        else if(k === "disabled") el.disabled = !!v;
+        else if(k === "hidden") el.hidden = !!v;
+        else if(ATTR_OK.test(k)) el.setAttribute(k, v === true ? "" : String(v));
+      }
+    } else if(a != null) kids.unshift(a);
+    add(el, kids); return el;
+  }
+  function put(el, ...kids){ while(el.firstChild) el.removeChild(el.firstChild); add(el, kids); return el; }
+  const ICONS = { back:["M19 12H5M12 19l-7-7 7-7"], speaker:["M11 5 6 9H2v6h4l5 4V5z", "M15.5 8.5a5 5 0 0 1 0 7", "M19 5a9 9 0 0 1 0 14"], mic:["M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z", "M19 10v2a7 7 0 0 1-14 0v-2", "M12 19v3"],
+    trash:["M5 7h14M9 7V4.5h6V7M6.5 7l.9 12a2 2 0 0 0 2 1.9h5.2a2 2 0 0 0 2-1.9l.9-12M10 11v6M14 11v6"], file:["M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z", "M14 2v4a2 2 0 0 0 2 2h4"], x:["M6 6l12 12M18 6L6 18"] };
+  function ic(name){
+    const s = document.createElementNS(NS, "svg");
+    s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("fill", "none"); s.setAttribute("stroke", "currentColor"); s.setAttribute("stroke-width", "1.8");
+    s.setAttribute("stroke-linecap", "round"); s.setAttribute("stroke-linejoin", "round"); s.setAttribute("aria-hidden", "true"); s.setAttribute("focusable", "false");
+    (ICONS[name] || []).forEach(d => { const p = document.createElementNS(NS, "path"); p.setAttribute("d", d); s.appendChild(p); });
+    return s;
+  }
+  function btn(label, kind, fn, o){ o = o || {}; return h("button", Object.assign({ type:"button", class:"btn gc-btn" + (kind ? " " + kind : "") + (o.cls ? " " + o.cls : ""), onclick:fn, disabled:o.disabled }, o.attrs || {}), o.icon ? ic(o.icon) : null, h("span", null, label)); }
+  const $g = id => document.getElementById(id);
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const uid = () => { try{ if(window.crypto && crypto.randomUUID) return crypto.randomUUID().replace(/-/g, "").slice(0, 24); }catch(_){} return "k" + Date.now().toString(36) + Math.random().toString(36).slice(2, 12); };
+  const enabled = () => !!(userState && userState.grammar_coach);
+
+  /* ---------- state + api ---------- */
+  let S = fresh();
+  function fresh(){ return { view:"overview", arg:null, hub:null, rules:null, prefs:null, epoch:0, drill:null, notebook:null }; }
+  async function api(method, path, body){
+    const init = { method, headers:{ Authorization:"Bearer " + authToken }, cache:"no-store" };
+    if(body !== undefined){ init.headers["Content-Type"] = "application/json"; init.body = JSON.stringify(body); }
+    let r; try{ r = await fetch(API + path, init); }catch(_){ throw { net:true }; }
+    if(r.status === 401){ try{ logout(); }catch(_){} throw { auth:true }; }
+    let j = null; try{ j = await r.json(); }catch(_){}
+    if(!r.ok){ const d = j && j.detail; throw { status:r.status, code:(d && typeof d === "object" ? d.error : d) || "" }; }
+    return j;
+  }
+  function eText(e){ if(!e) return t("eGeneric"); if(e.net) return t("eNet"); if(e.status === 402) return t("eKeys"); if(e.status === 404) return t("eOff"); return t("eGeneric"); }
+  const lang = () => (S.prefs && S.prefs.feedback_lang === "en") ? "en" : "hi";
+  async function loadRules(){ if(S.rules) return S.rules; try{ S.rules = await api("GET", "/rules"); }catch(_){ S.rules = { rules:[], groups:[], flow_tips:{} }; } return S.rules; }
+  const ruleInfo = id => ((S.rules && S.rules.rules) || []).find(r => r.rule === String(id || "").split("#")[0]) || null;
+  const ruleTitle = id => { const r = ruleInfo(id); return r ? (r.title[lang()] || r.title.en || r.rule) : String(id || ""); };
+  const ruleLine = id => { const r = ruleInfo(id); return r ? (r.rule_text[lang()] || r.rule_text.en || "") : ""; };
+
+  /* ---------- small display helpers ---------- */
+  // Web Speech text is lowercase: DISPLAY it in sentence case (display only - it never counts as a change)
+  function dispCase(s){ s = String(s || "").trim(); if(!s) return s; s = s.replace(/\bi\b/g, "I").replace(/\bi'(m|ll|ve|d)\b/g, "I'$1"); return s.charAt(0).toUpperCase() + s.slice(1); }
+  const srcName = s => ({ talk:t("sTalk"), interview:t("sInterview"), practice:t("sPractice2"), job_interview:t("sJob") })[s] || s;
+  const fmtDate = iso => { try{ return new Date(iso).toLocaleDateString(undefined, { day:"numeric", month:"short" }); }catch(_){ return ""; } };
+  const fmt1 = n => (Math.round(n * 10) / 10).toString();
+  function diffLine(said, marks){
+    // the learner's words with each mistaken span struck through and the fix beside it (spans located by the stored quote, first occurrence, case-insensitive)
+    const low = String(said || "").toLowerCase(), spans = [];
+    for(const m of marks || []){
+      if(!m.quote) continue;
+      const i = low.indexOf(String(m.quote).toLowerCase());
+      if(i >= 0 && !spans.some(s => !(i + m.quote.length <= s.i || i >= s.j))) spans.push({ i, j:i + m.quote.length, fix:m.fix || "" });
+    }
+    spans.sort((a, b) => a.i - b.i);
+    const out = []; let p = 0;
+    for(const s of spans){ if(s.i > p) out.push(said.slice(p, s.i)); out.push(h("span", { class:"gc-said" }, said.slice(s.i, s.j))); if(s.fix) out.push(" ", h("span", { class:"gc-fix" }, s.fix)); p = s.j; }
+    if(p < said.length) out.push(said.slice(p));
+    return out;
+  }
+  function norm(s){ return String(s || "").toLowerCase().replace(/[^a-z0-9' ]+/g, " ").split(/\s+/).filter(Boolean); }
+  function sayMatch(target, spoken){
+    const T = norm(target), Sp = norm(spoken); if(!T.length || !Sp.length) return 0;
+    let j = 0, hit = 0; for(const w of T){ const k = Sp.indexOf(w, j); if(k >= 0){ hit++; j = k + 1; } }
+    return hit / T.length;
+  }
+  const hear = text => { try{ killSpeech(); say(text, ENG_SLOW()); }catch(_){} };
+
+  /* ---------- the shell ---------- */
+  const $b = () => $g("gcBody");
+  function note(msg){ const n = $g("gcNote"); if(!n) return; n.hidden = !msg; n.textContent = msg || ""; }
+  function paintHeader(){
+    const v = S.view, main = TABS.some(x => x[0] === v);
+    $g("gcSub").textContent = t(({ overview:"sOverview", mistakes:"sMistakes", sentences:"sSentences", practice:"sPractice", rules:"sRules", settings:"sSettings", report:"sReport", rule:"sRule", drill:"sDrill" })[v] || "sOverview");
+    $g("gcGear").classList.toggle("on", v === "settings");
+    const tabs = $g("gcTabs"); tabs.hidden = !main;
+    if(main) put(tabs, TABS.map(([k, label]) => h("button", { type:"button", class:"gc-tab" + (k === v ? " on" : ""), role:"tab", "aria-selected":k === v ? "true" : "false", onclick:() => go(k) }, t(label))));
+  }
+  function go(view, arg){ S.epoch++; S.view = view; S.arg = arg == null ? null : arg; const p = PATHS[view] || PATHS.overview; show("gc", p); paint(); }
+  function open(view){ go(PATHS[view] ? view : "overview"); }
+  function back(){ const v = S.view; if(v === "rule" || v === "report" || v === "drill"){ go(S.arg && S.arg.from ? S.arg.from : "overview"); } else if(v === "settings"){ go("overview"); } else navTo("/practice"); }
+  async function paint(){
+    const ep = S.epoch; paintHeader(); note();
+    const b = $b(); put(b, h("div", { class:"gc-spin", role:"status" }, h("div", { class:"spin" }), t("repChecking")));
+    try{
+      await loadRules();
+      if(!S.prefs){ try{ S.prefs = await api("GET", "/prefs"); }catch(_){} }
+      if(ep !== S.epoch) return;
+      const v = S.view;
+      if(v === "overview") await paintOverview(ep); else if(v === "mistakes") await paintMistakes(ep); else if(v === "sentences") await paintSentences(ep);
+      else if(v === "practice") await paintPractice(ep); else if(v === "rules") paintRules(); else if(v === "settings") await paintSettings(ep);
+      else if(v === "report") await paintReportView(ep, S.arg.id); else if(v === "rule") await paintRule(ep, S.arg.rule); else if(v === "drill") paintDrill();
+    }catch(e){ if(e && e.auth) return; if(ep === S.epoch) put(b, h("p", { class:"gc-empty" }, eText(e))); }
+  }
+
+  /* ---------- overview ---------- */
+  function bigNumber(w){
+    if(!w || w.per100 == null) return h("div", { class:"gc-card" }, h("p", { class:"gc-p" }, t("notEnough")), w && w.checked ? h("p", { class:"gc-small" }, t("checkedN", { n:w.checked })) : null);
+    return h("div", { class:"gc-card", id:"gcBig" }, h("div", { class:"gc-big" }, h("span", { class:"gc-num" }, fmt1(w.per100)), h("span", { class:"gc-unit" }, t("per100"))),
+      h("p", { class:"gc-p" }, t("ofSent", { c:w.clean, n:w.checked })));
+  }
+  function stateChip(st){ const k = ({ new:"stNew", needs_work:"stNeeds", improving:"stImproving", fixed:"stFixed" })[st] || "stUnknown"; return h("span", { class:"gc-tag" + (st === "fixed" ? " green" : st === "needs_work" ? " amber" : st === "improving" ? " gold" : "") }, t(k)); }
+  function ruleRow(r, withActs){
+    return h("div", { class:"gc-row" }, h("button", { type:"button", class:"gc-main", onclick:() => go("rule", { rule:r.rule, from:S.view }) },
+      h("span", { class:"gc-rt" }, ruleTitle(r.rule)), h("span", { class:"gc-rs" }, [r.group || "", r.hits != null ? t("hits", { n:r.hits }) : ""].filter(Boolean).join(" · "))), r.state ? stateChip(r.state) : null,
+      withActs ? btn(t("practiceIt"), "ghost", () => startDrills(r.rule), { cls:"sm" }) : null);
+  }
+  async function paintOverview(ep){
+    const hub = S.hub = await api("GET", "/state"); if(ep !== S.epoch) return;
+    const kids = [bigNumber(hub.window)];
+    if(hub.delta && hub.delta.direction) kids.push(h("p", { class:"gc-small", id:"gcDelta" }, t(hub.delta.direction === "better" ? "deltaBetter" : hub.delta.direction === "worse" ? "deltaWorse" : "deltaSame")));
+    kids.push(h("div", { class:"gc-sh" }, t("focusH")));
+    if((hub.focus || []).length) hub.focus.forEach(f => kids.push(ruleRow(f, true))); else kids.push(h("p", { class:"gc-empty" }, t("focusNone")));
+    if(hub.practice_due > 0) kids.push(h("div", { class:"gc-card" }, h("p", { class:"gc-p" }, t("dueH", { n:hub.practice_due })), btn(t("dueGo"), "primary", () => startDrills(""), { attrs:{ id:"gcDueGo" } })));
+    const tr = (hub.trend || []).filter(x => x.per100 != null);
+    if(tr.length) kids.push(h("div", { class:"gc-sh" }, t("trendH")), h("div", { class:"gc-card", id:"gcTrend" }, tr.map(x => h("div", null, h("div", { class:"gc-rs" }, x.week + " · " + fmt1(x.per100) + " " + t("per100")), h("div", { class:"gc-bar" }, h("i", { style:null }))))));
+    const fam = Object.entries(hub.families || {}).sort((a, b) => b[1] - a[1]);
+    if(fam.length){ const mx = fam[0][1] || 1; kids.push(h("div", { class:"gc-sh" }, t("famH")), h("div", { class:"gc-card", id:"gcFam" }, fam.map(([k, n]) => h("div", null, h("div", { class:"gc-rs" }, (({ tn:"Tense", ag:"Agreement", ar:"Articles", pr:"Prepositions", wd:"Word choice", st:"Sentence structure", pn:"Modals & pronouns", md:"Modals & pronouns", ind:"Natural English" })[k] || k) + " · " + n), h("div", { class:"gc-bar" }, bar(n / mx)))))); }
+    const bs = Object.entries(hub.by_source || {});
+    if(bs.length) kids.push(h("div", { class:"gc-sh" }, t("srcH")), h("div", { class:"gc-tags" }, bs.map(([k, n]) => h("span", { class:"gc-tag" }, srcName(k) + " · " + n))));
+    const wins = (hub.wins || []).map(w => h("li", null, t("winFixed", { r:w.title })));
+    if(hub.best_run >= 3) wins.push(h("li", null, t("winRun", { n:hub.best_run })));
+    if(wins.length) kids.push(h("div", { class:"gc-sh" }, t("winsH")), h("div", { class:"gc-card" }, h("ul", { class:"gc-ol" }, wins)));
+    if((hub.latest || []).length){ kids.push(h("div", { class:"gc-sh" }, t("latestH"))); hub.latest.forEach(s => kids.push(sessionRow(s))); }
+    put($b(), kids);
+  }
+  function bar(f){ const i = h("i"); i.style.width = Math.max(4, Math.round(f * 100)) + "%"; return i; }
+  function sessionRow(s){
+    const sub = [srcName(s.source), fmtDate(s.created_at), s.per100 != null ? fmt1(s.per100) + " " + t("per100") : t("notEnough")].filter(Boolean).join(" · ");
+    return h("div", { class:"gc-row" }, h("button", { type:"button", class:"gc-main", onclick:() => go("report", { id:s.id, from:S.view }) }, h("span", { class:"gc-rt" }, srcName(s.source) + (s.kind ? " · " + s.kind : "")), h("span", { class:"gc-rs" }, sub)));
+  }
+
+  /* ---------- mistakes ---------- */
+  async function paintMistakes(ep){
+    const hub = S.hub = S.hub || await api("GET", "/state"); const hub2 = await api("GET", "/state"); S.hub = hub2; if(ep !== S.epoch) return;
+    const list = hub2.mistakes || [];
+    put($b(), list.length ? [h("div", { class:"gc-sh" }, t("mistH")), list.map(r => ruleRow(r, true))] : h("p", { class:"gc-empty" }, t("mistNone")));
+  }
+
+  /* ---------- sentences (the notebook) ---------- */
+  function sentenceCard(s, onOpen){
+    const marks = (s.marks || []).filter(m => m.severity !== "natural" || true);
+    return h("div", { class:"gc-sent" }, h("p", { class:"gc-line" }, diffLine(dispCase(s.said), marks)), s.fixed ? h("p", { class:"gc-line ok" }, "✓ " + dispCase(s.fixed)) : null,
+      h("div", { class:"gc-tags" }, (s.marks || []).map(m => h("span", { class:"gc-tag" + (m.severity === "natural" ? " gold" : m.conf === "likely" ? "" : " amber") }, ruleTitle(m.rule))), s.created_at ? h("span", { class:"gc-tag" }, fmtDate(s.created_at)) : null),
+      h("div", { class:"gc-acts" }, btn(t("hear"), "ghost", () => hear(s.fixed || s.said), { icon:"speaker", cls:"sm" }), btn(t("better"), "ghost", () => openSheet(s), { cls:"sm" })));
+  }
+  async function paintSentences(ep){
+    const d = await api("GET", "/notebook"); if(ep !== S.epoch) return;
+    S.notebook = d;
+    const list = h("div", { id:"gcNote2" }, d.sentences.map(s => sentenceCard(s)));
+    const kids = [d.sentences.length ? list : h("p", { class:"gc-empty" }, t("senNone"))];
+    if(d.next) kids.push(btn(t("senMore"), "ghost", async function(){ const nx = await api("GET", "/notebook?before=" + S.notebook.next); S.notebook.next = nx.next; nx.sentences.forEach(s => list.appendChild(sentenceCard(s))); if(!nx.next) this.remove(); }, { cls:"gc-w" }));
+    put($b(), kids);
+  }
+
+  /* ---------- the sentence sheet ---------- */
+  function closeSheet(){ const s = $g("gcSheet"), bg = $g("gcSheetBg"); if(s){ s.hidden = true; put(s); } if(bg) bg.hidden = true; try{ killSpeech(); }catch(_){} }
+  async function openSheet(s){
+    const sheet = $g("gcSheet"), bg = $g("gcSheetBg"); if(!sheet) return;
+    const marks = (s.marks || []).filter(m => m.quote || m.fix);
+    const first = marks[0];
+    const msg = h("p", { class:"gc-small", id:"gcSheetMsg", role:"status" });
+    const kids = [h("div", { class:"gc-grip" }), h("h3", { class:"gc-h" }, t("sheetH")),
+      h("div", { class:"gc-lab" }, t("youSaid")), h("p", { class:"gc-line", id:"gcSheetSaid" }, diffLine(dispCase(s.said), marks))];
+    if(s.fixed) kids.push(h("div", { class:"gc-lab" }, t("better")), h("p", { class:"gc-line ok", id:"gcSheetFixed" }, dispCase(s.fixed)));
+    kids.push(h("ol", { class:"gc-ol" }, marks.map(m => h("li", null, h("b", null, (m.quote || "…") + " → " + (m.fix || "…")), " ", h("span", { class:"gc-tag" + (m.conf === "likely" ? "" : m.severity === "natural" ? " gold" : " amber") }, m.severity === "natural" ? t("natural") : m.conf === "likely" ? t("softLabel") : ruleTitle(m.rule)),
+      m.why ? h("div", { class:"gc-note" }, m.why) : null, ruleLine(m.rule) ? h("div", { class:"gc-note" }, ruleLine(m.rule)) : null, h("div", null, h("button", { type:"button", class:"gc-link", onclick:() => { closeSheet(); go("rule", { rule:m.rule, from:S.view }); } }, t("learn")))))));
+    const slip = h("p", { class:"gc-note", id:"gcSheetSlip" });
+    kids.push(slip);
+    const acts = [btn(t("hear"), "ghost", () => hear(s.fixed || s.said), { icon:"speaker", cls:"sm" })];
+    if(s.fixed) acts.push(btn(t("say"), "ghost", async function(){ msg.textContent = t("sayGo"); const sp = await listenOnce("en-US"); const f = sayMatch(s.fixed, sp); msg.textContent = !sp ? t("sayNo") : f >= 0.85 ? t("sayOk") : t("sayTry"); }, { icon:"mic", cls:"sm", attrs:{ id:"gcSayBtn" } }));
+    kids.push(h("div", { class:"gc-acts" }, acts), msg);
+    if(s.id != null){
+      const contest = async kind => { try{ await api("POST", "/sentences/" + s.id + "/contest", { kind }); msg.textContent = t("contested"); s.contest = kind; }catch(e){ msg.textContent = eText(e); } };
+      kids.push(h("div", { class:"gc-acts" }, btn(t("notSaid"), "ghost", () => contest("not_said"), { cls:"sm", attrs:{ id:"gcNotSaid" } }), btn(t("notCorrect"), "ghost", () => contest("is_correct"), { cls:"sm", attrs:{ id:"gcNotCorrect" } })));
+    }
+    kids.push(btn(t("close"), "", closeSheet, { cls:"gc-w", attrs:{ id:"gcSheetClose" } }));
+    put(sheet, kids); sheet.hidden = false; if(bg){ bg.hidden = false; bg.onclick = closeSheet; }
+    if(first){ try{ const d = await api("GET", "/rules/" + encodeURIComponent(String(first.rule).split("#")[0])); const c = (d.content || {})[lang()] || (d.content || {}).en || {}; if(c.why_slip && !sheet.hidden) slip.textContent = t("slip") + ": " + c.why_slip; }catch(_){} }
+  }
+
+  /* ---------- the Grammar report (a whole session) ---------- */
+  function timelineEl(tl){
+    const lab = { o:"✓", n:"✓", x:"✗", "~":"△", "-":"–", "?":"?" };
+    return h("div", { class:"gc-tl", id:"gcTimeline", role:"img", "aria-label":t("repTimeline") }, String(tl || "").split("").map(c => h("span", { class:c === "x" ? "x" : c === "o" ? "o" : c === "n" ? "n" : "" }, lab[c] || "·")));
+  }
+  function flowCard(f){
+    if(!f) return null;
+    const lines = [];
+    if(f.avg_words != null) lines.push(t("avgWords", { n:fmt1(f.avg_words) }));
+    if(f.and_then_chains) lines.push(t("chains", { n:f.and_then_chains }));
+    if(Array.isArray(f.starter_top) && f.starter_top[1] >= 0.4) lines.push(t("starters", { w:f.starter_top[0], p:Math.round(f.starter_top[1] * 100) }));
+    const tips = ((f.flags || [])).map(id => ((S.rules && S.rules.flow_tips || {})[id] || {})[lang()]).filter(Boolean);
+    if(!lines.length && !tips.length) return null;
+    return h("div", { class:"gc-card", id:"gcFlow" }, h("h3", { class:"gc-h" }, t("repFlow")), lines.length ? h("p", { class:"gc-p" }, lines.join(" · ")) : null, f.approx ? h("p", { class:"gc-small" }, t("repApprox")) : null, tips.map(x => h("p", { class:"gc-p" }, x)));
+  }
+  function reportKids(rep){
+    const kids = [];
+    kids.push(rep.per100 != null ? h("div", { class:"gc-card" }, h("div", { class:"gc-big" }, h("span", { class:"gc-num" }, fmt1(rep.per100)), h("span", { class:"gc-unit" }, t("per100"))), h("p", { class:"gc-p" }, t("ofSent", { c:rep.clean, n:rep.checked })))
+      : h("div", { class:"gc-card" }, h("p", { class:"gc-p" }, t("notEnough"))));
+    if(rep.tally) kids.push(h("p", { class:"gc-small", id:"gcTally" }, rep.tally));
+    if(rep.degraded) kids.push(h("p", { class:"gc-warn" }, t("repDegraded")));
+    else if(rep.state === "partial") kids.push(h("p", { class:"gc-warn" }, t("repPartial", { c:rep.checked, n:rep.sentences })));
+    if(rep.choice_needed) kids.push(choiceCard(rep));
+    if((rep.top || []).length){ kids.push(h("div", { class:"gc-sh" }, t("repTop"))); rep.top.slice(0, 5).forEach(r => kids.push(ruleRow(r, false))); }
+    if(rep.timeline) kids.push(h("div", { class:"gc-sh" }, t("repTimeline")), timelineEl(rep.timeline), h("p", { class:"gc-small" }, t("repTimelineSub")), rep.best_run >= 3 ? h("p", { class:"gc-small" }, t("winRun", { n:rep.best_run })) : null);
+    kids.push(h("div", { class:"gc-sh" }, t("repFix")));
+    const sl = rep.sentences_list || [];
+    if(sl.length) sl.forEach(s => kids.push(sentenceCard(s))); else kids.push(h("p", { class:"gc-empty" }, rep.marks ? t("choiceP") : t("repFixNone")));
+    const fc = flowCard(rep.flow); if(fc) kids.push(fc);
+    if(sl.length) kids.push(btn(t("repPractice"), "primary", () => startDrills(""), { attrs:{ id:"gcRepPractice" } }));
+    kids.push(h("p", { class:"gc-small gc-center" }, t("repNote")));
+    return kids;
+  }
+  function choiceCard(rep){
+    const card = h("div", { class:"gc-card", id:"gcChoice" });
+    const pick = async choice => { try{ await api("POST", "/keep", { id:rep.id, choice }); S.prefs = null; put(card, h("p", { class:"gc-p" }, t(choice === "keep" ? "choiceSaved" : "choiceCountsSaved"))); if(S.view === "report") setTimeout(() => paint(), 600); }catch(e){ note(eText(e)); } };
+    put(card, h("h3", { class:"gc-h" }, t("choiceH")), h("p", { class:"gc-p" }, t("choiceP")), h("div", { class:"gc-acts" }, btn(t("choiceKeep"), "primary", () => pick("keep"), { attrs:{ id:"gcKeep" } }), btn(t("choiceCounts"), "ghost", () => pick("counts"), { attrs:{ id:"gcCounts" } })));
+    return card;
+  }
+  async function paintReportView(ep, id){
+    const rep = await api("GET", "/sessions/" + id); if(ep !== S.epoch) return;
+    put($b(), reportKids(rep));
+  }
+
+  /* ---------- practice (drills) ---------- */
+  async function paintPractice(ep){
+    const hub = S.hub = await api("GET", "/state"); if(ep !== S.epoch) return;
+    put($b(), h("div", { class:"gc-card" }, h("h3", { class:"gc-h" }, t("sPractice")), h("p", { class:"gc-p" }, hub.practice_due > 0 ? t("dueH", { n:hub.practice_due }) : t("dueNone")), btn(t("dueGo"), "primary", () => startDrills(""), { attrs:{ id:"gcStartDrills" } })));
+  }
+  async function startDrills(rule){
+    try{
+      const d = await api("GET", "/drills/next?n=5" + (rule ? "&rule=" + encodeURIComponent(rule) : ""));
+      if(!d.items || !d.items.length){ go("practice"); note(t("drillNone")); return; }
+      S.drill = { items:d.items, i:0, results:[], key:uid(), done:false, ans:null };
+      go("drill", { from:"practice" });
+    }catch(e){ note(eText(e)); }
+  }
+  function paintDrill(){
+    const D = S.drill, b = $b(); if(!D){ go("practice"); return; }
+    if(D.i >= D.items.length){
+      if(!D.done){ D.done = true; api("POST", "/drills/result", { key:D.key, results:D.results }).catch(() => {}); }
+      const r = D.results.filter(x => x.ok).length;
+      put(b, h("div", { class:"gc-card gc-center" }, h("h3", { class:"gc-h" }, t("drillDoneH")), h("p", { class:"gc-p", id:"gcDrillSum" }, t("drillDoneP", { r, n:D.results.length })), btn(t("drillDone"), "primary", () => go("practice"), { attrs:{ id:"gcDrillEnd" } })));
+      return;
+    }
+    const it = D.items[D.i], head = h("p", { class:"gc-prog" }, t("drillOf", { i:D.i + 1, n:D.items.length }) + " · " + (it.title || ""));
+    const next = () => { D.i++; D.ans = null; paintDrill(); };
+    if(it.kind === "pick"){
+      const fb = h("p", { class:"gc-small", role:"status", id:"gcDrillFb" }), nx = btn(t("drillNext"), "primary", next, { attrs:{ id:"gcDrillNext" } }); nx.hidden = true;
+      const opts = it.options.map((o, k) => h("button", { type:"button", class:"gc-opt", onclick:function(){
+        if(D.ans != null) return; D.ans = k; const ok = k === it.answer; D.results.push({ rule:it.rule, ok });
+        this.classList.add(ok ? "right" : "wrong"); if(!ok) this.parentNode.children[it.answer].classList.add("right");
+        const ex = it.explain && (it.explain[lang()] || it.explain.en || (typeof it.explain === "string" ? it.explain : ""));
+        fb.textContent = (ok ? t("drillRight") : t("drillWrong")) + (ex ? " " + ex : ""); nx.hidden = false; } }, dispCase(o)));
+      put(b, h("div", { class:"gc-card" }, head, h("h3", { class:"gc-h" }, it.prompt || t("drillQ")), h("div", { class:"gc-opts", id:"gcOpts" }, opts), fb, nx));
+    } else {
+      const fb = h("p", { class:"gc-small", role:"status", id:"gcDrillFb" }), nx = btn(t("drillNext"), "primary", next, { attrs:{ id:"gcDrillNext" } }); nx.hidden = true;
+      let tries = 0;
+      const sayBtn = btn(t("say"), "primary", async () => {
+        fb.textContent = t("sayGo"); const sp = await listenOnce("en-US"); const f = sayMatch(it.sentence, sp); tries++;
+        if(f >= 0.85){ fb.textContent = t("sayOk"); if(D.ans == null){ D.ans = 1; D.results.push({ rule:it.rule, ok:true }); } nx.hidden = false; }
+        else { fb.textContent = !sp ? t("sayNo") : t("sayTry"); if(tries >= 2 && D.ans == null){ D.ans = 0; D.results.push({ rule:it.rule, ok:false }); nx.hidden = false; } }
+      }, { icon:"mic", attrs:{ id:"gcDrillSay" } });
+      const skip = btn(t("drillSkipSay"), "ghost", () => { if(D.ans == null){ D.ans = 0; D.results.push({ rule:it.rule, ok:false }); } next(); }, { cls:"sm", attrs:{ id:"gcDrillSkip" } });
+      put(b, h("div", { class:"gc-card" }, head, h("h3", { class:"gc-h" }, t("drillSay")), h("p", { class:"gc-line ok", id:"gcDrillTarget" }, dispCase(it.sentence)),
+        h("div", { class:"gc-acts" }, btn(t("hear"), "ghost", () => hear(it.sentence), { icon:"speaker", attrs:{ id:"gcDrillHear" } }), sayBtn), fb, h("div", { class:"gc-acts" }, nx, skip)));
+    }
+  }
+
+  /* ---------- rules ---------- */
+  function paintRules(){
+    const R = S.rules || { rules:[], groups:[] }, kids = [];
+    (R.groups || []).forEach(g => { const rs = R.rules.filter(r => r.group === g); if(!rs.length) return; kids.push(h("div", { class:"gc-sh" }, g)); rs.forEach(r => kids.push(h("div", { class:"gc-row" }, h("button", { type:"button", class:"gc-main", onclick:() => go("rule", { rule:r.rule, from:"rules" }) }, h("span", { class:"gc-rt" }, r.title[lang()] || r.title.en), h("span", { class:"gc-rs" }, r.rule_text[lang()] || r.rule_text.en || ""))))); });
+    put($b(), kids.length ? kids : h("p", { class:"gc-empty" }, t("mistNone")));
+  }
+  async function paintRule(ep, id){
+    const d = await api("GET", "/rules/" + encodeURIComponent(id)); if(ep !== S.epoch) return;
+    const c = (d.content || {})[lang()] || (d.content || {}).en || {}, c0 = d.content || {};
+    const kids = [h("div", { class:"gc-card", id:"gcRuleCard" }, h("h3", { class:"gc-h" }, c.title || id), stateChip(d.state && d.state.state), h("p", { class:"gc-p" }, c.rule || ""), c.pattern ? h("p", { class:"gc-small" }, t("rulePattern") + ": " + c.pattern) : null,
+      c.why_slip ? [h("div", { class:"gc-lab" }, t("ruleSlip")), h("p", { class:"gc-p" }, c.why_slip)] : null, c.tip ? [h("div", { class:"gc-lab" }, t("ruleTip")), h("p", { class:"gc-p" }, c.tip)] : null)];
+    if((c0.good || []).length) kids.push(h("div", { class:"gc-sh" }, t("ruleGood")), h("div", { class:"gc-card" }, h("ul", { class:"gc-ol" }, c0.good.map(g => h("li", null, g, " ", h("button", { type:"button", class:"gc-link", "aria-label":t("hear"), onclick:() => hear(g) }, "🔊"))))));
+    if((c0.pairs || []).length) kids.push(h("div", { class:"gc-sh" }, t("rulePairs")), h("div", { class:"gc-card" }, c0.pairs.map(p => h("p", { class:"gc-line" }, h("span", { class:"gc-said" }, p.wrong), " → ", h("span", { class:"gc-fix" }, p.right)))));
+    kids.push(h("div", { class:"gc-sh" }, t("ruleYours")));
+    if((d.sentences || []).length) d.sentences.forEach(s => kids.push(sentenceCard(s))); else kids.push(h("p", { class:"gc-empty" }, t("ruleNone")));
+    kids.push(btn(t("ruleDrill"), "primary", () => startDrills(d.rule), { attrs:{ id:"gcRuleDrill" } }));
+    put($b(), kids);
+  }
+
+  /* ---------- settings ---------- */
+  async function paintSettings(ep){
+    const p = S.prefs = await api("GET", "/prefs"); if(ep !== S.epoch) return;
+    const chip = (opts, cur, onPick, idp) => h("div", { class:"gc-chips" }, opts.map(([v, label]) => h("button", { type:"button", class:"gc-chip" + (cur === v ? " on" : ""), "aria-pressed":cur === v ? "true" : "false", id:idp + v, onclick:() => onPick(v) }, label)));
+    const set = async patch => { try{ S.prefs = await api("POST", "/prefs", patch); S.hub = null; paintSettings(S.epoch); }catch(e){ note(eText(e)); } };
+    put($b(),
+      h("div", { class:"gc-card" }, h("h3", { class:"gc-h" }, t("setChoice")), chip([["keep", t("setKeep")], ["counts", t("setCounts")]], p.choice, set2("choice"), "gcSetChoice-"), h("p", { class:"gc-small" }, t("setChoiceP"))),
+      h("div", { class:"gc-card" }, h("h3", { class:"gc-h" }, t("setLang")), chip([["hinglish", t("setHi")], ["en", t("setEn")]], p.feedback_lang, v => set({ feedback_lang:v }), "gcSetLang-")),
+      h("div", { class:"gc-card" }, h("h3", { class:"gc-h" }, t("setStrict")), chip([["auto", t("setAuto")], ["gentle", t("setGentle")], ["standard", t("setStd")], ["strict", t("setStrictOpt")]], p.strict, v => set({ strict:v }), "gcSetStrict-")),
+      h("div", { class:"gc-card" }, h("h3", { class:"gc-h" }, t("setNat")), chip([["on", t("setOn")], ["off", t("setOff")]], p.natural_tips ? "on" : "off", v => set({ natural_tips:v === "on" }), "gcSetNat-")),
+      h("div", { class:"gc-card" }, h("h3", { class:"gc-h" }, t("setData")), h("div", { class:"gc-acts" }, btn(t("setExport"), "ghost", exportData, { icon:"file", attrs:{ id:"gcExport" } }), btn(t("setDelAll"), "danger", deleteAll, { icon:"trash", attrs:{ id:"gcDelAll" } }))));
+    function set2(k){ return v => set({ [k]:v }); }
+  }
+  async function exportData(){
+    try{ const d = await api("GET", "/export"); const blob = new Blob([JSON.stringify(d, null, 1)], { type:"application/json" }), a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "dusu-grammar-coach.json"; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); }catch(e){ note(eText(e)); }
+  }
+  async function deleteAll(){
+    if(!confirm(t("setDelConfirm"))) return;
+    try{ await api("POST", "/delete-all", { confirm:true }); S.hub = null; note(t("setDeleted")); }catch(e){ note(eText(e)); }
+  }
+
+  /* ---------- the shared summary mounted in session results and reports ---------- */
+  function summaryCard(rep){
+    const hd = rep.per100 != null ? fmt1(rep.per100) + " " + t("per100") + " · " + t("ofSent", { c:rep.clean, n:rep.checked }) : t("notEnough");
+    return h("button", { type:"button", class:"gc-sum", id:"gcSumBtn", onclick:() => go("report", { id:rep.id, from:"overview" }) }, h("span", { "aria-hidden":"true" }, "✍️"), h("span", null, h("b", null, t("title")), h("small", null, hd)), h("span", { "aria-hidden":"true", style:null }, "→"));
+  }
+  async function poll(ref, host, tries){
+    let nones = 0;
+    for(let i = 0; i < (tries || 30); i++){
+      if(!document.body.contains(host)) return null;
+      let r; try{ r = await api("GET", "/by-ref?ref=" + encodeURIComponent(ref)); }catch(e){ if(e && e.auth) return null; r = { state:"pending" }; }
+      if(r.state === "done" || r.state === "partial") return r;
+      if(r.state === "failed") return r;
+      if(r.state === "none" && ++nones > 4) return r;
+      await sleep(i < 5 ? 2000 : 4000);
+    }
+    return { state:"timeout" };
+  }
+  async function mountSummary(host, ref){
+    if(!host || !enabled() || !ref) return;
+    put(host, h("div", { class:"gc-spin", role:"status", id:"gcSumWait" }, h("div", { class:"spin" }), t("repChecking")));
+    const r = await poll(ref, host);
+    if(!r || !document.body.contains(host)) return;
+    if((r.state === "done" || r.state === "partial") && r.report){ if(!S.rules) await loadRules(); put(host, summaryCard(r.report)); }
+    else put(host);        // nothing found (not English / switched off / failed): stay quiet, never an error on a result screen
+  }
+  const mkHost = (after, id) => { if(!after || !after.parentNode) return null; const d = h("div", { class:"gc-host", id }); after.parentNode.insertBefore(d, after.nextSibling); return d; };
+  // Face-to-Face: appended to the "Session complete" body
+  function afterSessionResult(sp){ try{ if(!sp || !sp.grammar_ref || !enabled()) return; const b = $g("srBody"); if(!b) return; let d = $g("gcSrHost"); if(d) d.remove(); d = h("div", { class:"gc-host", id:"gcSrHost" }); b.appendChild(d); mountSummary(d, sp.grammar_ref); }catch(e){ console.warn("GC.afterSessionResult", e); } }
+  // Interview Prep: under the report's fillers card
+  function afterInterviewReport(rep){ try{ if(!rep || !rep.grammar_ref || !enabled()) return; let d = $g("gcRepHost"); if(d) d.remove(); d = mkHost($g("repFillers") || $g("metrics"), "gcRepHost"); if(d) mountSummary(d, rep.grammar_ref); }catch(e){ console.warn("GC.afterInterviewReport", e); } }
+  // Practice Room: conversations carry grammar_ref; recorded talks post the on-phone transcript
+  async function afterPracticeReport(body, res, take){
+    try{
+      if(!enabled() || !res || res.lang !== "en" || !body) return;
+      let d = $g("gcPrHost"); if(d) d.remove(); d = h("div", { class:"gc-host pr-full", id:"gcPrHost" }); body.appendChild(d);
+      if(res.grammar_ref){ mountSummary(d, res.grammar_ref); return; }
+      if(!res.id) return;
+      const ref = "pa:" + res.id, stt = take && take.stt;
+      const cur = await api("GET", "/by-ref?ref=" + encodeURIComponent(ref)).catch(() => ({ state:"none" }));
+      if(cur.state === "none" && stt && stt.text){
+        try{ await api("POST", "/analyze", { source:"practice", ref, transcript:stt.text, words:(stt.words || []).map(w => [w[0], w[1], w[2]]), keys:officeKeys() }); }catch(e){ return; }
+      } else if(cur.state === "none") return;
+      mountSummary(d, ref);
+    }catch(e){ console.warn("GC.afterPracticeReport", e); }
+  }
+  // Job Interview Practice: a button on a past interview, automatic right after Finish
+  async function mountRi(host, sid, fresh){
+    try{
+      if(!host || !enabled() || !sid) return;
+      const ref = "ri:" + sid, cur = await api("GET", "/by-ref?ref=" + encodeURIComponent(ref)).catch(() => ({ state:"none" }));
+      if(cur.state !== "none"){ mountSummary(host, ref); return; }
+      const run = async () => { put(host, h("div", { class:"gc-spin" }, h("div", { class:"spin" }), t("repChecking"))); try{ await api("POST", "/analyze", { source:"job_interview", ref, keys:officeKeys() }); }catch(e){ put(host, h("p", { class:"gc-small" }, eText(e))); return; } mountSummary(host, ref); };
+      if(fresh) await run(); else put(host, btn(t("repDetails"), "ghost", run, { attrs:{ id:"gcRiCheck" } }));
+    }catch(e){ console.warn("GC.mountRi", e); }
+  }
+
+  /* ---------- entry points, lifecycle, routes ---------- */
+  function syncEntries(){
+    const on = enabled();
+    const e = $g("gcEntry"); if(e) e.hidden = !on;
+    const m = $g("mrowGC"); if(m) m.hidden = !on;
+    const c = $g("gcHomeCard"); if(c) c.hidden = !(on && userState && userState.onboarded);
+  }
+  const path = () => PATHS[S.view] || PATHS.overview;
+  function leave(){ S.epoch++; closeSheet(); }
+  function reset(){ S = fresh(); try{ closeSheet(); put($b()); }catch(_){} }
+  [["overview", PATHS.overview], ["mistakes", PATHS.mistakes], ["sentences", PATHS.sentences], ["practice", PATHS.practice], ["rules", PATHS.rules], ["settings", PATHS.settings]]
+    .forEach(([v, p]) => { ROUTES[p] = { enter: () => { if(!enabled()){ goHome(); return; } open(v); } }; });
+  if($g("gcBack")) $g("gcBack").onclick = back;
+  if($g("gcGear")) $g("gcGear").onclick = () => go(S.view === "settings" ? "overview" : "settings");
+  if($g("gcEntry")) $g("gcEntry").onclick = () => navTo(BASE);
+  if($g("gcHomeCard")) $g("gcHomeCard").onclick = () => navTo(BASE);
+  return { open, syncEntries, leave, reset, enabled, path, newRef:uid, afterSessionResult, afterInterviewReport, afterPracticeReport, mountRi, mountSummary, _txt:TXT, _sayMatch:sayMatch, _dispCase:dispCase };
+})();
+window.GC = GC;
+
 
 if($("assessExit")) $("assessExit").onclick = skipAssessment;
 try{ LG.mount(); }catch(e){ console.warn("LG.mount", e); }   // Hindi/English controls (hidden until the switch is on for this learner)

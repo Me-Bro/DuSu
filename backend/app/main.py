@@ -44,12 +44,15 @@ from .planner import models as _planner_models  # noqa: F401  (registers the pl_
 from .planner import api as planner_api, life_lines as planner_life, scheduler as planner_scheduler
 from .resume_interview import models as _ri_models  # noqa: F401  (registers the ri_* tables on db.Base before init_db runs)
 from .resume_interview import api as ri_api, life_lines as ri_life
+from .grammar import models as _gc_models  # noqa: F401  (registers the gc_* tables on db.Base before init_db runs)
+from .grammar import api as gc_api, tracker as gc_tracker, gating as gc_gating
 
 app = FastAPI(title="DuSu")
 app.include_router(planner_api.router)      # My Day: /planner/* (404 while the `planner` switch is off for the account)
 planner_life.register()                      # DuSu reads the plan through the "knows your data" block (life.EXTRA_LINES)
 app.include_router(ri_api.router)           # Resume Interview: /rinterview/* (404 while the `resume_interview` switch is off for the account)
 ri_life.register()                           # ... and reads the learner's interview scores the same way
+app.include_router(gc_api.router)           # Grammar Coach: /gcoach/* (404 while the `grammar_coach` switch is off for the account)
 
 # --- Roles ---
 # Only the owner rides the app's own keys (the ones in .env). EVERY other account —
@@ -306,6 +309,26 @@ async def resume_interview_mode() -> str:
 
 async def resume_interview_enabled(email: str) -> bool:
     m = await resume_interview_mode()
+    if m == "on":
+        return True
+    if m == "owner":
+        return await staged_visible(email)
+    return False
+
+
+async def grammar_coach_mode() -> str:
+    """Grammar Coach rollout switch (Settings table, no migration; the Grammar Coach plan D8). It stores the sentences a learner needed to fix, so it ships
+    DARK: 'off' = nobody, the endpoints answer 404 (export / delete excepted) - the DEFAULT; 'owner' = the owner / unlimited allowlist plus the early-access
+    testers; 'on' = everyone."""
+    try:
+        v = await _cached("grammar_coach", lambda: db.get_setting("grammar_coach", "off"))
+        return v if v in ("off", "owner", "on") else "off"
+    except Exception:
+        return "off"
+
+
+async def grammar_coach_enabled(email: str) -> bool:
+    m = await grammar_coach_mode()
     if m == "on":
         return True
     if m == "owner":
@@ -750,6 +773,7 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
                                     or (_eff and (_eff.get("groq") or _eff.get("gemini")))))
         except Exception:
             _ri_stt = False
+    _gc = await grammar_coach_enabled(email)           # Grammar Coach: the client draws its entry points only when true
     common = {"role": _role, "email": email, "office": _office, "office_allowed": _office,
               "unlimited": _unlim, "plan": plan, "requests_left": req_left,
               "request_limit": req_limit, "trial_days_left": trial_days, "trial_over": trial_over,
@@ -766,6 +790,7 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
               "home_ai": _home_ai, "home_personal": True,
               "planner": _planner,                  # My Day (DUSU_GOALS_PLAN.md): the client draws its entry points only when true
               "resume_interview": _ri, "ri_server_stt": _ri_stt,   # Resume Interview (DUSU_RESUME_INTERVIEW_PLAN.md)
+              "grammar_coach": _gc,
               "level_test": await level_test_on(),
               # The public name this user appears as on the leaderboard / league.
               # Boards are alias-only for privacy (§18), so without this the user
@@ -774,7 +799,7 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
     if _home_ai:
         # The Home page's feature icons (home_content.tiles): what exists for THIS learner, both languages' titles, each with
         # the route a tap opens. Only the learners who have the new Home get the key, so /me is unchanged for everyone else.
-        common["home_tiles"] = home_content.tiles({"practice_room": _pr, "planner": _planner, "resume_interview": _ri})
+        common["home_tiles"] = home_content.tiles({"practice_room": _pr, "planner": _planner, "resume_interview": _ri, "grammar_coach": _gc})
     if not db.db_enabled:
         return {"onboarded": None, **common}
     try:
@@ -1198,8 +1223,14 @@ async def admin_overview(token: str = "", authorization: str | None = Header(Non
            "access_phase": await access_phase(), "level_test": await level_test_on(),
            "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode(),
            "life_context": await life_context_mode(), "bilingual": await bilingual_mode(),
-           "home_ai": await home_ai_mode(), "planner": await planner_mode(), "resume_interview": await resume_interview_mode()}
+           "home_ai": await home_ai_mode(), "planner": await planner_mode(), "resume_interview": await resume_interview_mode(),
+           "grammar_coach": await grammar_coach_mode()}
     if db.db_enabled:
+        try:
+            from .grammar import service as gc_service
+            out["grammar_coach_health"] = await gc_service.health()
+        except Exception as e:
+            print(f"[admin] grammar coach health failed: {type(e).__name__}")
         try:
             out["planner_health"] = await planner_scheduler.health()
         except Exception as e:
@@ -1247,6 +1278,7 @@ class SettingsIn(BaseModel):
     home_ai: str | None = None            # off | owner | on  (Home 2.0 - the AI companion Home, CLAUDE.md §12)
     planner: str | None = None            # off | owner | on  (My Day - tasks, habits, goals, reminders; DUSU_GOALS_PLAN.md)
     resume_interview: str | None = None   # off | owner | on  (Resume Interview - resume + job description -> recorded mock interview; DUSU_RESUME_INTERVIEW_PLAN.md)
+    grammar_coach: str | None = None      # off | owner | on  (Grammar Coach - every English sentence checked, corrected and explained)
 
 
 @app.post("/admin/settings")
@@ -1273,11 +1305,14 @@ async def admin_settings(inp: SettingsIn, authorization: str | None = Header(Non
         await db.set_setting("planner", inp.planner if inp.planner in ("off", "owner", "on") else "off")
     if inp.resume_interview is not None:
         await db.set_setting("resume_interview", inp.resume_interview if inp.resume_interview in ("off", "owner", "on") else "off")
+    if inp.grammar_coach is not None:
+        await db.set_setting("grammar_coach", inp.grammar_coach if inp.grammar_coach in ("off", "owner", "on") else "off")
     invalidate_access_cache()
     return {"access_phase": await access_phase(), "level_test": await level_test_on(),
             "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode(),
             "life_context": await life_context_mode(), "bilingual": await bilingual_mode(),
-            "home_ai": await home_ai_mode(), "planner": await planner_mode(), "resume_interview": await resume_interview_mode()}
+            "home_ai": await home_ai_mode(), "planner": await planner_mode(), "resume_interview": await resume_interview_mode(),
+            "grammar_coach": await grammar_coach_mode()}
 
 
 class WipeIn(BaseModel):
@@ -1783,7 +1818,8 @@ async def _home_flags(email: str) -> dict:
     """Which optional features exist for this learner (feeds home_content: the Know About page, the model's catalogue and
     the validation of the ids it suggests - one source, so they cannot disagree)."""
     return {"practice_room": await practice_room_enabled(email), "bilingual": await bilingual_enabled(email),
-            "planner": await planner_enabled(email), "resume_interview": await resume_interview_enabled(email)}
+            "planner": await planner_enabled(email), "resume_interview": await resume_interview_enabled(email),
+            "grammar_coach": await grammar_coach_enabled(email)}
 
 
 def _home_tod(hour) -> str:
@@ -2682,6 +2718,8 @@ async def interview_ws(ws: WebSocket):
     turn_quota = TurnQuota()   # resolved once on `start`; per-turn decisions are then free
     _claims = None             # the signed-in claims from `start` (the practice report needs them to award XP)
     practice_done = False      # a conversation practice is scored once
+    _gref = ""                 # Grammar Coach: the client's random id for this session (idempotency key ws:<gref>)
+    _gc_on = False             # Grammar Coach runs for THIS session (switch on + an English surface + a valid gref)
 
     async def _persist_session():
         """One combined LLM pass at session end → memory + courage badges."""
@@ -2694,6 +2732,9 @@ async def interview_ws(ws: WebSocket):
         # No real turns = nothing to remember/reward (prevents 0-turn XP/streak farming).
         if session.turns <= 0:
             return
+        if _gc_on and session.mode in ("conversation", "interview"):
+            # Grammar Coach (plan D5): analyse the server's own transcript in a detached task - it never delays or alters anything below.
+            gc_tracker.schedule_ws(uid, _email, _gref, session, secs=int(time.monotonic() - started_at))
         try:
             mem = await session.summarize_and_extract()
             # _extract_json returns {"error": "scoring_parse_failed", ...} when the model
@@ -2748,6 +2789,8 @@ async def interview_ws(ws: WebSocket):
                     unscored=(frozenset({"vocabulary", "grammar_trend"}) if hi_session else frozenset()),
                 )
                 if sp:
+                    if _gc_on and session.mode == "conversation":
+                        sp["grammar_ref"] = f"ws:{_gref}"          # additive: the result screen polls GET /gcoach/by-ref for the Grammar report
                     await _send(ws, type="speaker_progress", data=sp)
                     try:
                         mission_result = await db.update_weekly_missions(uid, session.mode, secs / 60.0, sp.get("overall", 0))
@@ -2799,7 +2842,12 @@ async def interview_ws(ws: WebSocket):
         if res.get("too_short"):
             await _send(ws, type="practice_report", data=res)
             return
-        await _send(ws, type="practice_report", data=await _practice_talk_save(_claims, uid, res, cfg["topic"]))
+        _pdata = await _practice_talk_save(_claims, uid, res, cfg["topic"])
+        if _gc_on and isinstance(_pdata, dict):
+            _aid = _pdata.get("id")
+            gc_tracker.schedule_ws(uid, _email, _gref, session, secs=int(time.monotonic() - started_at), attempt_id=_aid)
+            _pdata["grammar_ref"] = f"pa:{int(_aid)}" if _aid else f"ws:{_gref}"
+        await _send(ws, type="practice_report", data=_pdata)
 
     try:
         while True:
@@ -2972,6 +3020,14 @@ async def interview_ws(ws: WebSocket):
                     tzmin=(data.get("tzmin") if mode == "home" else None),
                     practice=_practice_cfg,
                 )
+                _gref = gc_tracker.valid_gref(data.get("gref"))
+                _gc_on = False
+                if uid and db.db_enabled and _gref and mode in ("conversation", "interview", "practice") \
+                        and gc_gating.session_gate(mode, (_practice_cfg or {}).get("plang"), _lang).ok:
+                    try:
+                        _gc_on = await grammar_coach_enabled(_email)
+                    except Exception:
+                        _gc_on = False
                 if session.mode == "home":
                     # Home 2.0: nothing to generate on start - the client already spoke the greeting it is showing, so DuSu
                     # "speaks first" instantly. Record it as the first assistant line so the model knows what it said.
@@ -3118,6 +3174,8 @@ async def interview_ws(ws: WebSocket):
                 elif session.done:  # interview mode only
                     await _send(ws, type="interview_done")
                     report_data = await _safe_build_report(session)
+                    if _gc_on and isinstance(report_data, dict) and not report_data.get("error"):
+                        report_data["grammar_ref"] = f"ws:{_gref}"      # additive: the report polls GET /gcoach/by-ref for the Grammar summary
                     await _send(ws, type="report", data=report_data)
                     if uid and db.db_enabled and not report_data.get("error"):
                         await db.save_interview_report(uid, session.role, report_data)
@@ -3142,6 +3200,8 @@ async def interview_ws(ws: WebSocket):
                     await _send(ws, type="status", msg="scoring")
                     await _send(ws, type="interview_done")
                     report_data = await _safe_build_report(session)
+                    if _gc_on and isinstance(report_data, dict) and not report_data.get("error"):
+                        report_data["grammar_ref"] = f"ws:{_gref}"      # additive: the report polls GET /gcoach/by-ref for the Grammar summary
                     await _send(ws, type="report", data=report_data)
                     if uid and db.db_enabled and not report_data.get("error"):
                         await db.save_interview_report(uid, session.role, report_data)

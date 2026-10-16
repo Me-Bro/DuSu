@@ -1568,6 +1568,25 @@ The owner's request: upload a resume, upload a job description, DuSu shows the m
 
 ---
 
+## 17. Grammar Coach - every English sentence checked, corrected, explained (built 2026-10-16, NOT deployed - design + status in `DUSU_GRAMMAR_COACH_PLAN.md`)
+
+When the learner speaks ENGLISH in Face-to-Face (`conversation`), Interview Prep, the Practice Room (all kinds) and Job Interview Practice, DuSu checks every sentence **after the session** and shows a Grammar report (said -> corrected -> why -> rule -> why Hindi speakers slip, a Flow read) plus a separate **Grammar section** (`/grammar`: Overview / Mistakes / Sentences / Practice / Rules + settings). Hindi / Hinglish is never judged. **Ships dark:** switch `settings.grammar_coach` = off (code default) / owner (+ early access) / on, set from dashboard -> Access; `/me.grammar_coach`; every `/gcoach/*` endpoint answers 404 while it is off for the account (export / delete-all excepted).
+
+| Piece | Where |
+|---|---|
+| Engine (pure + ONE async AI stage) | `backend/app/grammar/`: `text`, `segment`, `gating` (+ `lexicon_lang`), `catalog` + `catalog_data` (41 rules, English + Hinglish), `detectors` + `lexicon` (19 rule checks D1-D16, T1-T3), `prompts`, `verify`, `engine`, `budget`, `scoring`, `flow` |
+| Storage / API / wiring | `models` (new tables `gc_sessions`, `gc_sentences`, `gc_marks`, `gc_drills` - no ALTER), `service`, `api` (`/gcoach/*`), `tracker` (the detached retained task) |
+| Hooks in shared code (all additive or switch-gated) | `main.py`: switch triplet, `/me`, admin, `_home_flags`, WS `start` reads a validated `gref`, `_persist_session` / `_practice_finish` start the detached analysis, `grammar_ref` added to `speaker_progress` / interview `report` / `practice_report` (no new frame types) · `db.py` + `resume_interview/service.py`: delete cascades (account, wipe, Practice attempt incl. pruned, interview) · `openrouter_provider`: additive `first=` and `cool=` · `home_content`: one FEATURES entry · `sw.js` `dusu-v31` · `privacy` / `terms` / `account-deletion` pages |
+| Client | `GC` module in `test_client.html` (DOM-builder only, no innerHTML; `gc-*` CSS; body-level sheet; routes `/grammar[/mistakes\|sentences\|practice\|rules\|settings]`); summary card mounted in Session complete, the interview report, the Practice report and the Job Interview Practice report |
+
+**Rules that make it trustworthy.** Precision over recall: a sentence is "no mistake found" only on a model verdict (rule checks add errors, never certify clean); the corrected sentence is BUILT BY CODE from verified `quote -> fix` edits (the model never rewrites); anything the code cannot locate / bound is dropped; speech-to-text artifacts (case, punctuation, homophones, numerals) are never flagged; on Chrome text a finding no rule check backs is only "likely" (soft, uncounted, never applied); Indianisms are tips, never errors. The headline is **mistakes per 100 words** with "N of M sentences with no mistake found" beside it - withheld below 6 checked sentences / 40 words; deltas only with >= 40 checked sentences per window; no composite score. **Existing score numbers are untouched** (`grammar_trend`, the interview Grammar bar, Practice's grammar bar). **Privacy:** only mistaken sentences are stored, only after the learner's one-time "keep / counts only" choice (until then the result is held in memory <= 30 min and only counts are written); `redact_light` on stored text; transcripts and audio are never stored. **Cost:** ~1 AI call per 12 sentences (<= 10 per session, one `charge_request`), `cool=False` (a grammar 429 never cools a provider for everyone's chat), skipped while any provider is cooling, process-wide semaphore of 2.
+
+**Verified 2026-10-16 (scratch infrastructure only):** unit 4,036 checks (incl. 1,946 for the rule checks); the rule checks give **no false positive on any of 318 clean gold sentences** (`solo_gold.py`); scratch Postgres 88; WebSocket harness 18 (switch OFF vs ON identical except the additive keys; dropped sockets analysed; Hindi never); real Chromium against the real app 40; client old = old 28 (45 pixel-identical screenshots incl. session / session result / interview report); 24 planted bugs, all caught; Resume Interview (309 + 188) and My Day (92 + 293) regression suites unchanged. **Not verified:** the real-model gold-set gate (`tests/grammar/real_model.py`, owner-run - sends only synthetic sentences but uses the owner's free-tier quota), real phone speech-to-text (plan spike S1), Hinglish wording by a native speaker, the first-use notice and report on a handset, Play's Data-safety form. **Not deployed, not committed, not pushed.** Go-live order: policy pages ship WITH the code, switch to `owner`, run the owner checklist (plan section 12), then the real-model gate, then `on`.
+
+**Not in v1 (the copy never claims it):** live notes under each message, the AI "smoother way to say it", more drill types + spaced repetition, a Home / My Day grammar block, `rules_disabled`, spoken recasts, Hindi screens.
+
+---
+
 ## Quick command reference
 
 ```powershell

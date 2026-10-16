@@ -407,6 +407,8 @@ async def delete_session(uid: str, sid: int) -> dict:
         await s.execute(delete(RiTurn).where(RiTurn.session_id == sid, RiTurn.user_id == uid))
         await s.delete(sess)
         await s.commit()
+    from ..grammar import service as _gc                  # the Grammar Coach session made from this interview goes with it
+    await _gc.delete_by_ref(uid, f"ri:{int(sid)}")
     return {"ok": True}
 
 
@@ -1156,6 +1158,11 @@ async def delete_all(uid: str) -> dict:
     async with _S() as s:
         await delete_rows(s, [uid])
         await s.execute(delete(db.Conversation).where(db.Conversation.user_id == uid, db.Conversation.mode == "resume_interview"))
+        from ..grammar.models import GcMark, GcSentence, GcSession
+        ks = select(GcSession.id).where(GcSession.user_id == uid, GcSession.client_key.like("ri:%"))      # Grammar Coach sessions made from these interviews
+        await s.execute(delete(GcMark).where(GcMark.user_id == uid, GcMark.session_id.in_(ks)))
+        await s.execute(delete(GcSentence).where(GcSentence.user_id == uid, GcSentence.session_id.in_(ks)))
+        await s.execute(delete(GcSession).where(GcSession.user_id == uid, GcSession.client_key.like("ri:%")))
         await s.commit()
     return {"ok": True}
 

@@ -24,3 +24,8 @@ tests/resume_interview/.head/
 
 # Resume Interview browser tier: tokens written by e2e_server.py
 tests/resume_interview/.e2e/
+
+# Grammar Coach test scratch
+tests/grammar/.e2e/
+tests/grammar/.mut/
+tests/grammar/.orig.html
