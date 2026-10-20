@@ -175,11 +175,11 @@ backend\.venv\Scripts\python.exe android-twa\gen_icons.py
 **Build:**
 ```bash
 cd android-twa
-./gradlew assembleDebug     # -> app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleRelease bundleRelease   # -> app/build/outputs/apk/release/app-release.apk  +  bundle/release/app-release.aab
 ```
-Copy the built APK to repo root as `DuSu-app.apk` if you want to ship it as-is.
+**Anything you share (WhatsApp, `DuSu-app.apk` at the repo root) must be the RELEASE build.** A debug-signed APK is signed with Android's public debug key, which is *not* in `assetlinks.json`, so it can never go full-screen — it always shows the browser **X + URL bar**. (`assembleDebug` is for local `adb install` testing only; never copy it to the repo root.) Check any APK before sharing: `keytool -printcert -jarfile <apk>` must print the SHA-256 the server publishes at `/.well-known/assetlinks.json`.
 
-Release build needs `android-twa/keystore.properties` (git-ignored: `storeFile`/`storePassword`/`keyAlias`/`keyPassword`). Without it, `assembleRelease` still runs but produces an unsigned APK — use debug for testing.
+Release build needs `android-twa/keystore.properties` (git-ignored: `storeFile`/`storePassword`/`keyAlias`/`keyPassword`). Without it, `assembleRelease` still runs but produces an unsigned APK. Play-installed builds are re-signed by Google, so their key must ALSO be added to `ANDROID_CERT_SHA256` (comma-separated) — see `PLAYSTORE_SUBMISSION_GUIDE.md` §1a.
 
 **Full-screen (no Chrome address bar)** requires Digital Asset Links to verify both ways: the app already trusts `dusu.ranabrothers.online` and the legacy `dusu.ruralrootcloud.com` (`strings.xml`); the server needs `ANDROID_CERT_SHA256` set (get it via `keytool -list -v` on your keystore) so `GET /.well-known/assetlinks.json` returns the right fingerprint.
 

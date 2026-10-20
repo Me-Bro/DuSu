@@ -16,4 +16,4 @@ Thumbs.db
 DuSu.apk
 
 # PII - tester lists, never commit
-playstore-testers.csv
+playstore-testers*.csv

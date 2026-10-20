@@ -170,7 +170,8 @@ Only needed to rebuild the APK:
 export JAVA_HOME="/path/to/jdk-17"     # must be a REAL standalone JDK 17, not Android Studio's bundled JBR
 cd android-twa
 # create android-twa/local.properties with: sdk.dir=<your Android SDK path>
-./gradlew assembleDebug                # -> app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleRelease bundleRelease   # -> app/build/outputs/apk/release/app-release.apk (+ AAB for Play)
+# Share only RELEASE builds: a debug-signed APK never matches assetlinks.json and shows the browser X + URL bar.
 ```
 To regenerate icons after a logo change: `backend/.venv/Scripts/python.exe android-twa/gen_icons.py`.
 

@@ -1259,12 +1259,14 @@ Repo-root APKs: `DuSu-app.apk` (~3.1 MB, the TWA — this is the one you ship) a
 
 ```bash
 cd android-twa
-./gradlew assembleDebug     # → app/build/outputs/apk/debug/app-debug.apk (self-signed, installable now)
-./gradlew assembleRelease   # needs keystore.properties → app-release.apk
+./gradlew assembleDebug     # → app-debug.apk — LOCAL adb testing ONLY (see warning below)
+./gradlew assembleRelease   # needs keystore.properties → app-release.apk  ← this is what you share
 ./gradlew bundleRelease     # AAB for Play Store
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-# then copy the built APK to repo root as DuSu-app.apk
+# repo-root DuSu-app.apk must be the RELEASE-signed APK (copy app-release.apk), never the debug one
 ```
+
+> **Never share a debug-signed APK.** It is signed with Android's public debug key, which is not in `assetlinks.json`, so it ALWAYS shows the browser X + URL bar. Verify any APK with `keytool -printcert -jarfile <apk>`: its SHA-256 must be one of the fingerprints served at `/.well-known/assetlinks.json`. Play-installed builds are re-signed by Google — add the **Play App Signing** SHA-256 to `ANDROID_CERT_SHA256` too (comma-separated).
 
 **BUILD GOTCHA — `JAVA_HOME` must be a real JDK 17.** Point `JAVA_HOME` at a standalone JDK 17 (e.g. `C:\Program Files\Microsoft\jdk-17...`), **not** the Android Studio bundled JBR. The bundled `jbr` causes Gradle/AGP toolchain failures here; the build config compiles against `VERSION_17` / `jvmTarget "17"` and Gradle 9.3.0 requires JDK 17+.
 
@@ -1517,7 +1519,7 @@ backend/.venv/Scripts/python -c "import app.main"
 # Android build — from android-twa/; JAVA_HOME must be a real standalone JDK 17 (not the Studio JBR)
 export JAVA_HOME="/c/Program Files/Microsoft/jdk-17..."   # PowerShell: $env:JAVA_HOME = "C:\Program Files\Microsoft\jdk-17..."
 cd android-twa
-./gradlew assembleDebug        # → app/build/outputs/apk/debug/app-debug.apk  (copy to repo root as DuSu-app.apk)
+./gradlew assembleRelease bundleRelease   # → app-release.apk (share THIS; copy to repo root as DuSu-app.apk) + AAB for Play. Never share assembleDebug output (browser bar).
 ```
 
 ```bash

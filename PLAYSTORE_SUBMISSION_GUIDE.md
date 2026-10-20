@@ -309,6 +309,8 @@ Why 18+: DuSu's positioning is job interviews and campus placements, and the pri
 | **App activity → Other user-generated content** | Yes (spoken practice text, conversation memory) | **Yes** — sent to AI providers to generate replies | App functionality | Required |
 | **App activity → App interactions** | Yes (XP, streaks, levels, session counts) | No | App functionality, Personalization | Required |
 | **Personal info → Other info** | Yes (optional AI provider API keys the user adds) | No | App functionality | **Optional** |
+| **Audio files → Voice or sound recordings** | **Yes** (Practice Room: presentation/speech/seminar recordings, for transcription + scoring) | **Yes** — sent to Groq or Google Gemini to transcribe | App functionality | **Optional** (only if you use Practice Room's recording modes) |
+| **Device or other IDs** | **Yes** (My Day reminder push-notification subscription — tied to this device/browser install) | No | App functionality | **Optional** (only if you enable push notifications) |
 
 ### Notes for the "shared" entries
 
@@ -316,13 +318,15 @@ When Play asks *why* data is shared, the honest answer is: conversation text and
 
 ### What to say NO to
 
-Location, Financial info, Health, Contacts, Calendar, SMS/Call logs, Files/Docs, Device/other IDs for advertising, Audio files. Confirmed in code: the app requests only `INTERNET`, `ACCESS_NETWORK_STATE`, `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`. No microphone permission is declared by the app itself — speech is handled by Chrome.
+Location, Financial info, Health, Contacts, Calendar, SMS/Call logs, Files/Docs. Confirmed in code: the app requests only `INTERNET`, `ACCESS_NETWORK_STATE`, `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`. Chrome's Web Speech API (used for every mode except Practice Room) needs no microphone *permission* from the app and the server only ever receives text for those modes — so audio is NOT collected for Talk, Interview, Daily Talk, Learn, or Home.
 
-### ⚠️ One accuracy caveat to review before you sign this
+### ⚠️ Two things that changed since this form was first filled in (2026-10-20)
 
-**Resolved.** `privacy.html` previously claimed speech-to-text happens "entirely in your own browser and are never uploaded anywhere." On Android, Chrome's Web Speech API **streams audio to Google's speech servers** for recognition — it is not on-device, so that wording overstated the case. It now has a dedicated "How speech is handled" section stating plainly that DuSu never receives your audio, while disclosing that your browser vendor may process it under their own policy.
+**1. Audio — Practice Room records real audio now.** When this guide was first written, DuSu had no microphone permission and never touched audio. Practice Room (shipped 2026-10-06) added `MediaRecorder`-based recording for its presentation/speech/seminar modes, uploaded to `/practice/transcribe` for transcription via Groq Whisper or Google Gemini. **As of right now, Practice Room's rollout switch is `on` for everyone in production** — so this is live, not hypothetical, and the Data Safety form must say Yes to Audio files (table above) before you touch Play Console again. The recording itself never leaves the device except for that one transcription call; DuSu's own server stores the resulting scores/report, never the recording or the raw transcript (`practice_attempts` table, confirmed in `db.py`).
 
-This matters for the form above: you are declaring that DuSu does **not** collect audio, which is true — the app has no microphone permission and the server only ever receives text. Do not tick any audio data type.
+**2. Device or other IDs — My Day's push notifications.** My Day (shipped 2026-10-11) added opt-in Web Push for reminders (`pl_push_subs` table) — a push subscription is a device/browser-specific identifier, which falls under Play's "Device or other IDs" category. Marked Optional above since push is opt-in per user.
+
+`privacy.html` already discloses Practice Room's recording/transcription in detail (where the recording is stored, how to delete it, that only scores/feedback are kept server-side) — only the Play Console Data Safety **form** (the table above) was stale, not the privacy policy itself.
 
 ---
 
@@ -341,7 +345,9 @@ This matters for the form above: you are declaring that DuSu does **not** collec
 
 ## 11. Closed testing (required before production)
 
-New personal developer accounts must run a closed test with **12+ testers opted in continuously for 14 days** before production access unlocks. You said you have your 12.
+> **Update 2026-10-06 — the first production-access application was rejected ("Your app requires more testing": testers not engaged; feedback not gathered/acted on through updates).** Do **not** just wait 14 more days: follow **`PLAYSTORE_CLOSED_TEST_PLAN.md`** for the retry. The steps below are only the track mechanics.
+
+New personal developer accounts must run a closed test with **12+ testers opted in continuously for 14 days** before production access unlocks — and the testers must actually *use* the app. Aim for **25 opted in**, not 12 (see the plan).
 
 1. **Test and release → Testing → Closed testing → Create track** (name: `closed-1`)
 2. **Testers tab** → add the 12 email addresses (or create a Google Group and link it)

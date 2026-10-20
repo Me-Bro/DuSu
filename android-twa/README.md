@@ -38,9 +38,11 @@ Install on a phone (USB debugging on):
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-The debug APK opens the site inside a **Custom Tab bar** until the asset-links
-verification (step 3) matches the APK's signature. Speech already works; the top bar
-just isn't hidden yet.
+The debug APK opens the site inside a **Custom Tab bar (browser X + URL)** and **always
+will**: it is signed with Android's public debug key, which is never listed in
+`assetlinks.json`. Use it only for `adb install` on your own phone. **Share only the
+release build** (`assembleRelease`), and for Play-installed builds also add Google's
+Play App Signing SHA-256 to the server's `ANDROID_CERT_SHA256` (comma-separated).
 
 ---
 
