@@ -86,8 +86,10 @@ class Settings(BaseSettings):
                 "base_url": "https://openrouter.ai/api/v1",
                 "key": self.openrouter_api_key,
                 # Free tier is heavily rate-limited (429s) — kept as a late fallback
-                # only. gpt-oss-*:free were dropped from the free tier (404).
-                "models": ["z-ai/glm-5.2:free", "google/gemma-4-31b-it:free"],
+                # only. gpt-oss-*:free and z-ai/glm-5.2:free were dropped from the
+                # free tier (404, "paid version available now") — probed 2026-10-20,
+                # OpenRouter's free catalog is actively collapsing, not just these two.
+                "models": ["google/gemma-4-31b-it:free"],
                 "headers": {"HTTP-Referer": PUBLIC_ORIGIN, "X-Title": "DuSu"},
                 "extra": {"reasoning": {"exclude": True, "effort": "low"}},
             })
@@ -124,7 +126,7 @@ class Settings(BaseSettings):
         if k.get("openrouter"):
             chain.append({"name": "openrouter", "base_url": "https://openrouter.ai/api/v1",
                 "key": k["openrouter"],
-                "models": ["z-ai/glm-5.2:free", "google/gemma-4-31b-it:free"],
+                "models": ["google/gemma-4-31b-it:free"],
                 "headers": {"HTTP-Referer": PUBLIC_ORIGIN, "X-Title": "DuSu"},
                 "extra": {"reasoning": {"exclude": True, "effort": "low"}}})
         if k.get("github"):
