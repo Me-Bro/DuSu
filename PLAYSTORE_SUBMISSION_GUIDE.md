@@ -6,6 +6,14 @@ Fill-in-the-blanks reference for uploading DuSu to Google Play. Every answer bel
 
 > **Update 2026-10-20 - version 1.1 adds notifications.** (1) Play Console -> Data safety: add **Device or other IDs** (the push address of the learner's phone), collected, purpose *App functionality*, optional (the learner turns notifications on), deletable with the account (`/account-deletion`). Notification history (kind, time, text, opened or not) is also stored - it fits the same "App activity" answer you already gave. (2) The **App signing key certificate** step in section 1a is now doubly important: without it the Play build shows the browser bar AND Chrome keeps the notifications for itself (delegation needs the verified link). (3) Release notes (en-IN): "Practice reminders at the time you choose - only on days you haven't practised, and a note when your weekly letter is ready. Turn them on or off in More -> Notifications. Fixes the browser bar on some phones." (4) The 4-hour reminder of 1.0 is removed; the new `versionCode` is 2 - use `max(Play's highest versionCode) + 1` if 2 is already taken.
 
+> **Update 2026-10-20 (later same day) - the v1.1 signed build is ready; the keystore gap is closed.** The release keystore (`android-twa/app/dusu-release.jks` + `keystore.properties`, both git-ignored on purpose - secrets never travel through git) was missing on the build host and has now been copied there directly, outside git, over the existing SSH connection. `./gradlew bundleRelease assembleRelease` ran clean and `keytool -printcert` on the output confirms the signing certificate matches the upload-key SHA-256 already live in `ANDROID_CERT_SHA256` - no mismatch risk. Signed artifacts: `~/Desktop/DuSu-builds/DuSu-1.1-release-SIGNED.{aab,apk}` on the build host; the signed APK is also the current repo-root `DuSu-app.apk`.
+>
+> **What's left (all four need Play Console / a physical phone - nobody can do these by SSH):**
+> 1. Get the **App signing key certificate** SHA-256 from Play Console -> Setup -> App signing, and add it to `ANDROID_CERT_SHA256` on the host (comma-separated, keep the existing upload-key fingerprint) - then `docker compose up -d --force-recreate` (env-only change, `--force-recreate` not just `up -d`) and re-verify `/.well-known/assetlinks.json` lists both.
+> 2. Upload `DuSu-1.1-release-SIGNED.aab` to the closed testing track in Play Console.
+> 3. Install on a real phone, turn notifications on, send a test notification with the app fully closed (confirms Web Push delivery + that it shows as DuSu's own, which needs step 1 done first).
+> 4. Once 1-3 are confirmed, flip the Notifications rollout switch to **Everyone** in the owner dashboard.
+
 ## 0. Facts you'll be asked for repeatedly
 
 | Field | Value |
