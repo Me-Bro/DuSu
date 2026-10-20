@@ -11,6 +11,7 @@ from __future__ import annotations
 import time
 
 from fastapi import APIRouter, Body, Header, HTTPException, Request
+from sqlalchemy.exc import DBAPIError
 
 from .. import auth, db
 from . import push, service as svc, timeutil as tu
@@ -54,6 +55,12 @@ async def _run(coro):
         code = str(e.args[0]) if e.args else ""
         print(f"[planner] 409 {what}: limit_{code}")
         raise HTTPException(409, {"error": "limit_" + code})
+    except DBAPIError as e:
+        # a number the database cannot even read (an id beyond a 32-bit integer, which the app itself never sends): it is nobody's, so it is not found - never a 500
+        if type(getattr(getattr(e, "orig", None), "__cause__", None)).__name__ == "DataError":
+            print(f"[planner] 404 {what}: unreadable number")
+            raise HTTPException(404, "Not found")
+        raise
 
 
 def _int(v, default: int = 0) -> int:
@@ -240,6 +247,31 @@ async def reminder_update(rid: int, body: dict = Body(...), authorization: str |
 async def reminder_delete(rid: int, token: str = "", authorization: str | None = Header(None)):
     _c, uid, _e = await _gate(authorization, token)
     return await _run(svc.delete_custom_reminder(uid, rid))
+
+
+# Repeating reminders: set once, ring on the chosen weekdays until paused or deleted (the rings themselves are ordinary rows in /reminders)
+@router.get("/reminder-rules")
+async def reminder_rules(token: str = "", authorization: str | None = Header(None)):
+    _c, uid, _e = await _gate(authorization, token)
+    return await _run(svc.list_reminder_rules(uid))
+
+
+@router.post("/reminder-rules")
+async def reminder_rule_create(body: dict = Body(...), authorization: str | None = Header(None)):
+    _c, uid, _e = await _gate(authorization, str(body.get("token", "")))
+    return await _run(svc.create_reminder_rule(uid, body))
+
+
+@router.patch("/reminder-rules/{rid}")
+async def reminder_rule_update(rid: int, body: dict = Body(...), authorization: str | None = Header(None)):
+    _c, uid, _e = await _gate(authorization, str(body.get("token", "")))
+    return await _run(svc.update_reminder_rule(uid, rid, body))
+
+
+@router.delete("/reminder-rules/{rid}")
+async def reminder_rule_delete(rid: int, token: str = "", authorization: str | None = Header(None)):
+    _c, uid, _e = await _gate(authorization, token)
+    return await _run(svc.delete_reminder_rule(uid, rid))
 
 
 @router.post("/reminders/{rid}/act")

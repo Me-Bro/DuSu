@@ -180,6 +180,28 @@ class PlReminder(Base):
     created_at: Mapped[dt.datetime] = mapped_column(TS, default=_now)
 
 
+class PlReminderRule(Base):
+    """A reminder that REPEATS: "Gym at 7:00 on Mon and Tue", set once, then it rings on every one of those days until the learner pauses or deletes it.
+    The rule is the thing that lasts; the reminders that actually ring are ordinary `pl_reminders` rows (entity_type 'custom', kind 'recurring',
+    entity_id = this rule's id) that the materializer makes a day ahead - the same pattern habits use, so a restart or a deploy loses nothing.
+    A brand-new table: `create_all` adds it, no existing table is altered."""
+    __tablename__ = "pl_reminder_rules"
+    __table_args__ = (
+        Index("uq_pl_rrules_client", "user_id", "client_key", unique=True, postgresql_where=text("client_key IS NOT NULL")),
+        Index("ix_pl_rrules_user_status", "user_id", "status"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    client_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    title: Mapped[str] = mapped_column(String(160), default="")
+    time: Mapped[str] = mapped_column(String(5), default="09:00")             # the learner's wall clock, 'HH:MM'
+    days: Mapped[list | str] = mapped_column(JSONB, default="daily")          # 'daily' | [0..6] (Mon = 0), same shape as a habit's days
+    status: Mapped[str] = mapped_column(String(10), default="active")         # active | paused
+    tz: Mapped[str] = mapped_column(String(64), default="Asia/Kolkata")
+    created_at: Mapped[dt.datetime] = mapped_column(TS, default=_now)
+    updated_at: Mapped[dt.datetime] = mapped_column(TS, default=_now)
+
+
 class PlPushSub(Base):
     __tablename__ = "pl_push_subs"
     __table_args__ = (Index("uq_pl_push_endpoint", "endpoint", unique=True),)
@@ -206,4 +228,4 @@ class PlEvent(Base):
     meta: Mapped[dict] = mapped_column(JSONB, default=dict)
 
 
-PL_TABLES = (PlPrefs, PlGoal, PlMilestone, PlTask, PlHabit, PlHabitLog, PlReminder, PlPushSub, PlEvent)
+PL_TABLES = (PlPrefs, PlGoal, PlMilestone, PlTask, PlHabit, PlHabitLog, PlReminder, PlReminderRule, PlPushSub, PlEvent)

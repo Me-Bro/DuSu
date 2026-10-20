@@ -18,3 +18,7 @@ py-vapid==1.9.2
 http-ece==1.2.1
 six==1.17.0
 tzdata==2026.5
+
+# Resume Interview (DUSU_RESUME_INTERVIEW_PLAN.md): PDF text extraction, run only inside the sandboxed child process (extract_child.py).
+# Pure Python, no required dependencies; uses the pinned cryptography for AES-encrypted PDFs.
+pypdf==6.20.1

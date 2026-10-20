@@ -145,8 +145,13 @@ def _trim_to_last_sentence(text: str) -> str:
 # amount of waiting fixes a bad key or a shut-down endpoint. Retrying these on the
 # 90s rate-limit schedule burns a real round-trip on every fallback (measured: dead
 # Gemini 0.69s, retired GitHub Models 1.30s) against a sub-second turn-latency goal.
-_DEAD_MARKERS = ("401", "403", "404", "410", "invalid authentication",
-                 "invalid api key", "unauthorized", "retirement", "brownout")
+_DEAD_CODES = re.compile(r"(?<![\w.])(?:401|403|404|410)(?!\w|\.\d)")      # an HTTP status as its own token ...
+_DEAD_WORDS = ("invalid authentication", "invalid api key", "unauthorized", "retirement", "brownout")
+_RATE_WORDS = ("rate limit", "rate_limit", "tokens per minute", "too many requests")
+_RATE_CODE = re.compile(r"(?<![\w.])429(?!\w|\.\d)")                  # 429 as its own token - like the dead codes above, not a digit run inside an id
+# ... NOT a digit run inside a number: a Groq rate-limit message such as "Limit 8000, Used 4041, Requested 4500" contains "404" as a SUBSTRING, which
+# used to put the whole provider on a 6-hour cooldown for every user (the cooldown map is keyed by provider name only). A message that reads as a
+# rate limit is always the short, rate-limit kind of cooldown.
 
 
 def cooling_down() -> list[str]:
@@ -159,7 +164,8 @@ def _mark_cooldown(name: str, err: str) -> None:
     """A rate-limited/exhausted provider is skipped for a while so we don't
     waste a failing round-trip on it every single turn."""
     low = err.lower()
-    if any(k in low for k in _DEAD_MARKERS):
+    rate_limited = any(k in low for k in _RATE_WORDS) or _RATE_CODE.search(low) is not None
+    if not rate_limited and (_DEAD_CODES.search(low) or any(k in low for k in _DEAD_WORDS)):
         _cooldown[name] = time.time() + 21600        # 6h — misconfigured/retired, not busy
         return
     daily = any(k in low for k in ("day", "quota", "free_tier", "free-models"))
@@ -167,7 +173,7 @@ def _mark_cooldown(name: str, err: str) -> None:
 
 
 async def _complete(messages: list[dict], max_tokens: int, prefer_fast: bool = False,
-                    temperature: float = 0.7) -> str:
+                    temperature: float = 0.7, first: str | None = None, cool: bool = True) -> str:
     """Walk the provider chain → each provider's models → until one answers.
     Skips providers on cooldown; if every provider is cooling down, tries them
     anyway rather than failing.
@@ -178,6 +184,10 @@ async def _complete(messages: list[dict], max_tokens: int, prefer_fast: bool = F
     assessments) keep the default gemini-first order, where quality-per-call
     matters more than shaving latency (DUSU_SPEAKER_PROGRESSION_PLAN.md §9/§18).
 
+    `first` (Grammar Coach): move that provider to the front of the chain when it is in it (ignored otherwise); default None = unchanged.
+    `cool=False` (Grammar Coach): a rate-limit on THIS call does not mark the process-global provider cooldown - the cooldown map is keyed by
+    provider name only, so a background grammar call must never cool Groq for everyone's chat. Default True = unchanged.
+
     `temperature` defaults to the conversational 0.7 every existing caller relies on.
     SCORING callers (Practice Room) pass a low value: measured on the same speech,
     0.7 moved a weak talk's overall score by up to 15 points between runs, 0.2 by
@@ -186,6 +196,8 @@ async def _complete(messages: list[dict], max_tokens: int, prefer_fast: bool = F
     chain = _active_chain.get() or settings.providers()   # Office keys if set, else default
     if prefer_fast:
         chain = sorted(chain, key=lambda p: 0 if p["name"] == "groq" else 1)
+    if first:
+        chain = sorted(chain, key=lambda p: 0 if p["name"] == first else 1)          # stable: the rest keep their order
     # Hard ceiling on the WHOLE walk. Each attempt is capped at _REQUEST_TIMEOUT_S, but
     # the chain can hold 6+ model attempts across two passes — when everything is down
     # that stacked up to ~2 minutes of the user staring at "DuSu is getting ready".
@@ -228,7 +240,8 @@ async def _complete(messages: list[dict], max_tokens: int, prefer_fast: bool = F
                     last_err = e
                     s = str(e)
                     if any(k in s.lower() for k in ("429", "rate", "quota", "exceed", "exhaust")):
-                        _mark_cooldown(p["name"], s)  # whole provider limited
+                        if cool:
+                            _mark_cooldown(p["name"], s)  # whole provider limited
                         break                          # skip its other models
                     continue                           # other error → next model
         if attempted:
@@ -416,13 +429,13 @@ class OpenRouterLLM:
         return await _complete(messages, max_tokens=max_tokens)
 
     async def assess(self, system: str, payload: str, max_tokens: int = 700, prefer_fast: bool = False,
-                     temperature: float = 0.7) -> dict:
+                     temperature: float = 0.7, first: str | None = None, cool: bool = True) -> dict:
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": payload + "\n\nReturn ONLY the JSON object."},
         ]
         return _extract_json(await _complete(messages, max_tokens=max_tokens, prefer_fast=prefer_fast,
-                                             temperature=temperature))
+                                             temperature=temperature, first=first, cool=cool))
 
     async def score(self, system: str, transcript: list[dict], max_tokens: int = 1200) -> dict:
         convo = "\n".join(f"{m['role']}: {m['content']}" for m in transcript)

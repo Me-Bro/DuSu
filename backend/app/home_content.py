@@ -72,6 +72,26 @@ FEATURES: list[dict] = [
      "hi": {"title": "Practice Room",
             "desc": "Presentation की rehearsal करो - record करो, score और specific feedback पाओ, खुद को सुनो और फिर से try करो।",
             "best": "किसके लिए: जब कोई presentation या talk आने वाला हो।"}},
+    # Job Interview Practice (DUSU_RESUME_INTERVIEW_PLAN.md): a mock interview built from the learner's OWN resume and a job description. Named for what differs from
+    # "Interview Prep" (the generic HR mock above). Exists only for learners who have the `resume_interview` switch; hidden (not "coming soon") otherwise.
+    {"id": "resume_interview", "icon": "📄", "route": "/resume-interview", "status": "live", "needs": "resume_interview", "group": "main",
+     "en": {"title": "Job Interview Practice",
+            "desc": "Upload your resume and a job description. DuSu shows where they do not match and how to fix your resume, then interviews you for that exact job: you record each answer, hear yourself back and get your mistakes after every question.",
+            "best": "Best for: a real interview coming up for a specific job.",
+            "say": "a mock interview built from the learner's own resume and a job description (not the general HR mock): the learner records each answer, hears it back and gets feedback on their mistakes after every question"},
+     "hi": {"title": "Job Interview Practice",
+            "desc": "अपना resume और job description upload करो। DuSu बताती है कि दोनों में क्या मेल नहीं खाता और resume कैसे बेहतर करें, फिर उसी job का interview लेती है - हर answer record करो, खुद को सुनो और हर सवाल के बाद अपनी mistakes पर feedback पाओ।",
+            "best": "किसके लिए: किसी खास job के असली interview की तैयारी।"}},
+    # Grammar Coach (the approved Grammar Coach plan): every English sentence checked, corrected and explained, in its own section. Exists only for
+    # learners who have the `grammar_coach` switch; hidden (not "coming soon") otherwise.
+    {"id": "grammar_coach", "icon": "✍️", "route": "/grammar", "status": "live", "needs": "grammar_coach", "group": "main",
+     "en": {"title": "Grammar Coach",
+            "desc": "After you speak English, DuSu checks every sentence and shows what to fix, the corrected sentence, why, and how Hindi speakers often slip - with short drills built from your own mistakes.",
+            "best": "Best for: speaking English with fewer mistakes and more confidence.",
+            "say": "checks every English sentence the learner spoke in Face-to-Face, Interview Prep, Practice or Job Interview Practice and shows the mistakes, the corrected sentence, the rule and short drills (not a chat feature; it never corrects during a talk)"},
+     "hi": {"title": "Grammar Coach",
+            "desc": "English बोलने के बाद DuSu हर sentence check करती है और बताती है कि क्या सुधारना है, सही sentence क्या होगा, क्यों, और Hindi बोलने वाले अक्सर कहाँ चूकते हैं - साथ में तुम्हारी अपनी mistakes से बने छोटे drills।",
+            "best": "किसके लिए: कम mistakes और ज़्यादा confidence के साथ English बोलना।"}},
     {"id": "career_path", "icon": "🧭", "route": "/career-path", "status": "live", "needs": None, "group": "more",
      "en": {"title": "Career Path",
             "desc": "Tell DuSu what you want to become and she builds a step-by-step roadmap of stages and skills.",

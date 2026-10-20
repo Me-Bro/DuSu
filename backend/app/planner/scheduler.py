@@ -142,6 +142,16 @@ async def _entity_check(s, r: PlReminder, p: PlPrefs, now: dt.datetime) -> tuple
         if log is not None and (log.state == "skipped" or log.count >= h.target_count):
             return False, "met"
         return True, ""
+    if svc.is_rule_occurrence(r):
+        # one ring of a repeating reminder: the rule must still exist, still be running, and still ring on THIS day at THIS time (it may have been
+        # edited, paused or deleted after this ring was made - a ring the learner changed their mind about must not go off)
+        rule = await s.get(svc.PlReminderRule, r.entity_id) if r.entity_id else None
+        meta = r.meta if isinstance(r.meta, dict) else {}
+        day = tu.parse_date(meta.get("day"))
+        if (rule is None or rule.user_id != r.user_id or rule.status != "active" or day is None
+                or not rules.days_scheduled(rule.days, day) or meta.get("time") != rule.time):
+            return False, "gone"
+        return True, ""
     return True, ""
 
 

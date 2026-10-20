@@ -108,6 +108,7 @@ if db_enabled:
     _engine = create_async_engine(
         _normalize_url(settings.database_url),
         pool_pre_ping=True,
+        hide_parameters=True,      # an exception's text must never carry the bound values (a resume, an answer): error TEXT only, no behaviour change
         connect_args={"ssl": True} if settings.database_ssl else {},
     )
     _Session = async_sessionmaker(_engine, expire_on_commit=False)
@@ -650,7 +651,8 @@ _MODE_BONUS = {"daily": 10, "conversation": 15, "interview": 25,   # §2.1 ("con
                # Practice Room kinds (plan §6). An UNKNOWN mode is silently logged as
                # "conversation" below, which would count a rehearsal toward the Face-to-Face
                # achievements — so every kind the Practice Room can send must be listed here.
-               "presentation": 25, "viva": 25, "speech": 20, "seminar": 20, "discussion": 15, "custom": 15}
+               "presentation": 25, "viva": 25, "speech": 20, "seminar": 20, "discussion": 15, "custom": 15,
+               "resume_interview": 25}      # Resume Interview (DUSU_RESUME_INTERVIEW_PLAN.md): an unlisted mode is silently logged as "conversation"
 _SESSION_XP_CAP = 300     # §2.1 anti-gaming cap
 _DAILY_XP_CAP = 600       # §2.1 anti-gaming cap
 _STREAK_MIN_MINUTES = 3   # §4 streak-qualifying floor
@@ -2332,6 +2334,10 @@ async def admin_wipe_users(keep_emails: set[str]) -> int:
             return 0
         from .planner import service as _pl         # My Day's rows reference users: they go first (a forgotten table = orphaned personal data)
         await _pl.delete_rows(s, del_ids)
+        from .resume_interview import service as _ri  # Resume Interview: resumes, job texts, answer transcripts - personal data, same rule
+        await _ri.delete_rows(s, del_ids)
+        from .grammar import service as _gc            # Grammar Coach: the sentences a learner needed to fix - personal data, same rule
+        await _gc.delete_rows(s, del_ids)
         for tbl in (Conversation, Memory, Progress, Profile, UserKey, Feedback, UsageDaily,
                     SessionScore, WeeklyStat, SeasonAward, PracticeAttempt):
             await s.execute(delete(tbl).where(tbl.user_id.in_(del_ids)))
@@ -2351,6 +2357,10 @@ async def delete_user(user_id: str) -> bool:
     async with _Session() as s:               # type: ignore[misc]
         from .planner import service as _pl
         await _pl.delete_rows(s, [user_id])
+        from .resume_interview import service as _ri
+        await _ri.delete_rows(s, [user_id])
+        from .grammar import service as _gc
+        await _gc.delete_rows(s, [user_id])
         for tbl in (Conversation, Memory, Progress, Profile, UserKey, Feedback, UsageDaily,
                     SessionScore, WeeklyStat, SeasonAward, PracticeAttempt):
             await s.execute(delete(tbl).where(tbl.user_id == user_id))
@@ -2654,8 +2664,13 @@ async def save_practice_attempt(user_id: str, data: dict) -> dict:
         if old:
             await s.execute(delete(PracticeAttempt).where(PracticeAttempt.id.in_(old)))
         await s.commit()
-        return {"id": row.id, "attempt_no": attempt_no, "parent_id": parent_id, "via": via,
-                "created_at": row.created_at.isoformat() if row.created_at else None}
+        out = {"id": row.id, "attempt_no": attempt_no, "parent_id": parent_id, "via": via,
+               "created_at": row.created_at.isoformat() if row.created_at else None}
+    if old:                                                # pruned attempts take their Grammar Coach sessions with them
+        from .grammar import service as _gc
+        for oid in old:
+            await _gc.delete_by_ref(user_id, f"pa:{int(oid)}")
+    return out
 
 
 async def list_practice_attempts(user_id: str, limit: int = 30) -> list[dict]:
@@ -2689,7 +2704,9 @@ async def delete_practice_attempt(user_id: str, attempt_id: int) -> bool:
                         .values(parent_id=None))          # don't leave children pointing at a deleted parent
         await s.delete(r)
         await s.commit()
-        return True
+    from .grammar import service as _gc                   # the Grammar Coach session made from this attempt (and its sentences) goes with it
+    await _gc.delete_by_ref(user_id, f"pa:{int(attempt_id)}")
+    return True
 
 
 async def mark_practice_invite(user_id: str, attempt_id: int, state: str) -> None:

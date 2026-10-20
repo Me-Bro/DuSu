@@ -12,7 +12,7 @@ import re
 from . import timeutil as tu
 
 LIMITS = {"goals": 10, "tasks": 500, "habits": 30, "creates_per_day": 100, "push_devices": 5, "reschedules": 20,
-          "pins_per_day": 3, "list": 100, "milestones": 12, "reminders_per_hour": 20, "custom_reminders": 50}
+          "pins_per_day": 3, "list": 100, "milestones": 12, "reminders_per_hour": 20, "custom_reminders": 50, "reminder_rules": 30}
 DUE_SOON_HOURS = 3
 DEFAULT_TASK_MINUTES = 25
 PRIORITIES = (1, 2, 3)                         # 1 low · 2 normal · 3 high
@@ -136,6 +136,52 @@ def habit_scheduled(schedule: dict, start: dt.date | None, end: dt.date | None, 
         return False
     days = (schedule or {}).get("days", "daily")
     return True if days == "daily" else day.weekday() in days
+
+
+# ----------------------------------------------------------------------------- repeating reminders
+def clean_days(v) -> list | str | None:
+    """The weekdays of a repeating reminder -> 'daily' (also when all seven are picked) | a sorted list of 0..6 (Mon = 0; ints or digit strings,
+    duplicates dropped) | None when nothing usable was picked (the caller answers 'pick at least one day')."""
+    if v == "daily":
+        return "daily"
+    if isinstance(v, (list, tuple)):
+        ds = sorted({int(x) for x in v if isinstance(x, (int, str)) and len(str(x)) <= 2 and str(x).isdigit() and 0 <= int(x) <= 6})
+        if not ds:
+            return None
+        return "daily" if len(ds) == 7 else ds
+    return None
+
+
+def days_scheduled(days, day: dt.date) -> bool:
+    """Does a repeating reminder ring on this (local) date? A corrupt value never rings."""
+    if days == "daily":
+        return True
+    return isinstance(days, list) and day.weekday() in days
+
+
+def days_text(days, lang: str = "en") -> str:
+    """'Every day' / 'Mon, Tue' - for DuSu's context and notifications (the client words it from its own table)."""
+    hi = lang == "hi"
+    if days == "daily":
+        return "हर दिन" if hi else "Every day"
+    names = ("सोम", "मंगल", "बुध", "गुरु", "शुक्र", "शनि", "रवि") if hi else ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+    return ", ".join(names[i] for i in days if isinstance(i, int) and 0 <= i <= 6) if isinstance(days, list) else ""
+
+
+def next_rule_fire(days, t: dt.time | None, tz, now: dt.datetime) -> dt.datetime | None:
+    """The next moment (UTC) a repeating reminder rings: the first selected day - today included - whose time is still ahead. None for an unusable
+    rule. Looks at most nine days out, which covers any weekly pattern."""
+    if t is None or not (days == "daily" or (isinstance(days, list) and days)):
+        return None
+    today = tu.local_today(tz, now)
+    for off in range(9):
+        d = today + dt.timedelta(days=off)
+        if not days_scheduled(days, d):
+            continue
+        fire = tu.to_utc(d, t, tz)
+        if fire >= now:
+            return fire
+    return None
 
 
 def day_value(count: int, target: int, partial_ok: bool, state: str) -> float | None:

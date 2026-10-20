@@ -1,5 +1,9 @@
 # DuSu — Brand & Marketing Plan (Rana Brothers)
 
+> **The day-by-day execution of this plan (200 days, 4 assets a day, the AI Master Brief and the
+> case study) lives in [`DUSU_MARKETING_200_DAYS.md`](DUSU_MARKETING_200_DAYS.md).** This file stays
+> the brand rules and the channel/launch decisions.
+>
 > **Status:** branding implemented in the product on 2026-09-30. Marketing execution is the
 > owner's to run. This doc is the decision record + the playbook.
 >
