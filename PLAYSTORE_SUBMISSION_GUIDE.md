@@ -4,6 +4,8 @@ Fill-in-the-blanks reference for uploading DuSu to Google Play. Every answer bel
 
 ---
 
+> **Update 2026-10-20 - version 1.1 adds notifications.** (1) Play Console -> Data safety: add **Device or other IDs** (the push address of the learner's phone), collected, purpose *App functionality*, optional (the learner turns notifications on), deletable with the account (`/account-deletion`). Notification history (kind, time, text, opened or not) is also stored - it fits the same "App activity" answer you already gave. (2) The **App signing key certificate** step in section 1a is now doubly important: without it the Play build shows the browser bar AND Chrome keeps the notifications for itself (delegation needs the verified link). (3) Release notes (en-IN): "Practice reminders at the time you choose - only on days you haven't practised, and a note when your weekly letter is ready. Turn them on or off in More -> Notifications. Fixes the browser bar on some phones." (4) The 4-hour reminder of 1.0 is removed; the new `versionCode` is 2 - use `max(Play's highest versionCode) + 1` if 2 is already taken.
+
 ## 0. Facts you'll be asked for repeatedly
 
 | Field | Value |

@@ -29,3 +29,11 @@ tests/resume_interview/.e2e/
 tests/grammar/.e2e/
 tests/grammar/.mut/
 tests/grammar/.orig.html
+
+# Notifications test scratch
+tests/notify/.mutants/
+tests/notify/.e2e/
+tests/notify/.orig.html
+
+# Play upload bundles / release APKs built locally (the upload key signs them; never commit)
+*.aab

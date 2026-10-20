@@ -46,6 +46,8 @@ from .resume_interview import models as _ri_models  # noqa: F401  (registers the
 from .resume_interview import api as ri_api, life_lines as ri_life
 from .grammar import models as _gc_models  # noqa: F401  (registers the gc_* tables on db.Base before init_db runs)
 from .grammar import api as gc_api, tracker as gc_tracker, gating as gc_gating
+from .notify import models as _nt_models  # noqa: F401  (registers the nt_* tables on db.Base before init_db runs)
+from .notify import api as notify_api, scheduler as notify_scheduler
 
 app = FastAPI(title="DuSu")
 app.include_router(planner_api.router)      # My Day: /planner/* (404 while the `planner` switch is off for the account)
@@ -53,6 +55,7 @@ planner_life.register()                      # DuSu reads the plan through the "
 app.include_router(ri_api.router)           # Resume Interview: /rinterview/* (404 while the `resume_interview` switch is off for the account)
 ri_life.register()                           # ... and reads the learner's interview scores the same way
 app.include_router(gc_api.router)           # Grammar Coach: /gcoach/* (404 while the `grammar_coach` switch is off for the account)
+app.include_router(notify_api.router)       # Notifications: /notify/* (404 while the `notifications` switch is off for the account)
 
 # --- Roles ---
 # Only the owner rides the app's own keys (the ones in .env). EVERY other account —
@@ -336,6 +339,25 @@ async def grammar_coach_enabled(email: str) -> bool:
     return False
 
 
+async def notifications_mode() -> str:
+    """Notifications rollout switch (Settings table, no migration). It sends personal nudges to people's phones, so it ships DARK: 'off' = nobody, the
+    endpoints answer 404 and the loop idles (the DEFAULT); 'owner' = the owner / unlimited allowlist plus the early-access testers; 'on' = everyone."""
+    try:
+        v = await _cached("notifications", lambda: db.get_setting("notifications", "off"))
+        return v if v in ("off", "owner", "on") else "off"
+    except Exception:
+        return "off"
+
+
+async def notifications_enabled(email: str) -> bool:
+    m = await notifications_mode()
+    if m == "on":
+        return True
+    if m == "owner":
+        return await staged_visible(email)
+    return False
+
+
 # Profile seeded for accounts that skip the level check (see level_test_on).
 SKIPPED_TEST_PROFILE = {"goal": "", "comfort": "", "practice_time": "10",
                         "level": "A1", "scores": {}, "weak_areas": []}
@@ -498,6 +520,8 @@ async def _startup():
     if db.db_enabled:
         # My Day's reminder engine: one loop in this process, Postgres as the queue. It idles while the `planner` switch is off.
         app.state.planner_task = asyncio.create_task(planner_scheduler.run_forever(planner_mode, planner_enabled))
+        # Notifications' engine: a SEPARATE loop (a bug there can never stop a reminder). It idles while the `notifications` switch is off.
+        app.state.notify_task = asyncio.create_task(notify_scheduler.run_forever(notifications_mode, notifications_enabled))
 
 _BACKEND = Path(__file__).resolve().parent.parent
 _CLIENT_HTML = _BACKEND / "test_client.html"
@@ -791,6 +815,7 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
               "planner": _planner,                  # My Day (DUSU_GOALS_PLAN.md): the client draws its entry points only when true
               "resume_interview": _ri, "ri_server_stt": _ri_stt,   # Resume Interview (DUSU_RESUME_INTERVIEW_PLAN.md)
               "grammar_coach": _gc,
+              "notifications": await notifications_enabled(email),     # the client draws its notification settings / prompt only when true
               "level_test": await level_test_on(),
               # The public name this user appears as on the leaderboard / league.
               # Boards are alias-only for privacy (§18), so without this the user
@@ -1224,8 +1249,12 @@ async def admin_overview(token: str = "", authorization: str | None = Header(Non
            "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode(),
            "life_context": await life_context_mode(), "bilingual": await bilingual_mode(),
            "home_ai": await home_ai_mode(), "planner": await planner_mode(), "resume_interview": await resume_interview_mode(),
-           "grammar_coach": await grammar_coach_mode()}
+           "grammar_coach": await grammar_coach_mode(), "notifications": await notifications_mode()}
     if db.db_enabled:
+        try:
+            out["notify_health"] = await notify_scheduler.health()
+        except Exception as e:
+            print(f"[admin] notify health failed: {type(e).__name__}")
         try:
             from .grammar import service as gc_service
             out["grammar_coach_health"] = await gc_service.health()
@@ -1279,6 +1308,7 @@ class SettingsIn(BaseModel):
     planner: str | None = None            # off | owner | on  (My Day - tasks, habits, goals, reminders; DUSU_GOALS_PLAN.md)
     resume_interview: str | None = None   # off | owner | on  (Resume Interview - resume + job description -> recorded mock interview; DUSU_RESUME_INTERVIEW_PLAN.md)
     grammar_coach: str | None = None      # off | owner | on  (Grammar Coach - every English sentence checked, corrected and explained)
+    notifications: str | None = None      # off | owner | on  (Notifications - personal practice / streak / weekly-note nudges as push)
 
 
 @app.post("/admin/settings")
@@ -1307,12 +1337,14 @@ async def admin_settings(inp: SettingsIn, authorization: str | None = Header(Non
         await db.set_setting("resume_interview", inp.resume_interview if inp.resume_interview in ("off", "owner", "on") else "off")
     if inp.grammar_coach is not None:
         await db.set_setting("grammar_coach", inp.grammar_coach if inp.grammar_coach in ("off", "owner", "on") else "off")
+    if inp.notifications is not None:
+        await db.set_setting("notifications", inp.notifications if inp.notifications in ("off", "owner", "on") else "off")
     invalidate_access_cache()
     return {"access_phase": await access_phase(), "level_test": await level_test_on(),
             "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode(),
             "life_context": await life_context_mode(), "bilingual": await bilingual_mode(),
             "home_ai": await home_ai_mode(), "planner": await planner_mode(), "resume_interview": await resume_interview_mode(),
-            "grammar_coach": await grammar_coach_mode()}
+            "grammar_coach": await grammar_coach_mode(), "notifications": await notifications_mode()}
 
 
 class WipeIn(BaseModel):

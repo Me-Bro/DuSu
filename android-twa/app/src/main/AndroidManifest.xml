@@ -4,7 +4,6 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Android 11+ package visibility: needed to bind to Chrome's Custom Tabs service -->
     <queries>
@@ -29,7 +28,7 @@
             android:resource="@string/asset_statements" />
 
         <!-- Entry point: checks connectivity, shows an offline screen if needed, then
-             launches the TWA. Also (re)schedules the 4-hour reminder. -->
+             launches the TWA. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -76,14 +75,31 @@
             </intent-filter>
         </activity>
 
-        <!-- 4-hourly reminder alarm receiver -->
-        <receiver android:name=".ReminderReceiver" android:exported="false" />
-
-        <!-- Re-arm the alarm after reboot -->
-        <receiver android:name=".BootReceiver" android:exported="true">
+        <!-- Notification delegation: Chrome hands the site's web-push notifications to THIS app, so they appear
+             as DuSu notifications (DuSu icon, DuSu's Android notification permission and settings page) instead of
+             "Chrome". It only works while the site is verified for this app (assetlinks.json), which is also what
+             removes the browser bar. TwaLauncher (used by MainActivity) stores the token this service checks. -->
+        <service
+            android:name="com.google.androidbrowserhelper.trusted.DelegationService"
+            android:enabled="true"
+            android:exported="true">
+            <meta-data
+                android:name="android.support.customtabs.trusted.SMALL_ICON"
+                android:resource="@drawable/ic_notification_icon" />
+            <!-- reminders should pop up as a banner, not wait silently in the shade -->
+            <meta-data
+                android:name="androidx.browser.trusted.USE_HIGH_PRI_NOTIFICATIONS"
+                android:value="true" />
             <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.support.customtabs.trusted.TRUSTED_WEB_ACTIVITY_SERVICE" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
-        </receiver>
+        </service>
+
+        <!-- Brings the TWA back to the front when a notification is tapped -->
+        <activity android:name="com.google.androidbrowserhelper.trusted.FocusActivity" />
+
+        <!-- Shows Android 13+'s notification permission dialog when the web page asks for it -->
+        <activity android:name="com.google.androidbrowserhelper.trusted.NotificationPermissionRequestActivity" />
     </application>
 </manifest>

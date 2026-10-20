@@ -1874,6 +1874,50 @@
     #report, #journey{ max-width:1080px; }
   }
 
+  /* ===================== NOTIFICATIONS (backend/app/notify) =====================
+     nt-* on purpose: this file's class names are GLOBAL and unscoped. The sheet is its own element (not .msheet): the More sheet's desktop layer
+     turns .msheet into a two-column grid, which this single-column form must not inherit. */
+  .nt-bg{ position:fixed; inset:0; background:rgba(0,0,0,.5); opacity:0; pointer-events:none; transition:.25s; z-index:80; }
+  .nt-bg.on{ opacity:1; pointer-events:auto; }
+  .nt-sheet{ position:fixed; left:50%; bottom:0; transform:translate(-50%,110%); width:100%; max-width:440px; z-index:81; visibility:hidden;
+    background:#0c1120; border:1px solid var(--glass-brd); border-radius:24px 24px 0 0; padding:14px 18px calc(22px + env(safe-area-inset-bottom));
+    max-height:calc(100vh - 56px); max-height:calc(100dvh - 56px); overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;   /* 56px kept free at the top for the toast */
+    transition:transform .3s cubic-bezier(.2,.7,.2,1), visibility 0s linear .3s; }
+  .nt-sheet.on{ transform:translate(-50%,0); visibility:visible; transition-delay:0s; }
+  .nt-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:2px 0 8px; }
+  .nt-head h3{ font-family:var(--font-d); font-size:20px; margin:0; outline:none; }
+  .nt-x{ min-width:44px; min-height:44px; border-radius:12px; border:1px solid var(--glass-brd); background:var(--glass); color:var(--ink-dim); font:inherit; font-size:16px; cursor:pointer; }
+  .nt-status{ margin:0 0 12px; padding:10px 12px; border-radius:12px; font-size:13.5px; line-height:1.45; background:var(--glass); border:1px solid var(--glass-brd); color:var(--ink-dim); }
+  .nt-status.on{ color:#bff0cf; border-color:rgba(120,210,150,.4); background:rgba(120,210,150,.08); }
+  .nt-status.denied, .nt-status.unsupported{ color:#f2c4ba; border-color:rgba(224,138,122,.4); background:rgba(224,138,122,.08); }
+  .nt-main{ width:100%; margin:2px 0 12px; min-height:48px; }
+  .nt-h4{ font-size:12.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-faint); margin:14px 2px 8px; font-weight:600; }
+  .nt-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:52px; padding:10px 12px; margin-bottom:8px; border-radius:14px;
+    background:var(--glass); border:1px solid var(--glass-brd); cursor:pointer; }
+  .nt-rt{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .nt-rt b{ font-weight:600; font-size:14.5px; }
+  .nt-rt small{ font-size:12px; color:var(--ink-faint); line-height:1.35; }
+  .nt-sw{ appearance:none; -webkit-appearance:none; flex:none; width:48px; height:28px; border-radius:999px; margin:0; position:relative; cursor:pointer;
+    background:rgba(255,255,255,.14); border:1px solid var(--glass-brd); transition:background .2s; }
+  .nt-sw::after{ content:""; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition:transform .2s; }
+  .nt-sw:checked{ background:var(--gold-dk); }
+  .nt-sw:checked::after{ transform:translateX(20px); }
+  .nt-sw:focus-visible, .nt-time:focus-visible, .nt-x:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:2px; }
+  .nt-time{ flex:none; font:inherit; font-size:16px; min-height:40px; padding:6px 10px; border-radius:10px; color:var(--ink); background:rgba(255,255,255,.06); border:1px solid var(--glass-brd); color-scheme:dark; }
+  .nt-note{ font-size:12px; line-height:1.5; color:var(--ink-faint); margin:10px 2px 0; }
+  .nt-acts{ display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 4px; }
+  .nt-acts .btn{ flex:1 1 150px; min-height:46px; }
+  .nt-prompt{ margin:6px 0 16px; padding:15px 16px; border-radius:var(--r); background:linear-gradient(135deg,rgba(111,140,255,.17),rgba(122,92,240,.10));
+    border:1px solid color-mix(in srgb,var(--gold) 45%,transparent); }
+  .nt-prompt b{ display:block; font-family:var(--font-d); font-size:18px; font-weight:600; }
+  .nt-prompt small{ display:block; font-size:12.5px; color:var(--ink-dim); margin-top:3px; line-height:1.45; }
+  @media (min-width:1200px){
+    .nt-sheet{ bottom:auto; top:50%; max-width:480px; border-radius:24px; padding:22px 24px 26px; max-height:min(90vh,820px); transform:translate(-50%,-46%) scale(.97); opacity:0;
+      transition:transform .28s cubic-bezier(.2,.7,.2,1), opacity .2s ease, visibility 0s linear .28s; }
+    .nt-sheet.on{ transform:translate(-50%,-50%) scale(1); opacity:1; }
+  }
+  @media (prefers-reduced-motion:reduce){ .nt-sheet, .nt-bg, .nt-sw, .nt-sw::after{ transition:none; } }
+
   /* ===================== PRACTICE ROOM (DUSU_PRACTICE_ROOM_PLAN.md) =====================
      Every class here is pr-* on purpose: this file's class names are GLOBAL and unscoped, and an
      unprefixed .rec once silently inherited the Companion Moment's overflow/animation rules. */
@@ -2664,6 +2708,7 @@
     <!-- Emotional layer: daily mood check-in, event greeting, weekly letter -->
     <div id="moodRow" class="mood-row" hidden></div>
     <div id="eventBanner" class="event-banner" hidden></div>
+    <div class="nt-prompt" id="ntPrompt" hidden></div>
     <button class="pr-entry" id="prHomeCard" hidden>
       <span class="pr-ic">🎤</span>
       <span><b>Presentation coming up?</b><small>Practise it today in Practice Room — get a scored report.</small></span>
@@ -3714,6 +3759,10 @@
   </section>
 </div>
 
+<!-- ===================== NOTIFICATIONS SETTINGS SHEET (the NT module paints #ntSheet with DOM calls only) ===================== -->
+<div class="nt-bg" id="ntBg"></div>
+<div class="nt-sheet" id="ntSheet" role="dialog" aria-modal="true" aria-labelledby="ntTitle" aria-hidden="true"></div>
+
 <!-- ===================== BOTTOM NAV + MORE SHEET ===================== -->
 <div class="msheet-bg" id="msheetBg"></div>
 <div class="msheet" id="msheet">
@@ -3721,6 +3770,7 @@
   <button class="mrow" data-more="admin" id="mrowAdmin" hidden><span class="mi">📊</span><span><span class="mt">Dashboard</span><br><span class="msub">Users &amp; activity (owner)</span></span></button>
   <button class="mrow" data-more="myday" id="mrowMyDay" hidden><span class="mi">✅</span><span><span class="mt">My Day</span><br><span class="msub">Tasks, habits, goals &amp; reminders</span></span></button>
   <button class="mrow" data-more="resume-interview" id="mrowRI" hidden><span class="mi">📄</span><span><span class="mt">Job Interview Practice</span><br><span class="msub">Your resume + a job → a mock interview</span></span></button>
+  <button class="mrow" data-more="notifications" id="mrowNT" hidden><span class="mi">🔔</span><span><span class="mt">Notifications</span><br><span class="msub">Practice reminders, your streak, your weekly note</span></span></button>
   <button class="mrow" data-more="grammar" id="mrowGC" hidden><span class="mi">✍️</span><span><span class="mt">Grammar Coach</span><br><span class="msub">Your English, sentence by sentence</span></span></button>
   <button class="mrow" data-more="profile"><span class="mi">👤</span><span><span class="mt">Profile</span><br><span class="msub">Streaks, badges, memories</span></span></button>
   <button class="mrow" data-more="keys"><span class="mi">🔑</span><span><span class="mt">DuSu keys / Mode</span><br><span class="msub">Personal or Office (own keys)</span></span></button>
@@ -4286,6 +4336,7 @@ function show(id, pathOverride){
   try{ window.PL && PL.syncEntries(); }catch(_){}   // My Day entry points (hidden until the owner switches it on)
   try{ window.RI && RI.syncEntries(); }catch(_){}   // Job Interview Practice entry points (hidden until the owner switches it on)
   try{ window.GC && GC.syncEntries(); }catch(_){}   // Grammar Coach entry points (hidden until the owner switches it on)
+  try{ window.NT && NT.syncEntries(); }catch(_){}   // Notifications: the Home prompt + the More row (hidden until the owner switches it on)
   if(cur === "gc" && id !== "gc"){ try{ window.GC && GC.leave(); }catch(_){} }
   if(cur === "pl" && id !== "pl"){ try{ window.PL && PL.leave(); }catch(_){} }
   if(cur === "ri" && id !== "ri"){ try{ window.RI && RI.leave(); }catch(_){} }   // stop the voice / keep an unfinished recording
@@ -4335,6 +4386,7 @@ function openMore(){
   try{ window.PL && PL.syncEntries(); }catch(_){}   // My Day row (hidden unless /me says planner)
   try{ window.RI && RI.syncEntries(); }catch(_){}   // Job Interview Practice row (hidden unless /me says resume_interview)
   try{ window.GC && GC.syncEntries(); }catch(_){}   // Grammar Coach row (hidden unless /me says grammar_coach)
+  try{ window.NT && NT.syncEntries(); }catch(_){}   // Notifications row (hidden unless /me says notifications)
   // Level check hidden entirely while the owner has the assessment switched off.
   const lt = $("mrowLevelTest"); if(lt) lt.hidden = !!(userState && userState.level_test === false);
   // Keys row: office-approved users, users who must BYOK, and anyone already holding
@@ -4355,6 +4407,7 @@ document.querySelectorAll(".mrow").forEach(r => r.onclick = () => {
   else if(a === "myday") navTo("/my-day");
   else if(a === "resume-interview") navTo("/resume-interview");
   else if(a === "grammar") navTo("/grammar");
+  else if(a === "notifications") NT.open();             // a sheet, not a route: nothing to guard or restore on reload
   else if(a === "achievements") navTo("/achievements");
   else if(a === "interview-reports") navTo("/interview-reports");
   else if(a === "rewards") toggleRewardsGuide(true);
@@ -4806,6 +4859,9 @@ async function openAdmin(){
       <label class="swrow"><span><b>Grammar Coach</b><br><span class="msub">After a session DuSu checks every English sentence and shows what to fix. It stores the sentences a learner needed to fix, so it ships dark. Off = nobody (default). Owner + early access = you and the early-access testers. Everyone = all users.</span></span>
       <select class="pr-sel" id="gcSel"><option value="off" ${d.grammar_coach === "on" || d.grammar_coach === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.grammar_coach === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.grammar_coach === "on" ? "selected" : ""}>Everyone</option></select></label>
       ${d.grammar_coach_health && typeof d.grammar_coach_health.sessions === "number" ? `<p class="keys-note" style="margin:-4px 0 8px">Grammar Coach: ${d.grammar_coach_health.sessions} session(s) · ${d.grammar_coach_health.partial} partial · ${d.grammar_coach_health.failed} failed${(d.grammar_coach_health.noisy || []).length ? " · noisiest rule: " + esc(d.grammar_coach_health.noisy[0].rule) + " (" + d.grammar_coach_health.noisy[0].contested + "/" + d.grammar_coach_health.noisy[0].shown + " contested)" : ""}</p>` : ""}
+      <label class="swrow"><span><b>Notifications</b><br><span class="msub">Personal nudges to a learner's phone: a daily practice reminder, a streak warning and a weekly-note announcement, chosen from their own progress. It stores each learner's notification choices and history, so it ships dark. Off = nobody (default). Owner + early access = you and the early-access testers. Everyone = all users (each still has to turn it on in the app).</span></span>
+      <select class="pr-sel" id="ntSel"><option value="off" ${d.notifications === "on" || d.notifications === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.notifications === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.notifications === "on" ? "selected" : ""}>Everyone</option></select></label>
+      ${d.notify_health && typeof d.notify_health.sent_24h === "number" ? `<p class="keys-note" style="margin:-4px 0 8px">Notifications (last 24 h): ${d.notify_health.sent_24h} sent · ${d.notify_health.accepted_24h} accepted by the push service · ${d.notify_health.received_24h} arrived on a phone · ${d.notify_health.opened_24h} opened · ${d.notify_health.cancelled_24h} cancelled (they practised first, quiet hours, ...) · ${d.notify_health.failed_24h} failed · ${d.notify_health.push_devices} device(s) for ${d.notify_health.learners_with_push} learner(s)</p>` : ""}
       ${d.resume_interview_health && typeof d.resume_interview_health.documents === "number" ? `<p class="keys-note" style="margin:-4px 0 8px">Job Interview Practice: ${d.resume_interview_health.documents} document(s) · ${d.resume_interview_health.sessions} interview(s), ${d.resume_interview_health.finished} finished · answers today ${d.resume_interview_health.answers_today} · feedback failed today ${d.resume_interview_health.feedback_failed_today}</p>` : ""}
       ${d.planner_health ? `<p class="keys-note" style="margin:-4px 0 8px">Reminders: ${d.planner_health.scheduled} waiting · ${d.planner_health.queue_late} late · ${d.planner_health.sending_stuck} stuck · sent in 24 h ${d.planner_health.sent_24h} (push accepted ${d.planner_health.push_accepted_24h}, failed ${d.planner_health.push_failed_24h}) · ${d.planner_health.push_devices} device(s) · push ${d.planner_health.push_available ? "available" : "UNAVAILABLE (library missing)"}${d.planner_health.last_error ? " · last loop error: " + esc(d.planner_health.last_error) : ""}</p>` : ""}
       <button class="uBtn bad" id="wipeBtn" style="width:100%;margin:2px 0 4px">🗑 Reset test users</button>`;
@@ -4925,9 +4981,10 @@ function wireOffice(){
     const pln = ($("plSel") && $("plSel").value) || undefined;
     const rin = ($("riSel") && $("riSel").value) || undefined;
     const gcs = ($("gcSel") && $("gcSel").value) || undefined;
+    const nts = ($("ntSel") && $("ntSel").value) || undefined;
     try{ await fetch("/admin/settings",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({token:authToken, access_phase: growth ? "growth" : "quota",
-                           level_test: lvl, owner_byok: obk, practice_room: prm, life_context: lcx, bilingual: bil, home_ai: hom, planner: pln, resume_interview: rin, grammar_coach: gcs})}); }catch(_){}
+                           level_test: lvl, owner_byok: obk, practice_room: prm, life_context: lcx, bilingual: bil, home_ai: hom, planner: pln, resume_interview: rin, grammar_coach: gcs, notifications: nts})}); }catch(_){}
   };
   if($("reqKeysSw")) $("reqKeysSw").onchange = saveSettings;
   if($("lvlTestSw")) $("lvlTestSw").onchange = saveSettings;
@@ -4939,6 +4996,7 @@ function wireOffice(){
   if($("plSel")) $("plSel").onchange = saveSettings;
   if($("riSel")) $("riSel").onchange = saveSettings;
   if($("gcSel")) $("gcSel").onchange = saveSettings;
+  if($("ntSel")) $("ntSel").onchange = saveSettings;
   if($("wipeBtn")) $("wipeBtn").onclick = async () => {
     if(!confirm("Delete ALL users except david, shuhani, free-access and early-access emails? This cannot be undone.")) return;
     try{ const r = await fetch("/admin/wipe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:authToken})});
@@ -7825,6 +7883,7 @@ function logout(){
   authToken = ""; authUser = null; aActive = false; try{ LG.clear(); }catch(_){}   // the language choice belongs to the account, not the device
   try{ window.PL && PL.reset(); }catch(_){}   // My Day: stop polling, drop the cached plan
   try{ window.GC && GC.reset(); }catch(_){}   // Grammar Coach: drop in-memory state (everything else lives on the server)
+  try{ window.NT && NT.reset(); }catch(_){}   // Notifications: close the sheet, drop the cached settings (the device stays subscribed - that is the phone's, not the account's)
   try{ window.RI && RI.reset(); }catch(_){}   // Job Interview Practice: stop the mic + voice, drop in-memory state (the on-device recordings are NOT wiped here)
   localStorage.removeItem("dusu_token"); localStorage.removeItem("dusu_user"); localStorage.removeItem("dusu_state"); localStorage.removeItem("dusu_letter"); localStorage.removeItem("dusu_daily_resume"); localStorage.removeItem("dusu_keys_ok"); localStorage.removeItem("dusu_office_keys"); localStorage.removeItem("dusu_keys_owner");
   $("hdrRight").hidden = true; $("tagline").style.display = "";
@@ -7908,6 +7967,7 @@ function refreshMe(initial){
       try{ if(window.PL){ PL.syncEntries(); if(PL.enabled()) PL.start(); } }catch(_){}   // My Day: entry points + the in-app reminder poll
       try{ window.RI && RI.syncEntries(); }catch(_){}   // Job Interview Practice: the owner may have just switched it on/off
       try{ window.GC && GC.syncEntries(); }catch(_){}   // Grammar Coach: likewise
+      try{ window.NT && NT.syncEntries(); }catch(_){}   // Notifications: likewise
       localStorage.setItem("dusu_onboarded", st.onboarded ? "true" : "false");
       // cache the whole state so the next boot paints mood/note/Continue instantly (no /me wait)
       try{ localStorage.setItem("dusu_state", JSON.stringify(st)); }catch(_){}
@@ -10303,6 +10363,247 @@ const PL = (function(){
 })();
 window.PL = PL;
 
+/* ================= NOTIFICATIONS - personal nudges (daily practice / streak / weekly note) as web push =================
+   The server decides WHAT to say and WHEN from the learner's own progress (backend/app/notify); this module is only the learner's side of it:
+     * one settings sheet (More -> Notifications, or the Home prompt): turn this phone on / off, pick which reminders and at what time, send a test;
+     * a soft prompt on Home - shown only after the learner's first practice, never on first launch, and not again for 14 days after "Not now";
+     * the tap beacon: a notification opens the app with ?n=<id> (or the service worker posts "nt-open" when the app is already open) and the id is reported back.
+   Subscribing is the standard Web Push flow. Inside the Android app Chrome hands the notification to the DuSu app (Trusted Web Activity notification
+   delegation), so the permission dialog and the notification itself belong to DuSu. The module builds its DOM with calls only - never innerHTML. */
+const NT = (function(){
+  "use strict";
+  const API = "/notify";
+  const LS_ASKED = "dusu_nt_asked";                 // when the Home prompt was last dismissed (ms since epoch)
+  const ASK_AGAIN_MS = 14 * 86400000;
+
+  /* ---------- words (Hindi = Devanagari with everyday English words in Latin; DuSu is "she"; the learner's gender is never assumed) ---------- */
+  const TXT = {
+    en: {
+      title:"Notifications", close:"Close",
+      promptT:"Want a reminder to practise?", promptB:"DuSu can remind you at {time} - only on days you haven't practised yet.", promptYes:"Turn on", promptNo:"Not now",
+      stOn:"On for this phone", stOff:"Off. DuSu can remind you to practise.", stDenied:"Blocked",
+      deniedApp:"Notifications are blocked for DuSu. Open your phone's Settings, then Apps, then DuSu, then Notifications, and allow them.",
+      deniedWeb:"Notifications are blocked for this site. Allow them in your browser's site settings, then come back.",
+      unsupported:"Notifications need Chrome, Edge or the DuSu app.",
+      turnOn:"Turn on notifications", turnOff:"Turn off on this phone", working:"Please wait...",
+      kindsH:"Remind me about", kPractice:"My daily practice", kPracticeS:"If I haven't practised yet today", kStreak:"My streak", kStreakS:"When a streak of 2+ days is about to end",
+      kWeekly:"My weekly note", kWeeklyS:"Sunday morning, when DuSu's note is ready",
+      timeH:"Remind me at", quiet:"No notifications between {a} and {b}.", hide:"Hide details on the lock screen", hideS:"The notification will only say you have a message from DuSu.",
+      test:"Send me a test notification", testSent:"Sent! It arrives in a few seconds. Close the app or lock the screen to see it.", testWait:"Please wait a few minutes before another test.",
+      testNoDevice:"Turn notifications on first.",
+      note:"Delivery depends on your phone: some phones stop notifications to save battery. The test button checks yours. At most one reminder a day, and none while you are asleep.",
+      errGeneric:"Something went wrong. Please try again.", onToast:"Notifications are on", offToast:"Notifications are off"
+    },
+    hi: {
+      title:"Notifications", close:"बंद करो",
+      promptT:"Practice का reminder चाहिए?", promptB:"DuSu तुम्हें {time} पर याद दिला सकती है - सिर्फ़ उन दिनों जब practice बाकी हो।", promptYes:"चालू करो", promptNo:"अभी नहीं",
+      stOn:"इस phone पर चालू है", stOff:"बंद है। DuSu तुम्हें practice याद दिला सकती है।", stDenied:"Block हैं",
+      deniedApp:"DuSu के notifications block हैं। Phone की Settings खोलो, फिर Apps, फिर DuSu, फिर Notifications में जाकर allow करो।",
+      deniedWeb:"इस site के notifications block हैं। Browser की site settings में allow करो, फिर वापस आओ।",
+      unsupported:"Notifications के लिए Chrome, Edge या DuSu app चाहिए।",
+      turnOn:"Notifications चालू करो", turnOff:"इस phone पर बंद करो", working:"रुको...",
+      kindsH:"किस बारे में याद दिलाना है", kPractice:"रोज़ की practice", kPracticeS:"अगर आज practice बाकी हो", kStreak:"मेरी streak", kStreakS:"जब 2+ दिन की streak टूटने वाली हो",
+      kWeekly:"Weekly note", kWeeklyS:"रविवार सुबह, जब DuSu का note तैयार हो",
+      timeH:"रोज़ किस समय", quiet:"{a} से {b} के बीच कोई notification नहीं।", hide:"Lock screen पर details छिपाओ", hideS:"Notification सिर्फ़ इतना बताएगा कि DuSu का एक message है।",
+      test:"मुझे test notification भेजो", testSent:"भेज दिया! कुछ seconds में आएगा। App बंद करो या screen lock करो, तब दिखेगा।", testWait:"दूसरे test से पहले कुछ मिनट रुको।",
+      testNoDevice:"पहले notifications चालू करो।",
+      note:"Delivery तुम्हारे phone पर निर्भर है: कुछ phones battery बचाने के लिए notifications रोक देते हैं। Test button तुम्हारा phone जाँच लेगा। दिन में ज़्यादा से ज़्यादा एक reminder, और रात को कोई नहीं।",
+      errGeneric:"कुछ गड़बड़ हो गई। फिर से कोशिश करो।", onToast:"Notifications चालू हैं", offToast:"Notifications बंद हैं"
+    }
+  };
+  const L = () => (typeof LG !== "undefined" && LG.on()) ? LG.cur() : "hi";
+  function t(k, v){
+    let s = (TXT[L()] || TXT.hi)[k]; if(s === undefined) s = TXT.en[k]; if(s === undefined) return k;
+    if(v) s = s.replace(/\{(\w+)\}/g, (_, x) => v[x] != null ? v[x] : "");
+    return s;
+  }
+
+  /* ---------- state ---------- */
+  let P = null;                 // the last GET /notify/prefs
+  let thisDevice = false;       // is THIS browser subscribed
+  let busy = false, tried = false, isOpen = false, lastFocus = null;
+  const enabled = () => !!(typeof userState !== "undefined" && userState && userState.notifications);
+  const supported = () => ("serviceWorker" in navigator) && ("PushManager" in window) && ("Notification" in window);
+  const inApp = () => { try{ return document.referrer.startsWith("android-app://") || matchMedia("(display-mode: standalone)").matches; }catch(_){ return false; } };
+  function pstate(){
+    if(!supported()) return "unsupported";
+    if(Notification.permission === "denied") return "denied";
+    return (thisDevice && Notification.permission === "granted") ? "on" : "off";
+  }
+  const toast = m => { try{ showNotif(m); }catch(_){} };
+  const b64 = s => { const p = "=".repeat((4 - s.length % 4) % 4); const r = atob((s + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from([...r].map(c => c.charCodeAt(0))); };
+  function fmtTime(hhmm){
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || "")); if(!m) return String(hhmm || "");
+    const H = +m[1]; return (H % 12 || 12) + ":" + m[2] + (H < 12 ? " am" : " pm");
+  }
+
+  /* ---------- a tiny DOM builder: text goes in as text, never as HTML ---------- */
+  function h(tag, a, ...kids){
+    const e = document.createElement(tag);
+    for(const k in (a || {})){
+      const v = a[k]; if(v == null || v === false) continue;
+      if(k === "text") e.textContent = v;
+      else if(k.slice(0, 2) === "on") e.addEventListener(k.slice(2), v);
+      else e.setAttribute(k, v === true ? "" : v);
+    }
+    for(const c of kids.flat()){ if(c == null || c === false) continue; e.append(c.nodeType ? c : document.createTextNode(String(c))); }
+    return e;
+  }
+
+  /* ---------- the server ---------- */
+  async function api(method, path, body){
+    const r = await fetch(API + path, { method, cache:"no-store", headers:{ "Content-Type":"application/json", "Authorization":"Bearer " + authToken }, body: body === undefined ? undefined : JSON.stringify(body) });
+    if(!r.ok){ const err = new Error("http " + r.status); err.status = r.status; try{ err.body = await r.json(); }catch(_){} throw err; }
+    return r.json();
+  }
+  async function refresh(){
+    try{ P = await api("GET", "/prefs"); }catch(e){ P = null; if(e.status === 401 || e.status === 404) return false; throw e; }
+    thisDevice = false;
+    try{ if(supported()){ const reg = await navigator.serviceWorker.ready; thisDevice = !!(await reg.pushManager.getSubscription()); } }catch(_){}
+    return true;
+  }
+  async function enable(){
+    if(busy) return; busy = true; paint();
+    try{
+      if(!supported()){ toast(t("unsupported")); return; }
+      let perm = Notification.permission;
+      if(perm === "default") perm = await Notification.requestPermission();         // inside the Android app this is the OS permission dialog
+      if(perm === "granted"){
+        const k = await api("GET", "/push/key");
+        if(!k.available){ toast(t("errGeneric")); return; }
+        const reg = await navigator.serviceWorker.ready;
+        let sub = await reg.pushManager.getSubscription();
+        if(!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:b64(k.key) });
+        await api("POST", "/push/subscribe", { subscription:sub.toJSON(), ua:(navigator.userAgent || "").slice(0, 150) });
+        await api("PATCH", "/prefs", { enabled:true });
+        toast(t("onToast"));
+      }
+    }catch(e){ console.warn("NT enable", e); toast(t("errGeneric")); }
+    finally{ busy = false; try{ await refresh(); }catch(_){} paint(); paintPrompt(); }
+  }
+  async function disable(){
+    if(busy) return; busy = true; paint();
+    try{
+      const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+      if(sub){ await api("DELETE", "/push/subscribe", { endpoint:sub.endpoint }); await sub.unsubscribe(); } else await api("DELETE", "/push/subscribe", {});
+      toast(t("offToast"));
+    }catch(e){ console.warn("NT disable", e); toast(t("errGeneric")); }
+    finally{ busy = false; try{ await refresh(); }catch(_){} paint(); paintPrompt(); }
+  }
+  async function save(body){
+    try{ P = Object.assign({}, P, await api("PATCH", "/prefs", body)); }
+    catch(e){ console.warn("NT save", e); toast(t("errGeneric")); try{ await refresh(); }catch(_){} }
+    paint();
+  }
+  async function sendTest(){
+    try{ await api("POST", "/test", {}); toast(t("testSent")); }
+    catch(e){ toast(e.status === 409 ? t("testWait") : e.status === 422 ? t("testNoDevice") : t("errGeneric")); }
+  }
+
+  /* ---------- the settings sheet ---------- */
+  function switchRow(id, label, sub, on, onChange){
+    const inp = h("input", { type:"checkbox", id:"nt_" + id, role:"switch", class:"nt-sw", checked:on ? "" : null, onchange:ev => onChange(ev.target.checked) });
+    inp.checked = !!on;
+    return h("label", { class:"nt-row", for:"nt_" + id }, h("span", { class:"nt-rt" }, h("b", { text:label }), sub ? h("small", { text:sub }) : null), inp);
+  }
+  function paint(){
+    const sh = $("ntSheet"); if(!sh) return;
+    const st = pstate(), kids = [];
+    kids.push(h("div", { class:"nt-head" }, h("h3", { id:"ntTitle", tabindex:"-1", text:t("title") }),
+      h("button", { type:"button", class:"nt-x", "aria-label":t("close"), text:"✕", onclick:close })));
+    const stTxt = st === "on" ? "✓ " + t("stOn") : st === "denied" ? t("stDenied") : st === "unsupported" ? t("unsupported") : t("stOff");
+    kids.push(h("p", { class:"nt-status " + st, role:"status", "aria-live":"polite", text:stTxt }));
+    if(st === "denied") kids.push(h("p", { class:"nt-note", text:inApp() ? t("deniedApp") : t("deniedWeb") }));
+    if(st === "off") kids.push(h("button", { type:"button", class:"btn primary nt-main", disabled:busy ? "" : null, onclick:enable, text:busy ? t("working") : t("turnOn") }));
+    if(st === "on" && P){
+      kids.push(h("h4", { class:"nt-h4", text:t("kindsH") }));
+      const k = P.kinds || {};
+      kids.push(switchRow("practice", t("kPractice"), t("kPracticeS"), k.practice !== false, v => save({ kinds:{ practice:v } })));
+      kids.push(switchRow("streak", t("kStreak"), t("kStreakS"), k.streak !== false, v => save({ kinds:{ streak:v } })));
+      kids.push(switchRow("weekly", t("kWeekly"), t("kWeeklyS"), k.weekly !== false, v => save({ kinds:{ weekly:v } })));
+      const tm = h("input", { type:"time", id:"nt_time", class:"nt-time", value:P.nudge_time || "19:00", step:"300", "aria-label":t("timeH"), onchange:ev => { if(ev.target.value) save({ nudge_time:ev.target.value }); } });
+      tm.value = P.nudge_time || "19:00";
+      kids.push(h("label", { class:"nt-row", for:"nt_time" }, h("span", { class:"nt-rt" }, h("b", { text:t("timeH") })), tm));
+      kids.push(switchRow("hide", t("hide"), t("hideS"), !!P.hide_details, v => save({ hide_details:v })));
+      if(P.quiet_on) kids.push(h("p", { class:"nt-note", text:t("quiet", { a:fmtTime(P.quiet_start), b:fmtTime(P.quiet_end) }) }));
+      kids.push(h("div", { class:"nt-acts" },
+        h("button", { type:"button", class:"btn ghost", onclick:sendTest, text:t("test") }),
+        h("button", { type:"button", class:"btn ghost", disabled:busy ? "" : null, onclick:disable, text:t("turnOff") })));
+    }
+    kids.push(h("p", { class:"nt-note", text:t("note") }));
+    sh.replaceChildren(...kids);
+  }
+  async function open(){
+    if(!enabled()) return;
+    const sh = $("ntSheet"), bg = $("ntBg"); if(!sh || !bg) return;
+    lastFocus = document.activeElement; isOpen = true;
+    try{ if(typeof toggleSheet === "function") toggleSheet(false); }catch(_){}
+    paint();
+    bg.classList.add("on"); sh.classList.add("on"); sh.setAttribute("aria-hidden", "false");
+    try{ await refresh(); }catch(_){}
+    paint();
+    const ti = $("ntTitle"); if(ti) ti.focus();
+  }
+  function close(){
+    const sh = $("ntSheet"), bg = $("ntBg"); if(!sh) return;
+    isOpen = false; sh.classList.remove("on"); sh.setAttribute("aria-hidden", "true"); if(bg) bg.classList.remove("on");
+    try{ if(lastFocus && lastFocus.focus) lastFocus.focus(); }catch(_){}
+  }
+
+  /* ---------- the Home prompt: after the first practice, once in a while, never nagging ---------- */
+  function promptWanted(){
+    if(!enabled() || !P || !userState.onboarded || pstate() !== "off") return false;     // already on / blocked / unsupported: never nag
+    const pg = userState.progress || {};
+    if(!((pg.xp || 0) > 0 || (pg.streak_days || 0) > 0)) return false;                   // only after they have actually practised once
+    const at = +localStorage.getItem(LS_ASKED) || 0;
+    return !(at && Date.now() - at < ASK_AGAIN_MS);
+  }
+  function paintPrompt(){
+    const el = $("ntPrompt"); if(!el) return;
+    if(!promptWanted()){ el.hidden = true; el.replaceChildren(); return; }
+    el.replaceChildren(
+      h("b", { text:t("promptT") }), h("small", { text:t("promptB", { time:fmtTime((P && P.nudge_time) || "19:00") }) }),
+      h("div", { class:"nt-acts" },
+        h("button", { type:"button", class:"btn primary", onclick:async () => { await enable(); if(pstate() === "on") open(); }, text:t("promptYes") }),
+        h("button", { type:"button", class:"btn ghost", onclick:() => { try{ localStorage.setItem(LS_ASKED, String(Date.now())); }catch(_){} paintPrompt(); }, text:t("promptNo") })));
+    el.hidden = false;
+  }
+
+  /* ---------- entry points + the tap beacon ---------- */
+  function syncEntries(){
+    const on = enabled();
+    const row = $("mrowNT"); if(row) row.hidden = !on;
+    if(!on){ const pr = $("ntPrompt"); if(pr){ pr.hidden = true; pr.replaceChildren(); } return; }
+    if(!P && !tried){ tried = true; refresh().then(paintPrompt).catch(() => {}); } else paintPrompt();
+  }
+  function reset(){ P = null; thisDevice = false; tried = false; busy = false; close(); const pr = $("ntPrompt"); if(pr){ pr.hidden = true; pr.replaceChildren(); } }
+  function reportOpen(id){ if(/^\d{1,9}$/.test(String(id)) && typeof authToken === "string" && authToken) api("POST", "/open", { id:+id }).catch(() => {}); }
+  function consumeOpen(){                                  // a notification opened the app: /?n=<id> - report it once, then clean the address
+    try{
+      const u = new URL(location.href), n = u.searchParams.get("n"); if(!n) return;
+      u.searchParams.delete("n"); history.replaceState(history.state || {}, "", u.pathname + u.search + u.hash);
+      reportOpen(n);
+    }catch(_){}
+  }
+  try{ if("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", e => {   // tapped while the app was already open
+    const d = e.data; if(d && d.type === "nt-open"){ reportOpen(d.id); try{ navTo("/"); }catch(_){} }
+  }); }catch(_){}
+  document.addEventListener("keydown", ev => {
+    if(!isOpen) return;
+    if(ev.key === "Escape"){ close(); return; }
+    if(ev.key === "Tab"){                                  // keep focus inside the open sheet
+      const f = [...$("ntSheet").querySelectorAll("button, input, [tabindex]")].filter(x => !x.disabled && x.offsetParent !== null);
+      if(!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if(ev.shiftKey && document.activeElement === first){ ev.preventDefault(); last.focus(); }
+      else if(!ev.shiftKey && document.activeElement === last){ ev.preventDefault(); first.focus(); }
+    }
+  });
+  if($("ntBg")) $("ntBg").onclick = close;
+  return { enabled, open, close, syncEntries, reset, consumeOpen, _txt:TXT };
+})();
+window.NT = NT;
+
 /* ================= RESUME INTERVIEW - a resume + a job description in, a mock interview built from them out =================
    Plan: ~/.claude/plans/one-more-feture-needed-sunny-swing.md · API: /rinterview/* (backend/app/resume_interview). One screen (#ri) with the
    views hub / resume / job / analysing / match / interview / report / settings and one URL per step (/resume-interview[/resume|job|match|
@@ -12615,6 +12916,7 @@ window.GC = GC;
 if($("assessExit")) $("assessExit").onclick = skipAssessment;
 try{ LG.mount(); }catch(e){ console.warn("LG.mount", e); }   // Hindi/English controls (hidden until the switch is on for this learner)
 initAuth();
+try{ NT.consumeOpen(); }catch(e){ console.warn("NT.consumeOpen", e); }   // a notification tap opens /?n=<id>: report it once, then clean the address
 try{ LG.applyUI(); }catch(e){ console.warn("LG.applyUI", e); }   // after initAuth() has restored the cached state, so the first paint is already right
 
 // PWA: register the service worker so DuSu is installable / works offline-shell.

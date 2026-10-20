@@ -2338,6 +2338,8 @@ async def admin_wipe_users(keep_emails: set[str]) -> int:
         await _ri.delete_rows(s, del_ids)
         from .grammar import service as _gc            # Grammar Coach: the sentences a learner needed to fix - personal data, same rule
         await _gc.delete_rows(s, del_ids)
+        from .notify import service as _nt             # Notifications: what DuSu decided to tell each learner and what happened to it - same rule
+        await _nt.delete_rows(s, del_ids)
         for tbl in (Conversation, Memory, Progress, Profile, UserKey, Feedback, UsageDaily,
                     SessionScore, WeeklyStat, SeasonAward, PracticeAttempt):
             await s.execute(delete(tbl).where(tbl.user_id.in_(del_ids)))
@@ -2361,6 +2363,8 @@ async def delete_user(user_id: str) -> bool:
         await _ri.delete_rows(s, [user_id])
         from .grammar import service as _gc
         await _gc.delete_rows(s, [user_id])
+        from .notify import service as _nt
+        await _nt.delete_rows(s, [user_id])
         for tbl in (Conversation, Memory, Progress, Profile, UserKey, Feedback, UsageDaily,
                     SessionScore, WeeklyStat, SeasonAward, PracticeAttempt):
             await s.execute(delete(tbl).where(tbl.user_id == user_id))

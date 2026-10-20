@@ -1,8 +1,10 @@
 package com.dusu.app
 
-import android.Manifest
+import android.app.AlarmManager
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
-import android.content.pm.PackageManager
+import android.content.Intent
 import android.graphics.Color
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
@@ -16,7 +18,6 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import androidx.core.content.ContextCompat
 import com.google.androidbrowserhelper.trusted.TwaLauncher
 import java.io.File
 
@@ -25,8 +26,10 @@ import java.io.File
  *   1) Offline → show a "turn on the internet" screen (Retry re-checks).
  *   2) Online  → launch the Trusted Web Activity via TwaLauncher (site runs inside the
  *      app on Chrome's engine, so Web Speech mic/voice works).
- * Also (re)schedules the 4-hour reminder, and captures any uncaught crash to a file so
- * it can be shown on the next launch (diagnostics without a USB cable).
+ * Notifications are NOT sent from here: DuSu's reminders and nudges are web-push messages from
+ * the server that Chrome hands to DelegationService (see the manifest), so they are personal and
+ * the learner controls them inside the app. This activity also captures any uncaught crash to a
+ * file so it can be shown on the next launch (diagnostics without a USB cable).
  */
 class MainActivity : android.app.Activity() {
 
@@ -62,9 +65,7 @@ class MainActivity : android.app.Activity() {
         offlineView = findViewById(R.id.offlineView)
         findViewById<Button>(R.id.retryBtn).setOnClickListener { decide() }
 
-        Notifications.createChannel(this)
-        Notifications.scheduleEvery4Hours(this)
-        requestNotifPermission()
+        cancelLegacyReminders()
 
         Handler(Looper.getMainLooper()).postDelayed({
             if (!isFinishing) { splashView.visibility = View.GONE; decide() }
@@ -114,13 +115,28 @@ class MainActivity : android.app.Activity() {
         }
     }
 
-    private fun requestNotifPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
+    /**
+     * Version 1.0 fired the same "practise English" message every 4 hours from an AlarmManager alarm.
+     * That is gone, but an installed copy may still have the alarm armed (and its notification channel
+     * listed in Android settings), so remove both. The old receiver class no longer exists, so the
+     * PendingIntent is looked up by class name (FLAG_NO_CREATE = find it, never make one).
+     */
+    private fun cancelLegacyReminders() {
+        try {
+            val old = PendingIntent.getBroadcast(
+                this, 0, Intent().setClassName(packageName, "$packageName.ReminderReceiver"),
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+            )
+            if (old != null) {
+                (getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(old)
+                old.cancel()
             }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                    .deleteNotificationChannel("dusu_reminders")
+            }
+        } catch (_: Throwable) {
+            // best effort - a failure here must never stop DuSu from opening
         }
     }
 

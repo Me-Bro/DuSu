@@ -2,7 +2,7 @@
    Network-first for navigations (always try fresh HTML so deploys show up),
    falling back to cache when offline. WebSocket + API calls are never cached. */
 
-const CACHE = "dusu-v31";   // bumped: Grammar Coach (flag-gated, ships dark: every English sentence checked, corrected and explained, in its own section) (v30: My Day check / uncheck on tasks, habits, goals and reminders - a finished item stays where it was checked and one tap puts it back (v29: My Day repeating reminders - set once, they ring on chosen weekdays until paused or deleted (v28: Job Interview Practice (renamed from Resume Interview) with detailed saved reports, improvement plan and progress since the last interview (v27: Resume Interview (flag-gated, ships dark) (v26: My Day lists show everything with visible edit/delete/add, first-use crash fixed (v25: My Day reminders in Today + their own tab, edit/delete, DuSu reads them all (v24: dashboard early-access list; v23: My Day; v22: language scope (old features pinned) + Home feature icons; v21: Home 2.0; v19: "DuSu knows your progress" switch, v18: Practice Room)
+const CACHE = "dusu-v32";   // bumped: Notifications (flag-gated, ships dark: personal practice / streak / weekly-note nudges as push, an "arrived" receipt and a tap beacon) (v31: Grammar Coach (flag-gated, ships dark: every English sentence checked, corrected and explained, in its own section) (v30: My Day check / uncheck on tasks, habits, goals and reminders - a finished item stays where it was checked and one tap puts it back (v29: My Day repeating reminders - set once, they ring on chosen weekdays until paused or deleted (v28: Job Interview Practice (renamed from Resume Interview) with detailed saved reports, improvement plan and progress since the last interview (v27: Resume Interview (flag-gated, ships dark) (v26: My Day lists show everything with visible edit/delete/add, first-use crash fixed (v25: My Day reminders in Today + their own tab, edit/delete, DuSu reads them all (v24: dashboard early-access list; v23: My Day; v22: language scope (old features pinned) + Home feature icons; v21: Home 2.0; v19: "DuSu knows your progress" switch, v18: Practice Room)
 const SHELL = ["/", "/logo.png", "/manifest.webmanifest"];
 // Cache-first is now an ALLOWLIST, not a denylist — every new authenticated GET
 // endpoint added to main.py is safe by default instead of needing a matching
@@ -74,7 +74,11 @@ self.addEventListener("push", (event) => {
   try { d = event.data ? event.data.json() : {}; } catch (_) {}
   event.waitUntil((async () => {
     const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    wins.forEach((w) => { try { w.postMessage({ type: "pl-due" }); } catch (_) {} });
+    const nt = d.data && d.data.nid;                                       // a Notifications nudge (backend/app/notify), not a My Day reminder
+    if (nt && d.data.ack) {                                                // tell the server it ARRIVED (signed single-purpose token, no login needed)
+      try { await fetch("/notify/ack", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ t: d.data.ack }), keepalive: true }); } catch (_) {}
+    }
+    if (!nt) wins.forEach((w) => { try { w.postMessage({ type: "pl-due" }); } catch (_) {} });
     if (wins.some((w) => w.visibilityState === "visible")) return;
     await self.registration.showNotification(d.title || "DuSu", {
       body: d.body || "", tag: d.tag || "dusu-reminder", data: d.data || {}, actions: (d.actions || []).slice(0, 3),
@@ -88,6 +92,14 @@ self.addEventListener("notificationclick", (event) => {
   n.close();
   event.waitUntil((async () => {
     const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    if (data.nid) {                                                         // a Notifications nudge: open Home and report the tap
+      const u = data.url || "/";
+      for (const w of wins) {
+        if ("focus" in w) { await w.focus(); try { w.postMessage({ type: "nt-open", id: data.nid }); } catch (_) {} return; }
+      }
+      if (self.clients.openWindow) await self.clients.openWindow(u + (u.indexOf("?") < 0 ? "?" : "&") + "n=" + encodeURIComponent(data.nid));
+      return;
+    }
     if (action && data.act && data.act[action]) {                         // a button: do exactly that one thing
       try {
         await fetch("/planner/r/act", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ t: data.act[action] }) });
