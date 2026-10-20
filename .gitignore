@@ -37,3 +37,4 @@ tests/notify/.orig.html
 
 # Play upload bundles / release APKs built locally (the upload key signs them; never commit)
 *.aab
+!/DuSu-app.aab
