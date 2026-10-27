@@ -400,7 +400,7 @@ async def analyze(llm, *, kind: str, topic: str, lang: str, feedback_lang: str, 
     runs = [r for r in results if _valid_run(r, english)]
     if not runs:
         first_exc = next((r for r in results if isinstance(r, Exception)), None)
-        raise AnalysisUnavailable(str(first_exc) if first_exc else "no parseable analysis reply")
+        raise AnalysisUnavailable(str(first_exc) if first_exc else "no parseable analysis reply") from first_exc      # the original stays reachable (main.key_failure reads it)
 
     judged = JUDGED_EN if english else JUDGED_HI
     med = {k: _median([_num(r["scores"].get(k)) for r in runs]) for k in judged}

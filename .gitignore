@@ -38,3 +38,9 @@ tests/notify/.orig.html
 # Play upload bundles / release APKs built locally (the upload key signs them; never commit)
 *.aab
 !/DuSu-app.aab
+
+# Keys test scratch (git show HEAD:... copies for the parity replay, mutants, browser tokens)
+tests/keys/.head/
+tests/keys/.mutants/
+tests/keys/.e2e/
+tests/keys/.orig.html

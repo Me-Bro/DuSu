@@ -1793,14 +1793,18 @@ async def get_user_keys(user_id: str) -> dict:
 MIN_STORED_KEYS = 2
 
 
-async def has_user_keys(user_id: str) -> bool:
-    """True if the user has stored key(s) that were verified working."""
+_KEY_PROVIDERS = ("groq", "gemini", "openrouter")
+
+
+async def has_user_keys(user_id: str, strict: bool = False) -> bool:
+    """True if the user has stored key(s) that were verified working. `strict` (settings.key_health) counts only the three providers a learner can really bring -
+    a legacy 'github' entry (GitHub Models answered 200 to ANY token) or junk no longer counts as a second key."""
     async with _Session() as s:               # type: ignore[misc]
         row = await s.get(UserKey, user_id)
         if not row or not row.verified or not row.blob:
             return False
     d = await get_user_keys(user_id)
-    return sum(1 for v in d.values() if str(v).strip()) >= MIN_STORED_KEYS
+    return sum(1 for k, v in d.items() if str(v).strip() and (not strict or k in _KEY_PROVIDERS)) >= MIN_STORED_KEYS
 
 
 # ---- Request quota (free-tier daily limit) + plan + per-mode analytics ----
@@ -2340,6 +2344,8 @@ async def admin_wipe_users(keep_emails: set[str]) -> int:
         await _gc.delete_rows(s, del_ids)
         from .notify import service as _nt             # Notifications: what DuSu decided to tell each learner and what happened to it - same rule
         await _nt.delete_rows(s, del_ids)
+        from .keys import service as _ky               # Keys: which key was used / limited / rejected, and how often - counts and statuses, never key text - same rule
+        await _ky.delete_rows(s, del_ids)
         for tbl in (Conversation, Memory, Progress, Profile, UserKey, Feedback, UsageDaily,
                     SessionScore, WeeklyStat, SeasonAward, PracticeAttempt):
             await s.execute(delete(tbl).where(tbl.user_id.in_(del_ids)))
@@ -2365,6 +2371,8 @@ async def delete_user(user_id: str) -> bool:
         await _gc.delete_rows(s, [user_id])
         from .notify import service as _nt
         await _nt.delete_rows(s, [user_id])
+        from .keys import service as _ky
+        await _ky.delete_rows(s, [user_id])
         for tbl in (Conversation, Memory, Progress, Profile, UserKey, Feedback, UsageDaily,
                     SessionScore, WeeklyStat, SeasonAward, PracticeAttempt):
             await s.execute(delete(tbl).where(tbl.user_id == user_id))

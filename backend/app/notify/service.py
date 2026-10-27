@@ -60,14 +60,21 @@ def _prefs_json(n: NtPrefs) -> dict:
     return {"enabled": bool(n.enabled), "kinds": rules.clean_kinds(n.kinds), "nudge_time": rules.clean_time(n.nudge_time) or rules.DEFAULT_NUDGE}
 
 
-async def get_prefs(uid: str) -> dict:
+async def get_prefs(uid: str, endpoint: str | None = None) -> dict:
+    """`endpoint` (optional): THIS phone's push endpoint - the answer then says whether the server really holds it (`this_device`), because a phone can
+    believe it is subscribed after the server dropped the subscription (the push service said it was gone)."""
     async with _S() as s:
         n = await _prefs(s, uid)
         p = await plsvc._prefs(s, uid)
         devices = (await s.execute(select(func.count()).select_from(PlPushSub).where(PlPushSub.user_id == uid))).scalar() or 0
+        this_device = None
+        if endpoint:
+            this_device = bool((await s.execute(select(func.count()).select_from(PlPushSub).where(PlPushSub.user_id == uid, PlPushSub.endpoint == endpoint[:700]))).scalar() or 0)
         recent = (await s.execute(select(NtOutbox).where(NtOutbox.user_id == uid, NtOutbox.status == "sent", NtOutbox.kind != "test")
                                   .order_by(NtOutbox.sent_at.desc()).limit(5))).scalars().all()
         out = _prefs_json(n)
+        if this_device is not None:
+            out["this_device"] = this_device
         out.update({"devices": int(devices), "push_on": bool(p.push_on), "tz": p.tz, "hide_details": bool(p.hide_details),
                     "quiet_on": bool(p.quiet_on), "quiet_start": p.quiet_start, "quiet_end": p.quiet_end, "push_available": push.AVAILABLE,
                     "recent": [{"id": r.id, "kind": r.kind, "title": r.title, "body": r.body, "sent_at": r.sent_at.isoformat() if r.sent_at else None,
@@ -376,6 +383,34 @@ async def send_test(uid: str) -> dict:
         s.add(r)
         await s.commit()
         return {"ok": True, "id": r.id, "in_seconds": 8}
+
+
+async def test_status(uid: str, nid: int) -> dict | None:
+    """Where the learner's own test notification is on its way: queued -> sending -> accepted by the push service -> reached this phone -> opened (or
+    cancelled / failed). None for a row that is not theirs or not a test (the caller answers 404, never 403)."""
+    async with _S() as s:
+        r = (await s.execute(select(NtOutbox).where(NtOutbox.id == nid, NtOutbox.user_id == uid, NtOutbox.kind == "test"))).scalar_one_or_none()
+        await s.commit()
+        if r is None:
+            return None
+        if r.status == "scheduled":
+            state = "queued"
+        elif r.status == "sending":
+            state = "sending"
+        elif r.status == "cancelled":
+            state = "cancelled"
+        elif r.opened_at is not None:
+            state = "opened"
+        elif r.received_at is not None:
+            state = "received"
+        elif r.push_state == "accepted":
+            state = "accepted"
+        elif r.push_state in ("failed", "no_subscription"):
+            state = "failed"
+        else:
+            state = "sent"
+        return {"id": r.id, "state": state, "why": r.why or "", "push_state": r.push_state,
+                "age_s": max(0, int((_utc() - r.created_at).total_seconds())) if r.created_at else 0}
 
 
 # ----------------------------------------------------------------------------- health, pruning, data rights

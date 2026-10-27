@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "DuSu — Speak with confidence",
   "short_name": "DuSu",
   "description": "AI voice coach: practice spoken English, Hindi-to-English learning, and mock interviews.",
@@ -9,10 +10,13 @@
   "background_color": "#070a14",
   "theme_color": "#070a14",
   "lang": "en",
+  "dir": "ltr",
   "categories": ["education", "productivity"],
   "icons": [
-    { "src": "/logo.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
-  ]
+    { "src": "/assets/icons/dusu-192-v1.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icons/dusu-512-v1.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icons/dusu-maskable-512-v1.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "related_applications": [{ "platform": "play", "id": "com.dusu.app" }],
+  "prefer_related_applications": false
 }

@@ -48,6 +48,9 @@ from .grammar import models as _gc_models  # noqa: F401  (registers the gc_* tab
 from .grammar import api as gc_api, tracker as gc_tracker, gating as gc_gating
 from .notify import models as _nt_models  # noqa: F401  (registers the nt_* tables on db.Base before init_db runs)
 from .notify import api as notify_api, scheduler as notify_scheduler
+from .keys import models as _ky_models  # noqa: F401  (registers the kh_* tables on db.Base before init_db runs)
+from .keys import api as keys_api, ledger as keys_ledger, probe as keys_probe, service as keys_svc
+from .keys.errors import ProviderChainError
 
 app = FastAPI(title="DuSu")
 app.include_router(planner_api.router)      # My Day: /planner/* (404 while the `planner` switch is off for the account)
@@ -56,6 +59,24 @@ app.include_router(ri_api.router)           # Resume Interview: /rinterview/* (4
 ri_life.register()                           # ... and reads the learner's interview scores the same way
 app.include_router(gc_api.router)           # Grammar Coach: /gcoach/* (404 while the `grammar_coach` switch is off for the account)
 app.include_router(notify_api.router)       # Notifications: /notify/* (404 while the `notifications` switch is off for the account)
+app.include_router(keys_api.router)         # Keys: /keys/status|save|remove|recheck|export (404 while the `key_health` switch is off for the account)
+
+
+class KeyProblem(HTTPException):
+    """An HTTP error that is about the learner's KEYS: the usual `detail` plus, when the per-key engine knows why, a `kp` the client turns into a plain-words pop-up
+    (additive - an old client reads `detail` exactly as before). With kp=None it is an ordinary HTTPException."""
+
+    def __init__(self, status_code: int, detail, kp: dict | None = None):
+        super().__init__(status_code, detail)
+        self.kp = kp
+
+
+@app.exception_handler(KeyProblem)
+async def _key_problem_handler(_request, exc: KeyProblem):
+    body = {"detail": exc.detail}
+    if exc.kp:
+        body["kp"] = exc.kp
+    return JSONResponse(body, status_code=exc.status_code)
 
 # --- Roles ---
 # Only the owner rides the app's own keys (the ones in .env). EVERY other account —
@@ -358,6 +379,76 @@ async def notifications_enabled(email: str) -> bool:
     return False
 
 
+async def key_health_mode() -> str:
+    """Key-health rollout switch (Settings table, no migration). It changes what happens on the hot path of every LLM call for the learners it covers (the per-key
+    walker, stored-keys-first precedence, the usage ledger, the new /keys/* endpoints), so it ships DARK: 'off' = today's walker for everyone (the DEFAULT); 'owner' = the
+    owner / unlimited allowlist plus the early-access testers; 'on' = everyone."""
+    try:
+        v = await _cached("key_health", lambda: db.get_setting("key_health", "off"))
+        return v if v in ("off", "owner", "on") else "off"
+    except Exception:
+        return "off"
+
+
+async def key_health_enabled(email: str) -> bool:
+    m = await key_health_mode()
+    if m == "on":
+        return True
+    if m == "owner":
+        return await staged_visible(email)
+    return False
+
+
+async def keys_ui_mode() -> str:
+    """The key screens' rollout switch (Keys page from the server, the Home key card, the key-problem pop-up). Same staging; the screens also need the engine."""
+    try:
+        v = await _cached("keys_ui", lambda: db.get_setting("keys_ui", "off"))
+        return v if v in ("off", "owner", "on") else "off"
+    except Exception:
+        return "off"
+
+
+async def keys_ui_enabled(email: str) -> bool:
+    m = await keys_ui_mode()
+    on = m == "on" or (m == "owner" and await staged_visible(email))
+    return bool(on and await key_health_enabled(email))
+
+
+async def install_app_mode() -> str:
+    """The Install-app button + the WhatsApp-group join (Settings key `install_mode`). Same staging: 'off' (the DEFAULT) = nothing is drawn."""
+    try:
+        v = await _cached("install_mode", lambda: db.get_setting("install_mode", "off"))
+        return v if v in ("off", "owner", "on") else "off"
+    except Exception:
+        return "off"
+
+
+async def install_app_enabled(email: str) -> bool:
+    m = await install_app_mode()
+    if m == "on":
+        return True
+    if m == "owner":
+        return await staged_visible(email)
+    return False
+
+
+_WA_RE = re.compile(r"^https://(?:chat\.whatsapp\.com/[A-Za-z0-9]{10,40}|whatsapp\.com/channel/[A-Za-z0-9_-]{10,60})$")
+
+
+def clean_whatsapp(url) -> str:
+    """The owner's WhatsApp group (or Channel) invite, validated and with every tracking parameter stripped; '' when it is not one."""
+    u = str(url or "").strip().split("?", 1)[0].split("#", 1)[0].rstrip("/")
+    return u if _WA_RE.match(u) else ""
+
+
+async def whatsapp_link() -> str:
+    """The invite lives in the settings table (the owner edits it on the dashboard), NOT in this public repository where scrapers harvest invite links."""
+    try:
+        return clean_whatsapp(await _cached("whatsapp_group", lambda: db.get_setting("whatsapp_group", "")))
+    except Exception:
+        return ""
+
+
 # Profile seeded for accounts that skip the level check (see level_test_on).
 SKIPPED_TEST_PROFILE = {"goal": "", "comfort": "", "practice_time": "10",
                         "level": "A1", "scores": {}, "weak_areas": []}
@@ -381,6 +472,24 @@ async def resolve_keys(email: str, keys: dict, uid: str | None = None):
     if _r == "unlimited" or (_r == "owner" and not await owner_byok_on()):
         return True, None, ""                 # our keys
     if _r == "owner" or await is_office(email) or await access_phase() == "growth":
+        # Stored keys first (settings.key_health): the keys the learner SAVED are the source of truth, and a key the browser sends fills only a provider with
+        # nothing stored. Before, a browser-sent key beat the stored one, so a key replaced on phone A made phone B's stale copy look "invalid" while the
+        # stored key was fine.
+        if uid and db.db_enabled and await key_health_enabled(email):
+            try:
+                merged = await keys_svc.stored_keys(uid)
+            except Exception as e:
+                print(f"[keys] load stored failed: {type(e).__name__}")
+                merged = {}
+            for pname, pkey in (keys or {}).items():
+                if pname in merged or pname not in keys_svc.PROVIDERS:
+                    continue
+                pkey = str(pkey or "").strip()
+                if pkey:
+                    merged[pname] = pkey
+            if merged and settings.providers_from(merged):
+                return True, merged, ""
+            return False, None, "keys_required"
         # Must actually resolve to a non-empty provider chain — an unrecognized key
         # name (typo, wrong case, junk) must NOT silently fall through to the owner's
         # default env keys. settings.providers_from() only builds entries for the
@@ -503,6 +612,51 @@ def _is_quota(e) -> bool:
     return any(k in s for k in ("429", "quota", "exhaust", "rate limit", "insufficient", "402"))
 
 
+_OLD_QUOTA_MSG = "Your API keys hit their limit. Add or replace a key in Settings."
+_KP_MSG = {                                   # what the OLD clients show (the notification bar) when the per-key engine knows why - the new client draws its own pop-up
+    "all_invalid": "Your AI keys were rejected. Open More -> DuSu keys and add them again.",
+    "all_limited": "Your AI keys can't be used right now. Open More -> DuSu keys to see why.",
+    "no_keys": "Add your own AI keys in More -> DuSu keys to use DuSu.",
+    "transient": "The AI is busy right now - your keys are fine. Please try again in a minute.",
+}
+
+
+def key_failure(e) -> dict | None:
+    """The `kp` payload when `e` (or anything it was raised from) is the per-key engine's ProviderChainError - i.e. the KEYS are the reason - else None.
+    Wrappers (practice.AnalysisUnavailable ...) keep the original as `__cause__`; this walks it."""
+    cur, seen = e, set()
+    for _ in range(6):
+        if cur is None or id(cur) in seen:
+            break
+        seen.add(id(cur))
+        if isinstance(cur, ProviderChainError):
+            return cur.kp()
+        cur = cur.__cause__ or cur.__context__
+    return None
+
+
+def kp_kw(e) -> dict:
+    """`**kp_kw(e)` on a frame adds the `kp` field when there is one (additive: no new frame types)."""
+    kp = key_failure(e)
+    return {"kp": kp} if kp else {}
+
+
+def quota_msg(e) -> str:
+    kp = key_failure(e)
+    return _KP_MSG.get(kp["state"], _OLD_QUOTA_MSG) if kp else _OLD_QUOTA_MSG
+
+
+def key_error(e, status: int = 502, detail="Could not complete that - please try again.", check_quota: bool = True) -> "KeyProblem":
+    """The HTTP error a failed model call becomes. A key problem (every key rejected / limited) is 429 'quota' + kp; provider trouble keeps `status` / `detail`
+    (kp attached when there is one); `check_quota` keeps the older string test for the sites that always had it. With no kp this is exactly the old behaviour."""
+    kp = key_failure(e)
+    if kp and kp["state"] in ("all_invalid", "all_limited", "no_keys"):
+        return KeyProblem(429, "quota", kp)
+    if check_quota and _is_quota(e):
+        return KeyProblem(429, "quota", kp)
+    return KeyProblem(status, detail, kp)
+
+
 async def _safe_build_report(session) -> dict:
     """build_report() only raises when every provider/model in the chain fails on the
     scoring call. Never let that leave the client stuck on a dead session screen with
@@ -522,6 +676,16 @@ async def _startup():
         app.state.planner_task = asyncio.create_task(planner_scheduler.run_forever(planner_mode, planner_enabled))
         # Notifications' engine: a SEPARATE loop (a bug there can never stop a reminder). It idles while the `notifications` switch is off.
         app.state.notify_task = asyncio.create_task(notify_scheduler.run_forever(notifications_mode, notifications_enabled))
+        # Keys: flushes the usage ledger to Postgres every few seconds and re-probes DuSu's OWN keys (zero quota) every 10 minutes. A separate loop again.
+        app.state.keys_task = asyncio.create_task(keys_ledger.run_forever([(keys_probe.SERVER_HEALTH_TTL_S, keys_probe.refresh_server_health)]))
+
+
+@app.on_event("shutdown")
+async def _shutdown():
+    try:
+        await keys_ledger.flush()                  # whatever the ledger still holds in memory is written before the process goes
+    except Exception as e:
+        print(f"[keys] final flush failed: {type(e).__name__}")
 
 _BACKEND = Path(__file__).resolve().parent.parent
 _CLIENT_HTML = _BACKEND / "test_client.html"
@@ -640,8 +804,10 @@ async def health():
     from .providers.openrouter_provider import cooling_down
     providers = [p["name"] for p in settings.providers()]
     cooling = cooling_down()
+    sk = {n: v.get("status", "unknown") for n, v in keys_probe.cached_server_health().items()}      # the last zero-quota probe of OUR keys (never probes here)
     return {"ok": True, "has_key": bool(providers), "providers": providers,
-            "cooling": cooling, "available": [p for p in providers if p not in cooling]}
+            "cooling": cooling, "available": [p for p in providers if p not in cooling],
+            "server_keys": sk, "usable": [p for p in providers if p not in cooling and sk.get(p) not in ("invalid", "forbidden")]}
 
 
 class GoogleIn(BaseModel):
@@ -755,11 +921,18 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
     # "this account is set up" for every keyless user on a DB-less deploy, which is why
     # the post-login gate waved them straight through to Home instead of the keys screen.
     _has_keys = not _office
+    _kh = await key_health_enabled(email)             # the per-key engine (settings.key_health) is on for this learner
+    _keys_sum = None
     if _office and db.db_enabled and uid:
         try:
-            _has_keys = await db.has_user_keys(uid)
+            _has_keys = await db.has_user_keys(uid, strict=_kh)
         except Exception:
             _has_keys = False
+        if _kh:
+            try:
+                _keys_sum = await keys_svc.me_summary(uid)
+            except Exception as e:
+                print(f"[me] keys summary failed: {type(e).__name__}")
     # "Day N" since signup, shown in the header. Reuses the free-trial clock
     # (signup_day_count = whole 24h periods) so the day number and any trial
     # countdown can never disagree. Day 1 = the day you signed up.
@@ -816,11 +989,19 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
               "resume_interview": _ri, "ri_server_stt": _ri_stt,   # Resume Interview (DUSU_RESUME_INTERVIEW_PLAN.md)
               "grammar_coach": _gc,
               "notifications": await notifications_enabled(email),     # the client draws its notification settings / prompt only when true
+              "key_health": _kh, "keys_ui": await keys_ui_enabled(email),     # the key screens (server-rendered Keys page, Home key card, key-problem pop-up)
+              "install_app": await install_app_enabled(email),                 # the Install-app button + the WhatsApp-group join
               "level_test": await level_test_on(),
               # The public name this user appears as on the leaderboard / league.
               # Boards are alias-only for privacy (§18), so without this the user
               # has no way to recognise their own row.
               "alias": db.alias_for(uid) if uid else ""}
+    if _keys_sum is not None:
+        common["keys"] = _keys_sum                    # {stored, working, limited, invalid, unknown, state, used_today, next_reset_at, min}: counts only, never key text
+    if common["install_app"]:
+        _wa = await whatsapp_link()
+        if _wa:
+            common["community"] = {"whatsapp": _wa}
     if _home_ai:
         # The Home page's feature icons (home_content.tiles): what exists for THIS learner, both languages' titles, each with
         # the route a tap opens. Only the learners who have the new Home get the key, so /me is unchanged for everyone else.
@@ -1019,12 +1200,12 @@ async def keys_verify(inp: KeysIn, authorization: str | None = Header(None)):
     if not claims and auth.auth_enabled:
         raise HTTPException(401, "Not signed in")
     claims = claims or {}
-    from openai import AsyncOpenAI
+    from .providers.openrouter_provider import new_sdk_client
     out = {}
     for p in settings.providers_from(inp.keys):
         ok, err = False, ""
         try:
-            c = AsyncOpenAI(api_key=p["key"], base_url=p["base_url"], default_headers=p.get("headers") or {})
+            c = new_sdk_client(p, 15.0)          # was the library default (600 s read timeout, 2 retries): one slow provider could hang this screen for minutes
             await c.chat.completions.create(model=p["models"][0],
                 messages=[{"role": "user", "content": "Reply OK"}],
                 max_tokens=8, temperature=0, extra_body=p.get("extra") or {})
@@ -1050,7 +1231,15 @@ async def keys_verify(inp: KeysIn, authorization: str | None = Header(None)):
     if db.db_enabled and claims.get("sub"):
         try:
             await db.login(claims)   # ensure the user row exists (FK)
-            await db.save_user_keys(claims["sub"], inp.keys, verified=saved)
+            if await key_health_enabled(claims.get("email", "")):
+                # MERGE, never replace: only the keys that passed are stored, on top of what is already stored. An empty box or a single good key used to wipe
+                # the rest (and flip has_keys false); `saved` now says whether the learner is SET UP (>= 2 stored), not whether this one call passed twice.
+                _good = {pn: str(inp.keys.get(pn) or "").strip() for pn, r in out.items() if r.get("ok") and str(inp.keys.get(pn) or "").strip()}
+                if _good:
+                    await keys_svc._locked_update(claims["sub"], lambda d: {**d, **_good})
+                saved = len(await keys_svc.stored_keys(claims["sub"])) >= MIN_VERIFIED_KEYS
+            else:
+                await db.save_user_keys(claims["sub"], inp.keys, verified=saved)
         except Exception as e:
             print(f"[keys] save failed: {type(e).__name__}: {e}")
     return {"results": out, "saved": saved}
@@ -1249,7 +1438,11 @@ async def admin_overview(token: str = "", authorization: str | None = Header(Non
            "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode(),
            "life_context": await life_context_mode(), "bilingual": await bilingual_mode(),
            "home_ai": await home_ai_mode(), "planner": await planner_mode(), "resume_interview": await resume_interview_mode(),
-           "grammar_coach": await grammar_coach_mode(), "notifications": await notifications_mode()}
+           "grammar_coach": await grammar_coach_mode(), "notifications": await notifications_mode(),
+           "key_health": await key_health_mode(), "keys_ui": await keys_ui_mode(), "install_mode": await install_app_mode(),
+           "whatsapp_group": await whatsapp_link()}
+    out["server_keys"] = keys_probe.cached_server_health()          # DuSu's OWN keys, from the last zero-quota probe (a dead one is flagged on the dashboard)
+    out["keys_health"] = keys_ledger.snapshot()
     if db.db_enabled:
         try:
             out["notify_health"] = await notify_scheduler.health()
@@ -1309,6 +1502,10 @@ class SettingsIn(BaseModel):
     resume_interview: str | None = None   # off | owner | on  (Resume Interview - resume + job description -> recorded mock interview; DUSU_RESUME_INTERVIEW_PLAN.md)
     grammar_coach: str | None = None      # off | owner | on  (Grammar Coach - every English sentence checked, corrected and explained)
     notifications: str | None = None      # off | owner | on  (Notifications - personal practice / streak / weekly-note nudges as push)
+    key_health: str | None = None         # off | owner | on  (the per-key engine: health, usage ledger, stored-keys-first, /keys/*)
+    keys_ui: str | None = None            # off | owner | on  (the key screens: Keys page from the server, Home key card, key-problem pop-up)
+    install_mode: str | None = None       # off | owner | on  (the Install-app button + the WhatsApp-group join)
+    whatsapp_group: str | None = None     # the owner's WhatsApp group / Channel invite ('' clears it); validated, tracking parameters stripped
 
 
 @app.post("/admin/settings")
@@ -1339,12 +1536,25 @@ async def admin_settings(inp: SettingsIn, authorization: str | None = Header(Non
         await db.set_setting("grammar_coach", inp.grammar_coach if inp.grammar_coach in ("off", "owner", "on") else "off")
     if inp.notifications is not None:
         await db.set_setting("notifications", inp.notifications if inp.notifications in ("off", "owner", "on") else "off")
+    if inp.key_health is not None:
+        await db.set_setting("key_health", inp.key_health if inp.key_health in ("off", "owner", "on") else "off")
+    if inp.keys_ui is not None:
+        await db.set_setting("keys_ui", inp.keys_ui if inp.keys_ui in ("off", "owner", "on") else "off")
+    if inp.install_mode is not None:
+        await db.set_setting("install_mode", inp.install_mode if inp.install_mode in ("off", "owner", "on") else "off")
+    if inp.whatsapp_group is not None:
+        wa = clean_whatsapp(inp.whatsapp_group)
+        if inp.whatsapp_group.strip() and not wa:
+            raise HTTPException(400, "That is not a WhatsApp group or channel invite (https://chat.whatsapp.com/... or https://whatsapp.com/channel/...)")
+        await db.set_setting("whatsapp_group", wa)
     invalidate_access_cache()
     return {"access_phase": await access_phase(), "level_test": await level_test_on(),
             "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode(),
             "life_context": await life_context_mode(), "bilingual": await bilingual_mode(),
             "home_ai": await home_ai_mode(), "planner": await planner_mode(), "resume_interview": await resume_interview_mode(),
-            "grammar_coach": await grammar_coach_mode(), "notifications": await notifications_mode()}
+            "grammar_coach": await grammar_coach_mode(), "notifications": await notifications_mode(),
+            "key_health": await key_health_mode(), "keys_ui": await keys_ui_mode(), "install_mode": await install_app_mode(),
+            "whatsapp_group": await whatsapp_link()}
 
 
 class WipeIn(BaseModel):
@@ -1612,7 +1822,7 @@ async def leveltest_gen(inp: GenIn):
     ok, eff, _r = await resolve_keys(claims.get("email", ""), inp.keys, claims.get("sub"))
     if not ok:
         raise HTTPException(402, "keys_required")
-    set_active_keys(eff)
+    set_active_keys(eff, uid=claims.get("sub"), engine=await key_health_enabled(claims.get("email", "")))
     sys = (
         "You design a SHORT, FRESH, fully-dynamic spoken-English level check for a Hindi-first "
         "learner. Vary ALL content every time (different everyday topics and phrasings) so it can "
@@ -1655,10 +1865,9 @@ async def leveltest_gen(inp: GenIn):
         return {"repeat": d.get("repeat", ""), "think_hindi": d.get("think_hindi", ""),
                 "open": d.get("open", ""), "mcqs": clean}
     except Exception as e:
-        if _is_quota(e):
-            raise HTTPException(429, "quota")
-        print(f"[leveltest gen] {type(e).__name__}: {e}")
-        raise HTTPException(502, "gen_failed")
+        if not (_is_quota(e) or key_failure(e)):
+            print(f"[leveltest gen] {_safe_err(e)}")
+        raise key_error(e, 502, "gen_failed")
 
 
 @app.post("/assessment")
@@ -1670,7 +1879,7 @@ async def assessment(inp: AssessIn):
     _ok, _eff, _r = await resolve_keys(claims.get("email", ""), inp.keys, claims.get("sub"))
     if not _ok:
         raise HTTPException(402, "keys_required")
-    set_active_keys(_eff)
+    set_active_keys(_eff, uid=claims.get("sub"), engine=await key_health_enabled(claims.get("email", "")))
     payload = (
         f"goal: {inp.goal}\ncomfort: {inp.comfort}\npractice_time: {inp.practice_time}\n\n"
         f"TASK 1 (intro): {inp.intro or '(no answer)'}\n\n"
@@ -1693,8 +1902,8 @@ async def assessment(inp: AssessIn):
         if not (isinstance(result, dict) and isinstance(result.get("scores"), dict) and result["scores"]):
             raise RuntimeError("assess parse failed / empty scores")
     except Exception as e:
-        print(f"[assess] llm failed: {type(e).__name__}: {e}")
-        raise HTTPException(502, "Assessment scoring failed, please try again")
+        print(f"[assess] llm failed: {_safe_err(e)}")
+        raise key_error(e, 502, "Assessment scoring failed, please try again", check_quota=False)
 
     data = {
         "goal": inp.goal, "comfort": inp.comfort, "practice_time": inp.practice_time,
@@ -1738,15 +1947,15 @@ async def career_generate(inp: CareerGoalIn):
     _ok, _eff, _r = await resolve_keys(claims.get("email", ""), inp.keys, claims.get("sub"))
     if not _ok:
         raise HTTPException(402, "keys_required")
-    set_active_keys(_eff)
+    set_active_keys(_eff, uid=claims.get("sub"), engine=await key_health_enabled(claims.get("email", "")))
     try:
         result = await llm.assess(CAREER_ROADMAP_SYSTEM, f"What they want to become: {goal}", max_tokens=1800)
         if not (isinstance(result, dict) and not result.get("error")
                 and isinstance(result.get("stages"), list) and result["stages"]):
             raise RuntimeError("career roadmap parse failed / empty stages")
     except Exception as e:
-        print(f"[career] llm failed: {type(e).__name__}: {e}")
-        raise HTTPException(502, "Couldn't build your roadmap, please try again")
+        print(f"[career] llm failed: {_safe_err(e)}")
+        raise key_error(e, 502, "Couldn't build your roadmap, please try again", check_quota=False)
     if db.db_enabled:
         try:
             await db.login(claims)   # ensure user+memory row exists (cached-token logins skip onGoogle)
@@ -1932,7 +2141,7 @@ async def greeting(inp: TokenIn):
     ok, eff, _r = await resolve_keys(claims.get("email", ""), inp.keys, claims.get("sub"))
     if not ok:
         raise HTTPException(402, "keys_required")
-    set_active_keys(eff)
+    set_active_keys(eff, uid=claims.get("sub"), engine=await key_health_enabled(claims.get("email", "")))
     if not db.db_enabled:
         return {"text": ""}
     try:
@@ -2004,7 +2213,7 @@ async def letter(inp: TokenIn):
     ok, eff, _r = await resolve_keys(claims.get("email", ""), inp.keys, claims.get("sub"))
     if not ok:
         raise HTTPException(402, "keys_required")
-    set_active_keys(eff)
+    set_active_keys(eff, uid=claims.get("sub"), engine=await key_health_enabled(claims.get("email", "")))
     if not db.db_enabled:
         return {"letter": None}
     try:
@@ -2069,7 +2278,7 @@ async def lesson_evaluate(inp: LessonEvalIn):
     ok, eff, _r = await resolve_keys(claims.get("email", ""), inp.keys, claims.get("sub"))
     if not ok:
         raise HTTPException(402, "keys_required")
-    set_active_keys(eff)
+    set_active_keys(eff, uid=claims.get("sub"), engine=await key_health_enabled(claims.get("email", "")))
     payload = (
         f"lang: {inp.lang}\ntype: {inp.type}\n"
         f"prompt: {inp.prompt}\ntarget: {inp.target or '(open answer)'}\n"
@@ -2078,8 +2287,8 @@ async def lesson_evaluate(inp: LessonEvalIn):
     try:
         return await llm.assess(LESSON_EVAL_SYSTEM, payload)
     except Exception as e:
-        print(f"[lesson] eval failed: {type(e).__name__}: {e}")
-        raise HTTPException(502, "Could not evaluate, please try again")
+        print(f"[lesson] eval failed: {_safe_err(e)}")
+        raise key_error(e, 502, "Could not evaluate, please try again", check_quota=False)
 
 
 _LESSON_ID_RE = re.compile(r"^l(\d+)_(\d+)$")
@@ -2140,7 +2349,7 @@ async def level_test_submit(inp: LevelTestIn):
     ok, eff, _r = await resolve_keys(claims.get("email", ""), inp.keys, claims.get("sub"))
     if not ok:
         raise HTTPException(402, "keys_required")
-    set_active_keys(eff)
+    set_active_keys(eff, uid=claims.get("sub"), engine=await key_health_enabled(claims.get("email", "")))
     lines = "\n\n".join(
         f"Item {i+1}:\n  prompt: {it.prompt}\n  target: {it.target or '(open answer)'}\n  learner said: {it.said or '(no answer)'}"
         for i, it in enumerate(inp.items)
@@ -2149,8 +2358,8 @@ async def level_test_submit(inp: LevelTestIn):
     try:
         result = await llm.assess(LEVEL_TEST_SYSTEM, payload, max_tokens=1100)
     except Exception as e:
-        print(f"[level-test] eval failed: {type(e).__name__}: {e}")
-        raise HTTPException(502, "Could not score the test, please try again")
+        print(f"[level-test] eval failed: {_safe_err(e)}")
+        raise key_error(e, 502, "Could not score the test, please try again", check_quota=False)
     if not isinstance(result, dict) or result.get("error"):
         # _extract_json's failure sentinel — treating this as a real score would
         # record a 0% failed Boss Challenge attempt for a parse failure, not an
@@ -2295,7 +2504,7 @@ async def practice_analyze(inp: PracticeAnalyzeIn, authorization: str | None = H
     snap = await charge_request(email, uid, _quota_day())    # ONE request, however many model runs it takes
     if not snap.get("allowed", True):
         raise HTTPException(429, "quota")
-    set_active_keys(eff)
+    set_active_keys(eff, uid=uid, engine=await key_health_enabled(email))
     try:
         res = await practice.analyze(
             llm, kind=inp.kind, topic=topic, lang=inp.lang, feedback_lang=inp.feedback_lang, level=inp.level,
@@ -2303,9 +2512,7 @@ async def practice_analyze(inp: PracticeAnalyzeIn, authorization: str | None = H
             words=inp.words, segments=inp.segments, goal=inp.goal)
     except practice.AnalysisUnavailable as e:
         print(f"[practice] analysis unavailable: {_safe_err(e)}")           # never the transcript
-        if _is_quota(e):
-            raise HTTPException(429, "quota")
-        raise HTTPException(502, "Could not analyse your practice right now — please try again in a minute.")
+        raise key_error(e, 502, "Could not analyse your practice right now — please try again in a minute.")
     if res.get("too_short"):
         return res                                                        # nothing stored, no XP
     english = res["lang"] == "en"
@@ -2394,21 +2601,17 @@ async def practice_bridge(inp: PracticeBridgeIn, authorization: str | None = Hea
     snap = await charge_request(email, uid, _quota_day())
     if not snap.get("allowed", True):
         raise HTTPException(429, "quota")
-    set_active_keys(eff)
+    set_active_keys(eff, uid=uid, engine=await key_health_enabled(email))
     try:
         bridge = await practice.build_bridge(llm, lang=inp.lang, topic=inp.topic, transcript=inp.transcript)
     except ValueError:
         raise HTTPException(400, "too_short")
     except practice.AnalysisUnavailable as e:
         print(f"[practice] bridge unavailable: {_safe_err(e)}")
-        if _is_quota(e):
-            raise HTTPException(429, "quota")
-        raise HTTPException(502, "Could not build the English version right now — please try again.")
+        raise key_error(e, 502, "Could not build the English version right now — please try again.")
     except Exception as e:
         print(f"[practice] bridge failed: {_safe_err(e)}")
-        if _is_quota(e):
-            raise HTTPException(429, "quota")
-        raise HTTPException(502, "Could not build the English version right now — please try again.")
+        raise key_error(e, 502, "Could not build the English version right now — please try again.")
     if uid and db.db_enabled:
         try:
             if inp.attempt_id:
@@ -2864,12 +3067,12 @@ async def interview_ws(ws: WebSocket):
         except practice.AnalysisUnavailable as e:
             print(f"[practice-talk] analysis unavailable: {_safe_err(e)}")      # never the conversation
             practice_done = False          # nothing was scored: "End" can try again on the same conversation
-            await _send(ws, type="practice_error", msg="quota" if _is_quota(e) else "unavailable")
+            await _send(ws, type="practice_error", msg="quota" if _is_quota(e) else "unavailable", **kp_kw(e))
             return
         except Exception as e:
             print(f"[practice-talk] analysis failed: {_safe_err(e)}")
             practice_done = False
-            await _send(ws, type="practice_error", msg="quota" if _is_quota(e) else "unavailable")
+            await _send(ws, type="practice_error", msg="quota" if _is_quota(e) else "unavailable", **kp_kw(e))
             return
         if res.get("too_short"):
             await _send(ws, type="practice_report", data=res)
@@ -2908,7 +3111,7 @@ async def interview_ws(ws: WebSocket):
                 if not ok:
                     await _send(ws, type="keys_required", msg="Add your own API keys in Settings to use DuSu.")
                     break
-                set_active_keys(effkeys)
+                set_active_keys(effkeys, uid=uid, engine=await key_health_enabled(_email))
                 quota_day = _quota_day()   # server IST day for the request quota (client `day` ignored)
                 # Everything below is independent I/O against a REMOTE database where a
                 # single round-trip is ~700-850ms. Sequentially these cost several
@@ -3134,8 +3337,8 @@ async def interview_ws(ws: WebSocket):
                     try:
                         r = await session.home_turn(text[:600])
                     except Exception as e:
-                        if _is_quota(e): await _send(ws, type="quota", msg="Your API keys hit their limit. Add or replace a key in Settings.")
-                        else: await _send(ws, type="home_error")
+                        if _is_quota(e): await _send(ws, type="quota", msg=quota_msg(e), **kp_kw(e))
+                        else: await _send(ws, type="home_error", **kp_kw(e))
                         continue
                     await _send(ws, type="home_turn", text=r["text"], lang=session.lang, intent=r["intent"],
                                 actions=r["actions"])
@@ -3145,8 +3348,8 @@ async def interview_ws(ws: WebSocket):
                     try:
                         english = await session.translate(text)
                     except Exception as e:
-                        if _is_quota(e): await _send(ws, type="quota", msg="Your API keys hit their limit. Add or replace a key in Settings.")
-                        else: await _send(ws, type="translate_error")
+                        if _is_quota(e): await _send(ws, type="quota", msg=quota_msg(e), **kp_kw(e))
+                        else: await _send(ws, type="translate_error", **kp_kw(e))
                         continue
                     # hindi = what the learner said, text = the translation (the keys keep their old names);
                     # dir says which way it went so the client picks the right voice and labels.
@@ -3158,8 +3361,8 @@ async def interview_ws(ws: WebSocket):
                     try:
                         d = await session.daily_turn(text)
                     except Exception as e:
-                        if _is_quota(e): await _send(ws, type="quota", msg="Your API keys hit their limit. Add or replace a key in Settings.")
-                        else: await _send(ws, type="translate_error")
+                        if _is_quota(e): await _send(ws, type="quota", msg=quota_msg(e), **kp_kw(e))
+                        else: await _send(ws, type="translate_error", **kp_kw(e))
                         continue
                     await _send(ws, type="daily_turn", hindi=text,
                                 english=d.get("english", ""), reply=d.get("reply_hindi", ""),
@@ -3196,8 +3399,8 @@ async def interview_ws(ws: WebSocket):
                     # here must not be misreported as "your keys hit their limit" and
                     # must not kill the socket (a real quota failure DOES fall through
                     # here too, correctly, via _is_quota).
-                    if _is_quota(e): await _send(ws, type="quota", msg="Your API keys hit their limit. Add or replace a key in Settings.")
-                    else: await _send(ws, type="error", msg="Could not get a reply — please try again.")
+                    if _is_quota(e): await _send(ws, type="quota", msg=quota_msg(e), **kp_kw(e))
+                    else: await _send(ws, type="error", msg="Could not get a reply — please try again.", **kp_kw(e))
                     continue
                 await _send(ws, type="ai_text", text=line, streamed=spoke_any, lang=session.lang)
                 if session.done and session.mode == "practice":
@@ -3257,13 +3460,13 @@ async def interview_ws(ws: WebSocket):
     except Exception as e:  # keep the socket honest about failures
         try:
             if _is_quota(e):
-                await _send(ws, type="quota", msg="Your API keys hit their limit. Add or replace a key in Settings.")
+                await _send(ws, type="quota", msg=quota_msg(e), **kp_kw(e))
             elif "all providers" in str(e).lower():
                 # Whole chain down/rate-limited. str(e) here is a stack of raw provider
                 # errors ("Error code: 410 - github_models_retirement_brownout…") which
                 # tells the user nothing they can act on.
                 await _send(ws, type="error",
-                            msg="All AI providers are busy right now. Please try again in a minute.")
+                            msg="All AI providers are busy right now. Please try again in a minute.", **kp_kw(e))
             else:
                 await _send(ws, type="error", msg=str(e))
         except Exception:

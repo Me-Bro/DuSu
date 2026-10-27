@@ -26,9 +26,11 @@ def semaphore() -> asyncio.Semaphore:
 
 
 def cooling() -> list[str]:
+    """Providers that are limited right now. With the per-key engine on for this learner it asks about THEIR keys (an invalid key is not 'busy'); otherwise
+    it is the process-wide cooldown map, as before."""
     try:
-        from ..providers.openrouter_provider import cooling_down
-        return cooling_down()
+        from ..providers.openrouter_provider import cooling_now
+        return cooling_now()
     except Exception:
         return []
 

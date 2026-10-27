@@ -93,23 +93,14 @@ class Settings(BaseSettings):
                 "headers": {"HTTP-Referer": PUBLIC_ORIGIN, "X-Title": "DuSu"},
                 "extra": {"reasoning": {"exclude": True, "effort": "low"}},
             })
-        if self.github_token:
-            chain.append({
-                "name": "github",
-                # LAST: GitHub Models is in a retirement brownout (410 on every call).
-                # Kept only so the chain still has a tail if it comes back.
-                "base_url": "https://models.github.ai/inference",
-                "key": self.github_token,
-                "models": ["openai/gpt-4o-mini"],
-                "headers": {},
-                "extra": {},
-            })
+        # GitHub Models is gone from the chain (2026-10-27): it was in a retirement brownout (410 on every call), and it answers 200 "OK" to ANY token, so it
+        # could neither validate a key nor serve a reply - it only cost a wasted round-trip. `github_token` stays a settings field so an old .env still loads.
         return chain
 
     def providers_from(self, keys: dict) -> list[dict]:
         """BYOK / Office mode: build a chain from caller-supplied keys.
         Same base_urls / models / headers / order as providers(); only the key
-        differs. Missing keys are skipped. keys = {gemini, groq, openrouter, github}."""
+        differs. Missing keys are skipped. keys = {gemini, groq, openrouter}."""
         # Must mirror providers() exactly (same order + same live model names) —
         # a BYOK user should get identical behaviour/latency, just on their own key.
         k = {kk: (str(vv or "")).strip() for kk, vv in (keys or {}).items()}
@@ -129,11 +120,7 @@ class Settings(BaseSettings):
                 "models": ["google/gemma-4-31b-it:free"],
                 "headers": {"HTTP-Referer": PUBLIC_ORIGIN, "X-Title": "DuSu"},
                 "extra": {"reasoning": {"exclude": True, "effort": "low"}}})
-        if k.get("github"):
-            chain.append({"name": "github", "base_url": "https://models.github.ai/inference",
-                "key": k["github"], "models": ["openai/gpt-4o-mini"],
-                "headers": {}, "extra": {}})
-        return chain
+        return chain                       # (a stored / sent "github" key is ignored: see providers())
 
 
 settings = Settings()

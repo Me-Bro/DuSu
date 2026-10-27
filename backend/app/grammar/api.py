@@ -185,7 +185,7 @@ async def analyze(request: Request, authorization: str | None = Header(None)):
     ok, eff, _r = await M.resolve_keys(email, body.get("keys") if isinstance(body.get("keys"), dict) else {}, uid)
     if not ok:
         raise HTTPException(402, "keys_required")
-    set_active_keys(eff)                              # contextvar: set in THIS task BEFORE the detached task is created
+    set_active_keys(eff, uid=uid, engine=await M.key_health_enabled(email))      # contextvar: set in THIS task BEFORE the detached task is created
     source, key = str(body.get("source") or ""), _key(body.get("ref"))
     if source == "practice" and key.startswith("pa:"):
         return await _analyze_practice(uid, email, key, body)

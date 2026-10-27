@@ -114,12 +114,18 @@ async def _llm_gate(request: Request, authorization: str | None, token: str = ""
     ok, eff, _r = await M.resolve_keys(email, body.get("keys") if isinstance(body.get("keys"), dict) else {}, uid)
     if not ok:
         raise HTTPException(402, "keys_required")
-    set_active_keys(eff)                              # contextvar: must be set in THIS task before the model is awaited
+    set_active_keys(eff, uid=uid, engine=await M.key_health_enabled(email))      # contextvar: must be set in THIS task before the model is awaited
     return claims, uid, email, body
 
 
 _DOC_STATUS = {"unsupported_doc": (415, {"error": "unsupported_type", "hint": "doc"}), "unsupported_other": (415, {"error": "unsupported_type", "hint": "other"}),
                "extract_unavailable": (502, {"error": "extract_unavailable"}), "busy": (429, "rate")}
+
+
+def _key_http(e, status: int, detail) -> HTTPException:
+    """The same HTTP error as before, plus `kp` (why the KEYS failed) when the per-key engine knows. `detail` is unchanged."""
+    from .. import main as M
+    return M.KeyProblem(status, detail, M.key_failure(e))
 
 
 async def _run(coro, unavailable: str = "analysis_unavailable"):
@@ -146,13 +152,13 @@ async def _run(coro, unavailable: str = "analysis_unavailable"):
         raise HTTPException(429, "quota")
     except svc.FeedbackFailed as e:
         if e.quota:
-            raise HTTPException(429, "quota")
-        raise HTTPException(502, {"error": "feedback_unavailable", "saved": True, "turn": e.turn})
+            raise _key_http(e, 429, "quota")
+        raise _key_http(e, 502, {"error": "feedback_unavailable", "saved": True, "turn": e.turn})
     except engine.Unavailable as e:
         print(f"[rinterview] {what}: model unavailable ({type(e).__name__}, parse_failed={e.parse_failed})")
         if not e.parse_failed and svc.quotaish(e):
-            raise HTTPException(429, "quota")
-        raise HTTPException(502, {"error": unavailable})
+            raise _key_http(e, 429, "quota")
+        raise _key_http(e, 502, {"error": unavailable})
     except docs.DocError as e:
         code = str(e.args[0]) if e.args else "bad_file"
         if code in _DOC_STATUS:

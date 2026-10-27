@@ -2,7 +2,7 @@
    Network-first for navigations (always try fresh HTML so deploys show up),
    falling back to cache when offline. WebSocket + API calls are never cached. */
 
-const CACHE = "dusu-v32";   // bumped: Notifications (flag-gated, ships dark: personal practice / streak / weekly-note nudges as push, an "arrived" receipt and a tap beacon) (v31: Grammar Coach (flag-gated, ships dark: every English sentence checked, corrected and explained, in its own section) (v30: My Day check / uncheck on tasks, habits, goals and reminders - a finished item stays where it was checked and one tap puts it back (v29: My Day repeating reminders - set once, they ring on chosen weekdays until paused or deleted (v28: Job Interview Practice (renamed from Resume Interview) with detailed saved reports, improvement plan and progress since the last interview (v27: Resume Interview (flag-gated, ships dark) (v26: My Day lists show everything with visible edit/delete/add, first-use crash fixed (v25: My Day reminders in Today + their own tab, edit/delete, DuSu reads them all (v24: dashboard early-access list; v23: My Day; v22: language scope (old features pinned) + Home feature icons; v21: Home 2.0; v19: "DuSu knows your progress" switch, v18: Practice Room)
+const CACHE = "dusu-v33";   // bumped: real install icons + manifest id (the web-app install button), the key screens, notification fixes - the push is shown FIRST and the "arrived" receipt follows, a nudge while the app is open is silent + an in-app notice, a monochrome badge (v32: Notifications (flag-gated, ships dark: personal practice / streak / weekly-note nudges as push, an "arrived" receipt and a tap beacon) (v31: Grammar Coach (flag-gated, ships dark: every English sentence checked, corrected and explained, in its own section) (v30: My Day check / uncheck on tasks, habits, goals and reminders - a finished item stays where it was checked and one tap puts it back (v29: My Day repeating reminders - set once, they ring on chosen weekdays until paused or deleted (v28: Job Interview Practice (renamed from Resume Interview) with detailed saved reports, improvement plan and progress since the last interview (v27: Resume Interview (flag-gated, ships dark) (v26: My Day lists show everything with visible edit/delete/add, first-use crash fixed (v25: My Day reminders in Today + their own tab, edit/delete, DuSu reads them all (v24: dashboard early-access list; v23: My Day; v22: language scope (old features pinned) + Home feature icons; v21: Home 2.0; v19: "DuSu knows your progress" switch, v18: Practice Room)
 const SHELL = ["/", "/logo.png", "/manifest.webmanifest"];
 // Cache-first is now an ALLOWLIST, not a denylist — every new authenticated GET
 // endpoint added to main.py is safe by default instead of needing a matching
@@ -65,24 +65,42 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
-/* ---------- My Day reminders (Web Push) ----------
-   The server sends an encrypted message; `data.act` carries single-purpose, signed, 24-hour tokens so the notification's buttons (Done / Later /
-   Skip) can act with NO login - a service worker cannot read the app's session. If a DuSu window is visible the in-app reminder card already shows
-   it, so no second alert is raised: the window is just told to refresh. Push is opt-in and best-effort; the in-app card is the guaranteed channel. */
+/* ---------- Web Push: My Day reminders and Notifications nudges ----------
+   The server sends an encrypted message. A My Day reminder carries single-purpose, signed, 24-hour tokens (`data.act`) so the notification's buttons (Done / Later /
+   Skip) can act with NO login - a service worker cannot read the app's session; if a DuSu window is visible the in-app reminder card already shows it, so no second
+   alert is raised. A Notifications NUDGE (`data.nid`) is different on purpose:
+     * it is ALWAYS shown, and shown FIRST - a push that raises no notification can get the subscription revoked (iPhone insists on it; Chrome puts up a generic
+       "this site has been updated" one), and the "it arrived" receipt used to be awaited BEFORE showing, so a slow network delayed or lost the notification itself;
+     * the receipt (a signed single-purpose token) follows in the background, even if showing failed - the push DID arrive;
+     * while a DuSu window is visible the notification is `silent` and the window is told, so it draws an in-app notice instead of buzzing twice.
+   Push is opt-in and best-effort; the in-app card is the guaranteed channel. */
+const ICON = "/assets/icons/dusu-192-v1.png";
+const BADGE = "/assets/icons/badge-96-v1.png";          // white-on-transparent: Android draws only its alpha in the status bar (the 1.7 MB colour logo became a white square)
+
 self.addEventListener("push", (event) => {
   let d = {};
   try { d = event.data ? event.data.json() : {}; } catch (_) {}
   event.waitUntil((async () => {
     const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const visible = wins.some((w) => w.visibilityState === "visible");
     const nt = d.data && d.data.nid;                                       // a Notifications nudge (backend/app/notify), not a My Day reminder
-    if (nt && d.data.ack) {                                                // tell the server it ARRIVED (signed single-purpose token, no login needed)
-      try { await fetch("/notify/ack", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ t: d.data.ack }), keepalive: true }); } catch (_) {}
+    if (nt) {
+      if (visible) wins.filter((w) => w.visibilityState === "visible").forEach((w) => { try { w.postMessage({ type: "nt-nudge", id: d.data.nid, title: d.title || "DuSu", body: d.body || "", url: d.data.url || "/" }); } catch (_) {} });
+      try {
+        await self.registration.showNotification(d.title || "DuSu", {
+          body: d.body || "", tag: d.tag || "dusu-nudge", data: d.data || {}, actions: (d.actions || []).slice(0, 3), icon: ICON, badge: BADGE, silent: visible,
+        });
+      } catch (_) {}
+      if (d.data.ack) {                                                    // tell the server it ARRIVED (signed single-purpose token, no login needed)
+        try { await fetch("/notify/ack", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ t: d.data.ack }), keepalive: true }); } catch (_) {}
+      }
+      return;
     }
-    if (!nt) wins.forEach((w) => { try { w.postMessage({ type: "pl-due" }); } catch (_) {} });
-    if (wins.some((w) => w.visibilityState === "visible")) return;
+    wins.forEach((w) => { try { w.postMessage({ type: "pl-due" }); } catch (_) {} });
+    if (visible) return;
     await self.registration.showNotification(d.title || "DuSu", {
       body: d.body || "", tag: d.tag || "dusu-reminder", data: d.data || {}, actions: (d.actions || []).slice(0, 3),
-      icon: "/logo.png", badge: "/logo.png",
+      icon: ICON, badge: BADGE,
     });
   })());
 });

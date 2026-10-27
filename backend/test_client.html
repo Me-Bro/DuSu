@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>DuSu — Speak with confidence</title>
-<link rel="icon" href="/logo.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/icons/dusu-192-v1.png" />
 <!-- PWA: installable app -->
 <link rel="manifest" href="/manifest.webmanifest" />
 <meta name="theme-color" content="#070a14" />
@@ -12,7 +12,27 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="DuSu" />
-<link rel="apple-touch-icon" href="/logo.png" />
+<link rel="apple-touch-icon" href="/assets/icons/apple-touch-180-v1.png" />
+<script>
+/* Install-app plumbing that must run BEFORE the big script at the end of <body>: Chrome fires `beforeinstallprompt` as soon as the page is installable, and the Android app
+   (a Trusted Web Activity) only reveals itself in document.referrer on its LAUNCH navigation. The event is kept only for learners the install feature is on for (the last /me said
+   so, see INST): preventDefault() hides the browser's own install mini-bar, and that is a change nobody has switched on for everyone else. */
+(function(){
+  try{ if(document.referrer && document.referrer.indexOf("android-app://") === 0) sessionStorage.setItem("dusu_twa", "1"); }catch(_){}
+  window.__dusuBip = null;
+  window.addEventListener("beforeinstallprompt", function(e){
+    var on = false; try{ on = localStorage.getItem("dusu_inst_on") === "1"; }catch(_){}
+    if(!on) return;
+    e.preventDefault(); window.__dusuBip = e;
+    try{ window.dispatchEvent(new Event("dusu-bip")); }catch(_){}
+  });
+  window.addEventListener("appinstalled", function(){
+    window.__dusuInstalled = true;
+    try{ localStorage.setItem("dusu_installed", String(Date.now())); }catch(_){}
+    try{ window.dispatchEvent(new Event("dusu-installed")); }catch(_){}
+  });
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -1918,6 +1938,90 @@
   }
   @media (prefers-reduced-motion:reduce){ .nt-sheet, .nt-bg, .nt-sw, .nt-sw::after{ transition:none; } }
 
+  /* ===================== KEYS / INSTALL / COMMUNITY (backend/app/keys + the INST, CM and ARB modules) =====================
+     ky-*, inst-*, cm-* on purpose: this file's class names are GLOBAL and unscoped. Each pop-up is its own element (not .msheet) like the Notifications sheet. */
+  .ky-sum{ margin:0 0 12px; padding:11px 13px; border-radius:14px; background:var(--glass); border:1px solid var(--glass-brd); font-size:14px; line-height:1.45; color:var(--ink-dim); }
+  .ky-sum.ok{ color:#bff0cf; border-color:rgba(120,210,150,.4); background:rgba(120,210,150,.08); }
+  .ky-sum.warn{ color:#f6d9ae; border-color:rgba(240,169,82,.5); background:rgba(240,169,82,.09); }
+  .ky-sum.bad{ color:#f2c4ba; border-color:rgba(224,138,122,.5); background:rgba(224,138,122,.09); }
+  .ky-blk{ margin:8px 0 4px; }
+  .ky-row{ display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; }
+  .ky-chip{ display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; font-size:12.5px; font-weight:600; border:1px solid var(--glass-brd); background:var(--glass); color:var(--ink-dim); }
+  .ky-chip.ok{ color:#bff0cf; border-color:rgba(120,210,150,.45); background:rgba(120,210,150,.08); }
+  .ky-chip.warn{ color:#f6d9ae; border-color:rgba(240,169,82,.5); background:rgba(240,169,82,.09); }
+  .ky-chip.bad{ color:#f2c4ba; border-color:rgba(224,138,122,.5); background:rgba(224,138,122,.09); }
+  .ky-mask{ font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:13.5px; letter-spacing:.02em; color:var(--ink); word-break:break-all; }
+  .ky-use{ margin:6px 0 0; font-size:12.5px; line-height:1.5; color:var(--ink-faint); }
+  .ky-bar{ display:block; height:6px; border-radius:99px; background:rgba(255,255,255,.08); overflow:hidden; margin:6px 0 0; }
+  .ky-bar b{ display:block; height:100%; border-radius:99px; background:var(--grad); }
+  .ky-acts{ display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 2px; }
+  .ky-acts .btn{ flex:1 1 96px; min-height:44px; }
+  .ky-acts[hidden]{ display:none; }
+  .ky-del{ color:#f2c4ba; }
+  .ky-msg{ min-height:18px; margin:6px 0 0; font-size:13px; line-height:1.45; color:var(--ink-dim); }
+  .ky-msg.ok{ color:#bff0cf; } .ky-msg.bad{ color:#f2c4ba; }
+  .ky-hint2{ margin-top:6px; font-size:12px; line-height:1.45; color:var(--ink-faint); }
+  .ky-never{ margin:12px 0 0; }
+  .ky-all{ margin-top:14px; }
+  #keysForm.ky-on #verifyKeys{ display:none; }
+  .ky-card{ margin:6px 0 14px; }
+  .ky-card-btn{ display:block; width:100%; text-align:left; font:inherit; color:inherit; padding:13px 15px; border-radius:var(--r); cursor:pointer;
+    background:var(--glass); border:1px solid var(--glass-brd); }
+  .ky-card.warn .ky-card-btn{ border-color:rgba(240,169,82,.55); background:rgba(240,169,82,.07); }
+  .ky-card.bad .ky-card-btn{ border-color:rgba(224,138,122,.6); background:rgba(224,138,122,.09); }
+  .ky-card-btn:focus-visible, .ky-x:focus-visible, .inst-x:focus-visible, .inst-pill:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:2px; }
+  .ky-card-h{ display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:4px 12px; margin-bottom:6px; }
+  .ky-card-h b{ font-family:var(--font-d); font-size:18px; font-weight:600; }
+  .ky-card-h span{ font-size:12.5px; color:var(--ink-dim); }
+  .ky-krow{ display:flex; align-items:center; gap:8px; font-size:13px; padding:3px 0; min-width:0; }
+  .ky-dot{ flex:none; width:9px; height:9px; border-radius:50%; background:var(--ink-faint); }
+  .ky-dot.ok{ background:var(--green); } .ky-dot.warn{ background:var(--amber); } .ky-dot.bad{ background:var(--rose); }
+  .ky-kn{ flex:none; font-weight:600; min-width:84px; }
+  .ky-ks{ color:var(--ink-dim); min-width:0; overflow-wrap:anywhere; }
+  .ky-card-tap{ display:block; margin-top:8px; font-size:12px; color:var(--ink-faint); }
+  .ky-bg, .inst-bg, .cm-bg{ position:fixed; inset:0; background:rgba(0,0,0,.5); opacity:0; pointer-events:none; transition:.25s; z-index:82; }
+  .ky-bg.on, .inst-bg.on, .cm-bg.on{ opacity:1; pointer-events:auto; }
+  .ky-sheet, .inst-sheet, .cm-sheet{ position:fixed; left:50%; bottom:0; transform:translate(-50%,110%); width:100%; max-width:440px; z-index:83; visibility:hidden;
+    background:#0c1120; border:1px solid var(--glass-brd); border-radius:24px 24px 0 0; padding:14px 18px calc(22px + env(safe-area-inset-bottom));
+    max-height:calc(100vh - 56px); max-height:calc(100dvh - 56px); overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+    transition:transform .3s cubic-bezier(.2,.7,.2,1), visibility 0s linear .3s; }
+  .ky-sheet.on, .inst-sheet.on, .cm-sheet.on{ transform:translate(-50%,0); visibility:visible; transition-delay:0s; }
+  .ky-head, .inst-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin:2px 0 10px; }
+  .ky-head h3, .inst-head h3{ font-family:var(--font-d); font-size:20px; margin:0; outline:none; }
+  .inst-head > div{ flex:1; min-width:0; }
+  .inst-head small{ display:block; font-size:12px; color:var(--ink-faint); }
+  .inst-ic{ flex:none; width:56px; height:56px; border-radius:14px; }
+  .ky-x, .inst-x{ flex:none; min-width:44px; min-height:44px; border-radius:12px; border:1px solid var(--glass-brd); background:var(--glass); color:var(--ink-dim); font:inherit; font-size:16px; cursor:pointer; }
+  .ky-pop-intro, .inst-note{ margin:0 0 10px; font-size:14px; line-height:1.5; color:var(--ink-dim); }
+  .ky-pop-list{ list-style:none; margin:0 0 12px; padding:0; }
+  .ky-pop-list li{ margin:0 0 8px; padding:10px 12px; border-radius:12px; font-size:13.5px; line-height:1.45; background:var(--glass); border:1px solid var(--glass-brd); }
+  .ky-pop-why{ margin:0 0 12px; font-size:12.5px; line-height:1.5; color:var(--ink-faint); }
+  .ky-pop-acts{ display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+  .ky-pop-acts .btn, .inst-sheet .btn, .cm-sheet .btn{ flex:1 1 130px; min-height:46px; }
+  .inst-sheet .btn, .cm-sheet .btn{ width:100%; margin-top:8px; }
+  .inst-list{ list-style:none; margin:0 0 6px; padding:0; }
+  .inst-list li{ margin:0 0 8px; font-size:14px; line-height:1.45; }
+  .inst-h{ margin:8px 0 6px; font-size:12.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-faint); font-weight:600; }
+  .inst-steps{ margin:0 0 8px; padding-left:22px; font-size:14px; line-height:1.55; }
+  .inst-steps li{ margin:0 0 6px; }
+  .inst-pill{ display:inline-flex; align-items:center; gap:6px; min-height:36px; min-width:36px; padding:6px 12px; border-radius:999px; font:inherit; font-size:12.5px; font-weight:600;
+    color:var(--ink); background:linear-gradient(135deg,rgba(111,140,255,.25),rgba(122,92,240,.18)); border:1px solid color-mix(in srgb,var(--gold) 50%,transparent); cursor:pointer; white-space:nowrap; }
+  .inst-pill[hidden]{ display:none; }
+  .cm-note{ font-style:italic; }
+  #cmSub, #cmHelp{ margin:0 0 14px; }
+  #cmSub{ padding:15px 16px; border-radius:var(--r); background:linear-gradient(135deg,rgba(111,140,255,.17),rgba(122,92,240,.10)); border:1px solid color-mix(in srgb,var(--gold) 45%,transparent); }
+  #cmSub b{ display:block; font-family:var(--font-d); font-size:18px; font-weight:600; }
+  #cmSub small{ display:block; font-size:12.5px; color:var(--ink-dim); margin-top:3px; line-height:1.45; }
+  .cm-help-btn{ width:100%; min-height:46px; }
+  @media (max-width:560px){ .inst-pill .inst-pill-t{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; } .inst-pill{ padding:6px 9px; } }
+  @media (min-width:1200px){
+    .ky-sheet, .inst-sheet, .cm-sheet{ bottom:auto; top:50%; max-width:480px; border-radius:24px; padding:22px 24px 26px; max-height:min(90vh,820px); transform:translate(-50%,-46%) scale(.97); opacity:0;
+      transition:transform .28s cubic-bezier(.2,.7,.2,1), opacity .2s ease, visibility 0s linear .28s; }
+    .ky-sheet.on, .inst-sheet.on, .cm-sheet.on{ transform:translate(-50%,-50%) scale(1); opacity:1; }
+    #moreHome > #kyCard, #moreHome > #ntPrompt, #moreHome > #instPrompt, #moreHome > #waPrompt{ max-width:780px; margin-left:auto; margin-right:auto; }
+  }
+  @media (prefers-reduced-motion:reduce){ .ky-sheet, .ky-bg, .inst-sheet, .inst-bg, .cm-sheet, .cm-bg{ transition:none; } }
+
   /* ===================== PRACTICE ROOM (DUSU_PRACTICE_ROOM_PLAN.md) =====================
      Every class here is pr-* on purpose: this file's class names are GLOBAL and unscoped, and an
      unprefixed .rec once silently inherited the Companion Moment's overflow/animation rules. */
@@ -2569,6 +2673,7 @@
     <span class="beta-badge" title="Beta testing — unrestricted access for now">Beta<span class="beta-long"> Testing · Unlimited</span></span>
     <div class="tag" id="tagline">Speak with confidence</div>
     <div class="hdr-right" id="hdrRight" hidden>
+      <button type="button" class="inst-pill" id="instPill" hidden title="Install DuSu as an app"><span aria-hidden="true">⬇</span><span class="inst-pill-t">Install app</span></button>
       <span class="usage-chip day-chip" id="dayChip" title="Days since you joined DuSu" hidden></span>
       <span class="usage-chip" id="reqChip" title="Free requests left today" hidden></span>
       <span class="usage-chip" id="usageChip" title="Free trial days left" hidden></span>
@@ -2708,7 +2813,10 @@
     <!-- Emotional layer: daily mood check-in, event greeting, weekly letter -->
     <div id="moodRow" class="mood-row" hidden></div>
     <div id="eventBanner" class="event-banner" hidden></div>
+    <div class="ky-card" id="kyCard" hidden></div>
+    <div class="nt-prompt" id="instPrompt" hidden></div>
     <div class="nt-prompt" id="ntPrompt" hidden></div>
+    <div class="nt-prompt" id="waPrompt" hidden></div>
     <button class="pr-entry" id="prHomeCard" hidden>
       <span class="pr-ic">🎤</span>
       <span><b>Presentation coming up?</b><small>Practise it today in Practice Room — get a scored report.</small></span>
@@ -2898,6 +3006,7 @@
     </div>
     <div class="keys-wrap">
       <p class="pf-hint" style="margin-bottom:14px">DuSu's replies are generated by AI language models, not a human — DuSu can make mistakes.</p>
+      <div id="cmHelp" hidden></div>
       <label class="help-lbl" for="helpKind">What's this about?</label>
       <select id="helpKind" class="help-sel">
         <option value="feedback">💬 Feedback / Suggestion</option>
@@ -2986,6 +3095,7 @@
       <div><div class="sess-title">Choose your plan</div><div class="sess-sub">Unlock more practice with DuSu</div></div>
     </div>
     <div class="keys-wrap">
+      <div id="cmSub" hidden></div>
       <div class="plan-list">
         <button class="plan" data-plan="starter">
           <div class="plan-top"><b>Starter</b><span class="plan-price">₹299<i>/mo</i></span></div>
@@ -3763,6 +3873,14 @@
 <div class="nt-bg" id="ntBg"></div>
 <div class="nt-sheet" id="ntSheet" role="dialog" aria-modal="true" aria-labelledby="ntTitle" aria-hidden="true"></div>
 
+<!-- ===================== KEY PROBLEM POP-UP / INSTALL SHEET / WHATSAPP SHEET (the KY, INST and CM modules paint these with DOM calls only) ===================== -->
+<div class="ky-bg" id="kyBg"></div>
+<div class="ky-sheet" id="kySheet" role="dialog" aria-modal="true" aria-labelledby="kyTitle" aria-hidden="true"></div>
+<div class="inst-bg" id="instBg"></div>
+<div class="inst-sheet" id="instSheet" role="dialog" aria-modal="true" aria-labelledby="instTitle" aria-hidden="true"></div>
+<div class="cm-bg" id="waBg"></div>
+<div class="cm-sheet" id="waSheet" role="dialog" aria-modal="true" aria-labelledby="waTitle" aria-hidden="true"></div>
+
 <!-- ===================== BOTTOM NAV + MORE SHEET ===================== -->
 <div class="msheet-bg" id="msheetBg"></div>
 <div class="msheet" id="msheet">
@@ -3771,6 +3889,8 @@
   <button class="mrow" data-more="myday" id="mrowMyDay" hidden><span class="mi">✅</span><span><span class="mt">My Day</span><br><span class="msub">Tasks, habits, goals &amp; reminders</span></span></button>
   <button class="mrow" data-more="resume-interview" id="mrowRI" hidden><span class="mi">📄</span><span><span class="mt">Job Interview Practice</span><br><span class="msub">Your resume + a job → a mock interview</span></span></button>
   <button class="mrow" data-more="notifications" id="mrowNT" hidden><span class="mi">🔔</span><span><span class="mt">Notifications</span><br><span class="msub">Practice reminders, your streak, your weekly note</span></span></button>
+  <button class="mrow" data-more="install" id="mrowInst" hidden><span class="mi">⬇️</span><span><span class="mt">Install app</span><br><span class="msub">Add DuSu to your home screen</span></span></button>
+  <button class="mrow" data-more="whatsapp" id="mrowWA" hidden><span class="mi">💬</span><span><span class="mt">WhatsApp group</span><br><span class="msub">Updates, help and feedback</span></span></button>
   <button class="mrow" data-more="grammar" id="mrowGC" hidden><span class="mi">✍️</span><span><span class="mt">Grammar Coach</span><br><span class="msub">Your English, sentence by sentence</span></span></button>
   <button class="mrow" data-more="profile"><span class="mi">👤</span><span><span class="mt">Profile</span><br><span class="msub">Streaks, badges, memories</span></span></button>
   <button class="mrow" data-more="keys"><span class="mi">🔑</span><span><span class="mt">DuSu keys / Mode</span><br><span class="msub">Personal or Office (own keys)</span></span></button>
@@ -4041,8 +4161,8 @@ const I18N = {
     orbListen:"Listening", orbListenHint:"speak, then pause", orbThink:"DuSu is thinking", orbSpeak:"DuSu is speaking", orbSpeakHint:"listen…",
     orbMicBlocked:"Microphone blocked", orbMicBlockedHint:"allow mic access, then retry",
     orbMicTrouble:"Mic trouble", orbMicTroubleHint:"tap End and try again",
-    orbScoring:"Scoring your interview…", orbWrap:"Wrapping up…", orbPaused:"Paused", orbPausedHint:"add or replace a key in Settings",
-    sysInterviewDone:"Interview complete", keysLimit:"Your API keys hit their limit — add or replace a key in Settings.",
+    orbScoring:"Scoring your interview…", orbWrap:"Wrapping up…", orbPaused:"Paused", orbPausedHint:"add or replace a key in More → DuSu keys",
+    sysInterviewDone:"Interview complete", keysLimit:"Your API keys hit their limit — add or replace a key in More → DuSu keys.",
     th_think:[[0,"DuSu is thinking…"],[6000,"Finding the right words…"],[14000,"Still on it — thanks for waiting 🙏"],[26000,"Taking longer than usual — check your connection, or go back and try again.",true]],
     th_start:[[0,"DuSu is getting ready…"],[7000,"Warming up…"],[16000,"Almost there — thanks for waiting 🙏"]],
     th_scoring:[[0,"Scoring your interview…"],[8000,"Writing your feedback…"],[20000,"Almost done — thanks for waiting 🙏"]],
@@ -4066,7 +4186,7 @@ const I18N = {
     dcReplyBtn:"Reply", dFinish:"Finish talk", dNudge:"✨ What next?", dcReplayTitle:"Replay", dcReplayAria:"Replay slowly",
     dConnErr:"Connection error. Is the server running?", dConnLost:"Connection lost — go back and try again.",
     dFailGeneric:"Something went wrong — please try again.", dFailAnswer:"DuSu couldn't answer that one — tap the mic and try again.",
-    dTryAgain:"Tap the mic and try again.", dKeysLimit:"Your keys hit their limit — add or replace a key in Settings.",
+    dTryAgain:"Tap the mic and try again.", dKeysLimit:"Your keys hit their limit — add or replace a key in More → DuSu keys.",
     dNoSpeech:"Sorry, I didn't catch that. Please say it again.",
     dRemind:"By the way, when you're ready you can continue your learning below — or just keep chatting here.",
     dFallbackReply:"Nice! What was the best part of your day?", dTalk:"Talk", dLearn:"Learn",
@@ -4099,7 +4219,7 @@ const I18N = {
     orbMicBlocked:"Microphone बंद है", orbMicBlockedHint:"mic की अनुमति दीजिए, फिर दोबारा कोशिश कीजिए",
     orbMicTrouble:"Mic में दिक्कत", orbMicTroubleHint:"'खत्म करें' दबाकर फिर कोशिश कीजिए",
     orbScoring:"आपका interview score हो रहा है…", orbWrap:"DuSu बात समेट रही है…", orbPaused:"रुका हुआ", orbPausedHint:"Settings में key जोड़ें या बदलें",
-    sysInterviewDone:"Interview पूरा हुआ", keysLimit:"आपकी API keys की सीमा पूरी हो गई — Settings में key जोड़ें या बदलें।",
+    sysInterviewDone:"Interview पूरा हुआ", keysLimit:"आपकी API keys की सीमा पूरी हो गई — More → DuSu keys में key जोड़ें या बदलें।",
     th_think:[[0,"DuSu सोच रही है…"],[6000,"सही शब्द ढूँढ रही है…"],[14000,"बस थोड़ा और — इंतज़ार के लिए शुक्रिया 🙏"],[26000,"आज ज़्यादा समय लग रहा है — connection जाँचिए, या वापस जाकर फिर कोशिश कीजिए।",true]],
     th_start:[[0,"DuSu तैयार हो रही है…"],[7000,"बस शुरू करने वाली है…"],[16000,"लगभग हो गया — इंतज़ार के लिए शुक्रिया 🙏"]],
     th_scoring:[[0,"आपका interview score हो रहा है…"],[8000,"Feedback लिखा जा रहा है…"],[20000,"लगभग हो गया — इंतज़ार के लिए शुक्रिया 🙏"]],
@@ -4123,7 +4243,7 @@ const I18N = {
     dcReplyBtn:"जवाब दें", dFinish:"बात खत्म करें", dNudge:"✨ आगे क्या करें?", dcReplayTitle:"दोबारा सुनिए", dcReplayAria:"धीरे से दोबारा सुनिए",
     dConnErr:"कनेक्शन में दिक्कत है। क्या सर्वर चल रहा है?", dConnLost:"कनेक्शन टूट गया — वापस जाकर फिर कोशिश कीजिए।",
     dFailGeneric:"कुछ गड़बड़ हो गई — कृपया फिर कोशिश कीजिए।", dFailAnswer:"DuSu इसका जवाब नहीं दे पाई — mic दबाकर फिर कोशिश कीजिए।",
-    dTryAgain:"Mic दबाकर फिर कोशिश कीजिए।", dKeysLimit:"आपकी keys की सीमा पूरी हो गई — Settings में key जोड़ें या बदलें।",
+    dTryAgain:"Mic दबाकर फिर कोशिश कीजिए।", dKeysLimit:"आपकी keys की सीमा पूरी हो गई — More → DuSu keys में key जोड़ें या बदलें।",
     dNoSpeech:"मुझे समझ नहीं आया। कृपया दोबारा बोलिए।",
     dRemind:"वैसे, जब तुम ready हो तो नीचे अपनी learning आगे बढ़ा सकते हो — या यहीं बात continue करो।",
     dFallbackReply:"अच्छा! आज का सबसे अच्छा पल कौन-सा था?", dTalk:"बातचीत", dLearn:"सीखें",
@@ -4337,6 +4457,9 @@ function show(id, pathOverride){
   try{ window.RI && RI.syncEntries(); }catch(_){}   // Job Interview Practice entry points (hidden until the owner switches it on)
   try{ window.GC && GC.syncEntries(); }catch(_){}   // Grammar Coach entry points (hidden until the owner switches it on)
   try{ window.NT && NT.syncEntries(); }catch(_){}   // Notifications: the Home prompt + the More row (hidden until the owner switches it on)
+  try{ window.KY && KY.sync(); }catch(_){}           // Keys: the Home card + the pop-up for a key that died while the learner was away (hidden until the owner switches it on)
+  try{ window.INST && INST.sync(); }catch(_){}       // Install app: the header pill, the More row, the Home card (hidden until the owner switches it on)
+  try{ window.CM && CM.sync(); }catch(_){}           // WhatsApp group: the Home card, the More row, Help, plans (hidden until the owner switches it on)
   if(cur === "gc" && id !== "gc"){ try{ window.GC && GC.leave(); }catch(_){} }
   if(cur === "pl" && id !== "pl"){ try{ window.PL && PL.leave(); }catch(_){} }
   if(cur === "ri" && id !== "ri"){ try{ window.RI && RI.leave(); }catch(_){} }   // stop the voice / keep an unfinished recording
@@ -4387,6 +4510,7 @@ function openMore(){
   try{ window.RI && RI.syncEntries(); }catch(_){}   // Job Interview Practice row (hidden unless /me says resume_interview)
   try{ window.GC && GC.syncEntries(); }catch(_){}   // Grammar Coach row (hidden unless /me says grammar_coach)
   try{ window.NT && NT.syncEntries(); }catch(_){}   // Notifications row (hidden unless /me says notifications)
+  try{ window.INST && INST.paint(); window.CM && CM.sync(); }catch(_){}   // Install app + WhatsApp group rows (hidden unless /me says install_app)
   // Level check hidden entirely while the owner has the assessment switched off.
   const lt = $("mrowLevelTest"); if(lt) lt.hidden = !!(userState && userState.level_test === false);
   // Keys row: office-approved users, users who must BYOK, and anyone already holding
@@ -4408,6 +4532,8 @@ document.querySelectorAll(".mrow").forEach(r => r.onclick = () => {
   else if(a === "resume-interview") navTo("/resume-interview");
   else if(a === "grammar") navTo("/grammar");
   else if(a === "notifications") NT.open();             // a sheet, not a route: nothing to guard or restore on reload
+  else if(a === "install") INST.start();                // the one-tap install (or the steps for this browser): a sheet, not a route
+  else if(a === "whatsapp") CM.open();
   else if(a === "achievements") navTo("/achievements");
   else if(a === "interview-reports") navTo("/interview-reports");
   else if(a === "rewards") toggleRewardsGuide(true);
@@ -4774,6 +4900,7 @@ function loadKeysUI(){
   if($("keysBack")) $("keysBack").style.display = forceOffice ? "none" : "";
   if(forceOffice && useMode !== "office"){ useMode = "office"; localStorage.setItem("dusu_usemode","office"); }
   setModeUI();
+  try{ window.KY && KY.onOpen(); }catch(_){}   // the server-rendered Keys screen (a no-op until the owner switches it on)
 }
 if($("modePersonal")) $("modePersonal").onclick = () => { useMode="personal"; localStorage.setItem("dusu_usemode","personal"); setModeUI(); postMode("personal"); };
 if($("modeOffice")) $("modeOffice").onclick = () => { useMode="office"; localStorage.setItem("dusu_usemode","office"); setModeUI(); postMode("office"); };
@@ -4861,6 +4988,17 @@ async function openAdmin(){
       ${d.grammar_coach_health && typeof d.grammar_coach_health.sessions === "number" ? `<p class="keys-note" style="margin:-4px 0 8px">Grammar Coach: ${d.grammar_coach_health.sessions} session(s) · ${d.grammar_coach_health.partial} partial · ${d.grammar_coach_health.failed} failed${(d.grammar_coach_health.noisy || []).length ? " · noisiest rule: " + esc(d.grammar_coach_health.noisy[0].rule) + " (" + d.grammar_coach_health.noisy[0].contested + "/" + d.grammar_coach_health.noisy[0].shown + " contested)" : ""}</p>` : ""}
       <label class="swrow"><span><b>Notifications</b><br><span class="msub">Personal nudges to a learner's phone: a daily practice reminder, a streak warning and a weekly-note announcement, chosen from their own progress. It stores each learner's notification choices and history, so it ships dark. Off = nobody (default). Owner + early access = you and the early-access testers. Everyone = all users (each still has to turn it on in the app).</span></span>
       <select class="pr-sel" id="ntSel"><option value="off" ${d.notifications === "on" || d.notifications === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.notifications === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.notifications === "on" ? "selected" : ""}>Everyone</option></select></label>
+      <label class="swrow"><span><b>Key health (per-key engine)</b><br><span class="msub">Counts every AI request per learner and per key, remembers which key is limited or rejected (so a dead key is not retried on every call), keeps the keys a learner SAVED ahead of stale ones in the browser, and adds the exact reason to key errors. It changes what happens on every AI call for the people it covers, so it ships dark. Off = today's behaviour for everyone (default). Owner + early access = you and the early-access testers. Everyone = all users. Turn this on BEFORE the key screens.</span></span>
+      <select class="pr-sel" id="khSel"><option value="off" ${d.key_health === "on" || d.key_health === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.key_health === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.key_health === "on" ? "selected" : ""}>Everyone</option></select></label>
+      <label class="swrow"><span><b>Key screens</b><br><span class="msub">The Keys page read from the server (masked keys, status, usage, Test / Remove), the "Your AI keys" card on Home, and the plain-words pop-up when a key is rejected or its limit is reached. Needs "Key health" above. Off = the old Keys page (default). Owner + early access = you and the early-access testers. Everyone = all users.</span></span>
+      <select class="pr-sel" id="kuSel"><option value="off" ${d.keys_ui === "on" || d.keys_ui === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.keys_ui === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.keys_ui === "on" ? "selected" : ""}>Everyone</option></select></label>
+      <label class="swrow"><span><b>Install app + WhatsApp group</b><br><span class="msub">An "Install app" button (header, More, a Home card) that adds DuSu to the phone's home screen, and the WhatsApp-group join. Off = nothing is drawn and the browser keeps its own install bar (default). Owner + early access = you and the early-access testers. Everyone = all users.</span></span>
+      <select class="pr-sel" id="instSel"><option value="off" ${d.install_mode === "on" || d.install_mode === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.install_mode === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.install_mode === "on" ? "selected" : ""}>Everyone</option></select></label>
+      <div class="offAdd"><input id="waInput" type="url" placeholder="https://chat.whatsapp.com/…  (or a WhatsApp Channel link)" value="${esc(d.whatsapp_group || "")}"/><button class="uBtn ok" id="waSaveBtn">Save link</button></div>
+      <p class="keys-note" style="margin:-2px 0 8px">The WhatsApp invite is kept in the database (not in the code). Learners see it only while "Install app + WhatsApp group" is on for them. Tip: set the group to admins-only posting with join approval - or use a WhatsApp Channel, which hides members' numbers.</p>
+      ${(() => { const sk = d.server_keys || {}, names = Object.keys(sk); if(!names.length) return ""; const bad = names.filter(n => sk[n].status === "invalid" || sk[n].status === "forbidden");
+        return `<p class="keys-note" style="margin:-4px 0 8px;${bad.length ? "color:#f2c4ba" : ""}">${bad.length ? "⚠ DuSu's OWN " + bad.map(esc).join(", ") + " key" + (bad.length > 1 ? "s are" : " is") + " rejected - replace it in backend/.env and restart. " : ""}DuSu's own keys (zero-quota check, every 10 min): ${names.map(n => esc(n) + " " + esc(sk[n].status)).join(" · ")}</p>`; })()}
+      ${d.keys_health && typeof d.keys_health.pending_usage === "number" ? `<p class="keys-note" style="margin:-4px 0 8px">Key ledger: ${d.keys_health.flushed} write(s) · ${d.keys_health.pending_usage} pending · ${d.keys_health.dropped} dropped${d.keys_health.last_error ? " · last error: " + esc(d.keys_health.last_error) : ""}</p>` : ""}
       ${d.notify_health && typeof d.notify_health.sent_24h === "number" ? `<p class="keys-note" style="margin:-4px 0 8px">Notifications (last 24 h): ${d.notify_health.sent_24h} sent · ${d.notify_health.accepted_24h} accepted by the push service · ${d.notify_health.received_24h} arrived on a phone · ${d.notify_health.opened_24h} opened · ${d.notify_health.cancelled_24h} cancelled (they practised first, quiet hours, ...) · ${d.notify_health.failed_24h} failed · ${d.notify_health.push_devices} device(s) for ${d.notify_health.learners_with_push} learner(s)</p>` : ""}
       ${d.resume_interview_health && typeof d.resume_interview_health.documents === "number" ? `<p class="keys-note" style="margin:-4px 0 8px">Job Interview Practice: ${d.resume_interview_health.documents} document(s) · ${d.resume_interview_health.sessions} interview(s), ${d.resume_interview_health.finished} finished · answers today ${d.resume_interview_health.answers_today} · feedback failed today ${d.resume_interview_health.feedback_failed_today}</p>` : ""}
       ${d.planner_health ? `<p class="keys-note" style="margin:-4px 0 8px">Reminders: ${d.planner_health.scheduled} waiting · ${d.planner_health.queue_late} late · ${d.planner_health.sending_stuck} stuck · sent in 24 h ${d.planner_health.sent_24h} (push accepted ${d.planner_health.push_accepted_24h}, failed ${d.planner_health.push_failed_24h}) · ${d.planner_health.push_devices} device(s) · push ${d.planner_health.push_available ? "available" : "UNAVAILABLE (library missing)"}${d.planner_health.last_error ? " · last loop error: " + esc(d.planner_health.last_error) : ""}</p>` : ""}
@@ -4982,9 +5120,13 @@ function wireOffice(){
     const rin = ($("riSel") && $("riSel").value) || undefined;
     const gcs = ($("gcSel") && $("gcSel").value) || undefined;
     const nts = ($("ntSel") && $("ntSel").value) || undefined;
+    const khs = ($("khSel") && $("khSel").value) || undefined;
+    const kus = ($("kuSel") && $("kuSel").value) || undefined;
+    const ins = ($("instSel") && $("instSel").value) || undefined;
     try{ await fetch("/admin/settings",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({token:authToken, access_phase: growth ? "growth" : "quota",
-                           level_test: lvl, owner_byok: obk, practice_room: prm, life_context: lcx, bilingual: bil, home_ai: hom, planner: pln, resume_interview: rin, grammar_coach: gcs, notifications: nts})}); }catch(_){}
+                           level_test: lvl, owner_byok: obk, practice_room: prm, life_context: lcx, bilingual: bil, home_ai: hom, planner: pln, resume_interview: rin, grammar_coach: gcs, notifications: nts,
+                           key_health: khs, keys_ui: kus, install_mode: ins})}); }catch(_){}
   };
   if($("reqKeysSw")) $("reqKeysSw").onchange = saveSettings;
   if($("lvlTestSw")) $("lvlTestSw").onchange = saveSettings;
@@ -4997,6 +5139,17 @@ function wireOffice(){
   if($("riSel")) $("riSel").onchange = saveSettings;
   if($("gcSel")) $("gcSel").onchange = saveSettings;
   if($("ntSel")) $("ntSel").onchange = saveSettings;
+  if($("khSel")) $("khSel").onchange = saveSettings;
+  if($("kuSel")) $("kuSel").onchange = saveSettings;
+  if($("instSel")) $("instSel").onchange = saveSettings;
+  if($("waSaveBtn")) $("waSaveBtn").onclick = async () => {
+    const v = ($("waInput") && $("waInput").value || "").trim();
+    try{
+      const r = await fetch("/admin/settings", { method:"POST", headers:{ "Content-Type":"application/json", "Authorization":"Bearer " + authToken }, body:JSON.stringify({ token:authToken, whatsapp_group:v }) });
+      if(r.status === 400){ const e = await r.json().catch(() => ({})); alert(e.detail || "That is not a WhatsApp invite link."); return; }
+      const d2 = await r.json(); if($("waInput")) $("waInput").value = d2.whatsapp_group || ""; alert(d2.whatsapp_group ? "Saved. Learners see it when 'Install app + WhatsApp group' is on for them." : "Link cleared.");
+    }catch(_){ alert("Failed."); }
+  };
   if($("wipeBtn")) $("wipeBtn").onclick = async () => {
     if(!confirm("Delete ALL users except david, shuhani, free-access and early-access emails? This cannot be undone.")) return;
     try{ const r = await fetch("/admin/wipe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:authToken})});
@@ -5330,6 +5483,7 @@ $("endBtn").onclick = () => {
 function onMessage(ev){
   const m = JSON.parse(ev.data);
   if(THINK_ENDERS.has(m.type)) thinkHide();   // the wait is over (or failed) — never leave a loader behind
+  if(m.kp){ try{ window.KY && KY.problem(m.kp, m.type); }catch(_){} }   // the server says WHY a key failed: the pop-up (a no-op until the owner switches the key screens on)
   switch(m.type){
     case "ready": greetLearn(); break;
     case "translation": handleTranslation(m.hindi, m.text, m.dir); break;
@@ -5381,9 +5535,13 @@ function onMessage(ev){
       if((currentMode === "conversation" || currentMode === "daily") && currentScreen() === "sessionResult") break;
       leave(); break;
     case "limit": running=false; stopListening(); addSys("⏸ " + m.msg); orb("idle","Session limit", m.msg); break;
-    case "quota": running=false; try{stopListening();}catch(_){}; showNotif(m.msg || lgt("keysLimit"));
+    case "quota": running=false; try{stopListening();}catch(_){};
+      // With the key pop-up on, IT tells the learner (and says which key and when it resets); the notification bar would only repeat it.
+      if(!(m.kp && window.KY && KY.active())) showNotif(m.msg || lgt("keysLimit"));
       // …and bring the orb out of "thinking", or its comet ring would orbit forever
-      if(currentMode === "daily"){ dailyOrb("idle"); dState(lgt("dKeysLimit")); }
+      if(currentMode === "daily"){ dailyOrb("idle"); dState(lgt("dKeysLimit")); if(window.KY && KY.active()){ try{ dMic(true); }catch(_){} } }   // hand the mic back (it stayed dead)
+      else if(currentMode === "learning" && window.KY && KY.active()){ try{ learnState(lgt("dKeysLimit")); micEnable(true); }catch(_){} }
+      else if(currentMode === "home" && window.KY && KY.active()){ try{ HM.onQuota(m); }catch(_){} }                                        // clear the stuck "thinking"
       else if(currentScreen() === "session") orb("idle", lgt("orbPaused"), lgt("orbPausedHint"));
       break;
     case "quota_update":   // live: server sends remaining requests after each turn
@@ -6325,7 +6483,7 @@ async function aLoadTest(){
     }
     else if(r.status === 402){ aActive = false; show("keys"); loadKeysUI();
       if($("keysStatus")) $("keysStatus").innerHTML = "🔒 Add 2 working API keys below to start the test."; return; }
-    else if(r.status === 429){ showNotif("Your API keys hit their limit — add or replace a key in Settings."); }
+    else if(r.status === 429){ showNotif("Your API keys hit their limit — add or replace a key in More → DuSu keys."); }
   }catch(_){}   // any failure → static fallback questions below
   aGoal();
 }
@@ -7884,6 +8042,7 @@ function logout(){
   try{ window.PL && PL.reset(); }catch(_){}   // My Day: stop polling, drop the cached plan
   try{ window.GC && GC.reset(); }catch(_){}   // Grammar Coach: drop in-memory state (everything else lives on the server)
   try{ window.NT && NT.reset(); }catch(_){}   // Notifications: close the sheet, drop the cached settings (the device stays subscribed - that is the phone's, not the account's)
+  try{ window.KY && KY.reset(); window.INST && INST.reset(); window.CM && CM.reset(); }catch(_){}   // Keys / Install / WhatsApp: close the sheets, drop the cached picture
   try{ window.RI && RI.reset(); }catch(_){}   // Job Interview Practice: stop the mic + voice, drop in-memory state (the on-device recordings are NOT wiped here)
   localStorage.removeItem("dusu_token"); localStorage.removeItem("dusu_user"); localStorage.removeItem("dusu_state"); localStorage.removeItem("dusu_letter"); localStorage.removeItem("dusu_daily_resume"); localStorage.removeItem("dusu_keys_ok"); localStorage.removeItem("dusu_office_keys"); localStorage.removeItem("dusu_keys_owner");
   $("hdrRight").hidden = true; $("tagline").style.display = "";
@@ -7968,6 +8127,7 @@ function refreshMe(initial){
       try{ window.RI && RI.syncEntries(); }catch(_){}   // Job Interview Practice: the owner may have just switched it on/off
       try{ window.GC && GC.syncEntries(); }catch(_){}   // Grammar Coach: likewise
       try{ window.NT && NT.syncEntries(); }catch(_){}   // Notifications: likewise
+      try{ window.KY && KY.sync(); window.INST && INST.sync(); window.CM && CM.sync(); }catch(_){}   // Keys, Install app, WhatsApp group: likewise
       localStorage.setItem("dusu_onboarded", st.onboarded ? "true" : "false");
       // cache the whole state so the next boot paints mood/note/Continue instantly (no /me wait)
       try{ localStorage.setItem("dusu_state", JSON.stringify(st)); }catch(_){}
@@ -9276,6 +9436,11 @@ const HM = (function(){
     orb("idle", T[lang()].orbIdle, "");
     maybeListen();
   }
+  function onQuota(m){                                           // the keys are the reason (the key pop-up explains): end "thinking", keep the mic OFF so it cannot loop on a dead key
+    thinking = false;
+    addSys(m && m.msg ? m.msg : T[lang()].err);
+    orb("idle", T[lang()].orbIdle, "");
+  }
   function micBlocked(){ textMode = true; running = false; syncMic(); notice(T[lang()].micBlocked); orb("idle", T[lang()].orbIdle, ""); }
 
   function setTextMode(on){
@@ -9378,7 +9543,7 @@ const HM = (function(){
   ROUTES["/home-chat"] = { enter: () => { const o = next; next = null; start(o || {}); }, guards:[gQuota] };
   ROUTES["/about"] = { enter: () => openAbout() };
 
-  return { enabled, lang, render, go, start, onReady, onTurn, onError, micBlocked, openAbout, onSessionShown, sessionChrome,
+  return { enabled, lang, render, go, start, onReady, onTurn, onError, onQuota, micBlocked, openAbout, onSessionShown, sessionChrome,
            delight: () => T[lang()].delight };
 })();
 window.HM = HM;
@@ -10385,6 +10550,11 @@ const NT = (function(){
       deniedApp:"Notifications are blocked for DuSu. Open your phone's Settings, then Apps, then DuSu, then Notifications, and allow them.",
       deniedWeb:"Notifications are blocked for this site. Allow them in your browser's site settings, then come back.",
       unsupported:"Notifications need Chrome, Edge or the DuSu app.",
+      unsupportedIos:"On iPhone, reminders work after you add DuSu to your Home Screen: tap Share, then “Add to Home Screen”, then open DuSu from there.",
+      quietWarn:"{time} is inside your quiet hours ({a} to {b}), so no reminder will arrive then. Pick a time outside them.",
+      tQueued:"Test queued - on its way…", tAccepted:"Sent to your phone's push service ✓ - waiting for it to reach this phone…", tArrived:"Reached this phone ✓", tOpened:"Opened ✓",
+      tFailed:"The push service rejected it. Try turning notifications off and on again.", tCancelled:"It was cancelled ({why}).",
+      tSlow:"Nothing reached this phone after a minute. Common causes: battery saver or app standby (allow DuSu to run in the background), Do Not Disturb, or notifications blocked for DuSu in the phone's settings.",
       turnOn:"Turn on notifications", turnOff:"Turn off on this phone", working:"Please wait...",
       kindsH:"Remind me about", kPractice:"My daily practice", kPracticeS:"If I haven't practised yet today", kStreak:"My streak", kStreakS:"When a streak of 2+ days is about to end",
       kWeekly:"My weekly note", kWeeklyS:"Sunday morning, when DuSu's note is ready",
@@ -10401,6 +10571,11 @@ const NT = (function(){
       deniedApp:"DuSu के notifications block हैं। Phone की Settings खोलो, फिर Apps, फिर DuSu, फिर Notifications में जाकर allow करो।",
       deniedWeb:"इस site के notifications block हैं। Browser की site settings में allow करो, फिर वापस आओ।",
       unsupported:"Notifications के लिए Chrome, Edge या DuSu app चाहिए।",
+      unsupportedIos:"iPhone पर reminders तभी चलते हैं जब DuSu को Home Screen पर जोड़ो: Share दबाओ, फिर “Add to Home Screen”, फिर DuSu को वहीं से खोलो।",
+      quietWarn:"{time} तुम्हारे quiet hours ({a} से {b}) के अंदर है, इसलिए तब कोई reminder नहीं आएगा। इनसे बाहर का समय चुनो।",
+      tQueued:"Test कतार में है - आ रहा है…", tAccepted:"तुम्हारे phone की push service को भेज दिया ✓ - इस phone तक पहुँचने का इंतज़ार है…", tArrived:"इस phone तक पहुँच गया ✓", tOpened:"खुल गया ✓",
+      tFailed:"Push service ने इसे reject कर दिया। Notifications बंद करके फिर चालू करो।", tCancelled:"ये रद्द हो गया ({why})।",
+      tSlow:"एक मिनट बाद भी कुछ इस phone तक नहीं पहुँचा। आम कारण: battery saver या app standby (DuSu को background में चलने दो), Do Not Disturb, या phone की settings में DuSu के notifications block हैं।",
       turnOn:"Notifications चालू करो", turnOff:"इस phone पर बंद करो", working:"रुको...",
       kindsH:"किस बारे में याद दिलाना है", kPractice:"रोज़ की practice", kPracticeS:"अगर आज practice बाकी हो", kStreak:"मेरी streak", kStreakS:"जब 2+ दिन की streak टूटने वाली हो",
       kWeekly:"Weekly note", kWeeklyS:"रविवार सुबह, जब DuSu का note तैयार हो",
@@ -10421,9 +10596,16 @@ const NT = (function(){
   /* ---------- state ---------- */
   let P = null;                 // the last GET /notify/prefs
   let thisDevice = false;       // is THIS browser subscribed
-  let busy = false, tried = false, isOpen = false, lastFocus = null;
+  let busy = false, tried = false, isOpen = false, lastFocus = null, staleSub = false;
+  let testState = null, testTimer = null;                      // the last test notification's journey: {state, why, slow}
   const enabled = () => !!(typeof userState !== "undefined" && userState && userState.notifications);
   const supported = () => ("serviceWorker" in navigator) && ("PushManager" in window) && ("Notification" in window);
+  const isIos = () => /iPhone|iPad|iPod/.test(navigator.userAgent || "") || (navigator.platform === "MacIntel" && (navigator.maxTouchPoints || 0) > 1);
+  const inQuiet = (hhmm, a, b) => {                       // is "HH:MM" inside the quiet window a..b (which may wrap past midnight)?
+    const m = x => { const q = /^(\d{1,2}):(\d{2})$/.exec(String(x || "")); return q ? (+q[1]) * 60 + (+q[2]) : null; };
+    const x = m(hhmm), s0 = m(a), e0 = m(b); if(x == null || s0 == null || e0 == null || s0 === e0) return false;
+    return s0 < e0 ? (x >= s0 && x < e0) : (x >= s0 || x < e0);
+  };
   const inApp = () => { try{ return document.referrer.startsWith("android-app://") || matchMedia("(display-mode: standalone)").matches; }catch(_){ return false; } };
   function pstate(){
     if(!supported()) return "unsupported";
@@ -10457,9 +10639,12 @@ const NT = (function(){
     return r.json();
   }
   async function refresh(){
-    try{ P = await api("GET", "/prefs"); }catch(e){ P = null; if(e.status === 401 || e.status === 404) return false; throw e; }
-    thisDevice = false;
-    try{ if(supported()){ const reg = await navigator.serviceWorker.ready; thisDevice = !!(await reg.pushManager.getSubscription()); } }catch(_){}
+    let sub = null;
+    try{ if(supported()){ const reg = await navigator.serviceWorker.ready; sub = await reg.pushManager.getSubscription(); } }catch(_){}
+    try{ P = await api("GET", "/prefs" + (sub && sub.endpoint ? "?endpoint=" + encodeURIComponent(sub.endpoint) : "")); }catch(e){ P = null; thisDevice = false; if(e.status === 401 || e.status === 404) return false; throw e; }
+    // This phone is only "on" when the server holds its subscription too: a phone can believe it is subscribed after the push service said it was gone and the server dropped it.
+    thisDevice = !!sub && P.this_device !== false;
+    staleSub = !!sub && P.this_device === false;
     return true;
   }
   async function enable(){
@@ -10473,9 +10658,13 @@ const NT = (function(){
         if(!k.available){ toast(t("errGeneric")); return; }
         const reg = await navigator.serviceWorker.ready;
         let sub = await reg.pushManager.getSubscription();
-        if(!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:b64(k.key) });
+        const want = b64(k.key);
+        const sameKey = x => { try{ const have = new Uint8Array(x.options.applicationServerKey); return have.length === want.length && have.every((v, i) => v === want[i]); }catch(_){ return true; } };
+        if(sub && (staleSub || !sameKey(sub))){ try{ await sub.unsubscribe(); }catch(_){} sub = null; }     // the server dropped it, or it was made for another VAPID key: start clean
+        if(!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:want });
         await api("POST", "/push/subscribe", { subscription:sub.toJSON(), ua:(navigator.userAgent || "").slice(0, 150) });
         await api("PATCH", "/prefs", { enabled:true });
+        try{ localStorage.removeItem("dusu_nt_prime"); }catch(_){}
         toast(t("onToast"));
       }
     }catch(e){ console.warn("NT enable", e); toast(t("errGeneric")); }
@@ -10496,9 +10685,28 @@ const NT = (function(){
     paint();
   }
   async function sendTest(){
-    try{ await api("POST", "/test", {}); toast(t("testSent")); }
+    try{
+      const r = await api("POST", "/test", {}); toast(t("testSent"));
+      watchTest(r && r.id);
+    }
     catch(e){ toast(e.status === 409 ? t("testWait") : e.status === 422 ? t("testNoDevice") : t("errGeneric")); }
   }
+  /* queued -> accepted by the push service -> reached THIS phone -> opened, polled for a minute: the learner sees how far it got and, if it stalls, the usual causes. */
+  function watchTest(id){
+    clearInterval(testTimer); if(!id) return;
+    const t0 = Date.now(); testState = { state:"queued", why:"", slow:false }; paint();
+    testTimer = setInterval(async () => {
+      try{
+        const r = await api("GET", "/test/" + id);
+        testState = { state:r.state, why:r.why || "", slow:false };
+        if(["received", "opened", "failed", "cancelled"].includes(r.state)){ clearInterval(testTimer); }
+      }catch(_){}
+      if(Date.now() - t0 > 60000 && testState && !["received", "opened", "failed", "cancelled"].includes(testState.state)){ testState.slow = true; clearInterval(testTimer); }
+      if(isOpen) paint();
+    }, 2000);
+  }
+  const testLine = () => !testState ? "" : testState.slow ? t("tSlow") : ({ queued:t("tQueued"), sending:t("tQueued"), sent:t("tAccepted"), accepted:t("tAccepted"), received:t("tArrived"), opened:t("tOpened"),
+    failed:t("tFailed"), cancelled:t("tCancelled", { why:testState.why || "-" }) }[testState.state] || "");
 
   /* ---------- the settings sheet ---------- */
   function switchRow(id, label, sub, on, onChange){
@@ -10511,7 +10719,7 @@ const NT = (function(){
     const st = pstate(), kids = [];
     kids.push(h("div", { class:"nt-head" }, h("h3", { id:"ntTitle", tabindex:"-1", text:t("title") }),
       h("button", { type:"button", class:"nt-x", "aria-label":t("close"), text:"✕", onclick:close })));
-    const stTxt = st === "on" ? "✓ " + t("stOn") : st === "denied" ? t("stDenied") : st === "unsupported" ? t("unsupported") : t("stOff");
+    const stTxt = st === "on" ? "✓ " + t("stOn") : st === "denied" ? t("stDenied") : st === "unsupported" ? (isIos() ? t("unsupportedIos") : t("unsupported")) : t("stOff");
     kids.push(h("p", { class:"nt-status " + st, role:"status", "aria-live":"polite", text:stTxt }));
     if(st === "denied") kids.push(h("p", { class:"nt-note", text:inApp() ? t("deniedApp") : t("deniedWeb") }));
     if(st === "off") kids.push(h("button", { type:"button", class:"btn primary nt-main", disabled:busy ? "" : null, onclick:enable, text:busy ? t("working") : t("turnOn") }));
@@ -10526,6 +10734,9 @@ const NT = (function(){
       kids.push(h("label", { class:"nt-row", for:"nt_time" }, h("span", { class:"nt-rt" }, h("b", { text:t("timeH") })), tm));
       kids.push(switchRow("hide", t("hide"), t("hideS"), !!P.hide_details, v => save({ hide_details:v })));
       if(P.quiet_on) kids.push(h("p", { class:"nt-note", text:t("quiet", { a:fmtTime(P.quiet_start), b:fmtTime(P.quiet_end) }) }));
+      if(P.quiet_on && inQuiet(P.nudge_time || "19:00", P.quiet_start, P.quiet_end)) kids.push(h("p", { class:"nt-status denied", role:"alert", id:"nt_quietwarn",
+        text:t("quietWarn", { time:fmtTime(P.nudge_time || "19:00"), a:fmtTime(P.quiet_start), b:fmtTime(P.quiet_end) }) }));
+      if(testLine()) kids.push(h("p", { class:"nt-status " + ((testState && (testState.state === "failed" || testState.slow)) ? "denied" : (testState && ["received", "opened"].includes(testState.state)) ? "on" : ""), id:"nt_test", role:"status", "aria-live":"polite", text:testLine() }));
       kids.push(h("div", { class:"nt-acts" },
         h("button", { type:"button", class:"btn ghost", onclick:sendTest, text:t("test") }),
         h("button", { type:"button", class:"btn ghost", disabled:busy ? "" : null, onclick:disable, text:t("turnOff") })));
@@ -10554,13 +10765,16 @@ const NT = (function(){
   function promptWanted(){
     if(!enabled() || !P || !userState.onboarded || pstate() !== "off") return false;     // already on / blocked / unsupported: never nag
     const pg = userState.progress || {};
-    if(!((pg.xp || 0) > 0 || (pg.streak_days || 0) > 0)) return false;                   // only after they have actually practised once
+    const primed = localStorage.getItem("dusu_nt_prime") === "1";                        // the app was just installed / opened as an app (INST): ask now, not after the first practice
+    if(!primed && !((pg.xp || 0) > 0 || (pg.streak_days || 0) > 0)) return false;        // otherwise only after they have actually practised once
     const at = +localStorage.getItem(LS_ASKED) || 0;
     return !(at && Date.now() - at < ASK_AGAIN_MS);
   }
   function paintPrompt(){
     const el = $("ntPrompt"); if(!el) return;
-    if(!promptWanted()){ el.hidden = true; el.replaceChildren(); return; }
+    const want = promptWanted();
+    try{ window.ARB && ARB.report("nt", want); }catch(_){}                                // one Home prompt at a time (ARB): a key problem, then install, then this, then WhatsApp
+    if(!want || (window.ARB && !ARB.allow("nt"))){ el.hidden = true; el.replaceChildren(); return; }
     el.replaceChildren(
       h("b", { text:t("promptT") }), h("small", { text:t("promptB", { time:fmtTime((P && P.nudge_time) || "19:00") }) }),
       h("div", { class:"nt-acts" },
@@ -10576,7 +10790,7 @@ const NT = (function(){
     if(!on){ const pr = $("ntPrompt"); if(pr){ pr.hidden = true; pr.replaceChildren(); } return; }
     if(!P && !tried){ tried = true; refresh().then(paintPrompt).catch(() => {}); } else paintPrompt();
   }
-  function reset(){ P = null; thisDevice = false; tried = false; busy = false; close(); const pr = $("ntPrompt"); if(pr){ pr.hidden = true; pr.replaceChildren(); } }
+  function reset(){ P = null; thisDevice = false; tried = false; busy = false; staleSub = false; testState = null; clearInterval(testTimer); close(); const pr = $("ntPrompt"); if(pr){ pr.hidden = true; pr.replaceChildren(); } }
   function reportOpen(id){ if(/^\d{1,9}$/.test(String(id)) && typeof authToken === "string" && authToken) api("POST", "/open", { id:+id }).catch(() => {}); }
   function consumeOpen(){                                  // a notification opened the app: /?n=<id> - report it once, then clean the address
     try{
@@ -10587,6 +10801,7 @@ const NT = (function(){
   }
   try{ if("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", e => {   // tapped while the app was already open
     const d = e.data; if(d && d.type === "nt-open"){ reportOpen(d.id); try{ navTo("/"); }catch(_){} }
+    else if(d && d.type === "nt-nudge"){ toast(String(d.body || d.title || "").slice(0, 200)); }      // it arrived while the app is open: the service worker kept the system notification silent
   }); }catch(_){}
   document.addEventListener("keydown", ev => {
     if(!isOpen) return;
@@ -10603,6 +10818,866 @@ const NT = (function(){
   return { enabled, open, close, syncEntries, reset, consumeOpen, _txt:TXT };
 })();
 window.NT = NT;
+
+/* ================= ARB - which ONE Home prompt is shown at a time =================
+   Home can ask four things of a learner: fix a key problem, install the app, turn on reminders, join the WhatsApp group. Showing all of them at once is a wall of
+   asks. Each module reports whether it WOULD like to speak now; the first in this order wins, the rest stay quiet until it is dealt with (each keeps its own 14-day
+   "not now"). A key problem always wins: it stops DuSu from working, the others are optional. */
+const ARB = (function(){
+  "use strict";
+  const ORDER = ["key", "install", "nt", "wa"];
+  const want = {}, repaint = {};
+  let last = "";
+  const winner = () => { for(const n of ORDER) if(want[n]) return n; return ""; };
+  function report(name, wants){
+    const was = !!want[name], now = !!wants;
+    want[name] = now;
+    const w = winner();
+    if(w !== last || was !== now){ last = w; for(const n of ORDER) if(n !== name && repaint[n]) { try{ repaint[n](); }catch(_){} } }
+  }
+  const allow = name => winner() === name;
+  const on = (name, fn) => { repaint[name] = fn; };
+  return { report, allow, on, winner };
+})();
+window.ARB = ARB;
+
+/* ================= KEYS - the learner's side of the per-key engine (backend/app/keys) =================
+   Three surfaces, one source of truth (GET /keys/status, which reads the server's own sealed copy - never this browser's localStorage):
+     * the Keys screen: each key shown MASKED with its status (working / limit hit + when it resets / rejected / expired), what it has used today and what is left
+       (exact only where the provider reports it, marked "about" where DuSu computes it, and honest about Gemini, which has no quota API), and Change / Test / Remove;
+       one key at a time can be saved and a box left empty never erases anything;
+     * the Home card: "3 working keys, 38 requests today", one row per key, a bar where a limit is known;
+     * the pop-up: whenever the server says WHY a key failed (a `kp` on a WebSocket frame or an HTTP error body), plain words per key - rejected, expired, limit hit
+       and when it ends - with Fix my keys / See plans / Later. It opens once per change, and once on Home load when a key died while the learner was away.
+   Everything is behind userState.keys_ui (the owner's switch, which also needs the engine): until then nothing here is drawn or changed.
+   SECURITY: this module never uses innerHTML. A key travels learner -> server once; what comes back is masked. */
+const KY = (function(){
+  "use strict";
+  const API = "/keys";
+  const LS_SEEN = "dusu_ky_seen";                     // {sig, at} of the last problem the learner was shown
+  const REPEAT_MS = 10 * 60 * 1000;
+  const FRESH_MS = 45 * 1000;
+  const ORDER = ["groq", "gemini", "openrouter"];
+  const NAME = { groq:"Groq", gemini:"Gemini", openrouter:"OpenRouter" };
+  const FIELD = { groq:"kGroq", gemini:"kGemini", openrouter:"kOpenrouter" };
+
+  /* ---------- words (Hindi = Devanagari with everyday English words in Latin; DuSu is "she"; the learner's gender is never assumed) ---------- */
+  const TXT = {
+    en: {
+      close:"Close", soon:"soon", inMin:"in about {n} min", atTime:"at {tm}", tomorrowAt:"tomorrow at {tm}", onDay:"on {day} at {tm}",
+      sumNone:"No keys saved yet. Add two free keys to start.", sumWait:"Checking your keys…",
+      sumOk:"{w} keys working. DuSu is ready.", sumPart:"{w} of the {m} working keys you need to start. Add {k} more.",
+      sumSome:"{w} working, {b} need attention - see below.", sumAll:"None of your keys can be used right now - see below.",
+      stOk:"Working", stDay:"Daily limit reached", stMinute:"Too many requests - wait a minute", stLimited:"Limit reached", stBusy:"Provider busy", stInvalid:"Rejected", stExpired:"Expired",
+      stBlocked:"Blocked", stCredit:"Out of credit", stUnknown:"Checking…",
+      hintInvalid:"The provider rejected this key. It may be wrong, expired or deleted. Tap Change to add a new one.", hintExpired:"This key has expired. Make a new one and tap Change.",
+      hintBlocked:"The provider blocked this key. Check the key's permissions, or try again later.",
+      resetAt:"Resets {when}", resetAbout:"Should reset {when}",
+      used1:"1 request today", usedN:"{n} requests today", leftExact:"{n} of {m} left today", leftAbout:"about {n} of {m} left today",
+      leftNone:"Google doesn't show how many are left. DuSu tells you the moment the limit is reached.",
+      btnChange:"Change", btnTest:"Test", btnRemove:"Remove", btnSave:"Save key", btnCancel:"Cancel", btnAll:"Check all keys",
+      saving:"Checking your key…", testing:"Testing…", checking:"Checking your keys…",
+      savedOk:"✅ {p} works and is saved.", savedLimited:"✅ {p} is saved. It has hit its limit for now.", bad:"❌ {p} didn't accept that key. Copy the whole key again.",
+      badExpired:"❌ That {p} key has expired. Make a new one.", badBlocked:"❌ {p} blocked that key.", unreach:"Couldn't reach {p} right now. Try again in a minute.",
+      shape:"That doesn't look like a key. Copy the whole key and paste it here.", slow:"Please wait a moment, then try again.", fail:"Something went wrong. Please try again.",
+      empty:"Paste your key first.", removed:"{p} key removed.", askRemove:"Remove your {p} key?", testOk:"✅ {p} works.", testLimited:"{p} works but has hit its limit right now.",
+      testBad:"❌ {p} rejected the key. Add it again.", testUnreach:"Couldn't reach {p} right now.", takingIn:"✅ {n} keys working. Taking you in…",
+      never:"Never share your key with anyone - not even in our WhatsApp group.",
+      gemHint:"Gemini keys start with AIza. A key that starts with AQ. is a short-lived token that stops working - make a new key at aistudio.google.com.",
+      cardT:"Your AI keys", cardSub:"{w} working · {u}", cardTap:"Tap to manage your keys", cardFix:"Needs attention - tap to fix",
+      chipLeft:"{n} left", chipAbout:"about {n} left",
+      popInvalid:"Your AI keys need attention", popLimited:"Your free AI limit is used up for now", popDegraded:"One of your keys needs attention", popNone:"Add your AI keys",
+      popIntro:"DuSu can't use your keys right now:", popWhy:"Free keys have daily limits. DuSu is getting paid plans that remove them.",
+      popFix:"Fix my keys", popPlans:"See plans", popLater:"Later", busy:"The AI is busy right now - your keys are fine. Please try again in a minute.",
+      rInvalid:"{p}: rejected. The key may be wrong, expired or deleted. Add it again.", rExpired:"{p}: this key has expired. Make a new one and add it.",
+      rDay:"{p}: daily limit reached.{reset}", rMinute:"{p}: too many requests this minute. Try again in a minute.", rLimited:"{p}: limit reached for now.{reset}",
+      rUpstream:"{p}: the free model is busy right now. Try again soon.", rBlocked:"{p}: blocked by the provider. Check the key's permissions, or try later.",
+      rCredit:"{p}: out of credit.", rTransient:"{p}: not answering right now (this is not your key).", rReset:" Resets {when}.", rAbout:" Should reset {when}."
+    },
+    hi: {
+      close:"बंद करो", soon:"जल्द ही", inMin:"लगभग {n} मिनट में", atTime:"{tm} पर", tomorrowAt:"कल {tm} पर", onDay:"{day} को {tm} पर",
+      sumNone:"अभी कोई key सेव नहीं है। शुरू करने के लिए दो free keys जोड़ो।", sumWait:"तुम्हारी keys जाँच रहे हैं…",
+      sumOk:"{w} keys चल रही हैं। DuSu तैयार है।", sumPart:"शुरू करने के लिए {m} चालू keys चाहिए, अभी {w} हैं। {k} और जोड़ो।",
+      sumSome:"{w} चल रही हैं, {b} को ध्यान चाहिए - नीचे देखो।", sumAll:"अभी तुम्हारी कोई key use नहीं हो सकती - नीचे देखो।",
+      stOk:"चालू है", stDay:"Daily limit पूरी हो गई", stMinute:"बहुत ज़्यादा requests - एक मिनट रुको", stLimited:"Limit पूरी हो गई", stBusy:"Provider busy है", stInvalid:"Reject हुई",
+      stExpired:"Expire हो गई", stBlocked:"Block है", stCredit:"Credit खत्म", stUnknown:"जाँच रहे हैं…",
+      hintInvalid:"Provider ने ये key reject कर दी। वो गलत, expire या delete हो सकती है। नई जोड़ने के लिए Key बदलो दबाओ।", hintExpired:"ये key expire हो गई है। नई बनाओ और Key बदलो दबाओ।",
+      hintBlocked:"Provider ने ये key block कर दी। Key की permissions देखो, या बाद में कोशिश करो।",
+      resetAt:"{when} reset होगी", resetAbout:"लगभग {when} reset होनी चाहिए",
+      used1:"आज 1 request", usedN:"आज {n} requests", leftExact:"आज {m} में से {n} बची हैं", leftAbout:"आज लगभग {m} में से {n} बची हैं",
+      leftNone:"Google नहीं दिखाता कि कितनी बची हैं। Limit पूरी होते ही DuSu तुम्हें बता देगी।",
+      btnChange:"Key बदलो", btnTest:"Test", btnRemove:"हटाओ", btnSave:"Key सेव करो", btnCancel:"रहने दो", btnAll:"सारी keys जाँचो",
+      saving:"तुम्हारी key जाँच रहे हैं…", testing:"Test हो रहा है…", checking:"तुम्हारी keys जाँच रहे हैं…",
+      savedOk:"✅ {p} चल रही है और सेव हो गई।", savedLimited:"✅ {p} सेव हो गई। अभी उसकी limit पूरी है।", bad:"❌ {p} ने वो key नहीं मानी। पूरी key फिर से copy करो।",
+      badExpired:"❌ वो {p} key expire हो चुकी है। नई बनाओ।", badBlocked:"❌ {p} ने वो key block कर दी।", unreach:"अभी {p} तक नहीं पहुँच पाए। एक मिनट बाद फिर कोशिश करो।",
+      shape:"ये key जैसा नहीं लग रहा। पूरी key copy करके यहाँ paste करो।", slow:"थोड़ा रुको, फिर कोशिश करो।", fail:"कुछ गड़बड़ हो गई। फिर से कोशिश करो।",
+      empty:"पहले अपनी key paste करो।", removed:"{p} key हटा दी गई।", askRemove:"अपनी {p} key हटानी है?", testOk:"✅ {p} चल रही है।", testLimited:"{p} चल रही है पर अभी उसकी limit पूरी है।",
+      testBad:"❌ {p} ने key reject कर दी। फिर से जोड़ो।", testUnreach:"अभी {p} तक नहीं पहुँच पाए।", takingIn:"✅ {n} keys चल रही हैं। अंदर ले जा रहे हैं…",
+      never:"अपनी key किसी के साथ share मत करो - हमारे WhatsApp group में भी नहीं।",
+      gemHint:"Gemini keys AIza से शुरू होती हैं। जो key AQ. से शुरू हो वो थोड़े समय का token है और बंद हो जाता है - aistudio.google.com पर नई key बनाओ।",
+      cardT:"तुम्हारी AI keys", cardSub:"{w} चालू · {u}", cardTap:"Keys संभालने के लिए tap करो", cardFix:"ध्यान चाहिए - ठीक करने के लिए tap करो",
+      chipLeft:"{n} बची", chipAbout:"लगभग {n} बची",
+      popInvalid:"तुम्हारी AI keys को ध्यान चाहिए", popLimited:"अभी के लिए तुम्हारी free AI limit पूरी हो गई", popDegraded:"तुम्हारी एक key को ध्यान चाहिए", popNone:"अपनी AI keys जोड़ो",
+      popIntro:"अभी DuSu तुम्हारी keys use नहीं कर पा रही:", popWhy:"Free keys की daily limit होती है। DuSu के paid plans आने वाले हैं, जिनमें ये limits नहीं होंगी।",
+      popFix:"मेरी keys ठीक करो", popPlans:"Plans देखो", popLater:"बाद में", busy:"अभी AI busy है - तुम्हारी keys ठीक हैं। एक मिनट बाद फिर कोशिश करो।",
+      rInvalid:"{p}: reject हुई। Key गलत, expire या delete हो सकती है। उसे फिर से जोड़ो।", rExpired:"{p}: ये key expire हो गई है। नई बनाकर जोड़ो।",
+      rDay:"{p}: daily limit पूरी हो गई।{reset}", rMinute:"{p}: इस मिनट में बहुत ज़्यादा requests। एक मिनट बाद कोशिश करो।", rLimited:"{p}: अभी limit पूरी है।{reset}",
+      rUpstream:"{p}: free model अभी busy है। थोड़ी देर बाद कोशिश करो।", rBlocked:"{p}: provider ने block किया है। Key की permissions देखो, या बाद में कोशिश करो।",
+      rCredit:"{p}: credit खत्म हो गया।", rTransient:"{p}: अभी जवाब नहीं दे रहा (ये तुम्हारी key की गलती नहीं है)।", rReset:" {when} reset होगी।", rAbout:" लगभग {when} reset होनी चाहिए।"
+    }
+  };
+  const L = () => (typeof LG !== "undefined" && LG.on()) ? LG.cur() : "hi";
+  function t(k, v){
+    let s = (TXT[L()] || TXT.hi)[k]; if(s === undefined) s = TXT.en[k]; if(s === undefined) return k;
+    if(v) s = s.replace(/\{(\w+)\}/g, (_, x) => v[x] != null ? v[x] : "");
+    return s;
+  }
+  // The Keys screen is English like every older screen (CLAUDE.md section 11); the Home card and the pop-up follow the learner's Hindi / English choice.
+  const tk = (k, v) => { const s = TXT.en[k] === undefined ? k : TXT.en[k]; return v ? s.replace(/\{(\w+)\}/g, (_, x) => v[x] != null ? v[x] : "") : s; };
+
+  /* ---------- state ---------- */
+  let S = null, SAT = 0, loading = null;               // the last GET /keys/status and when it arrived
+  const mode = {}, busyP = {}, msgs = {};              // per provider: "edit" | "view", a request is running, the message under the block
+  let isOpen = false, lastFocus = null, needClear = false;
+  const active = () => !!(typeof userState !== "undefined" && userState && userState.keys_ui === true);
+  const skew = () => S ? (S.now * 1000 - Date.now()) : 0;
+  const keyOf = p => (S && S.keys || []).find(k => k.provider === p) || null;
+
+  function h(tag, a, ...kids){
+    const e = document.createElement(tag);
+    for(const k in (a || {})){
+      const v = a[k]; if(v == null || v === false) continue;
+      if(k === "text") e.textContent = v;
+      else if(k.slice(0, 2) === "on") e.addEventListener(k.slice(2), v);
+      else e.setAttribute(k, v === true ? "" : v);
+    }
+    for(const c of kids.flat()){ if(c == null || c === false) continue; e.append(c.nodeType ? c : document.createTextNode(String(c))); }
+    return e;
+  }
+
+  /* ---------- time + numbers, in the learner's own clock ---------- */
+  function fmtWhen(sec, sk, tf){
+    const tt = tf || t, ms = sec * 1000 - (sk || 0), d = new Date(ms), diff = ms - Date.now();
+    if(diff < 0) return tt("soon");
+    if(diff < 3600000) return tt("inMin", { n: Math.max(1, Math.round(diff / 60000)) });
+    const tm = d.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
+    const today = new Date(), tomorrow = new Date(Date.now() + 86400000);
+    if(d.toDateString() === today.toDateString()) return tt("atTime", { tm });
+    if(d.toDateString() === tomorrow.toDateString()) return tt("tomorrowAt", { tm });
+    return tt("onDay", { day:d.toLocaleDateString([], { weekday:"short" }), tm });
+  }
+  const num = n => Number(n).toLocaleString();
+
+  /* ---------- the server ---------- */
+  async function call(method, path, body){
+    const r = await fetch(API + path, { method, cache:"no-store", headers:{ "Content-Type":"application/json", "Authorization":"Bearer " + authToken }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const ct = r.headers.get("content-type") || "";
+    if(ct.indexOf("json") < 0){ const e = new Error("off"); e.status = 404; throw e; }      // the SPA fallback after a rollback: the feature is off
+    let d = null; try{ d = await r.json(); }catch(_){}
+    if(!r.ok){ const e = new Error("http " + r.status); e.status = r.status; e.body = d; throw e; }
+    return d;
+  }
+  let pollN = 0, pollT = null, reqSeq = 0, appliedSeq = 0;
+  /* Answers can arrive out of order (a Check-all still in flight when Remove is tapped): only the answer to the LATEST request that has come back is kept. */
+  const begin = () => ++reqSeq;
+  function take(my, payload){ if(my < appliedSeq) return false; appliedSeq = my; S = payload; SAT = Date.now(); return true; }
+  async function refreshStatus(force){
+    if(!active()) return null;
+    if(!force && S && Date.now() - SAT < FRESH_MS) return S;
+    if(loading) return loading;
+    loading = (async () => {
+      const my = begin();
+      try{ take(my, await call("GET", "/status")); }
+      catch(e){ if(e.status === 404 || e.status === 401){ S = null; } }
+      finally{ loading = null; }
+      paintAll();
+      // A key nobody has looked at yet (one saved before this screen existed) is being checked by the server right now: ask again in a moment, a few times, then stop.
+      clearTimeout(pollT);
+      if(S && S.unknown > 0 && pollN < 6){ pollN++; pollT = setTimeout(() => { if(active()) refreshStatus(true); }, 2500); } else if(!S || !S.unknown){ pollN = 0; }
+      return S;
+    })();
+    return loading;
+  }
+
+  /* ---------- classify a key for display ---------- */
+  function badge(k, tf){
+    const tt = tf || t, st = k.status;
+    if(st === "ok") return { cls:"ok", txt:tt("stOk"), ico:"✅" };
+    if(st === "invalid") return { cls:"bad", txt:k.expired ? tt("stExpired") : tt("stInvalid"), ico:"❌" };
+    if(st === "forbidden") return { cls:"bad", txt:tt("stBlocked"), ico:"⚠" };
+    if(st === "limited"){
+      const txt = k.kind === "needs_credit" ? tt("stCredit") : k.scope === "day" ? tt("stDay") : k.scope === "minute" ? tt("stMinute") : k.scope === "upstream" ? tt("stBusy") : tt("stLimited");
+      return { cls:"warn", txt, ico:"⏳" };
+    }
+    return { cls:"unk", txt:tt("stUnknown"), ico:"…" };
+  }
+  function resetLine(k, tf){
+    if(!k.reset_at) return "";
+    const tt = tf || t;
+    return tt(k.approx ? "resetAbout" : "resetAt", { when:fmtWhen(k.reset_at, skew(), tt) });
+  }
+  function usageLine(k, tf){
+    const tt = tf || t, n = (k.used_today && k.used_today.requests) || 0, a = k.allowance || {}, bits = [n === 1 ? tt("used1") : tt("usedN", { n:num(n) })];
+    if(a.kind === "exact") bits.push(tt("leftExact", { n:num(a.left), m:num(a.limit) }));
+    else if(a.kind === "computed") bits.push(tt("leftAbout", { n:num(a.left), m:num(a.limit) }));
+    return bits.join(" · ");
+  }
+  const barPct = k => { const a = k.allowance || {}; return (a.kind === "exact" || a.kind === "computed") && a.limit ? Math.max(0, Math.min(100, Math.round(100 * (a.limit - a.left) / a.limit))) : null; };
+
+  /* ---------- the Keys screen ---------- */
+  function msg(p, text, cls){ msgs[p] = { text, cls }; const el = $("kym_" + p); if(el){ el.textContent = text || ""; el.className = "ky-msg" + (cls ? " " + cls : ""); } }
+  function ensureSkeleton(){
+    const form = $("keysForm"); if(!form || form.dataset.ky === "1") return;
+    form.dataset.ky = "1"; form.classList.add("ky-on");
+    form.prepend(h("div", { class:"ky-sum", id:"kySum", role:"status", "aria-live":"polite" }));
+    for(const p of ORDER){
+      const inp = $(FIELD[p]); if(!inp) continue;
+      const blk = inp.closest(".keyblk"); if(!blk) continue;
+      blk.dataset.kyp = p;
+      inp.oninput = null;                                           // the old handler wiped 'verified' on every keystroke - these keys ARE verified, on the server
+      inp.addEventListener("keydown", ev => { if(ev.key === "Enter"){ ev.preventDefault(); saveKey(p); } });
+      const hd = blk.querySelector(".keyblk-hd");
+      (hd || blk).after(h("div", { class:"ky-blk", id:"kyb_" + p }));
+      blk.append(
+        h("div", { class:"ky-acts", id:"kye_" + p },
+          h("button", { type:"button", class:"btn primary", id:"kySave_" + p, onclick:() => saveKey(p), text:tk("btnSave") }),
+          h("button", { type:"button", class:"btn ghost", id:"kyCancel_" + p, onclick:() => { mode[p] = "view"; msg(p, ""); paintBlock(p); }, text:tk("btnCancel") })),
+        h("p", { class:"ky-msg", id:"kym_" + p, role:"status", "aria-live":"polite" }));
+    }
+    const hint = form.querySelector('[data-kyp="gemini"] .keyblk-hint');
+    if(hint) hint.append(h("div", { class:"ky-hint2", id:"kyGemHint", text:tk("gemHint") }));
+    form.append(
+      h("div", { class:"ky-acts ky-all" }, h("button", { type:"button", class:"btn ghost", id:"kyAll", onclick:checkAll, text:tk("btnAll") })),
+      h("p", { class:"ky-msg", id:"kym_all", role:"status", "aria-live":"polite" }),
+      h("p", { class:"keys-note ky-never", text:tk("never") }));
+  }
+  function teardown(){
+    const form = $("keysForm"); if(!form || form.dataset.ky !== "1") return;
+    form.dataset.ky = ""; form.classList.remove("ky-on");
+    ["kySum", "kyAll", "kym_all"].forEach(id => { const e = $(id); if(e) (id === "kyAll" ? e.parentElement : e).remove(); });
+    form.querySelectorAll(".ky-never, .ky-hint2").forEach(e => e.remove());
+    for(const p of ORDER){
+      ["kyb_", "kye_", "kym_"].forEach(pre => { const e = $(pre + p); if(e) e.remove(); });
+      const inp = $(FIELD[p]); if(!inp) continue;
+      const row = inp.closest(".keyrow"), blk = inp.closest(".keyblk");
+      if(row) row.hidden = false; const hint = blk && blk.querySelector(".keyblk-hint"); if(hint) hint.hidden = false;
+      inp.oninput = () => localStorage.removeItem("dusu_keys_ok");
+    }
+  }
+  function viewKids(p, k){
+    const b = badge(k, tk), kids = [h("div", { class:"ky-row" }, h("span", { class:"ky-chip " + b.cls }, b.ico + " " + b.txt), h("span", { class:"ky-mask", text:k.masked }))];
+    const rl = resetLine(k, tk); if(rl && k.status === "limited") kids.push(h("p", { class:"ky-use", text:rl }));
+    if(k.status === "invalid") kids.push(h("p", { class:"ky-use", text:tk(k.expired ? "hintExpired" : "hintInvalid") }));
+    else if(k.status === "forbidden") kids.push(h("p", { class:"ky-use", text:tk("hintBlocked") }));
+    kids.push(h("p", { class:"ky-use", text:usageLine(k, tk) }));
+    const pct = barPct(k); if(pct != null) kids.push(h("i", { class:"ky-bar", "aria-hidden":"true" }, h("b", { style:"width:" + pct + "%" })));
+    if((k.allowance || {}).kind === "unknown" && p === "gemini") kids.push(h("p", { class:"ky-use", text:tk("leftNone") }));
+    kids.push(h("div", { class:"ky-acts" },
+      h("button", { type:"button", class:"btn ghost", disabled:busyP[p] ? "" : null, onclick:() => { mode[p] = "edit"; msg(p, ""); const i = $(FIELD[p]); if(i) i.value = ""; paintBlock(p); if(i) i.focus(); }, text:tk("btnChange") }),
+      h("button", { type:"button", class:"btn ghost", disabled:busyP[p] ? "" : null, onclick:() => testKey(p), text:tk("btnTest") }),
+      h("button", { type:"button", class:"btn ghost ky-del", disabled:busyP[p] ? "" : null, onclick:() => removeKey(p), text:tk("btnRemove") })));
+    return kids;
+  }
+  function paintBlock(p){
+    const view = $("kyb_" + p), ed = $("kye_" + p), inp = $(FIELD[p]); if(!view || !ed || !inp) return;
+    const k = keyOf(p), row = inp.closest(".keyrow"), blk = inp.closest(".keyblk"), hint = blk && blk.querySelector(".keyblk-hint");
+    const editing = !k || mode[p] === "edit";
+    view.hidden = editing; ed.hidden = !editing; if(row) row.hidden = !editing; if(hint) hint.hidden = !editing;
+    if(!editing){ view.replaceChildren(...viewKids(p, k)); if(inp.value) inp.value = ""; }    // a saved key is shown masked only: nothing the older code pre-filled stays in a hidden box
+    const sv = $("kySave_" + p), cn = $("kyCancel_" + p);
+    if(sv){ sv.disabled = !!busyP[p]; sv.textContent = busyP[p] ? tk("saving") : tk("btnSave"); }
+    if(cn) cn.hidden = !k;
+    const m = msgs[p]; const el = $("kym_" + p); if(el){ el.textContent = (m && m.text) || ""; el.className = "ky-msg" + (m && m.cls ? " " + m.cls : ""); }
+  }
+  function paintSummary(){
+    const el = $("kySum"); if(!el) return;
+    if(!S){ el.className = "ky-sum"; el.textContent = tk("sumWait"); return; }
+    let cls = "ok", txt;
+    const bad = S.invalid + S.limited;
+    if(S.stored === 0){ cls = ""; txt = tk("sumNone"); }
+    else if(S.working === 0 && S.unknown === 0){ cls = "bad"; txt = tk("sumAll"); }
+    else if(bad){ cls = "warn"; txt = tk("sumSome", { w:S.working, b:bad }); }
+    else if(S.working < S.min){ cls = ""; txt = tk("sumPart", { w:S.working, m:S.min, k:S.min - S.working }); }
+    else txt = tk("sumOk", { w:S.working });
+    el.className = "ky-sum " + cls; el.textContent = txt;
+  }
+  function paintKeys(){
+    if(!active()) return;
+    ensureSkeleton();
+    if(S && needClear){                                              // opened just now: the older code pre-filled these boxes from THIS browser's copy of the keys, which may be
+      needClear = false;                                             // stale (replaced or removed on another phone) - a box for a key the server does not hold starts empty
+      for(const p of ORDER){ const i = $(FIELD[p]); if(i && !keyOf(p)) i.value = ""; }
+    }
+    paintSummary();
+    ORDER.forEach(paintBlock);
+  }
+  /* loadKeysUI() calls this every time the Keys screen opens: always re-read the server, never trust a cached picture. */
+  function onOpen(){
+    if(!active()) return;
+    needClear = true; pollN = 0; for(const p of ORDER){ delete mode[p]; delete msgs[p]; }
+    ensureSkeleton(); paintKeys();
+    refreshStatus(true);
+  }
+  async function afterChange(wasGate){
+    try{ await loadStoredKeys(); }catch(_){}                         // the older gate (hasOwnKeys) reads this browser's copy: keep it in step with the server's
+    try{ await refreshMe(); }catch(_){}
+    paintAll();
+    if(wasGate && !mustAddKeys()){
+      const el = $("keysStatus"); if(el) el.textContent = tk("takingIn", { n:(S && S.working) || 0 });
+      setTimeout(() => {
+        try{
+          if(userState && userState.onboarded === false && userState.level_test !== false) routeAfterLogin();         // a new learner: the level check
+          else { try{ navTo("/"); }catch(_){ show("home"); } }                                                          // routeAfterLogin() would honour the /keys URL and stay here
+        }catch(_){}
+      }, 1100);
+    }
+  }
+  async function saveKey(p){
+    if(busyP[p]) return;
+    const inp = $(FIELD[p]), v = ((inp && inp.value) || "").trim();
+    if(!v){ msg(p, tk("empty"), "bad"); paintBlock(p); return; }
+    const wasGate = mustAddKeys();
+    busyP[p] = true; msg(p, tk("saving"), ""); paintBlock(p);
+    try{
+      const my = begin(), d = await call("POST", "/save", { provider:p, key:v });
+      if(d.ok){
+        if(inp) inp.value = ""; mode[p] = "view"; take(my, d.status);
+        msg(p, tk(d.result.status === "limited" ? "savedLimited" : "savedOk", { p:NAME[p] }), "ok");
+        await afterChange(wasGate);
+      } else {
+        const r = d.result || {};
+        msg(p, r.status === "unreachable" ? tk("unreach", { p:NAME[p] }) : r.expired ? tk("badExpired", { p:NAME[p] }) : r.status === "forbidden" ? tk("badBlocked", { p:NAME[p] }) : tk("bad", { p:NAME[p] }), "bad");
+      }
+    }catch(e){ msg(p, e.status === 422 ? tk("shape") : e.status === 429 ? tk("slow") : tk("fail"), "bad"); if(e.status === 404) { S = null; } }
+    finally{ busyP[p] = false; paintAll(); }
+  }
+  async function testKey(p){
+    if(busyP[p]) return;
+    busyP[p] = true; msg(p, tk("testing"), ""); paintBlock(p);
+    try{
+      const my = begin(), d = await call("POST", "/recheck", { provider:p, deep:true });
+      take(my, d);
+      const r = (d.checked || {})[p];
+      msg(p, r === "ok" ? tk("testOk", { p:NAME[p] }) : r === "limited" ? tk("testLimited", { p:NAME[p] }) : r === "unreachable" ? tk("testUnreach", { p:NAME[p] }) : tk("testBad", { p:NAME[p] }), r === "ok" ? "ok" : r === "limited" ? "" : "bad");
+    }catch(e){ msg(p, e.status === 429 ? tk("slow") : tk("fail"), "bad"); }
+    finally{ busyP[p] = false; paintAll(); }
+  }
+  async function removeKey(p){
+    if(busyP[p] || !confirm(tk("askRemove", { p:NAME[p] }))) return;
+    busyP[p] = true; paintBlock(p);
+    try{
+      const my = begin(); take(my, await call("POST", "/remove", { provider:p })); mode[p] = "edit";
+      msg(p, tk("removed", { p:NAME[p] }), "ok");
+      await afterChange(false);
+    }catch(e){ msg(p, tk("fail"), "bad"); }
+    finally{ busyP[p] = false; paintAll(); }
+  }
+  async function checkAll(){
+    const b = $("kyAll"); if(b) b.disabled = true;
+    msg("all", tk("checking"), "");
+    try{ const my = begin(); take(my, await call("POST", "/recheck", {})); msg("all", "", ""); }
+    catch(e){ msg("all", e.status === 429 ? tk("slow") : tk("fail"), "bad"); }
+    finally{ if(b) b.disabled = false; paintAll(); }
+  }
+
+  /* ---------- the Home card ---------- */
+  const problemOf = k => !!k && (k.state === "all_invalid" || k.state === "all_limited" || (k.state === "degraded" && k.invalid > 0));
+  function paintCard(){
+    const el = $("kyCard"); if(!el) return;
+    const k = (typeof userState !== "undefined" && userState) ? userState.keys : null;
+    if(!active() || !k || !(k.stored > 0)){ el.hidden = true; el.replaceChildren(); try{ ARB.report("key", false); }catch(_){} return; }
+    const det = S && Date.now() - SAT < 5 * 60 * 1000 ? S : null, c = det || k, bad = problemOf(c), warn = !bad && (c.state === "degraded" || c.limited > 0);
+    const sub = t("cardSub", { w:c.working, u:(c.used_today === 1 ? tk("used1") : tk("usedN", { n:num(c.used_today || 0) })) });
+    const kids = [h("div", { class:"ky-card-h" }, h("b", { text:t("cardT") }), h("span", { text:sub }))];
+    if(det) for(const key of det.keys){
+      const b = badge(key), pct = barPct(key), a = key.allowance || {};
+      const bits = [(key.used_today.requests === 1) ? tk("used1") : tk("usedN", { n:num(key.used_today.requests) })];
+      if(a.kind === "exact") bits.push(t("chipLeft", { n:num(a.left) })); else if(a.kind === "computed") bits.push(t("chipAbout", { n:num(a.left) }));
+      kids.push(h("div", { class:"ky-krow" }, h("span", { class:"ky-dot " + b.cls, "aria-hidden":"true" }), h("span", { class:"ky-kn", text:NAME[key.provider] }), h("span", { class:"ky-ks", text:(key.status === "ok" ? "" : b.txt + " · ") + bits.join(" · ") })));
+      if(pct != null) kids.push(h("i", { class:"ky-bar", "aria-hidden":"true" }, h("b", { style:"width:" + pct + "%" })));
+    }
+    kids.push(h("small", { class:"ky-card-tap", text:bad ? t("cardFix") : t("cardTap") }));
+    el.className = "ky-card" + (bad ? " bad" : warn ? " warn" : "");
+    el.replaceChildren(h("button", { type:"button", class:"ky-card-btn", onclick:() => { try{ navTo("/keys"); }catch(_){ show("keys"); loadKeysUI(); } } }, ...kids));
+    el.hidden = false;
+    try{ ARB.report("key", bad); }catch(_){}
+    if(!det) refreshStatus(false);
+  }
+  function paintAll(){ try{ paintKeys(); }catch(_){} try{ paintCard(); }catch(_){} }
+
+  /* ---------- the pop-up ---------- */
+  function sigOf(kp){ return (kp.state || "") + ":" + (kp.keys || []).map(k => k.provider + "." + k.kind + "." + (k.scope || "")).join(","); }
+  function readSeen(){ try{ return JSON.parse(localStorage.getItem(LS_SEEN) || "null"); }catch(_){ return null; } }
+  function writeSeen(sig){ try{ localStorage.setItem(LS_SEEN, JSON.stringify({ sig, at:Date.now() })); }catch(_){} }
+  function reasonLine(k, sk){
+    const p = NAME[k.provider] || k.provider, rs = k.reset_at ? t(k.approx ? "rAbout" : "rReset", { when:fmtWhen(k.reset_at, sk) }) : "";
+    if(k.kind === "invalid") return t(k.expired ? "rExpired" : "rInvalid", { p });
+    if(k.kind === "forbidden") return t("rBlocked", { p });
+    if(k.kind === "needs_credit") return t("rCredit", { p });
+    if(k.kind === "limited"){
+      if(k.scope === "upstream") return t("rUpstream", { p });
+      if(k.scope === "minute") return t("rMinute", { p });
+      return t(k.scope === "day" ? "rDay" : "rLimited", { p, reset:rs });
+    }
+    return t("rTransient", { p });
+  }
+  function paintSheet(kp){
+    const sh = $("kySheet"); if(!sh) return;
+    const sk = kp.now ? kp.now * 1000 - Date.now() : skew();
+    const st = kp.state, title = st === "all_invalid" ? t("popInvalid") : st === "all_limited" ? t("popLimited") : st === "no_keys" ? t("popNone") : t("popDegraded");
+    const bad = (kp.keys || []).filter(k => k.kind !== "transient");
+    const anyLimited = (kp.keys || []).some(k => k.kind === "limited" || k.kind === "needs_credit");
+    const kids = [
+      h("div", { class:"ky-head" }, h("h3", { id:"kyTitle", tabindex:"-1", text:title }), h("button", { type:"button", class:"ky-x", "aria-label":t("close"), text:"✕", onclick:closeSheet })),
+      h("p", { class:"ky-pop-intro", text:t("popIntro") }),
+      h("ul", { class:"ky-pop-list" }, ...(bad.length ? bad : kp.keys || []).map(k => h("li", { text:reasonLine(k, sk) })))
+    ];
+    if(anyLimited) kids.push(h("p", { class:"ky-pop-why", text:t("popWhy") }));
+    kids.push(h("div", { class:"ky-pop-acts" },
+      h("button", { type:"button", class:"btn primary", onclick:() => { closeSheet(); try{ navTo("/keys"); }catch(_){ show("keys"); loadKeysUI(); } }, text:t("popFix") }),
+      anyLimited ? h("button", { type:"button", class:"btn ghost", onclick:() => { closeSheet(); try{ navTo("/subscribe"); }catch(_){} }, text:t("popPlans") }) : null,
+      h("button", { type:"button", class:"btn ghost", onclick:closeSheet, text:t("popLater") })));
+    sh.replaceChildren(...kids);
+  }
+  function openSheet(kp){
+    const sh = $("kySheet"), bg = $("kyBg"); if(!sh || !bg) return;
+    if(!isOpen) lastFocus = document.activeElement;
+    isOpen = true; paintSheet(kp);
+    try{ if(typeof toggleSheet === "function") toggleSheet(false); }catch(_){}
+    try{ INST.closeSheet(); CM.close(); NT.close(); }catch(_){}                       // a key problem outranks every other dialog (see ARB): never two at once
+    bg.classList.add("on"); sh.classList.add("on"); sh.setAttribute("aria-hidden", "false");
+    const ti = $("kyTitle"); if(ti) ti.focus();
+  }
+  function closeSheet(){
+    const sh = $("kySheet"), bg = $("kyBg"); if(!sh) return;
+    isOpen = false; sh.classList.remove("on"); sh.setAttribute("aria-hidden", "true"); if(bg) bg.classList.remove("on");
+    try{ if(lastFocus && lastFocus.focus) lastFocus.focus(); }catch(_){}
+  }
+  /* Called from every place that can learn a key failed: a `kp` on a WebSocket frame (onMessage) or on an HTTP error body (the fetch wrapper below). */
+  function problem(kp, src){
+    if(!active() || !kp || typeof kp !== "object" || !Array.isArray(kp.keys)) return false;
+    if(kp.state === "transient"){ try{ showNotif(t("busy")); }catch(_){} return true; }
+    const sig = sigOf(kp), seen = readSeen();
+    if(isOpen){ paintSheet(kp); writeSeen(sig); const ti = $("kyTitle"); if(ti) ti.focus(); return true; }       // the news changed while it is open: repaint, keep focus inside the dialog
+    if(seen && seen.sig === sig && Date.now() - seen.at < REPEAT_MS) return true;      // the same news, told a moment ago
+    openSheet(kp); writeSeen(sig);
+    refreshStatus(true);                                                                // the card and the screen catch up with what just happened
+    return true;
+  }
+  /* On Home load: a key that died while the learner was away is explained BEFORE they start, not after a failed turn. */
+  function sync(){
+    if(!active()){ teardown(); const el = $("kyCard"); if(el){ el.hidden = true; el.replaceChildren(); } try{ ARB.report("key", false); }catch(_){} return; }
+    paintCard();
+    const k = userState.keys;
+    if(!problemOf(k) || currentScreen() !== "home" || isOpen) return;
+    const sig = "load:" + k.state + ":" + k.invalid + ":" + k.limited, seen = readSeen();
+    if(seen && seen.sig === sig) return;
+    refreshStatus(true).then(st => {
+      if(!st || isOpen || currentScreen() !== "home") return;
+      const keys = st.keys.filter(x => x.status !== "ok").map(x => ({ provider:x.provider, kind:x.status === "limited" ? (x.kind === "needs_credit" ? "needs_credit" : "limited") : x.status === "forbidden" ? "forbidden" : "invalid",
+                                                                        scope:x.scope || undefined, reset_at:x.reset_at || undefined, approx:x.approx || undefined, expired:x.expired || undefined }));
+      if(!keys.length) return;
+      openSheet({ state:st.state === "ok" ? "degraded" : st.state, keys, now:st.now }); writeSeen(sig);
+    });
+  }
+  function reset(){ S = null; SAT = 0; loading = null; for(const p of ORDER){ delete mode[p]; delete busyP[p]; delete msgs[p]; } closeSheet(); const el = $("kyCard"); if(el){ el.hidden = true; el.replaceChildren(); } try{ ARB.report("key", false); }catch(_){} }
+  document.addEventListener("keydown", ev => {
+    if(!isOpen) return;
+    if(ev.key === "Escape"){ closeSheet(); return; }
+    if(ev.key === "Tab"){
+      const f = [...$("kySheet").querySelectorAll("button, [tabindex]")].filter(x => !x.disabled && x.offsetParent !== null);
+      if(!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if(ev.shiftKey && document.activeElement === first){ ev.preventDefault(); last.focus(); }
+      else if(!ev.shiftKey && document.activeElement === last){ ev.preventDefault(); first.focus(); }
+    }
+  });
+  if($("kyBg")) $("kyBg").onclick = closeSheet;
+  ARB.on("key", () => {});                                   // the card is always drawn; other prompts re-evaluate when its state changes
+
+  /* Every HTTP error body the server sends with a `kp` reaches the pop-up from here - one place, so no call site (there are a dozen) can forget it. */
+  if(window.fetch && !window.__kyFetch){
+    window.__kyFetch = true;
+    const orig = window.fetch.bind(window);
+    window.fetch = function(input, init){
+      const p = orig(input, init);
+      p.then(res => {
+        try{
+          if(res.ok || !active()) return;
+          const url = new URL(typeof input === "string" ? input : (input && input.url) || "", location.href);
+          if(url.origin !== location.origin || (res.headers.get("content-type") || "").indexOf("json") < 0) return;
+          res.clone().json().then(d => { if(d && d.kp) problem(d.kp, "http"); }).catch(() => {});
+        }catch(_){}
+      }).catch(() => {});
+      return p;
+    };
+  }
+  return { active, problem, sync, onOpen, paintKeys, paintCard, refreshStatus, reset, closeSheet, _txt:TXT };
+})();
+window.KY = KY;
+
+/* ================= INSTALL - "Install app" for the web app =================
+   DuSu is a web app: after Chrome's "Install app" it opens full screen from the home screen like any other app, and its notifications arrive as the app's own.
+   (The Google Play version is a separate, later step; until it is published this is how a phone gets DuSu as an app.)
+   One state machine decides what the Install button does on THIS phone:
+     prompt     Chrome on Android / desktop fired `beforeinstallprompt` (captured by the script in <head>): one tap shows the browser's own install dialog
+     ios        Safari / any iPhone browser: there is no install button on iPhone, so three steps (iPhone also only allows reminders from the Home-Screen app)
+     inapp      inside Facebook / Instagram / WhatsApp / a WebView: they cannot install anything - open the link in Chrome
+     menu       Firefox, Samsung, or the event never fired: the browser's own menu
+     installed  already running as the app (display-mode standalone, iPhone standalone, or the Android app) - nothing is drawn
+   Placements: a Home header pill, a More row, a Home card (from the learner's 2nd visit, 14-day "Not now"), and the same sheet once by itself on that 2nd visit.
+   Behind userState.install_app (the owner's switch `install_mode`); until then nothing here is drawn and the browser keeps its own install bar.
+   After an install, or the first time the app is opened as an app, the Notifications prompt is asked at once (it normally waits for the first practice).
+   SECURITY: this module never uses innerHTML. */
+const INST = (function(){
+  "use strict";
+  const LS_VISITS = "dusu_inst_visits", LS_SNOOZE = "dusu_inst_snooze", LS_ON = "dusu_inst_on", LS_INSTALLED = "dusu_installed", LS_PRIME = "dusu_nt_prime", LS_SA = "dusu_inst_sa";
+  const SS_COUNTED = "dusu_inst_counted", SS_SHOWN = "dusu_inst_shown";
+  const AFTER_VISITS = 2, SNOOZE_MS = 14 * 86400000, RECENT_MS = 14 * 86400000;
+
+  const TXT = {
+    en: {
+      pill:"Install app", rowT:"Install app", rowS:"Add DuSu to your home screen",
+      cardT:"Install DuSu on your phone", cardB:"Open it like an app - full screen, from your home screen, and ready for reminders.", cardYes:"Install", cardNo:"Not now",
+      sheetT:"Install DuSu", sheetSub:"Open it like an app: full screen, no browser bar, and quick even on a slow network.",
+      b1:"Opens from your home screen in one tap", b2:"Full screen, no address bar", b3:"Reminders can reach you even when the app is closed",
+      install:"Install", notNow:"Not now", gotIt:"Got it", close:"Close",
+      iosT:"On iPhone, do this:", i1:"Tap the Share button (the square with an arrow)", i2:"Choose “Add to Home Screen”", i3:"Tap Add",
+      iosNote:"Then open DuSu from your home screen. iPhone only allows reminders from there.",
+      inappT:"Open DuSu in Chrome", inappB:"You are inside another app's browser, and it can't install apps. Tap the three dots, then “Open in Chrome” - or copy the link and paste it into Chrome.",
+      copy:"Copy link", copied:"Copied ✓", copyFail:"Couldn't copy - select the address and copy it by hand.",
+      menuT:"Install from your browser's menu", menuB:"Open the browser menu (the three dots or lines) and choose “Install app” or “Add to Home screen”.",
+      doneT:"✅ DuSu is installed", doneB:"Open it from your home screen. It will ask about reminders the first time.",
+      alreadyT:"DuSu is already installed", alreadyB:"Open DuSu from your home screen - that is the app.",
+      waLine:"Join our WhatsApp group for new features, the Google Play launch and help."
+    },
+    hi: {
+      pill:"App install करो", rowT:"App install करो", rowS:"DuSu को अपनी home screen पर जोड़ो",
+      cardT:"DuSu को अपने phone पर install करो", cardB:"इसे app की तरह खोलो - full screen, home screen से, और reminders के लिए तैयार।", cardYes:"Install करो", cardNo:"अभी नहीं",
+      sheetT:"DuSu install करो", sheetSub:"App की तरह खोलो: full screen, कोई browser bar नहीं, और धीमे network पर भी तेज़।",
+      b1:"Home screen से एक tap में खुलता है", b2:"Full screen, कोई address bar नहीं", b3:"App बंद होने पर भी reminders तुम तक पहुँच सकते हैं",
+      install:"Install करो", notNow:"अभी नहीं", gotIt:"ठीक है", close:"बंद करो",
+      iosT:"iPhone पर ये करो:", i1:"Share button दबाओ (तीर वाला चौकोर)", i2:"“Add to Home Screen” चुनो", i3:"Add दबाओ",
+      iosNote:"फिर DuSu को अपनी home screen से खोलो। iPhone में reminders सिर्फ़ वहीं से मिलते हैं।",
+      inappT:"DuSu को Chrome में खोलो", inappB:"तुम किसी दूसरे app के browser के अंदर हो, और वो apps install नहीं कर सकता। तीन dots दबाओ, फिर “Open in Chrome” - या link copy करके Chrome में paste करो।",
+      copy:"Link copy करो", copied:"Copy हो गया ✓", copyFail:"Copy नहीं हो पाया - address select करके खुद copy करो।",
+      menuT:"Browser के menu से install करो", menuB:"Browser का menu खोलो (तीन dots या lines) और “Install app” या “Add to Home screen” चुनो।",
+      doneT:"✅ DuSu install हो गया", doneB:"इसे अपनी home screen से खोलो। पहली बार ये reminders के बारे में पूछेगा।",
+      alreadyT:"DuSu पहले से install है", alreadyB:"DuSu को अपनी home screen से खोलो - वही app है।",
+      waLine:"नए features, Google Play launch और help के लिए हमारे WhatsApp group से जुड़ो।"
+    }
+  };
+  const L = () => (typeof LG !== "undefined" && LG.on()) ? LG.cur() : "hi";
+  function t(k, v){
+    let s = (TXT[L()] || TXT.hi)[k]; if(s === undefined) s = TXT.en[k]; if(s === undefined) return k;
+    if(v) s = s.replace(/\{(\w+)\}/g, (_, x) => v[x] != null ? v[x] : "");
+    return s;
+  }
+  function h(tag, a, ...kids){
+    const e = document.createElement(tag);
+    for(const k in (a || {})){
+      const v = a[k]; if(v == null || v === false) continue;
+      if(k === "text") e.textContent = v;
+      else if(k.slice(0, 2) === "on") e.addEventListener(k.slice(2), v);
+      else e.setAttribute(k, v === true ? "" : v);
+    }
+    for(const c of kids.flat()){ if(c == null || c === false) continue; e.append(c.nodeType ? c : document.createTextNode(String(c))); }
+    return e;
+  }
+
+  /* ---------- where are we running ---------- */
+  const ua = navigator.userAgent || "";
+  const isIosDevice = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && (navigator.maxTouchPoints || 0) > 1);
+  const inAppBrowser = /FBAN|FBAV|FB_IAB|Instagram|Snapchat|MicroMessenger|Line\/|WhatsApp|; wv\)/i.test(ua);
+  const flag = k => { try{ return localStorage.getItem(k); }catch(_){ return null; } };
+  const setFlag = (k, v) => { try{ localStorage.setItem(k, v); }catch(_){} };
+  function standalone(){
+    try{ return navigator.standalone === true || ["standalone", "fullscreen", "minimal-ui"].some(m => matchMedia("(display-mode: " + m + ")").matches); }catch(_){ return false; }
+  }
+  function inTwa(){ try{ return sessionStorage.getItem("dusu_twa") === "1" || document.referrer.indexOf("android-app://") === 0; }catch(_){ return false; } }
+  let relInstalled = false;
+  try{ if(navigator.getInstalledRelatedApps) navigator.getInstalledRelatedApps().then(a => { if(a && a.length){ relInstalled = true; paint(); } }).catch(() => {}); }catch(_){}
+  function installedRecently(){ const at = +flag(LS_INSTALLED) || 0; return !!window.__dusuInstalled || (at > 0 && Date.now() - at < RECENT_MS); }
+  function mode(){
+    if(standalone() || inTwa()) return "installed";
+    if(relInstalled || installedRecently()) return "tab-installed";
+    if(inAppBrowser) return "inapp";
+    if(window.__dusuBip) return "prompt";
+    if(isIosDevice) return "ios";
+    return "menu";
+  }
+  const installedLike = m => m === "installed" || m === "tab-installed";
+  const enabled = () => !!(typeof userState !== "undefined" && userState && userState.install_app);
+
+  function countVisit(){                                    // one visit = one browser session, counted once
+    try{
+      const n = +flag(LS_VISITS) || 0;
+      if(sessionStorage.getItem(SS_COUNTED)) return n;
+      sessionStorage.setItem(SS_COUNTED, "1"); setFlag(LS_VISITS, String(n + 1)); return n + 1;
+    }catch(_){ return 1; }
+  }
+  const visits = countVisit();
+  const snoozed = () => { const at = +flag(LS_SNOOZE) || 0; return !!(at && Date.now() - at < SNOOZE_MS); };
+  const snooze = () => setFlag(LS_SNOOZE, String(Date.now()));
+  function shouldOffer(){
+    return enabled() && !!userState.onboarded && !installedLike(mode()) && visits >= AFTER_VISITS && !snoozed();
+  }
+
+  /* ---------- the install itself ---------- */
+  async function doInstall(){
+    const ev = window.__dusuBip; if(!ev) return false;
+    try{
+      ev.prompt();                                          // must run inside the tap
+      const r = await ev.userChoice;
+      window.__dusuBip = null;
+      if(r && r.outcome === "accepted"){ onInstalled(); return true; }
+      snooze(); closeSheet(); paint(); return false;
+    }catch(_){ window.__dusuBip = null; paint(); return false; }
+  }
+  function onInstalled(){
+    setFlag(LS_INSTALLED, String(Date.now())); setFlag(LS_PRIME, "1");        // the Notifications prompt asks as soon as the app opens
+    paint();
+    if(enabled()) openSheet("done");                                         // "DuSu is installed - open it from your home screen" (+ the WhatsApp group)
+  }
+  window.addEventListener("dusu-installed", onInstalled);
+  window.addEventListener("dusu-bip", () => { paint(); if(isOpen) paintSheet("auto"); });       // the browser's event can arrive after the sheet opened: the sheet follows
+  function start(){                                         // the one entry for the pill, the More row and the card
+    if(mode() === "prompt") return doInstall();
+    openSheet("auto");
+  }
+
+  /* ---------- the sheet ---------- */
+  let isOpen = false, lastFocus = null;
+  function waKids(){
+    try{
+      const c = (typeof CM !== "undefined" && CM.enabled()) ? CM : null;
+      if(!c) return [];
+      return [h("p", { class:"inst-note" }, t("waLine")), h("button", { type:"button", class:"btn ghost", onclick:() => { closeSheet(); CM.open(); }, text:CM.t("rowT") })];
+    }catch(_){ return []; }
+  }
+  function paintSheet(view){
+    const sh = $("instSheet"); if(!sh) return;
+    const m = view === "done" ? "done" : view === "already" ? "already" : mode();
+    const kids = [h("div", { class:"inst-head" }, h("img", { src:"/assets/icons/dusu-192-v1.png", alt:"", width:"56", height:"56", class:"inst-ic" }),
+      h("div", {}, h("h3", { id:"instTitle", tabindex:"-1", text:m === "done" ? t("doneT") : m === "tab-installed" || m === "already" ? t("alreadyT") : m === "inapp" ? t("inappT") : m === "menu" ? t("menuT") : t("sheetT") }),
+        h("small", { text:location.host })),
+      h("button", { type:"button", class:"inst-x", "aria-label":t("close"), text:"✕", onclick:closeSheet }))];
+    const note = (txt) => kids.push(h("p", { class:"inst-note", text:txt }));
+    if(m === "done"){ note(t("doneB")); kids.push(...waKids()); kids.push(h("button", { type:"button", class:"btn primary", onclick:closeSheet, text:t("gotIt") })); }
+    else if(m === "tab-installed" || m === "already"){ note(t("alreadyB")); kids.push(h("button", { type:"button", class:"btn primary", onclick:closeSheet, text:t("gotIt") })); }
+    else if(m === "ios"){
+      note(t("sheetSub"));
+      kids.push(h("p", { class:"inst-h", text:t("iosT") }),
+        h("ol", { class:"inst-steps" }, h("li", { text:t("i1") }), h("li", { text:t("i2") }), h("li", { text:t("i3") })));
+      note(t("iosNote"));
+      kids.push(h("button", { type:"button", class:"btn primary", onclick:() => { setFlag(LS_PRIME, "1"); closeSheet(); }, text:t("gotIt") }));
+    }
+    else if(m === "inapp"){
+      note(t("inappB"));
+      kids.push(h("button", { type:"button", class:"btn primary", id:"instCopy", onclick:copyLink, text:t("copy") }),
+        h("button", { type:"button", class:"btn ghost", onclick:closeSheet, text:t("close") }));
+    }
+    else if(m === "menu"){ note(t("menuB")); kids.push(h("button", { type:"button", class:"btn primary", onclick:closeSheet, text:t("gotIt") })); }
+    else {
+      note(t("sheetSub"));
+      kids.push(h("ul", { class:"inst-list" }, h("li", { text:"✓ " + t("b1") }), h("li", { text:"✓ " + t("b2") }), h("li", { text:"✓ " + t("b3") })),
+        h("button", { type:"button", class:"btn primary", id:"instGo", onclick:doInstall, text:t("install") }),
+        h("button", { type:"button", class:"btn ghost", onclick:() => { snooze(); closeSheet(); paint(); }, text:t("notNow") }));
+    }
+    sh.replaceChildren(...kids);
+  }
+  async function copyLink(){
+    const b = $("instCopy"); let okc = false;
+    try{ await navigator.clipboard.writeText(location.origin + "/"); okc = true; }catch(_){}
+    if(b) b.textContent = okc ? t("copied") : t("copyFail");
+  }
+  function openSheet(view){
+    const sh = $("instSheet"), bg = $("instBg"); if(!sh || !bg) return;
+    if(!isOpen) lastFocus = document.activeElement;
+    isOpen = true;
+    try{ if(typeof toggleSheet === "function") toggleSheet(false); }catch(_){}
+    paintSheet(view);
+    bg.classList.add("on"); sh.classList.add("on"); sh.setAttribute("aria-hidden", "false");
+    const ti = $("instTitle"); if(ti) ti.focus();
+  }
+  function closeSheet(){
+    const sh = $("instSheet"), bg = $("instBg"); if(!sh) return;
+    isOpen = false; sh.classList.remove("on"); sh.setAttribute("aria-hidden", "true"); if(bg) bg.classList.remove("on");
+    try{ if(lastFocus && lastFocus.focus) lastFocus.focus(); }catch(_){}
+  }
+
+  /* ---------- the entry points ---------- */
+  function paintCard(){
+    const el = $("instPrompt"); if(!el) return;
+    const want = shouldOffer();
+    try{ ARB.report("install", want); }catch(_){}
+    if(!want || !ARB.allow("install")){ el.hidden = true; el.replaceChildren(); return; }
+    el.replaceChildren(h("b", { text:t("cardT") }), h("small", { text:t("cardB") }),
+      h("div", { class:"nt-acts" },
+        h("button", { type:"button", class:"btn primary", onclick:start, text:t("cardYes") }),
+        h("button", { type:"button", class:"btn ghost", onclick:() => { snooze(); paint(); }, text:t("cardNo") })));
+    el.hidden = false;
+  }
+  function paint(){
+    const on = enabled() && !installedLike(mode());
+    const pill = $("instPill"); if(pill){ pill.hidden = !on; if(on){ pill.setAttribute("aria-label", t("pill")); const b = pill.querySelector(".inst-pill-t"); if(b) b.textContent = t("pill"); } }
+    const row = $("mrowInst"); if(row){ row.hidden = !on; const rt = row.querySelector(".mt"), rs = row.querySelector(".msub"); if(rt) rt.textContent = t("rowT"); if(rs) rs.textContent = t("rowS"); }
+    paintCard();
+  }
+  /* Called after every /me and every time Home is shown. */
+  function sync(){
+    { const v = enabled() ? "1" : "0"; if(flag(LS_ON) !== v) setFlag(LS_ON, v); }          // the <head> script reads this to decide whether to keep the browser's install event
+    if(!enabled()){ closeSheet(); paint(); return; }
+    if((standalone() || inTwa()) && !flag(LS_SA)){ setFlag(LS_SA, "1"); setFlag(LS_PRIME, "1"); try{ NT.syncEntries(); }catch(_){} }     // first time it is opened AS an app
+    paint();
+    if(shouldOffer() && currentScreen() === "home" && !isOpen && !sessionStorage.getItem(SS_SHOWN) && ARB.allow("install")){
+      try{ sessionStorage.setItem(SS_SHOWN, "1"); }catch(_){}
+      setTimeout(() => {                                    // 2.5 s later the picture may have changed (a key problem arrived with /me): ask again, and never stack on another dialog
+        if(currentScreen() === "home" && shouldOffer() && !isOpen && ARB.allow("install") && !document.querySelector(".ky-sheet.on, .nt-sheet.on, .cm-sheet.on, #msheet.on")) openSheet("auto");
+      }, 2500);
+    }
+  }
+  function reset(){ closeSheet(); const el = $("instPrompt"); if(el){ el.hidden = true; el.replaceChildren(); } const pill = $("instPill"); if(pill) pill.hidden = true; try{ ARB.report("install", false); }catch(_){} }
+  document.addEventListener("keydown", ev => {
+    if(!isOpen) return;
+    if(ev.key === "Escape"){ closeSheet(); return; }
+    if(ev.key === "Tab"){
+      const f = [...$("instSheet").querySelectorAll("button, [tabindex]")].filter(x => !x.disabled && x.offsetParent !== null);
+      if(!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if(ev.shiftKey && document.activeElement === first){ ev.preventDefault(); last.focus(); }
+      else if(!ev.shiftKey && document.activeElement === last){ ev.preventDefault(); first.focus(); }
+    }
+  });
+  if($("instBg")) $("instBg").onclick = closeSheet;
+  if($("instPill")) $("instPill").onclick = start;
+  ARB.on("install", paintCard);
+  return { enabled, mode, start, sync, paint, reset, openSheet, closeSheet, _txt:TXT, _visits:() => visits };
+})();
+window.INST = INST;
+
+/* ================= COMMUNITY - join the owner's WhatsApp group =================
+   One place for what's new, the Google Play launch, help and feedback. The invite link lives in the server's settings table (the owner edits it on the dashboard) and
+   reaches the app as /me.community.whatsapp - it is deliberately NOT in this public file, where scrapers harvest invite links. Where it shows: a Home card (after the
+   first practice, 14-day "Not now", never together with another prompt - see ARB), a More row, a button on Help & Feedback, the plans page and the install sheet.
+   One honest sentence before the tap: members of a WhatsApp group can see each other's phone numbers. The key screens and this sheet say to never share an API key.
+   Behind userState.install_app. SECURITY: this module never uses innerHTML, and only an https WhatsApp link is ever used as a href. */
+const CM = (function(){
+  "use strict";
+  const LS_ASKED = "dusu_cm_asked", ASK_AGAIN_MS = 14 * 86400000;
+  const TXT = {
+    en: {
+      cardT:"Join our WhatsApp group", cardB:"New features, the Google Play launch and help - all in one place.", note:"Members of the group can see each other's phone numbers.",
+      never:"Never post your API key in the group.", join:"Join the group", notNow:"Not now", rowT:"WhatsApp group", rowS:"Updates, help and feedback",
+      sheetT:"Join our WhatsApp group", open:"Open WhatsApp", close:"Close", helpB:"Join our WhatsApp group",
+      subT:"Paid plans are coming soon", subB:"Until then DuSu is free with your own keys. Join our WhatsApp group to hear first when plans open."
+    },
+    hi: {
+      cardT:"हमारे WhatsApp group से जुड़ो", cardB:"नए features, Google Play launch और help - सब एक जगह।", note:"Group के members एक-दूसरे के phone numbers देख सकते हैं।",
+      never:"अपनी API key group में कभी post मत करो।", join:"Group से जुड़ो", notNow:"अभी नहीं", rowT:"WhatsApp group", rowS:"Updates, help और feedback",
+      sheetT:"हमारे WhatsApp group से जुड़ो", open:"WhatsApp खोलो", close:"बंद करो", helpB:"हमारे WhatsApp group से जुड़ो",
+      subT:"Paid plans जल्द आ रहे हैं", subB:"तब तक DuSu तुम्हारी अपनी keys के साथ free है। Plans खुलने पर सबसे पहले जानने के लिए हमारे WhatsApp group से जुड़ो।"
+    }
+  };
+  const L = () => (typeof LG !== "undefined" && LG.on()) ? LG.cur() : "hi";
+  function t(k, v){
+    let s = (TXT[L()] || TXT.hi)[k]; if(s === undefined) s = TXT.en[k]; if(s === undefined) return k;
+    if(v) s = s.replace(/\{(\w+)\}/g, (_, x) => v[x] != null ? v[x] : "");
+    return s;
+  }
+  function h(tag, a, ...kids){
+    const e = document.createElement(tag);
+    for(const k in (a || {})){
+      const v = a[k]; if(v == null || v === false) continue;
+      if(k === "text") e.textContent = v;
+      else if(k.slice(0, 2) === "on") e.addEventListener(k.slice(2), v);
+      else e.setAttribute(k, v === true ? "" : v);
+    }
+    for(const c of kids.flat()){ if(c == null || c === false) continue; e.append(c.nodeType ? c : document.createTextNode(String(c))); }
+    return e;
+  }
+  const SAFE = /^https:\/\/(chat\.whatsapp\.com\/[A-Za-z0-9]{10,40}|whatsapp\.com\/channel\/[A-Za-z0-9_-]{10,60})$/;
+  const link = () => { const u = (typeof userState !== "undefined" && userState && userState.community && userState.community.whatsapp) || ""; return SAFE.test(u) ? u : ""; };
+  const enabled = () => !!(typeof userState !== "undefined" && userState && userState.install_app && link());
+  let isOpen = false, lastFocus = null;
+  const snoozed = () => { let at = 0; try{ at = +localStorage.getItem(LS_ASKED) || 0; }catch(_){} return !!(at && Date.now() - at < ASK_AGAIN_MS); };
+  function wanted(){
+    if(!enabled() || !userState.onboarded || snoozed()) return false;
+    const pg = userState.progress || {};
+    return (pg.xp || 0) > 0 || (pg.streak_days || 0) > 0;           // only after they have actually practised once
+  }
+  const openLink = () => { const u = link(); if(u) window.open(u, "_blank", "noopener,noreferrer"); };
+  function paintCard(){
+    const el = $("waPrompt"); if(!el) return;
+    const want = wanted();
+    try{ ARB.report("wa", want); }catch(_){}
+    if(!want || !ARB.allow("wa")){ el.hidden = true; el.replaceChildren(); return; }
+    el.replaceChildren(h("b", { text:t("cardT") }), h("small", { text:t("cardB") }), h("small", { class:"cm-note", text:t("note") }),
+      h("div", { class:"nt-acts" },
+        h("button", { type:"button", class:"btn primary", onclick:() => { try{ localStorage.setItem(LS_ASKED, String(Date.now())); }catch(_){} openLink(); paintCard(); }, text:t("join") }),
+        h("button", { type:"button", class:"btn ghost", onclick:() => { try{ localStorage.setItem(LS_ASKED, String(Date.now())); }catch(_){} paintCard(); }, text:t("notNow") })));
+    el.hidden = false;
+  }
+  function paintRow(){
+    const row = $("mrowWA"); if(!row) return;
+    row.hidden = !enabled();
+    const rt = row.querySelector(".mt"), rs = row.querySelector(".msub"); if(rt) rt.textContent = t("rowT"); if(rs) rs.textContent = t("rowS");
+  }
+  function paintHelp(){
+    const el = $("cmHelp"); if(!el) return;
+    if(!enabled()){ el.hidden = true; el.replaceChildren(); return; }
+    el.replaceChildren(h("button", { type:"button", class:"btn ghost cm-help-btn", onclick:open, text:"💬 " + t("helpB") }));
+    el.hidden = false;
+  }
+  function paintSub(){
+    const el = $("cmSub"); if(!el) return;
+    if(!enabled()){ el.hidden = true; el.replaceChildren(); return; }
+    el.replaceChildren(h("b", { text:t("subT") }), h("small", { text:t("subB") }),
+      h("div", { class:"nt-acts" }, h("button", { type:"button", class:"btn primary", onclick:open, text:t("join") })));
+    el.hidden = false;
+  }
+  function paintSheet(){
+    const sh = $("waSheet"); if(!sh) return;
+    sh.replaceChildren(
+      h("div", { class:"inst-head" }, h("div", {}, h("h3", { id:"waTitle", tabindex:"-1", text:t("sheetT") })), h("button", { type:"button", class:"inst-x", "aria-label":t("close"), text:"✕", onclick:close })),
+      h("p", { class:"inst-note", text:t("cardB") }), h("p", { class:"inst-note", text:t("note") }), h("p", { class:"inst-note", text:t("never") }),
+      h("button", { type:"button", class:"btn primary", onclick:() => { openLink(); close(); }, text:t("open") }),
+      h("button", { type:"button", class:"btn ghost", onclick:close, text:t("close") }));
+  }
+  function open(){
+    if(!enabled()) return;
+    const sh = $("waSheet"), bg = $("waBg"); if(!sh || !bg) return;
+    lastFocus = document.activeElement; isOpen = true;
+    try{ if(typeof toggleSheet === "function") toggleSheet(false); }catch(_){}
+    paintSheet();
+    bg.classList.add("on"); sh.classList.add("on"); sh.setAttribute("aria-hidden", "false");
+    const ti = $("waTitle"); if(ti) ti.focus();
+  }
+  function close(){
+    const sh = $("waSheet"), bg = $("waBg"); if(!sh) return;
+    isOpen = false; sh.classList.remove("on"); sh.setAttribute("aria-hidden", "true"); if(bg) bg.classList.remove("on");
+    try{ if(lastFocus && lastFocus.focus) lastFocus.focus(); }catch(_){}
+  }
+  function sync(){ paintCard(); paintRow(); paintHelp(); paintSub(); if(!enabled()) close(); }
+  function reset(){ close(); for(const id of ["waPrompt", "cmHelp", "cmSub"]){ const e = $(id); if(e){ e.hidden = true; e.replaceChildren(); } } const r = $("mrowWA"); if(r) r.hidden = true; try{ ARB.report("wa", false); }catch(_){} }
+  document.addEventListener("keydown", ev => {
+    if(!isOpen) return;
+    if(ev.key === "Escape"){ close(); return; }
+    if(ev.key === "Tab"){
+      const f = [...$("waSheet").querySelectorAll("button, [tabindex]")].filter(x => !x.disabled && x.offsetParent !== null);
+      if(!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if(ev.shiftKey && document.activeElement === first){ ev.preventDefault(); last.focus(); }
+      else if(!ev.shiftKey && document.activeElement === last){ ev.preventDefault(); first.focus(); }
+    }
+  });
+  if($("waBg")) $("waBg").onclick = close;
+  ARB.on("wa", paintCard);
+  return { enabled, open, close, sync, reset, t, link, _txt:TXT };
+})();
+window.CM = CM;
+try{ ARB.on("nt", () => { try{ NT.syncEntries(); }catch(_){} }); }catch(_){}   // the Notifications prompt repaints when another prompt steps aside
+
 
 /* ================= RESUME INTERVIEW - a resume + a job description in, a mock interview built from them out =================
    Plan: ~/.claude/plans/one-more-feture-needed-sunny-swing.md · API: /rinterview/* (backend/app/resume_interview). One screen (#ri) with the

@@ -235,7 +235,7 @@ async def analyze_talk(llm, *, kind: str, topic: str, lang: str, feedback_lang: 
     runs = [r for r in results if _valid_run(r, kind, english)]
     if not runs:
         first_exc = next((r for r in results if isinstance(r, Exception)), None)
-        raise P.AnalysisUnavailable(str(first_exc) if first_exc else "no parseable analysis reply")
+        raise P.AnalysisUnavailable(str(first_exc) if first_exc else "no parseable analysis reply") from first_exc
 
     keys = [k for k, _d in SKILLS[kind]] + (["language"] if english else [])
     med = {k: P._median([P._num(r["scores"].get(k)) for r in runs]) for k in keys}

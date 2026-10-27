@@ -68,9 +68,9 @@ def _int(v, default: int = 0) -> int:
 
 
 @router.get("/prefs")
-async def get_prefs(token: str = "", authorization: str | None = Header(None)):
+async def get_prefs(token: str = "", endpoint: str = "", authorization: str | None = Header(None)):
     _c, uid, _e = await _gate(authorization, token)
-    return await _run(svc.get_prefs(uid))
+    return await _run(svc.get_prefs(uid, endpoint[:700] or None))
 
 
 @router.patch("/prefs")
@@ -134,6 +134,18 @@ async def ack(request: Request, body: dict = Body(default={})):
 async def test(body: dict = Body(default={}), authorization: str | None = Header(None)):
     _c, uid, _e = await _gate(authorization, str(body.get("token", "")))
     return await _run(svc.send_test(uid))
+
+
+@router.get("/test/{nid}")
+async def test_status(nid: int, token: str = "", authorization: str | None = Header(None)):
+    """Where the learner's own test notification is on its way (the settings sheet polls this for a minute). Not theirs / not a test: 404."""
+    _c, uid, _e = await _gate(authorization, token)
+    if not (0 < nid < 2 ** 31):
+        raise HTTPException(404, "Not found")
+    out = await _run(svc.test_status(uid, nid))
+    if out is None:
+        raise HTTPException(404, "Not found")
+    return out
 
 
 # ----------------------------------------------------------------------------- data rights (answered while the switch is off too)
