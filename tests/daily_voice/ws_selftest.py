@@ -5,7 +5,7 @@ What is proven:
   * a Daily `start` with `reconnect: true` and a non-empty `resume` is a QUIET resume: the server answers `daily_resumed`, makes NO model call and sends no greeting, and the
     replayed turns reach the model as context for the next real turn;
   * ... and counts only what is said AFTER it: finishing straight away writes nothing (no XP, no summary row); one new turn is rewarded once;
-  * everything else is exactly today's behaviour: no flag, a flag that is not the boolean `true`, an empty resume, another mode that is sent the flag.
+  * everything else is exactly today's behaviour: no flag, a flag that is not the boolean `true`, an empty resume, Learn (which needs no server resume). Face-to-Face / Interview / practice / Home resume through ws_sessions_selftest.py.
 Run via tests/daily_voice/run.sh ws_selftest.py.
 """
 
@@ -191,9 +191,9 @@ async def main():
         fr = await recv_until(ws, {"daily_question", "daily_resumed", "error", "quota"})
     check("reconnect with nothing to resume is a plain start (a greeting)", fr[-1]["type"] == "daily_question" and chat_calls() > c0, fr)
     async with websockets.connect(URL) as ws:
-        await ws.send(json.dumps({"type": "start", "mode": "conversation", "token": tok["other"], "name": "Ann", "hour": 11, "reconnect": True, "resume": RESUME}))
-        fr = await recv_until(ws, {"ai_text", "daily_resumed", "error", "quota"})
-    check("another mode that is sent the flag ignores it", fr[-1]["type"] == "ai_text", fr)
+        await ws.send(json.dumps({"type": "start", "mode": "learning", "token": tok["other"], "hour": 11, "reconnect": True, "resume": RESUME}))
+        fr = await recv_until(ws, {"ready", "daily_resumed", "session_resumed", "error", "quota"})
+    check("a mode that has no server resume (Learn) ignores the flag", fr[-1]["type"] == "ready", fr)
 
     section("a plain resume (no flag) is unchanged: its replayed turns still count when the chat ends")
     sub = users["plainresume"]["sub"]

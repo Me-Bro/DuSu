@@ -88,14 +88,15 @@ function create(name) {
   async function proxy(ctx) {
     const P = { conns: [], get last() { return this.conns[this.conns.length - 1]; } };
     await ctx.routeWebSocket(/\/ws\/interview/, ws => {
+      if (P.refuse) { P.refused = (P.refused || 0) + 1; try { ws.close({ code: 1006, reason: 'refused' }); } catch (e) {} return; }          // the server cannot be reached: the socket opens and dies
       const server = ws.connectToServer();
       const c = { n: P.conns.length + 1, frames: [], held: [], hold: !!P.holdNew, frozen: false, pageClosed: false, serverClosed: false, killed: false };
       const rec = (dir, m) => { let j = null; try { j = JSON.parse(m); } catch (e) {} c.frames.push({ dir, j, t: Date.now() }); return j; };
       ws.onMessage(m => { rec('out', m); if (!c.frozen) server.send(m); });
       server.onMessage(m => {
-        rec('in', m);
+        const j = rec('in', m);
         if (c.frozen) return;
-        if (c.hold) { c.held.push(m); return; }
+        if (c.hold || (c.holdIf && c.holdIf(j))) { c.held.push(m); return; }                          // holdIf: hold only some frames (the report, say)
         ws.send(m);
       });
       ws.onClose(() => { c.pageClosed = true; try { server.close(); } catch (e) {} });
@@ -161,7 +162,77 @@ function create(name) {
   }
   const bubbles = page => page.evaluate(() => ({ me: document.querySelectorAll('#dailyFeed .msg.user').length, ai: document.querySelectorAll('#dailyFeed .msg.ai').length }));
 
-  return { BASE, OUT, TOK, T, ERRS, sleep, until, ctxFor, proxy, post, behave, calls, me, xp, boot, screen, vis, txt, shot, spyUsage, usageCalls, lock, unlock, micOn, spoken, spokenHidden, openDaily, sayTurn, bubbles };
+  // ---- the session screen (Face-to-Face, Interview, a practice conversation, the Home chat)
+  const aiN = page => page.evaluate(() => document.querySelectorAll('#feed .msg.ai:not(.thinking)').length);
+  const userN = page => page.evaluate(() => document.querySelectorAll('#feed .msg.user').length);
+  const lines = page => page.evaluate(() => [...document.querySelectorAll('#feed .msg:not(.thinking)')].map(m => ({ role: m.classList.contains('ai') ? 'assistant' : 'user', content: m.querySelector('.bubble').textContent.trim() })));
+  const listening = page => page.evaluate(() => !!window.__srActive);
+  const onSession = page => page.waitForFunction(() => (document.querySelector('.screen.on') || {}).id === 'session', null, { timeout: 10000 });
+  /** Wait until the opener is on screen and (unless text mode) the recogniser is listening. */
+  async function sessReady(page, o = {}) {
+    if (!(await until(async () => (await aiN(page)) >= 1, 15000))) throw new Error('the opening line never came');
+    if (!o.noMic && !(await until(() => listening(page), 10000))) throw new Error('the mic never opened');
+  }
+  /** Face-to-Face the way a learner opens it: Practice tab -> Talk. The recogniser keeps listening until the spec speaks (__say). */
+  async function openTalk(page, o = {}) {
+    await page.evaluate(() => { window.__hold = true; });
+    await page.click('.btab[data-tab="practice"]');
+    await page.click('.mode-card[data-mode="conversation"]');
+    await onSession(page);
+    if (!o.noWait) await sessReady(page);
+  }
+  async function openInterview(page, o = {}) {
+    await page.evaluate(() => { window.__hold = true; });
+    await page.click('.btab[data-tab="practice"]');
+    await page.click('.mode-card[data-mode="interview"]');
+    await page.waitForFunction(() => (document.querySelector('.screen.on') || {}).id === 'setup', null, { timeout: 8000 });
+    await page.fill('#role', o.role || 'Software Engineer');
+    await page.click('#startInterview');
+    await onSession(page);
+    if (!o.noWait) await sessReady(page);
+  }
+  /** A Practice Room conversation (viva) through the real screens. */
+  async function openViva(page, o = {}) {
+    await page.evaluate(() => { window.__hold = true; navTo('/practice-room'); });
+    await page.waitForSelector('.pr-kind[data-k="viva"]', { timeout: 10000 });
+    await page.click('.pr-kind[data-k="viva"]');
+    await page.waitForSelector('#prTalkTopic', { state: 'visible', timeout: 8000 });
+    await page.fill('#prTalkTopic', o.topic || 'Database Management Systems');
+    await page.click('#prTalkGo');
+    await onSession(page);
+    if (!o.noWait) await sessReady(page);
+  }
+  /** The Home chat: Start Speaking (voice) or a typed line (text mode). */
+  async function openHome(page, o = {}) {
+    await page.evaluate(() => { window.__hold = true; });
+    if (o.typed) {
+      await page.fill('#hmTypeIn', o.typed); await page.press('#hmTypeIn', 'Enter');
+    } else {
+      await page.click('#startSpeak');
+    }
+    await onSession(page);
+    if (!o.noWait) await sessReady(page, { noMic: !!o.typed });
+  }
+  /** One spoken turn: wait for the recogniser, speak, and wait until DuSu's reply is on screen. */
+  async function saySess(page, text, o = {}) {
+    if (!(await until(() => listening(page), o.micMs || 8000))) return false;
+    const n0 = await aiN(page);
+    await page.evaluate(t => window.__say(t), text);
+    return until(async () => (await aiN(page)) > n0, o.ms || 15000);
+  }
+  /** Wait until the server has stopped making model calls (an end-of-session save is itself a model call). */
+  async function settled(quietMs = 2500, max = 40000) {
+    let last = await calls(), changed = Date.now(); const t0 = Date.now();
+    for (;;) {
+      await sleep(300);
+      const n = await calls();
+      if (n !== last) { last = n; changed = Date.now(); }
+      if (Date.now() - changed >= quietMs || Date.now() - t0 > max) return n;
+    }
+  }
+
+  return { BASE, OUT, TOK, T, ERRS, sleep, until, ctxFor, proxy, post, behave, calls, me, xp, boot, screen, vis, txt, shot, spyUsage, usageCalls, lock, unlock, micOn, spoken, spokenHidden, openDaily, sayTurn, bubbles,
+    aiN, userN, lines, listening, sessReady, openTalk, openInterview, openViva, openHome, saySess, settled };
 }
 
 module.exports = { create };

@@ -4134,6 +4134,9 @@ const VOICE_SCREENS = new Set(["session","daily","learning"]);
 // let the NEXT line speak. Fixes "Finish / switch tab but DuSu keeps talking".
 let speakEpoch = 0;
 function killSpeech(){ speakEpoch++; try{ if(window.speechSynthesis) window.speechSynthesis.cancel(); }catch(_){} }
+// A chat on the session screen (Face-to-Face, Interview, a practice conversation, the Home chat) whose socket died - a locked phone, a dropped connection - is picked up again
+// quietly (see VP): the `start` frame it opened with is kept so the SAME chat can be re-opened, and the lines are read back from what the learner sees on screen.
+let sessFrame = null, sessT0 = 0, sessAway = 0, sessReviving = false, sessEnding = false, sessThen = "", sessNeedsTap = false;
 
 /* ================= Hindi / English choice - the NEW features only (DUSU_LANGUAGE_SCOPE_PLAN.md · CLAUDE.md §11) =================
    One language (hi | en, Hindi until the learner chooses) for the NEW features: the Home AI companion, Know About DuSu (and My Day later).
@@ -4184,7 +4187,7 @@ const I18N = {
     dMicLabel:"🎤 Answer in English", dTap:"Tap the mic and answer in English.", dListening:"Listening…", dReplyReady:"💬 Reply when you're ready",
     dcYou:"You said", dcEngLbl:"A better way to say it", dBubbleLbl:"Better way", dBubbleAria:"Hear this in English",
     dcReplyBtn:"Reply", dFinish:"Finish talk", dNudge:"✨ What next?", dcReplayTitle:"Replay", dcReplayAria:"Replay slowly",
-    dConnErr:"Connection error. Is the server running?", dConnLost:"Connection lost — go back and try again.", dReconn:"Reconnecting…", dDropped:"The connection dropped — tap the mic to carry on.",
+    dConnErr:"Connection error. Is the server running?", dConnLost:"Connection lost — go back and try again.", dReconn:"Reconnecting…", dDropped:"The connection dropped — tap the mic to carry on.", sDropped:"The connection dropped — tap DuSu to carry on.",
     dFailGeneric:"Something went wrong — please try again.", dFailAnswer:"DuSu couldn't answer that one — tap the mic and try again.",
     dTryAgain:"Tap the mic and try again.", dKeysLimit:"Your keys hit their limit — add or replace a key in More → DuSu keys.",
     dNoSpeech:"Sorry, I didn't catch that. Please say it again.",
@@ -4241,7 +4244,7 @@ const I18N = {
     dMicLabel:"🎤 हिंदी में जवाब दीजिए", dTap:"Mic दबाइए और हिंदी में जवाब दीजिए।", dListening:"सुन रही हूँ…", dReplyReady:"💬 जब तैयार हों, तब Reply दबाइए",
     dcYou:"आपने कहा", dcEngLbl:"English में", dBubbleLbl:"English में", dBubbleAria:"इसे English में सुनिए",
     dcReplyBtn:"जवाब दें", dFinish:"बात खत्म करें", dNudge:"✨ आगे क्या करें?", dcReplayTitle:"दोबारा सुनिए", dcReplayAria:"धीरे से दोबारा सुनिए",
-    dConnErr:"कनेक्शन में दिक्कत है। क्या सर्वर चल रहा है?", dConnLost:"कनेक्शन टूट गया — वापस जाकर फिर कोशिश कीजिए।", dReconn:"फिर से जुड़ रही हूँ…", dDropped:"कनेक्शन टूट गया था — जारी रखने के लिए mic दबाइए।",
+    dConnErr:"कनेक्शन में दिक्कत है। क्या सर्वर चल रहा है?", dConnLost:"कनेक्शन टूट गया — वापस जाकर फिर कोशिश कीजिए।", dReconn:"फिर से जुड़ रही हूँ…", dDropped:"कनेक्शन टूट गया था — जारी रखने के लिए mic दबाइए।", sDropped:"कनेक्शन टूट गया था — जारी रखने के लिए DuSu पर दबाइए।",
     dFailGeneric:"कुछ गड़बड़ हो गई — कृपया फिर कोशिश कीजिए।", dFailAnswer:"DuSu इसका जवाब नहीं दे पाई — mic दबाकर फिर कोशिश कीजिए।",
     dTryAgain:"Mic दबाकर फिर कोशिश कीजिए।", dKeysLimit:"आपकी keys की सीमा पूरी हो गई — More → DuSu keys में key जोड़ें या बदलें।",
     dNoSpeech:"मुझे समझ नहीं आया। कृपया दोबारा बोलिए।",
@@ -4416,6 +4419,7 @@ function stopAllVoice(){
   try{ if(typeof dMicActive === "function") dMicActive(false); }catch(_){}
   try{ if(ws){ ws.onclose = null; if(ws.readyState <= 1) ws.close(); } }catch(_){}   // server persists on disconnect
   ws = null;
+  sessFrame = null; sessReviving = false; sessEnding = false; sessThen = ""; sessNeedsTap = false;
   try{ VP.clear(); }catch(_){}
 }
 
@@ -5206,7 +5210,7 @@ function addSys(text){ const d=document.createElement("div"); d.className="sysms
 // The loader wording lives in I18N (th_think, th_start, th_scoring, th_wrap, th_translate, th_translate2) — see thinkSteps().
 // Server messages that mean the wait is over (or has failed): a loader must never outlive one of them.
 const THINK_ENDERS = new Set(["ai_text","daily_turn","daily_question","translation","translate_error","report",
-  "interview_done","ended","limit","quota","quota_exceeded","keys_required","auth_error","error","speaker_progress","ready"]);
+  "interview_done","ended","limit","quota","quota_exceeded","keys_required","auth_error","error","speaker_progress","ready","session_resumed"]);
 let _thinkNode = null, _thinkTimers = [];
 function thinkHide(){
   _thinkTimers.forEach(clearTimeout); _thinkTimers = [];
@@ -5427,6 +5431,7 @@ function startSession(mode){
     return;
   }
   currentMode = mode;
+  sessFrame = null; sessAway = 0; sessReviving = false; sessEnding = false; sessThen = ""; sessNeedsTap = false; try{ VP.clear(); }catch(_){}
   $("feed").innerHTML = ""; thinkHide();
   LG.applySession();   // title / sub-line / End button for this mode, in the learner's language
   $("endBtn").className = mode === "interview" ? "btn primary" : "btn danger";
@@ -5439,7 +5444,9 @@ function startSession(mode){
   ws.onopen = () => {
     running = true; srFails = 0;
     usageInc(); refreshUsage();   // count the session now that it actually started
-    ws.send(JSON.stringify({ type:"start", mode, name:$("name").value, role:$("role").value, token:authToken, mood:todayMood, hour:new Date().getHours(), day:localDay(), seed:_convSeed, keys:officeKeys(), lang:LG.lang(mode), gref:(window.GC && GC.enabled() ? GC.newRef() : undefined) }));
+    const f = { type:"start", mode, name:$("name").value, role:$("role").value, token:authToken, mood:todayMood, hour:new Date().getHours(), day:localDay(), seed:_convSeed, keys:officeKeys(), lang:LG.lang(mode), gref:(window.GC && GC.enabled() ? GC.newRef() : undefined) };
+    sessFrame = f; sessT0 = Date.now();
+    ws.send(JSON.stringify(f));
     _convSeed = "";   // one-shot: the Companion Moment's spoken answer seeds turn 1
     orb("connecting", lgt("orbReady2"), lgt("orbReady2Hint"));
   };
@@ -5481,13 +5488,103 @@ $("shareBtn").onclick = () => {
 $("endBtn").onclick = () => {
   stopListening(); FACE.stopTalking();
   if(window.speechSynthesis) window.speechSynthesis.cancel();
+  sessEnding = true;
+  if(sessReviving){ sessThen = "end"; return; }   // a quiet reconnect is under way: the End is sent the moment the chat is back
+  if(sessFrame && (!ws || ws.readyState > 1)){ if(!document.hidden) sessRevive("end"); return; }   // no connection (a long lock took it): reconnect quietly, then finish (hidden: on return - VP.resume())
   ws && ws.send(JSON.stringify({ type:"end" }));
   orb("thinking", (currentMode==="interview" || currentMode==="practice") ? lgt("orbScoring") : lgt("orbWrap"), "");
   thinkShow((currentMode==="interview" || currentMode==="practice") ? "scoring" : "wrap");
 };
 
+/* ---- the session screen after a lost connection --------------------------------------------------------------------------------
+   The page keeps the `start` frame the chat opened with and reads the lines back from the chat on screen. sessRevive() opens a new socket and sends that frame again with
+   `reconnect: true` + the lines (the server seeds its transcript, says `session_resumed`, makes no opener call, and counts only what is said from here on). A line the learner
+   had said that DuSu had not answered yet is re-sent after the resume; an End that was pending is sent after it. Nothing here runs unless a socket is missing. */
+function sessLog(){
+  const out = [];
+  document.querySelectorAll("#feed .msg:not(.thinking)").forEach(m => {
+    const t = ((m.querySelector(".bubble") || {}).textContent || "").trim();
+    if(t) out.push({ role: m.classList.contains("ai") ? "assistant" : "user", content: t });
+  });
+  return out;
+}
+function sessPendingLine(){ const l = sessLog(), x = l[l.length - 1]; return x && x.role === "user" ? x.content : ""; }   // the chat ends on the learner's own line: DuSu has not answered it
+function sessReplay(){
+  const l = sessLog();
+  if(l.length && l[l.length - 1].role === "user") l.pop();   // a line still waiting for its answer is re-sent after the resume, not replayed as history
+  return l.slice(-60).map(m => ({ role: m.role, content: m.content.slice(0, 1000) }));
+}
+function sessRevive(then){
+  if(sessReviving || !sessFrame || currentScreen() !== "session") return;
+  sessReviving = true; sessNeedsTap = false; sessThen = then || (sessEnding ? "end" : "");
+  const old = ws;
+  if(old){ old.onclose = null; old.onmessage = null; old.onerror = null; try{ if(old.readyState <= 1) old.close(); }catch(_){} }
+  running = false; stopListening(); thinkHide();
+  orb("connecting", lgt("dReconn"), "");
+  const w = new WebSocket(WS_URL); ws = w;
+  w.onopen = () => {
+    const f = Object.assign({}, sessFrame, { token:authToken, keys:officeKeys(), hour:new Date().getHours(), day:localDay(), seed:"", opening:"", plan:false,
+      reconnect:true, resume:sessReplay(), elapsed:Math.max(0, Math.round((Date.now() - sessT0 - sessAway) / 1000)) });   // elapsed: how long the chat has actually been going - the time the phone was locked is not practice
+    if(sessFrame.gref && window.GC && GC.enabled()) f.gref = GC.newRef();   // each socket has its own Grammar Coach reference (the first one already analysed its part)
+    if("lang" in sessFrame) f.lang = LG.lang(sessFrame.mode);   // a Hindi / English switch made since the chat opened
+    w.send(JSON.stringify(f));
+  };
+  w.onmessage = onMessage;
+  w.onclose = () => {
+    if(ws !== w) return;
+    running = false; stopListening(); thinkHide();
+    try{ if(window.speechSynthesis) window.speechSynthesis.cancel(); }catch(_){}
+    FACE.stopTalking(); Assistant.stopTalking();
+    if(sessReviving){ sessReviving = false; sessDropped(); }
+  };
+  w.onerror = () => { if(ws !== w) return; thinkHide(); if(sessReviving){ sessReviving = false; sessDropped(); } };
+  setTimeout(() => { if(sessReviving && ws === w){ sessReviving = false; sessDropped(); } }, 12000);   // the server never answered: say so instead of waiting forever
+}
+// The connection is gone and could not be re-opened: say what to do (a tap on DuSu tries again) instead of leaving a dead screen.
+function sessDropped(){
+  if(currentScreen() !== "session" || document.hidden) return;   // locked: VP.resume() reconnects when the learner is back
+  sessNeedsTap = true; thinkHide();
+  orb("idle", lgt("sDropped"), "");
+}
+// The server took the quiet reconnect (`session_resumed`): the same chat, no greeting.
+function sessResumed(){
+  thinkHide(); sessNeedsTap = false;
+  const then = sessThen || (sessEnding ? "end" : ""); sessThen = "";
+  if(currentScreen() !== "session") return;
+  running = currentMode === "home" ? !!(window.HM && HM.voiceOn()) : true;   // the Home chat in text mode keeps its mic off
+  const pend = sessPendingLine();
+  if(then === "end"){   // the learner had tapped End (or DuSu had wrapped up): finish now, on this socket
+    sessEnding = true;
+    try{ ws.send(JSON.stringify({ type:"end" })); }catch(_){}
+    orb("thinking", (currentMode==="interview" || currentMode==="practice") ? lgt("orbScoring") : lgt("orbWrap"), "");
+    thinkShow((currentMode==="interview" || currentMode==="practice") ? "scoring" : "wrap");
+    return;
+  }
+  if(pend){   // the learner's line was in flight when the connection died: it is answered now (once)
+    if(currentMode === "home"){ try{ HM.resend(pend); }catch(_){} return; }
+    orb("thinking", lgt("orbThink"), ""); thinkShow("think");
+    try{ ws.send(JSON.stringify({ type:"user_text", text: pend })); }catch(_){}
+    return;
+  }
+  if(currentMode === "home"){ try{ HM.resume(true); }catch(_){} return; }
+  sessRestoreUI();
+}
+// Put the screen back to a usable state after a pause / reconnect (never opens the mic while the opener, an answer or the report is still on its way).
+function sessRestoreUI(){
+  if(_thinkNode) return;   // something is still coming: the frame that brings it finishes the screen
+  if(currentMode === "home"){ try{ HM.resume(false); }catch(_){} return; }
+  if(!running || aiSpeaking) return;
+  orb("listening", lgt("orbListen"), lgt("orbListenHint"));
+  stopListening(); delayedListen();
+}
+if($("orb")) $("orb").addEventListener("click", () => { if(sessNeedsTap && currentScreen() === "session") sessRevive(); });   // "the connection dropped - tap DuSu"
+
 function onMessage(ev){
   const m = JSON.parse(ev.data);
+  if(sessReviving && m.type !== "status" && m.type !== "pong"){   // the server answered the quiet reconnect (or refused it): either way we are no longer waiting
+    sessReviving = false;
+    if(m.type === "ai_text" || m.type === "home_ready"){ running = currentMode === "home" ? !!(window.HM && HM.voiceOn()) : true; sessThen = ""; sessEnding = false; }   // it started a FRESH chat (nothing was on screen to replay, or an older server ignored the flag): carry on as a new one
+  }
   if(THINK_ENDERS.has(m.type)) thinkHide();   // the wait is over (or failed) — never leave a loader behind
   if(m.kp){ try{ window.KY && KY.problem(m.kp, m.type); }catch(_){} }   // the server says WHY a key failed: the pop-up (a no-op until the owner switches the key screens on)
   switch(m.type){
@@ -5495,14 +5592,15 @@ function onMessage(ev){
     case "translation": handleTranslation(m.hindi, m.text, m.dir); break;
     case "daily_question": greetDaily(m.question, m.lang); break;
     case "daily_resumed": dailyResumed(); break;   // the server took the quiet reconnect: same chat, no greeting
+    case "session_resumed": sessResumed(m); break;   // the same, for Face-to-Face / Interview / a practice conversation / the Home chat
     case "daily_turn": handleDailyTurn(m.hindi, m.english, m.reply, m.tip, m.next_question, m.lang); break;
     case "home_ready": try{ HM.onReady(m); }catch(e){ console.warn("HM.onReady", e); } break;   // Home 2.0 companion
     case "home_turn": try{ HM.onTurn(m); }catch(e){ console.warn("HM.onTurn", e); } break;
     case "home_error": try{ HM.onError(m); }catch(e){ console.warn("HM.onError", e); } break;
     case "lang_ok": break;   // the server acknowledged a Hindi/English switch — nothing to do, the screen already changed
-    case "practice_done": addSys("✅ That's all the questions — scoring your practice…"); thinkShow("scoring"); break;   // Practice Room conversation kinds
+    case "practice_done": sessEnding = true; addSys("✅ That's all the questions — scoring your practice…"); thinkShow("scoring"); break;   // Practice Room conversation kinds
     case "practice_report": try{ PR.onTalkReport(m.data); }catch(e){ console.warn("PR.onTalkReport", e); } break;
-    case "practice_error": try{ PR.onTalkError(m); }catch(e){ console.warn("PR.onTalkError", e); } break;
+    case "practice_error": sessEnding = false; try{ PR.onTalkError(m); }catch(e){ console.warn("PR.onTalkError", e); } break;
     case "translate_error":
       // The server sends this for a failed Daily turn too — it used to poke the Learn screen's
       // controls and leave Daily stuck on "thinking" with a dead mic.
@@ -5511,7 +5609,7 @@ function onMessage(ev){
       say(lgt("lUnavail"), ENG_NORM());   // Learn is Hindi -> English only
       learnState(lgt("lFail")); micEnable(true); break;
     case "ai_text": addMsg(m.text, "ai"); speak(m.text, m.lang); break;   // m.lang = the language this reply was WRITTEN in
-    case "interview_done": addSys(lgt("sysInterviewDone")); thinkShow("scoring"); break;
+    case "interview_done": sessEnding = true; addSys(lgt("sysInterviewDone")); thinkShow("scoring"); break;   // sessEnding: a connection lost from here on finishes the interview on the new socket
     case "report": showReport(m.data);
       if(currentLesson && currentLesson.type === "interview"){ const cl = currentLesson; currentLesson = null; completeLesson(cl.level, cl.id, "interview"); }
       break;
@@ -5631,6 +5729,7 @@ document.querySelectorAll(".vbtn").forEach(b => {
 });
 
 function speak(text, lang){   // lang = the language the line was written in (the server tags every reply); omitted → the mode's own
+  if(document.hidden){ aiSpeaking = false; return; }   // a locked phone: the line is on screen, it is not spoken (VP.resume() hands the mic back)
   stopListening();          // mic OFF while DuSu talks — kills the echo loop
   aiSpeaking = true;
   orb("speaking", lgt("orbSpeak"), lgt("orbSpeakHint"));
@@ -5652,10 +5751,10 @@ function speak(text, lang){   // lang = the language the line was written in (th
   window.speechSynthesis.cancel();
   window.speechSynthesis.speak(u);
 }
-function delayedListen(){ setTimeout(() => { if(running && !aiSpeaking) startListening(); }, LISTEN_DELAY); }
+function delayedListen(){ setTimeout(() => { if(running && !aiSpeaking && !recog) startListening(); }, LISTEN_DELAY); }   // !recog: never a second recogniser when two timers meet
 
 function startListening(){
-  if(!SR || !running) return;
+  if(!SR || !running || document.hidden) return;   // a locked phone cannot listen (every caller - the reply loop, the Home chat's timer - is covered here)
   recog = new SR();
   recog.lang = LG.stt(LG.lang(currentMode)); recog.interimResults = false; recog.maxAlternatives = 1;   // en-US unless the learner chose Hindi
   let sent = false;
@@ -6371,9 +6470,10 @@ $("dailyFinish").onclick = finishDaily;
    is (a phone that was locked a while can hold a half-open connection), and reconnects quietly when it is not. Away longer than GRACE_MS the page ends the session itself (the
    server saves the chat when its socket closes, exactly as it always did). Face-to-Face / Interview / the Home chat still use stopAllVoice() (their server sessions cannot resume). */
 const VP = (() => {
-  const GRACE_MS = 10 * 60 * 1000, LONG_MS = 20 * 1000, PONG_MS = 3000;
+  const GRACE_MS = 10 * 60 * 1000, LONG_MS = 20 * 1000, PONG_MS = 3000, BUSY_MS = 45 * 1000;
   let p = null, timer = 0;
-  const owns = () => { const sc = currentScreen(); return (sc === "daily" && currentMode === "daily") || (sc === "learning" && currentMode === "learning"); };
+  const SESS = new Set(["conversation", "interview", "practice", "home"]);          // the modes that live on the session screen
+  const owns = () => { const sc = currentScreen(); return (sc === "daily" && currentMode === "daily") || (sc === "learning" && currentMode === "learning") || (sc === "session" && SESS.has(currentMode)); };
   function pause(){
     if(!p) p = { mode: currentMode, at: Date.now(), gone: false };
     speakEpoch++;                                                                   // an in-flight reply chain stops here and never starts its next line
@@ -6381,6 +6481,12 @@ const VP = (() => {
     try{ if(lrec){ lrec.onend = null; lrec.stop(); lrec = null; } }catch(_){}
     try{ if(window.speechSynthesis) window.speechSynthesis.cancel(); }catch(_){}
     try{ DAILYFACE.stopTalking(); }catch(_){}
+    if(SESS.has(p.mode)){
+      try{ stopListening(); }catch(_){}                                             // the conversation recogniser (its onend is removed, so it does not restart itself)
+      aiSpeaking = false;
+      try{ FACE.stopTalking(); Assistant.stopTalking(); }catch(_){}
+      if(p.mode === "home"){ try{ HM.pause(); }catch(_){} }
+    }
     clearTimeout(timer); timer = setTimeout(giveUp, GRACE_MS);
   }
   function giveUp(){   // away too long: end the session now; resume() reconnects quietly
@@ -6388,15 +6494,17 @@ const VP = (() => {
     const w = ws; ws = null; running = false; p.gone = true;
     try{ if(w){ w.onclose = null; w.onmessage = null; if(w.readyState <= 1) w.close(); } }catch(_){}
   }
-  // Is the socket really alive? An open one after a long lock is asked (ping -> pong); a closed one is not.
+  // Is the socket really alive? An open one after a long lock is asked (ping -> pong); a closed one is not. The server handles one frame at a time: while an answer, the opener or
+  // the report is still being worked on it cannot read the ping until that is done, so it is given far longer - and ANY frame (the answer itself, say) counts as proof of life.
+  const busy = () => !!(_thinkNode || dailyPendingMe || learnPending || ($("dailyLoader") && !$("dailyLoader").hidden));
   function alive(away){
     if(!ws || ws.readyState !== 1) return Promise.resolve(false);
     if(away < LONG_MS) return Promise.resolve(true);
     return new Promise(res => {
       const w = ws; let done = false;
       const fin = v => { if(done) return; done = true; clearTimeout(t); try{ w.removeEventListener("message", on); }catch(_){} res(v); };
-      const on = ev => { try{ if(JSON.parse(ev.data).type === "pong") fin(true); }catch(_){} };
-      const t = setTimeout(() => fin(false), PONG_MS);
+      const on = () => fin(true);
+      const t = setTimeout(() => fin(false), busy() ? BUSY_MS : PONG_MS);
       w.addEventListener("message", on);
       try{ w.send(JSON.stringify({ type:"ping" })); }catch(_){ fin(false); }
     });
@@ -6415,12 +6523,19 @@ const VP = (() => {
     if(!ok){ learnRevive(); return; }
     running = true; learnRestoreUI();
   }
+  async function sessBack(was){
+    const ok = was.gone ? false : await alive(Date.now() - was.at);
+    if(!owns() || p) return;                                                        // left the screen, or locked again, while we were asking
+    if(!ok){ sessRevive(sessEnding ? "end" : ""); return; }
+    sessRestoreUI();                                                                // `running` is left as it was (the Home chat in text mode, a key limit and a blocked mic all keep the mic off)
+  }
   function resume(){
     clearTimeout(timer);
     const was = p; p = null;
     if(!was || !owns() || currentMode !== was.mode) return;
+    if(SESS.has(was.mode)) sessAway += Date.now() - was.at;                       // the time away is not time spent in the chat (a practice's duration feeds XP minutes)
     try{ if(window.speechSynthesis){ window.speechSynthesis.cancel(); if(window.speechSynthesis.resume) window.speechSynthesis.resume(); } }catch(_){}   // Android can come back with a stuck voice queue
-    if(was.mode === "daily") dailyBack(was); else learnBack(was);
+    if(was.mode === "daily") dailyBack(was); else if(was.mode === "learning") learnBack(was); else sessBack(was);
   }
   function clear(){ clearTimeout(timer); p = null; }
   return { owns, pause, resume, clear };
@@ -9220,6 +9335,7 @@ const PR = (function(){
     if(!SR){ showNotif(lgt("needChrome")); return; }
     if(overLimit()){ showNotif(lgt("limitReached", { n: MAX_SESSIONS })); return; }
     currentMode = "practice"; LG.setPracticeLang(cfg.lang);
+    sessFrame = null; sessAway = 0; sessReviving = false; sessEnding = false; sessThen = ""; sessNeedsTap = false; try{ VP.clear(); }catch(_){}
     $("feed").innerHTML = ""; thinkHide();
     $("sessTitle").textContent = KIND_INFO[cfg.kind].name; $("sessSub").textContent = cfg.topic.length > 60 ? cfg.topic.slice(0, 58) + "…" : cfg.topic;
     $("endBtn").textContent = "End & get my report"; $("endBtn").className = "btn primary";
@@ -9230,8 +9346,10 @@ const PR = (function(){
     ws = new WebSocket(WS_URL);
     ws.onopen = () => {
       running = true; srFails = 0; usageInc(); refreshUsage();
-      ws.send(JSON.stringify({ type:"start", mode:"practice", gref:(window.GC && GC.enabled() ? GC.newRef() : undefined), kind:cfg.kind, topic:cfg.topic, plang:cfg.lang, level:cfg.level, rounds:cfg.rounds,
-        feedback_lang:cfg.feed, token:authToken, keys:officeKeys(), mood:todayMood, hour:new Date().getHours(), day:localDay() }));
+      const f = { type:"start", mode:"practice", gref:(window.GC && GC.enabled() ? GC.newRef() : undefined), kind:cfg.kind, topic:cfg.topic, plang:cfg.lang, level:cfg.level, rounds:cfg.rounds,
+        feedback_lang:cfg.feed, token:authToken, keys:officeKeys(), mood:todayMood, hour:new Date().getHours(), day:localDay() };
+      sessFrame = f; sessT0 = Date.now();
+      ws.send(JSON.stringify(f));
       orb("connecting", lgt("orbReady2"), lgt("orbReady2Hint"));
     };
     ws.onmessage = onMessage;
@@ -9518,6 +9636,7 @@ const HM = (function(){
     wsReady = false; thinking = false; planText = ""; planShown = false;
     greetDone = !speaksFirst || textMode;
     currentMode = "home";
+    sessFrame = null; sessAway = 0; sessReviving = false; sessEnding = false; sessThen = ""; sessNeedsTap = false; try{ VP.clear(); }catch(_){}
     $("feed").innerHTML = ""; thinkHide(); renderActs([]);
     sessionChrome();
     $("endBtn").className = "btn danger";
@@ -9531,9 +9650,11 @@ const HM = (function(){
     ws = new WebSocket(WS_URL);
     ws.onopen = () => {
       running = !textMode; srFails = 0; usageInc(); refreshUsage();
-      ws.send(JSON.stringify({ type:"start", mode:"home", name:"", token:authToken, mood:todayMood, hour:new Date().getHours(),
+      const f = { type:"start", mode:"home", name:"", token:authToken, mood:todayMood, hour:new Date().getHours(),
         day:localDay(), keys:officeKeys(), lang:LG.lang("home"), opening:g.text, tzmin:-new Date().getTimezoneOffset(),   // tzmin: the device clock, so DuSu can say the time
-        plan:speaksFirst }));                                    // Start Speaking: DuSu adds what is on the learner's day after the greeting (chips / typed text ask for it themselves)
+        plan:speaksFirst };                                      // Start Speaking: DuSu adds what is on the learner's day after the greeting (chips / typed text ask for it themselves)
+      sessFrame = f; sessT0 = Date.now();
+      ws.send(JSON.stringify(f));
     };
     ws.onmessage = onMessage;                                    // the shared handler hands home_* frames to onReady / onTurn / onError
     ws.onclose = () => {
@@ -9578,7 +9699,12 @@ const HM = (function(){
 
   function submit(text){
     text = (text || "").trim(); if(!text) return false;
-    if(!(ws && ws.readyState === 1)){ notice(T[lang()].lost); return false; }
+    if(sessReviving){ renderActs([]); addMsg(text, "user"); toLatest(); return true; }   // a quiet reconnect is under way: the line waits on screen and sessResumed sends it (once) when the chat is back
+    if(!(ws && ws.readyState === 1)){
+      // The connection is gone (a long lock took it): show the line, reconnect quietly, and it is sent once the chat is back (sessResumed re-sends the last learner line).
+      if(sessFrame && currentScreen() === "session"){ renderActs([]); addMsg(text, "user"); toLatest(); if(!sessReviving) sessRevive(); return true; }
+      notice(T[lang()].lost); return false;
+    }
     renderActs([]);
     addMsg(text, "user");
     toLatest();
@@ -9615,6 +9741,22 @@ const HM = (function(){
     orb("idle", T[lang()].orbIdle, "");
   }
   function micBlocked(){ textMode = true; running = false; syncMic(); notice(T[lang()].micBlocked); orb("idle", T[lang()].orbIdle, ""); }
+
+  // A locked screen pauses the chat (VP): the mic and the voice go quiet, nothing else changes. pause() drops the pending "open the mic" timer; resume() hands everything back.
+  function pause(){ clearTimeout(listenT); }
+  function resume(revived){
+    if(revived) wsReady = true;                                  // a quiet reconnect: the server has the chat again
+    if(!greetDone){ greetDone = true; aiSpeaking = false; }      // the lock cut her opening short; the words are on screen
+    if(pendingText && wsReady){ const x = pendingText; pendingText = ""; submit(x); return; }
+    if(!thinking && !aiSpeaking) orb("idle", T[lang()].orbIdle, "");
+    tryPlan(); maybeListen();
+  }
+  function resend(text){                                         // the learner's line was in flight when the connection died
+    wsReady = true; thinking = true; renderActs([]);
+    orb("thinking", lgt("orbThink"), ""); thinkShow("think");
+    try{ ws.send(JSON.stringify({ type:"user_text", text })); }catch(_){}
+  }
+  function voiceOn(){ return !textMode; }
 
   function setTextMode(on){
     if(on){
@@ -9716,7 +9858,7 @@ const HM = (function(){
   ROUTES["/home-chat"] = { enter: () => { const o = next; next = null; start(o || {}); }, guards:[gQuota] };
   ROUTES["/about"] = { enter: () => openAbout() };
 
-  return { enabled, lang, render, go, start, onReady, onTurn, onError, onQuota, micBlocked, openAbout, onSessionShown, sessionChrome,
+  return { enabled, lang, render, go, start, onReady, onTurn, onError, onQuota, micBlocked, openAbout, onSessionShown, sessionChrome, pause, resume, resend, voiceOn,
            delight: () => T[lang()].delight };
 })();
 window.HM = HM;

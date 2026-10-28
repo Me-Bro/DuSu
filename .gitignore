@@ -46,3 +46,4 @@ tests/keys/.e2e/
 tests/keys/.orig.html
 # Daily voice (locked screen) test scratch (mutant copies of the backend)
 tests/daily_voice/.mutants/
+tests/daily_voice/.old/

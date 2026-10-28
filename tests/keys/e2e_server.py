@@ -49,6 +49,7 @@ class Control(World):
     def __init__(self):
         super().__init__()
         self.behave: dict = {}
+        self.chat_done = False
 
     def mode(self, provider, key):
         return self.behave.get((provider, key)) or self.behave.get((provider, "*")) or "ok"
@@ -73,7 +74,8 @@ class Control(World):
                 wants_json = bool(msgs) and str(msgs[-1].get("content", "")).endswith("Return ONLY the JSON object.")
                 hdr = {"x-ratelimit-limit-requests": "14400", "x-ratelimit-remaining-requests": str(14400 - sum(1 for c in self.calls if c[0] == "groq" and c[2] == "chat")),
                        "x-ratelimit-reset-requests": "1m30s"} if provider == "groq" else {}
-                return httpx.Response(200, json=completion(JSON_REPLY if wants_json else "Nice to meet you. Tell me more about that?"), headers=hdr, request=req)
+                plain = "INTERVIEW_COMPLETE: Thank you, that was a great interview." if self.chat_done else "Nice to meet you. Tell me more about that?"     # chat_done: the interviewer wraps up
+                return httpx.Response(200, json=completion(JSON_REPLY if wants_json else plain), headers=hdr, request=req)
             if kind == "key":
                 return httpx.Response(200, json={"data": {"label": "k", "usage": 0, "limit": None, "is_free_tier": True}}, request=req)
             return httpx.Response(200, json={"data": []}, request=req)
@@ -89,7 +91,7 @@ class Control(World):
 WORLD = Control()
 install(WORLD)
 
-NAMES = ["new", "two", "three", "bad", "lim", "mix", "ph", "wa", "pr", "fresh", "tester", "plain", "i18n", "cap", "dev", "zero", "nt1", "nt2", "wa2", "wa3", "inst1", "inst2"] + [f"lk{i}" for i in range(1, 11)]       # lk1..lk10: the daily_voice spec (one fresh learner per scenario)
+NAMES = ["new", "two", "three", "bad", "lim", "mix", "ph", "wa", "pr", "fresh", "tester", "plain", "i18n", "cap", "dev", "zero", "nt1", "nt2", "wa2", "wa3", "inst1", "inst2"] + [f"lk{i}" for i in range(1, 41)]       # lk1..lk40: the daily_voice specs (one fresh learner per scenario)
 ZERO = {"zero", "inst1", "inst2"}                       # learners who have NOT practised yet (xp 0): Home prompts that wait for a first practice must stay away
 
 
@@ -114,7 +116,7 @@ async def seed():
     # learners with keys already stored (saved the way the app saves them: sealed)
     stored = {"two": ["groq", "gemini"], "three": ["groq", "gemini", "openrouter"], "bad": ["groq", "gemini"], "lim": ["groq", "gemini"], "mix": ["groq", "gemini", "openrouter"],
               "ph": ["groq", "gemini"], "wa": ["groq", "gemini"], "pr": ["groq", "gemini"], "tester": ["groq", "gemini"], "plain": ["groq", "gemini"], "i18n": ["groq", "gemini"],
-              "cap": ["groq", "gemini"], "dev": ["groq", "gemini"], "nt2": ["groq", "gemini"], **{f"lk{i}": ["groq", "gemini"] for i in range(1, 11)}}
+              "cap": ["groq", "gemini"], "dev": ["groq", "gemini"], "nt2": ["groq", "gemini"], **{f"lk{i}": ["groq", "gemini"] for i in range(1, 41)}}
     keys = {}
     for n, provs in stored.items():
         k = {"groq": f"gsk_{n}" + "G" * 28 + "9fA2", "gemini": f"AIza{n}" + "M" * 28 + "Xy71", "openrouter": f"sk-or-v1-{n}" + "O" * 28 + "Q7xP"}
@@ -143,8 +145,15 @@ async def world_behave(request: Request):
     return {"ok": True, "behave": {f"{k[0]}|{k[1][:12]}": v for k, v in WORLD.behave.items()}}
 
 
+@M.app.post("/__world/chatdone")                                     # test process only: the next plain chat replies are the interviewer's closing line (INTERVIEW_COMPLETE:)
+async def world_chatdone(request: Request):
+    WORLD.chat_done = bool((await request.json()).get("on"))
+    return {"ok": True, "chat_done": WORLD.chat_done}
+
+
 @M.app.post("/__world/reset")
 async def world_reset(request: Request):
+    WORLD.chat_done = False
     WORLD.behave.clear()
     WORLD.calls.clear()
     gate.reset_all()

@@ -4,6 +4,7 @@
  *
  * The bug: lock the phone in Daily Talk, unlock, and the mic and Reply are dead until the chat ends (the page closed its socket on "hidden" and nothing handled the return).
  * Every scenario below is a state the learner can be in when the screen locks. Sections tagged [pin] describe behaviour that must be the SAME before and after the fix.
+ * (The other chats - Face-to-Face, Interview, a practice conversation, the Home chat - are lock2.spec.cjs.)
  *
  *   tests/daily_voice/browser/run_real.sh lock.spec.cjs
  */
@@ -239,6 +240,22 @@ const cardUp = page => L.vis(page, '#dailyCard');
       T.ok(await until(() => L.micOn(page), 5000), 'the mic is enabled');
     }, { clock: true });
 
+    await scenario(browser, 'B7 a long lock while the server is still working on the answer -> the socket is NOT declared dead', 'lk6', async ({ page, P }) => {
+      await L.openDaily(page);
+      P.last.hold = true;                                                           // the server is busy: nothing it says (the answer, the pong) comes through yet
+      await page.evaluate(() => { window.__utter.push('main bazaar jaa raha hoon'); });
+      await page.click('#dailyMic');
+      T.ok(await until(() => P.last.out('user_text').length === 1), 'the line was sent');
+      await L.lock(page); await sleep(200);
+      await page.clock.fastForward(30 * 1000);
+      await L.unlock(page); await sleep(300);
+      await page.clock.fastForward(10 * 1000);                                      // far longer than the idle 3 s window
+      T.eq(P.conns.length, 1, 'no reconnect while the answer is still being worked on (a reconnect would answer it twice)');
+      P.last.release();
+      T.ok(await until(() => cardUp(page), 12000), 'the answer arrives on the SAME socket');
+      T.eq(P.conns.length, 1, 'still one socket');
+    }, { clock: true });
+
     // ================================================================================================ C. rewards are never paid twice
     await scenario(browser, 'C1 reconnect, then Finish with nothing new said -> no second reward', 'lk7', async ({ page, P, who }) => {
       await L.openDaily(page);
@@ -326,17 +343,8 @@ const cardUp = page => L.vis(page, '#dailyCard');
     });
 
     // ================================================================================================ F. [pin] what must NOT change
-    await scenario(browser, 'F1 [pin] Face-to-Face still stops everything when the screen locks', 'lk9', async ({ page, P }) => {
-      await page.evaluate(() => startSession('conversation'));
-      T.ok(await until(() => P.conns.length === 1 && P.conns[0].in('ai_text').length >= 1, 15000), 'the chat opened');
-      await L.lock(page);
-      T.ok(await until(() => P.conns[0].pageClosed, 3000), 'the page closed the socket on lock (unchanged)');
-      T.eq(await page.evaluate(() => running), false, 'and stopped the loop (unchanged)');
-      await L.unlock(page); await sleep(500);
-      T.eq(P.conns.length, 1, 'nothing reconnects (unchanged)');
-    });
-
-    await scenario(browser, 'F2 [pin] a Daily session that is never locked sends exactly the frames it always did', 'lk9', async ({ page, P }) => {
+    // (Face-to-Face / Interview / the Home chat used to stop everything on lock - pinned here until they got the same pause / resume; see lock2.spec.cjs)
+    await scenario(browser, 'F1 [pin] a Daily session that is never locked sends exactly the frames it always did', 'lk9', async ({ page, P }) => {
       await L.openDaily(page);
       T.ok(await L.sayTurn(page, 'mera naam Sita hai'), 'a turn');
       const st = P.last.out('start')[0];

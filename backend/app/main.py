@@ -21,6 +21,7 @@ import json
 import os
 import re
 import time
+import types
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Header, Request
@@ -2080,6 +2081,47 @@ def _clean_opening(text) -> str:
     return re.sub(r"\s+", " ", t).strip()[:300]
 
 
+# A page that lost its socket (a locked phone, a dropped connection) picks the SAME chat up again on a new one: `start {reconnect: true, resume: [...]}`. Daily Talk has its own
+# path (its replay is the older `resume`); these are the other modes that live on the session screen.
+_RESUMABLE = ("conversation", "interview", "practice", "home")
+_REPLAY_LINES, _REPLAY_CHARS = 60, 1200
+
+
+def _replay_into(session, resume) -> int:
+    """Seed `session.transcript` from the lines the page kept - context only. Adjacent lines by the same speaker are joined (a Home greeting and her plan line were one
+    reply). Returns how many LEARNER lines were replayed; nothing usable means there is nothing to resume and the start is the ordinary one."""
+    if not isinstance(resume, list):
+        return 0
+    lines: list = []
+    for m in resume[-_REPLAY_LINES:]:
+        if not isinstance(m, dict):
+            continue
+        r, c = m.get("role"), m.get("content")
+        if r not in ("user", "assistant") or not isinstance(c, str):
+            continue
+        c = re.sub(r"[\x00-\x08\x0b-\x1f\x7f]+", " ", c).strip()[:_REPLAY_CHARS]
+        if not c:
+            continue
+        if lines and lines[-1]["role"] == r:
+            lines[-1]["content"] = (lines[-1]["content"] + " " + c)[:_REPLAY_CHARS * 2]
+        else:
+            lines.append({"role": r, "content": c})
+    if not lines:
+        return 0
+    session.transcript.extend(lines)
+    session.replayed = len(session.transcript)          # how much of the transcript is history (Grammar Coach analyses only what comes after it)
+    return sum(1 for m in lines if m["role"] == "user")
+
+
+def _gc_view(session):
+    """What Grammar Coach analyses at the end of a chat. After a quiet resume the replayed lines were already analysed by the first socket's own end-of-session pass,
+    so only what was said since is new; a session that was never resumed is passed through untouched."""
+    n = int(getattr(session, "replayed", 0) or 0)
+    if n <= 0:
+        return session
+    return types.SimpleNamespace(mode=session.mode, practice=session.practice, lang=session.lang, name=session.name, transcript=session.transcript[n:])
+
+
 @app.get("/home/features")
 async def home_features(lang: str = "", token: str = "", authorization: str | None = Header(None)):
     """What the Know About DuSu page draws: the features that really exist for THIS learner (plus the ones marked
@@ -2969,7 +3011,7 @@ async def interview_ws(ws: WebSocket):
             return
         if _gc_on and session.mode in ("conversation", "interview"):
             # Grammar Coach (plan D5): analyse the server's own transcript in a detached task - it never delays or alters anything below.
-            gc_tracker.schedule_ws(uid, _email, _gref, session, secs=int(time.monotonic() - started_at))
+            gc_tracker.schedule_ws(uid, _email, _gref, _gc_view(session), secs=int(time.monotonic() - started_at))
         try:
             mem = await session.summarize_and_extract()
             # _extract_json returns {"error": "scoring_parse_failed", ...} when the model
@@ -3263,7 +3305,25 @@ async def interview_ws(ws: WebSocket):
                         _gc_on = await grammar_coach_enabled(_email)
                     except Exception:
                         _gc_on = False
-                if session.mode == "home":
+                _resumed = False
+                if data.get("reconnect") is True and session.mode in _RESUMABLE:
+                    # The page lost its socket and is picking the SAME chat up again (a locked phone, a dropped connection): the replayed lines are context only - no
+                    # greeting, no opener model call. Face-to-Face and Interview: their first socket already saved and rewarded those turns when it closed, so only what
+                    # is said from here on counts (turns back to 0). Practice and Home reward nothing when a socket closes (a practice is scored once, at its end; Home never
+                    # pays), so their turn count carries on and the practice's rounds / the Home cap keep meaning what they did.
+                    _n_user = _replay_into(session, data.get("resume"))
+                    if session.transcript:
+                        _resumed = True
+                        session.turns = 0 if session.mode in ("conversation", "interview") else _n_user
+                        if session.mode == "practice":      # the report names how long the practice took: count the time before the lock too
+                            try:
+                                _el = float(data.get("elapsed") or 0)
+                            except (TypeError, ValueError, OverflowError):      # a huge JSON integer overflows float()
+                                _el = 0.0
+                            started_at -= max(0.0, min(_el, 7200.0))
+                if _resumed:
+                    await _send(ws, type="session_resumed", mode=session.mode, lang=session.lang)
+                elif session.mode == "home":
                     # Home 2.0: nothing to generate on start - the client already spoke the greeting it is showing, so DuSu
                     # "speaks first" instantly. Record it as the first assistant line so the model knows what it said.
                     _opening = _clean_opening(data.get("opening"))
