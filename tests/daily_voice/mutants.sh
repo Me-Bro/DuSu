@@ -88,7 +88,7 @@ add N19 $H "the reconnected chat does not restore the mic" '  if(currentMode ===
 add N20 $H "an interview is ended by a lock" 'const SESS = new Set(["conversation", "interview", "practice", "home"]);' 'const SESS = new Set(["conversation", "practice", "home"]);' "I1,I2" $L2
 add N21 $H "a lock that killed the connection is never noticed on return" '    if(!ok){ sessRevive(sessEnding ? "end" : ""); return; }' '    if(!ok){ return; }' "T5,T7,I2" $L2
 add N22 $H "a practice conversation is ended by a lock" 'const SESS = new Set(["conversation", "interview", "practice", "home"]);' 'const SESS = new Set(["conversation", "interview", "home"]);' "P1,P2" $L2
-add N23 $H "the Home chat typed in text mode switches its mic on after a lock" '  running = currentMode === "home" ? !!(window.HM && HM.voiceOn()) : true;' '  running = true;' "H6,H3" $L2
+add N23 $H "the Home chat typed in text mode switches its mic on after a lock" '  running = currentMode === "home" ? !!(window.HM && HM.voiceOn()) : true;' '  running = true;' "H6,H11" $L2
 add N24 $H "a long lock never asks the socket if it is alive (session chats)" 'if(away < LONG_MS) return Promise.resolve(true);' 'return Promise.resolve(true);' "T7" $L2
 add N25 $H "a Home line typed before DuSu was ready is lost after a reconnect" '    if(pendingText && wsReady){ const x = pendingText; pendingText = ""; submit(x); return; }' '' "H7" $L2
 add N26 $H "the reconnect reuses the first socket's Grammar Coach reference" '    if(sessFrame.gref && window.GC && GC.enabled()) f.gref = GC.newRef();   // each socket has its own Grammar Coach reference (the first one already analysed its part)' '' "T13" $L2

@@ -596,6 +596,21 @@ async function reconnected(P, n = 1) {
       T.eq(await L.userN(page), 1, 'one learner bubble');
     });
 
+    await scenario(browser, 'H11 Home chat (typing): after a reconnect the mic loop stays OFF and typing keeps working', 'lk38', async ({ page, P }) => {
+      await L.openHome(page, { typed: 'good afternoon' });
+      T.ok(await until(async () => (await L.aiN(page)) >= 2, 15000), 'answered');
+      await L.lock(page); await sleep(200);
+      P.last.kill(); await sleep(300);
+      await L.unlock(page);
+      T.ok(await reconnected(P), 'reconnected quietly');
+      await sleep(900);
+      T.eq(await page.evaluate(() => running), false, 'the mic loop is still off (text mode)');
+      T.eq(await page.evaluate(() => window.__srStarts), 0, 'no recogniser was ever started');
+      await page.fill('#hmInput', 'what is next'); await page.press('#hmInput', 'Enter');
+      T.ok(await until(() => P.conns[1].out('user_text').length === 1, 8000), 'a typed line goes over the new socket');
+      T.ok(await until(async () => (await L.aiN(page)) >= 3, 15000), 'and is answered');
+    });
+
     // ================================================================================================ F. [pin] what must NOT change
     const OLD_START = {
       conversation: ['day', 'hour', 'keys', 'lang', 'mode', 'mood', 'name', 'role', 'seed', 'token', 'type'],
