@@ -89,7 +89,7 @@ class Control(World):
 WORLD = Control()
 install(WORLD)
 
-NAMES = ["new", "two", "three", "bad", "lim", "mix", "ph", "wa", "pr", "fresh", "tester", "plain", "i18n", "cap", "dev", "zero", "nt1", "nt2", "wa2", "wa3", "inst1", "inst2"]
+NAMES = ["new", "two", "three", "bad", "lim", "mix", "ph", "wa", "pr", "fresh", "tester", "plain", "i18n", "cap", "dev", "zero", "nt1", "nt2", "wa2", "wa3", "inst1", "inst2"] + [f"lk{i}" for i in range(1, 11)]       # lk1..lk10: the daily_voice spec (one fresh learner per scenario)
 ZERO = {"zero", "inst1", "inst2"}                       # learners who have NOT practised yet (xp 0): Home prompts that wait for a first practice must stay away
 
 
@@ -114,7 +114,7 @@ async def seed():
     # learners with keys already stored (saved the way the app saves them: sealed)
     stored = {"two": ["groq", "gemini"], "three": ["groq", "gemini", "openrouter"], "bad": ["groq", "gemini"], "lim": ["groq", "gemini"], "mix": ["groq", "gemini", "openrouter"],
               "ph": ["groq", "gemini"], "wa": ["groq", "gemini"], "pr": ["groq", "gemini"], "tester": ["groq", "gemini"], "plain": ["groq", "gemini"], "i18n": ["groq", "gemini"],
-              "cap": ["groq", "gemini"], "dev": ["groq", "gemini"], "nt2": ["groq", "gemini"]}
+              "cap": ["groq", "gemini"], "dev": ["groq", "gemini"], "nt2": ["groq", "gemini"], **{f"lk{i}": ["groq", "gemini"] for i in range(1, 11)}}
     keys = {}
     for n, provs in stored.items():
         k = {"groq": f"gsk_{n}" + "G" * 28 + "9fA2", "gemini": f"AIza{n}" + "M" * 28 + "Xy71", "openrouter": f"sk-or-v1-{n}" + "O" * 28 + "Q7xP"}

@@ -4184,7 +4184,7 @@ const I18N = {
     dMicLabel:"🎤 Answer in English", dTap:"Tap the mic and answer in English.", dListening:"Listening…", dReplyReady:"💬 Reply when you're ready",
     dcYou:"You said", dcEngLbl:"A better way to say it", dBubbleLbl:"Better way", dBubbleAria:"Hear this in English",
     dcReplyBtn:"Reply", dFinish:"Finish talk", dNudge:"✨ What next?", dcReplayTitle:"Replay", dcReplayAria:"Replay slowly",
-    dConnErr:"Connection error. Is the server running?", dConnLost:"Connection lost — go back and try again.",
+    dConnErr:"Connection error. Is the server running?", dConnLost:"Connection lost — go back and try again.", dReconn:"Reconnecting…", dDropped:"The connection dropped — tap the mic to carry on.",
     dFailGeneric:"Something went wrong — please try again.", dFailAnswer:"DuSu couldn't answer that one — tap the mic and try again.",
     dTryAgain:"Tap the mic and try again.", dKeysLimit:"Your keys hit their limit — add or replace a key in More → DuSu keys.",
     dNoSpeech:"Sorry, I didn't catch that. Please say it again.",
@@ -4241,7 +4241,7 @@ const I18N = {
     dMicLabel:"🎤 हिंदी में जवाब दीजिए", dTap:"Mic दबाइए और हिंदी में जवाब दीजिए।", dListening:"सुन रही हूँ…", dReplyReady:"💬 जब तैयार हों, तब Reply दबाइए",
     dcYou:"आपने कहा", dcEngLbl:"English में", dBubbleLbl:"English में", dBubbleAria:"इसे English में सुनिए",
     dcReplyBtn:"जवाब दें", dFinish:"बात खत्म करें", dNudge:"✨ आगे क्या करें?", dcReplayTitle:"दोबारा सुनिए", dcReplayAria:"धीरे से दोबारा सुनिए",
-    dConnErr:"कनेक्शन में दिक्कत है। क्या सर्वर चल रहा है?", dConnLost:"कनेक्शन टूट गया — वापस जाकर फिर कोशिश कीजिए।",
+    dConnErr:"कनेक्शन में दिक्कत है। क्या सर्वर चल रहा है?", dConnLost:"कनेक्शन टूट गया — वापस जाकर फिर कोशिश कीजिए।", dReconn:"फिर से जुड़ रही हूँ…", dDropped:"कनेक्शन टूट गया था — जारी रखने के लिए mic दबाइए।",
     dFailGeneric:"कुछ गड़बड़ हो गई — कृपया फिर कोशिश कीजिए।", dFailAnswer:"DuSu इसका जवाब नहीं दे पाई — mic दबाकर फिर कोशिश कीजिए।",
     dTryAgain:"Mic दबाकर फिर कोशिश कीजिए।", dKeysLimit:"आपकी keys की सीमा पूरी हो गई — More → DuSu keys में key जोड़ें या बदलें।",
     dNoSpeech:"मुझे समझ नहीं आया। कृपया दोबारा बोलिए।",
@@ -4416,6 +4416,7 @@ function stopAllVoice(){
   try{ if(typeof dMicActive === "function") dMicActive(false); }catch(_){}
   try{ if(ws){ ws.onclose = null; if(ws.readyState <= 1) ws.close(); } }catch(_){}   // server persists on disconnect
   ws = null;
+  try{ VP.clear(); }catch(_){}
 }
 
 function show(id, pathOverride){
@@ -4489,8 +4490,13 @@ try{
     _navSync.observe(s, { attributes:true, attributeFilter:["class"] }));
 }catch(_){}
 // Switching browser tab / minimizing → stop the AI (don't keep talking + looping in the background).
+// Daily Talk and Learn are PAUSED, not ended: the mic and the voice go quiet, the conversation (and its socket) stays, and VP.resume() picks it up when the learner is back.
 document.addEventListener("visibilitychange", () => {
-  if(document.hidden && (running || VOICE_SCREENS.has(currentScreen()))){ try{ stopAllVoice(); }catch(_){} }
+  if(document.hidden){
+    if(running || VOICE_SCREENS.has(currentScreen())){
+      try{ if(VP.owns()) VP.pause(); else stopAllVoice(); }catch(_){ try{ stopAllVoice(); }catch(__){} }
+    }
+  } else { try{ VP.resume(); }catch(_){} }
 });
 function toggleSheet(o){ const s=$("msheet"), bg=$("msheetBg"); if(s) s.classList.toggle("on",o); if(bg) bg.classList.toggle("on",o); }
 // wire the bottom tabs → go through the router so the URL + Back button work
@@ -5488,6 +5494,7 @@ function onMessage(ev){
     case "ready": greetLearn(); break;
     case "translation": handleTranslation(m.hindi, m.text, m.dir); break;
     case "daily_question": greetDaily(m.question, m.lang); break;
+    case "daily_resumed": dailyResumed(); break;   // the server took the quiet reconnect: same chat, no greeting
     case "daily_turn": handleDailyTurn(m.hindi, m.english, m.reply, m.tip, m.next_question, m.lang); break;
     case "home_ready": try{ HM.onReady(m); }catch(e){ console.warn("HM.onReady", e); } break;   // Home 2.0 companion
     case "home_turn": try{ HM.onTurn(m); }catch(e){ console.warn("HM.onTurn", e); } break;
@@ -5500,6 +5507,7 @@ function onMessage(ev){
       // The server sends this for a failed Daily turn too — it used to poke the Learn screen's
       // controls and leave Daily stuck on "thinking" with a dead mic.
       if(currentMode === "daily"){ dailyFail(lgt("dFailAnswer")); break; }
+      learnPending = "";
       say(lgt("lUnavail"), ENG_NORM());   // Learn is Hindi -> English only
       learnState(lgt("lFail")); micEnable(true); break;
     case "ai_text": addMsg(m.text, "ai"); speak(m.text, m.lang); break;   // m.lang = the language this reply was WRITTEN in
@@ -5532,10 +5540,15 @@ function onMessage(ev){
       // message, so if there was anything to show, sessionResult is already up by now —
       // only fall back to the old plain exit if there genuinely was nothing (e.g. a
       // 0-turn session, which never earns/sends speaker_progress at all).
-      if((currentMode === "conversation" || currentMode === "daily") && currentScreen() === "sessionResult") break;
+      if((currentMode === "conversation" || currentMode === "daily") && currentScreen() === "sessionResult"){
+        // speaker_progress is sent BEFORE ended: still spinning here means nothing new was earned (a quiet reconnect that was finished straight away) - don't wait 20 s
+        if(currentMode === "daily" && $("srBody") && $("srBody").querySelector(".spin")){ try{ renderSessionResult(null); }catch(_){} }
+        break;
+      }
       leave(); break;
     case "limit": running=false; stopListening(); addSys("⏸ " + m.msg); orb("idle","Session limit", m.msg); break;
     case "quota": running=false; try{stopListening();}catch(_){};
+      if(currentMode === "daily") dailyPendingMe = null; else if(currentMode === "learning") learnPending = "";   // nothing is on its way any more: a pause must not wait for it
       // With the key pop-up on, IT tells the learner (and says which key and when it resets); the notification bar would only repeat it.
       if(!(m.kp && window.KY && KY.active())) showNotif(m.msg || lgt("keysLimit"));
       // …and bring the orb out of "thinking", or its comet ring would orbit forever
@@ -5862,6 +5875,7 @@ const HINDI = {
   noSpeech: "मुझे समझ नहीं आया। कृपया दोबारा बोलिए।"
 };
 let lrec = null, lastEnglish = "", lastLearnE2H = false;
+let learnReady = false, learnQuiet = false, learnReviving = false, learnPending = "";
 const HI       = () => ({ lang:"hi-IN", rate:0.95, voice:hindiVoice });
 const ENG_SLOW = () => ({ lang:"en-IN", rate:0.8, voice:pickedVoice });  // Learning: clear, medium pace
 const ENG_NORM = () => ({ lang:"en-US", rate:1.0,  voice:pickedVoice });
@@ -5895,17 +5909,56 @@ function startLearning(){
   $("transCard").hidden = true; $("tcHindi").textContent = ""; $("tcEng").textContent = "";
   learnState(lgt("lConnecting")); micEnable(false); micActive(false);
   show("learning");
-  ws = new WebSocket(WS_URL);
+  VP.clear(); learnReady = false; learnReviving = false; learnPending = "";
+  learnConnect(false);
+}
+// The Learn socket. `quiet` = the same screen picking up again after the connection was lost (a locked phone): not a new session, and no spoken greeting.
+function learnConnect(quiet){
+  const old = quiet ? ws : null;
+  if(old){ old.onclose = null; old.onmessage = null; old.onerror = null; try{ old.close(); }catch(_){} }
+  const w = new WebSocket(WS_URL); ws = w; learnQuiet = !!quiet;
   // lang = what the learner SPEAKS in Learn: "hi" = Hindi → English (the original, and the default), "en" = English → Hindi
-  ws.onopen = () => { running = true; usageInc(); refreshUsage();
-    ws.send(JSON.stringify({ type:"start", mode:"learning", token:authToken, hour:new Date().getHours(), day:localDay(), keys:officeKeys(), lang:LG.lang("learning") })); };
-  ws.onmessage = onMessage;
-  ws.onclose = () => { running = false; stopLearn(); };
-  ws.onerror = () => learnState(lgt("lConnErr"));
+  w.onopen = () => { running = true; if(!quiet){ usageInc(); refreshUsage(); }
+    w.send(JSON.stringify({ type:"start", mode:"learning", token:authToken, hour:new Date().getHours(), day:localDay(), keys:officeKeys(), lang:LG.lang("learning") })); };
+  w.onmessage = onMessage;
+  w.onclose = () => { if(ws !== w) return; const was = running; running = false; stopLearn(); if(was) learnDropped(); };
+  w.onerror = () => { if(ws !== w) return;
+    if(quiet){ learnReviving = false; learnQuiet = false; micEnable(true); learnState(lgt("dDropped")); return; }
+    learnState(lgt("lConnErr")); };
+}
+function learnRestoreUI(){
+  micActive(false);
+  if(!learnReady || learnPending) return;    // the greeting / the translation is still coming: its own handler hands the mic over
+  if(!$("transCard").hidden){ learnState(lgt("lAfter")); $("replayBtn").disabled = !lastEnglish; micEnable(true); return; }
+  learnState(lgt(LG.lang("learning") === "en" ? "lTapE" : "lTapH")); micEnable(true);
+}
+function learnDropped(){
+  if(currentScreen() !== "learning" || document.hidden) return;   // locked: VP.resume() reconnects when the learner is back
+  micEnable(true); learnState(lgt("dDropped"));
+}
+function learnRevive(){
+  if(learnReviving) return;
+  learnReviving = true;
+  micEnable(false); micActive(false); learnState(lgt("dReconn"));
+  learnConnect(true);
+  setTimeout(() => { if(learnReviving){ learnReviving = false; learnQuiet = false; micEnable(true); learnState(lgt("dDropped")); } }, 10000);
+}
+function learnResumed(){   // the quiet reconnect is up (the server said `ready`): the same screen carries on
+  learnQuiet = false; learnReviving = false; running = true;
+  if(learnPending){ learnState(""); thinkShow("translate"); try{ ws.send(JSON.stringify({ type:"user_text", text: learnPending })); }catch(_){} return; }   // the line in flight is answered now (once)
+  learnRestoreUI();
+}
+function learnTap(){
+  if(learnReviving) return;
+  if(ws && ws.readyState === 1){ running = true; startHindiListen(); return; }
+  learnRevive();
 }
 async function greetLearn(){
+  learnReady = true;
+  if(learnQuiet){ learnResumed(); return; }   // a quiet reconnect: no greeting
   const ep = ++speakEpoch;
   const l = LG.lang("learning");
+  if(document.hidden){ learnState(lgt(l === "en" ? "lTapE" : "lTapH")); micEnable(true); return; }   // a locked phone: not spoken to
   await say(LEARN_SAY[l].greet, l === "hi" ? HI() : ENG_NORM());
   if(ep !== speakEpoch) return;
   learnState(lgt(l === "en" ? "lTapE" : "lTapH"));
@@ -5921,7 +5974,7 @@ function startHindiListen(){
   lrec.onresult = (e) => {
     const t = e.results[0][0].transcript.trim();
     if(t && !got){ got = true; $("tcHindi").textContent = t; micActive(false);
-      if(ws && ws.readyState === 1){ learnState(""); thinkShow("translate"); ws.send(JSON.stringify({ type:"user_text", text:t })); }
+      if(ws && ws.readyState === 1){ learnPending = t; learnState(""); thinkShow("translate"); ws.send(JSON.stringify({ type:"user_text", text:t })); }
       else learnState(lgt("lConnLost")); }
   };
   lrec.onerror = () => {};
@@ -5934,9 +5987,10 @@ function startHindiListen(){
 async function handleTranslation(hindi, english, dir){   // hindi = what the learner SAID, english = the translation (names kept); dir = "hi2en" | "en2hi"
   const ep = ++speakEpoch;   // Finish/tab-switch bumps epoch → bail out of the chain
   const e2h = false;   // Learn is Hindi -> English only (the frame's dir tag is ignored)
-  lastEnglish = english; lastLearnE2H = e2h;
+  lastEnglish = english; lastLearnE2H = e2h; learnPending = "";
   $("tcHindi").textContent = hindi; $("tcEng").textContent = english;
   $("transCard").hidden = false; $("replayBtn").disabled = true; learnState("");
+  if(document.hidden){ learnState(lgt("lAfter")); $("replayBtn").disabled = !english; micEnable(true); return; }   // a locked phone: shown, not spoken
   await say(LEARN_SAY[e2h ? "en" : "hi"].intro, HI());   // "English में ऐसे बोलते हैं।" / "हिंदी में ऐसे कहते हैं।" — both in the Hindi voice
   if(ep !== speakEpoch) return;
   await say(english, e2h ? HI() : ENG_SLOW());           // then the translation, said ONCE (no "repeat after me")
@@ -5951,9 +6005,12 @@ function stopLearn(){
   if(window.speechSynthesis) window.speechSynthesis.cancel();
   micActive(false);
 }
-$("micBtn").onclick = startHindiListen;
+$("micBtn").onclick = learnTap;
 $("replayBtn").onclick = () => { if(lastEnglish){ if(window.speechSynthesis) window.speechSynthesis.cancel(); say(lastEnglish, lastLearnE2H ? HI() : ENG_SLOW()); } };
 $("continueBtn").onclick = async () => {
+  if(learnReviving) return;
+  if(!(ws && ws.readyState === 1)){ learnRevive(); return; }   // the connection is gone: reconnect first (the card stays)
+  running = true;
   if(window.speechSynthesis) window.speechSynthesis.cancel();
   $("transCard").hidden = true; $("tcHindi").textContent = ""; $("tcEng").textContent = ""; lastEnglish = "";
   startHindiListen();            // just listen for the next sentence (no spoken prompt)
@@ -6087,14 +6144,65 @@ function startDaily(from){
     else dm.hidden = true;
   }
   show("daily");
-  ws = new WebSocket(WS_URL);
-  ws.onopen = () => { running = true; usageInc(); refreshUsage();
-    dailyTurns = loadDailyResume();   // continue the recent chat if there is one
-    ws.send(JSON.stringify({ type:"start", mode:"daily", token:authToken, mood:todayMood,
-      hour:new Date().getHours(), day:localDay(), resume: dailyTurns, keys:officeKeys(), lang:LG.lang("daily") })); };
-  ws.onmessage = onMessage;
-  ws.onclose = () => { running = false; stopDaily(); };
-  ws.onerror = () => { if($("dailyLoader")) $("dailyLoader").hidden = true; dState(lgt("dConnErr")); };
+  VP.clear(); dailyReviving = false;
+  dailyConnect(false);
+}
+// The Daily socket. `quiet` = picking the SAME chat up again after the connection was lost (a locked phone, a dropped network): the page does not count it as a new
+// session and the server sends no greeting - it replays the turns for context and counts only what is said from here on.
+let dailyReviving = false;
+function dailyConnect(quiet){
+  const old = quiet ? ws : null;
+  if(old){ old.onclose = null; old.onmessage = null; old.onerror = null; try{ old.close(); }catch(_){} }
+  const w = new WebSocket(WS_URL); ws = w;
+  w.onopen = () => { running = true;
+    if(!quiet){ usageInc(); refreshUsage();
+      dailyTurns = loadDailyResume(); }   // continue the recent chat if there is one
+    w.send(JSON.stringify({ type:"start", mode:"daily", token:authToken, mood:todayMood,
+      hour:new Date().getHours(), day:localDay(), resume: dailyTurns, keys:officeKeys(), lang:LG.lang("daily"),
+      reconnect: quiet && dailyTurns.length ? true : undefined })); };
+  w.onmessage = onMessage;
+  w.onclose = () => { if(ws !== w) return; const was = running; running = false; stopDaily(); if(was) dailyDropped(); };
+  w.onerror = () => { if(ws !== w) return;
+    if(quiet){ dailyReviving = false; dailyFail(lgt("dDropped")); return; }
+    if($("dailyLoader")) $("dailyLoader").hidden = true; dState(lgt("dConnErr")); };
+}
+// Bring the screen back to a usable state after a pause / reconnect (never enables the mic while the opener or an answer is still on its way).
+function dailyRestoreUI(){
+  dMicActive(false);
+  if($("dailyLoader") && !$("dailyLoader").hidden) return;   // the opener is still coming: greetDaily hands the mic over
+  if(dailyPendingMe) return;                                   // the answer is still coming: handleDailyTurn finishes the screen
+  dailyOrb("idle"); dMic(true);
+  dState(lgt($("dailyCard").hidden ? "dTap" : "dReplyReady"));
+}
+// The connection is gone: tell the learner what to do (the next tap reconnects) instead of leaving a dead mic.
+function dailyDropped(){
+  if(currentScreen() !== "daily" || document.hidden) return;   // locked: VP.resume() reconnects when the learner is back
+  dMic(true); dState(lgt("dDropped"));
+}
+// Reconnect quietly: the same chat, no greeting. Called when the learner is back from a lock, or taps the mic / Reply on a dead socket.
+function dailyRevive(){
+  if(dailyReviving) return;
+  dailyReviving = true;
+  dMic(false); dMicActive(false); dailyOrb("idle"); dState(lgt("dReconn"));
+  dailyConnect(true);
+  setTimeout(() => { if(dailyReviving){ dailyReviving = false; dailyFail(lgt("dDropped")); } }, 10000);   // the server never answered: hand the mic back
+}
+// The server accepted the quiet reconnect (`daily_resumed`).
+function dailyResumed(){
+  dailyReviving = false; running = true;
+  if($("dailyLoader")) $("dailyLoader").hidden = true;
+  if(dailyPendingMe && dailyPendingMe.t){   // the learner's line was in flight when the connection died: it is answered now (once)
+    dState(""); thinkShow("think"); dailyOrb("thinking");
+    try{ ws.send(JSON.stringify({ type:"user_text", text: dailyPendingMe.t })); }catch(_){}
+    return;
+  }
+  dailyRestoreUI();
+}
+// One tap on the mic / Reply. A live socket: exactly what it always did (and synchronously - a mic must start inside the tap).
+function dailyTap(fromReply){
+  if(dailyReviving) return;
+  if(ws && ws.readyState === 1){ running = true; if(fromReply) dailyContinue(); else startDailyListen(); return; }
+  dailyRevive();
 }
 // The 3 options shown under Daily Talk (Start Speaking path). Reuses the Companion Moment recs.
 function dailyRecsData(){
@@ -6143,6 +6251,8 @@ async function greetDaily(question, lang){   // Daily Talk is pinned to Hindi: t
   dailyChatAdd({ w:"ai", t:question });
   saveDailyResume();
   $("dailyQ").textContent = question;
+  dailyReviving = false;
+  if(document.hidden){ dailyOrb("idle"); dState(lgt("dTap")); dMic(true); return; }   // a locked phone: shown, not spoken
   await sayFace(question, l === "hi" ? HI() : ENG_NORM());
   if(ep !== speakEpoch) return;   // finished/left during the greeting → don't enable mic
   dState(lgt("dTap")); dMic(true);
@@ -6186,6 +6296,7 @@ async function handleDailyTurn(hindi, english, reply, tip, nextQ, lang){   // Da
   dailyTurns.push({ role:"user", content: hindi });
   dailyTurns.push({ role:"assistant", content: dusuReply });
   saveDailyResume();
+  if(document.hidden){ dailyOrb("idle"); dState(lgt("dReplyReady")); return; }   // a locked phone: shown, not spoken
   dailyOrb("speaking");
   // 1) hear YOUR line in English FIRST (learn how to say it)
   if(english && hiTurn){
@@ -6248,10 +6359,72 @@ function finishDaily(){
     try{ ws && ws.close(); }catch(_){} ws = null; renderSessionResult(null);
   } }, 20000);
 }
-$("dailyMic").onclick = startDailyListen;
+$("dailyMic").onclick = () => dailyTap(false);
 $("dcReplay").onclick = () => { if(dLastEng){ if(window.speechSynthesis) window.speechSynthesis.cancel(); say(dLastEng, ENG_SLOW()); } };
-$("dcNext").onclick = dailyContinue;
+$("dcNext").onclick = () => dailyTap(true);
 $("dailyFinish").onclick = finishDaily;
+
+/* ---- A locked screen PAUSES Daily Talk and Learn - it does not end them ----------------------------------------------------
+   Before: "hidden" ran stopAllVoice(), which dropped the recogniser, set running=false and closed + nulled the socket, and NOTHING handled the screen coming back - so the
+   mic stayed disabled and the mic / Reply buttons (both gated on `running`) did nothing until the chat was ended. Now: pause() silences the mic and the voice (nothing talks or
+   listens in the background, as before) but keeps the conversation and its socket; resume() puts the screen back, first checking that a socket that merely LOOKS open still
+   is (a phone that was locked a while can hold a half-open connection), and reconnects quietly when it is not. Away longer than GRACE_MS the page ends the session itself (the
+   server saves the chat when its socket closes, exactly as it always did). Face-to-Face / Interview / the Home chat still use stopAllVoice() (their server sessions cannot resume). */
+const VP = (() => {
+  const GRACE_MS = 10 * 60 * 1000, LONG_MS = 20 * 1000, PONG_MS = 3000;
+  let p = null, timer = 0;
+  const owns = () => { const sc = currentScreen(); return (sc === "daily" && currentMode === "daily") || (sc === "learning" && currentMode === "learning"); };
+  function pause(){
+    if(!p) p = { mode: currentMode, at: Date.now(), gone: false };
+    speakEpoch++;                                                                   // an in-flight reply chain stops here and never starts its next line
+    try{ if(drec){ drec.onend = null; drec.stop(); drec = null; } }catch(_){}
+    try{ if(lrec){ lrec.onend = null; lrec.stop(); lrec = null; } }catch(_){}
+    try{ if(window.speechSynthesis) window.speechSynthesis.cancel(); }catch(_){}
+    try{ DAILYFACE.stopTalking(); }catch(_){}
+    clearTimeout(timer); timer = setTimeout(giveUp, GRACE_MS);
+  }
+  function giveUp(){   // away too long: end the session now; resume() reconnects quietly
+    if(!p || !owns() || !document.hidden) return;
+    const w = ws; ws = null; running = false; p.gone = true;
+    try{ if(w){ w.onclose = null; w.onmessage = null; if(w.readyState <= 1) w.close(); } }catch(_){}
+  }
+  // Is the socket really alive? An open one after a long lock is asked (ping -> pong); a closed one is not.
+  function alive(away){
+    if(!ws || ws.readyState !== 1) return Promise.resolve(false);
+    if(away < LONG_MS) return Promise.resolve(true);
+    return new Promise(res => {
+      const w = ws; let done = false;
+      const fin = v => { if(done) return; done = true; clearTimeout(t); try{ w.removeEventListener("message", on); }catch(_){} res(v); };
+      const on = ev => { try{ if(JSON.parse(ev.data).type === "pong") fin(true); }catch(_){} };
+      const t = setTimeout(() => fin(false), PONG_MS);
+      w.addEventListener("message", on);
+      try{ w.send(JSON.stringify({ type:"ping" })); }catch(_){ fin(false); }
+    });
+  }
+  async function dailyBack(was){
+    dMicActive(false);
+    const ok = was.gone ? false : await alive(Date.now() - was.at);
+    if(!owns() || p) return;                                                        // left the screen, or locked again, while we were asking
+    if(!ok){ dailyRevive(); return; }
+    running = true; dailyRestoreUI();
+  }
+  async function learnBack(was){
+    micActive(false);
+    const ok = was.gone ? false : await alive(Date.now() - was.at);
+    if(!owns() || p) return;
+    if(!ok){ learnRevive(); return; }
+    running = true; learnRestoreUI();
+  }
+  function resume(){
+    clearTimeout(timer);
+    const was = p; p = null;
+    if(!was || !owns() || currentMode !== was.mode) return;
+    try{ if(window.speechSynthesis){ window.speechSynthesis.cancel(); if(window.speechSynthesis.resume) window.speechSynthesis.resume(); } }catch(_){}   // Android can come back with a stuck voice queue
+    if(was.mode === "daily") dailyBack(was); else learnBack(was);
+  }
+  function clear(){ clearTimeout(timer); p = null; }
+  return { owns, pause, resume, clear };
+})();
 $("dailyBack").onclick = finishDaily;
 // "More" under Daily Talk → reveal extra options IN PLACE (Journey / Leaderboard).
 // Never navigates to home — the user stays in the conversation.

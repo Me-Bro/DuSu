@@ -3293,10 +3293,17 @@ async def interview_ws(ws: WebSocket):
                             if r in ("user", "assistant") and c:
                                 session.transcript.append({"role": r, "content": c})
                         session.turns = sum(1 for m in session.transcript if m["role"] == "user")
-                    opening = await session.daily_turn("", first=True)
-                    q = (opening.get("reply_hindi") or opening.get("next_question_hindi")
-                         or langmod.line(session.lang, "daily_fallback_q"))
-                    await _send(ws, type="daily_question", question=q, lang=session.lang)
+                    if data.get("reconnect") is True and session.transcript:
+                        # The page lost its socket (a locked phone, a dropped connection) and is picking the SAME chat up again: the replayed turns
+                        # are context only. Their first socket already saved and rewarded them when it closed, so only what is said from here on
+                        # counts (turns back to 0 -> finishing straight away writes nothing), and there is no new greeting - no model call, nothing spoken.
+                        session.turns = 0
+                        await _send(ws, type="daily_resumed", lang=session.lang)
+                    else:
+                        opening = await session.daily_turn("", first=True)
+                        q = (opening.get("reply_hindi") or opening.get("next_question_hindi")
+                             or langmod.line(session.lang, "daily_fallback_q"))
+                        await _send(ws, type="daily_question", question=q, lang=session.lang)
                 elif session.mode == "learning":
                     await _send(ws, type="ready", lang=session.lang)   # client greets (Hindi by default)
                 else:
@@ -3451,6 +3458,10 @@ async def interview_ws(ws: WebSocket):
                     # this order would silently drop the post-session result every time.
                     await _persist_session()
                     await _send(ws, type="ended")
+
+            elif mtype == "ping":
+                # Is this socket really alive? A phone that was locked can hold a half-open connection that still LOOKS open; the page asks before it trusts one.
+                await _send(ws, type="pong")
 
             elif mtype == "close":
                 break
