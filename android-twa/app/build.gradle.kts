@@ -19,8 +19,8 @@ android {
         applicationId = "com.dusu.app"     // distinct from com.dusu.launcher — installs side-by-side
         minSdk = 24                        // Play Console requires >=24 for automatic Play Integrity protection (was 23)
         targetSdk = 36                     // Play Store requires API 36 for new apps/updates (Aug 2026)
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
     }
 
     if (keystorePropsFile.exists()) {
