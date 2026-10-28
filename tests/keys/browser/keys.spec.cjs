@@ -314,9 +314,13 @@ async function fresh(browser, who, o = {}) {
     T.ok(await until(() => sheetOn(p), 15000), 'a WebSocket frame with `kp` opens the pop-up');
     T.eq(await p.evaluate(() => document.getElementById('kySheet').getAttribute('aria-modal')), 'true', 'it is a modal dialog');
     T.has(await txt(p, '#kyTitle'), 'Your free AI limit is used up for now', 'its title says what happened');
-    const lis = await p.evaluate(() => [...document.querySelectorAll('#kySheet .ky-pop-list li')].map(e => e.textContent));
-    T.ok(lis.length === 2 && /^Groq: daily limit reached\. Resets/.test(lis[0]), 'Groq: daily limit reached + when it resets (the provider\'s own wait)');
-    T.ok(/^Gemini: daily limit reached\. Should reset/.test(lis[1]), 'Gemini: "Should reset ..." (an approximation, marked as one)');
+    const rows = await p.evaluate(() => [...document.querySelectorAll('#kySheet .ky-pop-list li')].map(e => ({ name: e.querySelector('.ky-kt b').textContent, chip: e.querySelector('.ky-chip').textContent, detail: e.querySelector('.ky-kd').textContent, rep: !!e.querySelector('.ky-rep') })));
+    T.ok(rows.length === 2 && rows[0].name === 'Groq' && rows[0].chip === 'Daily limit reached' && /^Comes back /.test(rows[0].detail), 'Groq: a card with its name, "Daily limit reached" and when it comes back (the provider\'s own wait)');
+    T.ok(rows[1].name === 'Gemini' && /^Should come back /.test(rows[1].detail), 'Gemini: "Should come back ..." (an approximation, marked as one)');
+    T.eq(rows.map(r => r.rep), [false, false], 'a limit needs no Replace button (nothing is wrong with the key)');
+    T.has(await txt(p, '#kySheet .ky-sub'), 'It should be back', 'the one-line summary says when it is back');
+    T.ok(/Your chats are safe/.test(await txt(p, '#kySheet .ky-sub')), '... and that nothing is lost');
+    T.eq(await p.evaluate(() => [document.querySelector('#kySheet .ky-hero').className, !!document.querySelector('#kySheet .ky-ico svg')]), ['ky-hero warn', true], 'an amber hero with an icon for a limit');
     T.ok(/paid plans/.test(await txt(p, '#kySheet')), 'and the one-line reason: free keys have daily limits, paid plans remove them');
     const btns = await p.evaluate(() => [...document.querySelectorAll('#kySheet .ky-pop-acts .btn')].map(e => e.textContent));
     T.eq(btns, ['Fix my keys', 'See plans', 'Later'], 'buttons: Fix my keys, See plans, Later');
@@ -333,7 +337,9 @@ async function fresh(browser, who, o = {}) {
     T.ok(!(await sheetOn(p)), 'the SAME problem a moment later does not reopen it (told within the last 10 minutes)');
     await behave('groq', 'invalid'); await p.evaluate(() => { window.__w.close(); }); await openWs(p);
     T.ok(await until(() => sheetOn(p), 15000), 'a DIFFERENT problem (a key is now rejected) opens it again');
-    T.has(await txt(p, '#kySheet'), 'Groq: rejected', 'and says which key');
+    const rej = await p.evaluate(() => [...document.querySelectorAll('#kySheet .ky-pop-list li')].map(e => ({ name: e.querySelector('.ky-kt b').textContent, chip: e.querySelector('.ky-chip').textContent, rep: !!e.querySelector('.ky-rep') })));
+    T.ok(rej[0] && rej[0].name === 'Groq' && rej[0].chip === 'Rejected' && rej[0].rep, 'and says which key: Groq, "Rejected", with a Replace button');
+    T.ok(await p.evaluate(() => document.querySelector('#kySheet .ky-hero').classList.contains('bad')), '... and the hero turns red');
     // HTTP error body
     await p.click('#kySheet .ky-pop-acts .btn:last-child'); await sleep(500);
     await behave('groq', 'limited'); await behave('gemini', 'limited');
@@ -375,13 +381,31 @@ async function fresh(browser, who, o = {}) {
     await c.close();
   }
   {
+    // "Replace" on a rejected key's card opens THAT key's box on the Keys screen
+    await reset();
+    const { c, p } = await fresh(browser, 'tester', { lang: 'en' });
+    await sleep(900);
+    await p.evaluate(() => KY.problem({ state: 'degraded', now: Math.floor(Date.now() / 1000), keys: [{ provider: 'gemini', kind: 'invalid', expired: true }] }));
+    await sleep(600);
+    T.eq(await p.evaluate(() => document.querySelector('#kySheet .ky-rep').getAttribute('aria-label')), 'Replace Gemini', 'the Replace button names its key (for a screen reader)');
+    T.eq(await txt(p, '#kyTitle'), 'One of your keys needs attention', 'one key down, the others fine: a calm headline');
+    T.ok(/keeps going on your other key/.test(await txt(p, '#kySheet .ky-sub')), '... and the summary says DuSu keeps going on the other key');
+    await p.click('#kySheet .ky-rep');
+    T.ok(await until(async () => (await screen(p)) === 'keys'), 'Replace goes to the Keys screen');
+    T.ok(await until(() => p.evaluate(() => !!document.activeElement && document.activeElement.id === 'kGemini'), 6000), 'with the Gemini box open and focused');
+    T.ok(await vis(p, '#kySave_gemini'), 'and its Save button showing');
+    T.ok(!(await vis(p, '#kySave_groq')), 'the other key is left alone');
+    await c.close();
+  }
+  {
     // a key that died while the learner was away is explained on Home, once
     await reset(); await behave('groq', 'invalid'); await behave('gemini', 'invalid');
     await useKeys('bad');
     const { c, p } = await fresh(browser, 'bad', { lang: 'en', settle: 1500 });
     T.ok(await until(() => sheetOn(p), 15000), 'on Home load, a learner whose keys were both rejected is told before they start');
     T.has(await txt(p, '#kyTitle'), 'Your AI keys need attention', 'with the right headline');
-    T.ok(/Groq: rejected/.test(await txt(p, '#kySheet')) && /Gemini: rejected/.test(await txt(p, '#kySheet')), 'naming each key');
+    const both = await p.evaluate(() => [...document.querySelectorAll('#kySheet .ky-pop-list li')].map(e => e.querySelector('.ky-kt b').textContent + ':' + e.querySelector('.ky-chip').textContent));
+    T.eq(both, ['Groq:Rejected', 'Gemini:Rejected'], 'naming each key and what is wrong with it');
     await p.click('#kySheet .ky-pop-acts .btn:last-child'); await sleep(400);
     await p.reload({ waitUntil: 'domcontentloaded' }); await sleep(2500);
     T.ok(!(await sheetOn(p)), 'after a reload the same news is NOT told again');

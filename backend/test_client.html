@@ -1992,12 +1992,46 @@
   .inst-head small{ display:block; font-size:12px; color:var(--ink-faint); }
   .inst-ic{ flex:none; width:56px; height:56px; border-radius:14px; }
   .ky-x, .inst-x{ flex:none; min-width:44px; min-height:44px; border-radius:12px; border:1px solid var(--glass-brd); background:var(--glass); color:var(--ink-dim); font:inherit; font-size:16px; cursor:pointer; }
-  .ky-pop-intro, .inst-note{ margin:0 0 10px; font-size:14px; line-height:1.5; color:var(--ink-dim); }
-  .ky-pop-list{ list-style:none; margin:0 0 12px; padding:0; }
-  .ky-pop-list li{ margin:0 0 8px; padding:10px 12px; border-radius:12px; font-size:13.5px; line-height:1.45; background:var(--glass); border:1px solid var(--glass-brd); }
-  .ky-pop-why{ margin:0 0 12px; font-size:12.5px; line-height:1.5; color:var(--ink-faint); }
+  .inst-note{ margin:0 0 10px; font-size:14px; line-height:1.5; color:var(--ink-dim); }
+  /* the key-problem pop-up: an icon + what happened + when it is back, a card per key, one clear next step */
+  .ky-grab{ display:block; width:38px; height:4px; border-radius:99px; background:rgba(255,255,255,.16); margin:0 auto 12px; }
+  .ky-hero{ position:relative; display:flex; align-items:flex-start; gap:13px; margin:2px 0 14px; padding:14px 10px 14px 14px; border-radius:18px; overflow:hidden;
+    background:var(--glass); border:1px solid rgba(111,140,255,.32); }
+  .ky-hero::before{ content:""; position:absolute; top:-70px; right:-50px; width:200px; height:200px; border-radius:50%; background:radial-gradient(closest-side, var(--ky-glow, rgba(111,140,255,.26)), transparent); pointer-events:none; }
+  .ky-hero.warn{ --ky-glow:rgba(240,169,82,.28); border-color:rgba(240,169,82,.42); }
+  .ky-hero.bad{ --ky-glow:rgba(224,138,122,.28); border-color:rgba(224,138,122,.48); }
+  .ky-ico{ position:relative; flex:none; display:grid; place-items:center; width:48px; height:48px; border-radius:15px; color:#cfd8ff; background:rgba(111,140,255,.16); border:1px solid rgba(111,140,255,.4); }
+  .ky-hero.warn .ky-ico{ color:#f6d9ae; background:rgba(240,169,82,.14); border-color:rgba(240,169,82,.48); }
+  .ky-hero.bad .ky-ico{ color:#f2c4ba; background:rgba(224,138,122,.14); border-color:rgba(224,138,122,.52); }
+  .ky-ico svg{ width:26px; height:26px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .ky-ht{ position:relative; flex:1; min-width:0; }
+  .ky-ht h3{ font-family:var(--font-d); font-size:19px; line-height:1.25; margin:2px 0 5px; outline:none; }
+  .ky-sub{ margin:0; font-size:13.5px; line-height:1.45; color:var(--ink-dim); }
+  .ky-hero .ky-x{ position:relative; flex:none; margin:-4px -2px 0 0; }
+  .ky-pop-list{ list-style:none; margin:0 0 12px; padding:0; display:grid; gap:8px; }
+  .ky-k{ display:flex; align-items:center; gap:12px; padding:11px 12px; border-radius:16px; background:var(--glass); border:1px solid var(--glass-brd); }
+  .ky-k.warn{ border-color:rgba(240,169,82,.34); } .ky-k.bad{ border-color:rgba(224,138,122,.42); }
+  .ky-av{ flex:none; display:grid; place-items:center; width:38px; height:38px; border-radius:12px; font-weight:700; font-size:16px; color:#fff; background:#566; box-shadow:inset 0 0 0 1px rgba(255,255,255,.18); }
+  .ky-av-groq{ background:linear-gradient(135deg,#ff8a50,#f0502f); } .ky-av-gemini{ background:linear-gradient(135deg,#4f8cff,#9b6cf0); } .ky-av-openrouter{ background:linear-gradient(135deg,#7a86ff,#4b3fe0); }
+  .ky-kb{ flex:1; min-width:0; }
+  .ky-kt{ display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; }
+  .ky-kt b{ font-size:14.5px; }
+  .ky-kd{ margin:4px 0 0; font-size:12.5px; line-height:1.45; color:var(--ink-dim); }
+  .ky-rep{ flex:none; min-width:68px; min-height:40px; padding:0 14px; border-radius:12px; font:inherit; font-size:13px; font-weight:600; color:var(--ink); cursor:pointer;
+    background:linear-gradient(135deg,rgba(111,140,255,.28),rgba(122,92,240,.2)); border:1px solid color-mix(in srgb,var(--gold) 45%,transparent); }
+  .ky-rep:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:2px; }
+  .ky-pop-why{ margin:0 0 14px; padding:0 2px; font-size:12.5px; line-height:1.5; color:var(--ink-faint); }
   .ky-pop-acts{ display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
-  .ky-pop-acts .btn, .inst-sheet .btn, .cm-sheet .btn{ flex:1 1 130px; min-height:46px; }
+  .ky-pop-acts .btn{ flex:1 1 calc(50% - 4px); min-height:46px; }
+  .ky-pop-acts .btn.primary{ flex:1 1 100%; min-height:50px; font-size:16px; }
+  .inst-sheet .btn, .cm-sheet .btn{ flex:1 1 130px; min-height:46px; }
+  .ky-sheet.on .ky-k{ animation:kyIn .38s cubic-bezier(.2,.7,.2,1) both; } .ky-sheet.on .ky-k:nth-child(2){ animation-delay:.06s; } .ky-sheet.on .ky-k:nth-child(3){ animation-delay:.12s; }
+  @keyframes kyIn{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:none; } }
+  /* the Keys screen: each key is a card, tinted by its state */
+  #keysForm.ky-on .keyblk{ padding:13px 14px 12px; border-radius:18px; background:var(--glass); border:1px solid var(--glass-brd); margin-bottom:12px; }
+  #keysForm.ky-on .keyblk.ky-st-ok{ border-color:rgba(120,210,150,.34); }
+  #keysForm.ky-on .keyblk.ky-st-warn{ border-color:rgba(240,169,82,.46); background:linear-gradient(180deg,rgba(240,169,82,.07),var(--glass)); }
+  #keysForm.ky-on .keyblk.ky-st-bad{ border-color:rgba(224,138,122,.5); background:linear-gradient(180deg,rgba(224,138,122,.08),var(--glass)); }
   .inst-sheet .btn, .cm-sheet .btn{ width:100%; margin-top:8px; }
   .inst-list{ list-style:none; margin:0 0 6px; padding:0; }
   .inst-list li{ margin:0 0 8px; font-size:14px; line-height:1.45; }
@@ -2018,9 +2052,10 @@
     .ky-sheet, .inst-sheet, .cm-sheet{ bottom:auto; top:50%; max-width:480px; border-radius:24px; padding:22px 24px 26px; max-height:min(90vh,820px); transform:translate(-50%,-46%) scale(.97); opacity:0;
       transition:transform .28s cubic-bezier(.2,.7,.2,1), opacity .2s ease, visibility 0s linear .28s; }
     .ky-sheet.on, .inst-sheet.on, .cm-sheet.on{ transform:translate(-50%,-50%) scale(1); opacity:1; }
+    .ky-grab{ display:none; }
     #moreHome > #kyCard, #moreHome > #ntPrompt, #moreHome > #instPrompt, #moreHome > #waPrompt{ max-width:780px; margin-left:auto; margin-right:auto; }
   }
-  @media (prefers-reduced-motion:reduce){ .ky-sheet, .ky-bg, .inst-sheet, .inst-bg, .cm-sheet, .cm-bg{ transition:none; } }
+  @media (prefers-reduced-motion:reduce){ .ky-sheet, .ky-bg, .inst-sheet, .inst-bg, .cm-sheet, .cm-bg{ transition:none; } .ky-sheet.on .ky-k{ animation:none; } }
 
   /* ===================== PRACTICE ROOM (DUSU_PRACTICE_ROOM_PLAN.md) =====================
      Every class here is pr-* on purpose: this file's class names are GLOBAL and unscoped, and an
@@ -11202,12 +11237,15 @@ const KY = (function(){
       cardT:"Your AI keys", cardSub:"{w} working · {u}", cardTap:"Tap to manage your keys", cardFix:"Needs attention - tap to fix",
       chipLeft:"{n} left", chipAbout:"about {n} left",
       popInvalid:"Your AI keys need attention", popLimited:"Your free AI limit is used up for now", popDegraded:"One of your keys needs attention", popNone:"Add your AI keys",
-      popIntro:"DuSu can't use your keys right now:", popWhy:"Free keys have daily limits. DuSu is getting paid plans that remove them.",
+      popWhy:"Free keys have daily limits. DuSu is getting paid plans that remove them.",
       popFix:"Fix my keys", popPlans:"See plans", popLater:"Later", busy:"The AI is busy right now - your keys are fine. Please try again in a minute.",
-      rInvalid:"{p}: rejected. The key may be wrong, expired or deleted. Add it again.", rExpired:"{p}: this key has expired. Make a new one and add it.",
-      rDay:"{p}: daily limit reached.{reset}", rMinute:"{p}: too many requests this minute. Try again in a minute.", rLimited:"{p}: limit reached for now.{reset}",
-      rUpstream:"{p}: the free model is busy right now. Try again soon.", rBlocked:"{p}: blocked by the provider. Check the key's permissions, or try later.",
-      rCredit:"{p}: out of credit.", rTransient:"{p}: not answering right now (this is not your key).", rReset:" Resets {when}.", rAbout:" Should reset {when}."
+      popSubLimitedWhen:"It should be back {when}. Your chats are safe.", popSubLimited:"It resets by itself. Your chats are safe.",
+      popSubInvalid1:"DuSu can't use this key. Replace it and you're back in a minute.", popSubInvalidN:"DuSu can't use these keys. Replace them and you're back in a minute.",
+      popSubMixed:"Some of your keys were rejected and some hit their limit.", popSubDegraded:"DuSu keeps going on your other key, but this one needs a fix.",
+      popSubNone:"Two free keys are all DuSu needs. It takes about a minute.", popRowReplace:"Replace",
+      dLimitedWhen:"Comes back {when}", dLimitedAbout:"Should come back {when}", dLimitedAuto:"It resets by itself.", dMinute:"Wait a minute, then try again.",
+      dUpstream:"The free model is busy right now. Try again soon.", dInvalid:"It may be wrong, expired or deleted. Tap Replace to add a new one.", dExpired:"This key has expired. Tap Replace to add a new one.",
+      dBlocked:"The provider blocked this key. Check its permissions, or try later.", dCredit:"Add credit at the provider, or use another key.", dTransient:"Not answering right now - this is not your key."
     },
     hi: {
       close:"बंद करो", soon:"जल्द ही", inMin:"लगभग {n} मिनट में", atTime:"{tm} पर", tomorrowAt:"कल {tm} पर", onDay:"{day} को {tm} पर",
@@ -11233,12 +11271,15 @@ const KY = (function(){
       cardT:"तुम्हारी AI keys", cardSub:"{w} चालू · {u}", cardTap:"Keys संभालने के लिए tap करो", cardFix:"ध्यान चाहिए - ठीक करने के लिए tap करो",
       chipLeft:"{n} बची", chipAbout:"लगभग {n} बची",
       popInvalid:"तुम्हारी AI keys को ध्यान चाहिए", popLimited:"अभी के लिए तुम्हारी free AI limit पूरी हो गई", popDegraded:"तुम्हारी एक key को ध्यान चाहिए", popNone:"अपनी AI keys जोड़ो",
-      popIntro:"अभी DuSu तुम्हारी keys use नहीं कर पा रही:", popWhy:"Free keys की daily limit होती है। DuSu के paid plans आने वाले हैं, जिनमें ये limits नहीं होंगी।",
+      popWhy:"Free keys की daily limit होती है। DuSu के paid plans आने वाले हैं, जिनमें ये limits नहीं होंगी।",
       popFix:"मेरी keys ठीक करो", popPlans:"Plans देखो", popLater:"बाद में", busy:"अभी AI busy है - तुम्हारी keys ठीक हैं। एक मिनट बाद फिर कोशिश करो।",
-      rInvalid:"{p}: reject हुई। Key गलत, expire या delete हो सकती है। उसे फिर से जोड़ो।", rExpired:"{p}: ये key expire हो गई है। नई बनाकर जोड़ो।",
-      rDay:"{p}: daily limit पूरी हो गई।{reset}", rMinute:"{p}: इस मिनट में बहुत ज़्यादा requests। एक मिनट बाद कोशिश करो।", rLimited:"{p}: अभी limit पूरी है।{reset}",
-      rUpstream:"{p}: free model अभी busy है। थोड़ी देर बाद कोशिश करो।", rBlocked:"{p}: provider ने block किया है। Key की permissions देखो, या बाद में कोशिश करो।",
-      rCredit:"{p}: credit खत्म हो गया।", rTransient:"{p}: अभी जवाब नहीं दे रहा (ये तुम्हारी key की गलती नहीं है)।", rReset:" {when} reset होगी।", rAbout:" लगभग {when} reset होनी चाहिए।"
+      popSubLimitedWhen:"{when} वापस आ जाएगी। तुम्हारी chats सुरक्षित हैं।", popSubLimited:"ये अपने आप reset हो जाती है। तुम्हारी chats सुरक्षित हैं।",
+      popSubInvalid1:"DuSu ये key use नहीं कर सकती। इसे बदल दो, एक मिनट में सब ठीक।", popSubInvalidN:"DuSu ये keys use नहीं कर सकती। इन्हें बदल दो, एक मिनट में सब ठीक।",
+      popSubMixed:"तुम्हारी कुछ keys reject हुईं और कुछ की limit पूरी हो गई।", popSubDegraded:"DuSu तुम्हारी दूसरी key से चल रही है, पर इस key को ठीक करना होगा।",
+      popSubNone:"DuSu को बस दो free keys चाहिए। एक मिनट लगेगा।", popRowReplace:"बदलो",
+      dLimitedWhen:"{when} वापस आएगी", dLimitedAbout:"{when} तक वापस आनी चाहिए", dLimitedAuto:"ये अपने आप reset हो जाएगी।", dMinute:"एक मिनट रुककर फिर कोशिश करो।",
+      dUpstream:"Free model अभी busy है। थोड़ी देर बाद कोशिश करो।", dInvalid:"Key गलत, expire या delete हो सकती है। नई जोड़ने के लिए 'बदलो' दबाओ।", dExpired:"ये key expire हो गई है। नई जोड़ने के लिए 'बदलो' दबाओ।",
+      dBlocked:"Provider ने ये key block कर दी है। Key की permissions देखो, या बाद में कोशिश करो।", dCredit:"Provider के पास credit डालो, या दूसरी key use करो।", dTransient:"अभी जवाब नहीं दे रहा (ये तुम्हारी key की गलती नहीं है)।"
     }
   };
   const L = () => (typeof LG !== "undefined" && LG.on()) ? LG.cur() : "hi";
@@ -11397,6 +11438,7 @@ const KY = (function(){
     const view = $("kyb_" + p), ed = $("kye_" + p), inp = $(FIELD[p]); if(!view || !ed || !inp) return;
     const k = keyOf(p), row = inp.closest(".keyrow"), blk = inp.closest(".keyblk"), hint = blk && blk.querySelector(".keyblk-hint");
     const editing = !k || mode[p] === "edit";
+    if(blk){ blk.classList.remove("ky-st-ok", "ky-st-warn", "ky-st-bad"); if(k && !editing){ const sc = badge(k, tk).cls; if(sc === "ok" || sc === "warn" || sc === "bad") blk.classList.add("ky-st-" + sc); } }
     view.hidden = editing; ed.hidden = !editing; if(row) row.hidden = !editing; if(hint) hint.hidden = !editing;
     if(!editing){ view.replaceChildren(...viewKids(p, k)); if(inp.value) inp.value = ""; }    // a saved key is shown masked only: nothing the older code pre-filled stays in a hidden box
     const sv = $("kySave_" + p), cn = $("kyCancel_" + p);
@@ -11524,33 +11566,81 @@ const KY = (function(){
   function sigOf(kp){ return (kp.state || "") + ":" + (kp.keys || []).map(k => k.provider + "." + k.kind + "." + (k.scope || "")).join(","); }
   function readSeen(){ try{ return JSON.parse(localStorage.getItem(LS_SEEN) || "null"); }catch(_){ return null; } }
   function writeSeen(sig){ try{ localStorage.setItem(LS_SEEN, JSON.stringify({ sig, at:Date.now() })); }catch(_){} }
-  function reasonLine(k, sk){
-    const p = NAME[k.provider] || k.provider, rs = k.reset_at ? t(k.approx ? "rAbout" : "rReset", { when:fmtWhen(k.reset_at, sk) }) : "";
-    if(k.kind === "invalid") return t(k.expired ? "rExpired" : "rInvalid", { p });
-    if(k.kind === "forbidden") return t("rBlocked", { p });
-    if(k.kind === "needs_credit") return t("rCredit", { p });
+  /* What the learner sees: WHAT happened (an icon + a title + one plain sentence, with when it is back), TO WHICH key (a card per key: avatar, name, a coloured status, the detail), and ONE clear
+     next step. DOM-builder only (no innerHTML). */
+  const NS = "http://www.w3.org/2000/svg";
+  const ICONS = { clock:[["circle", { cx:12, cy:12, r:9 }], ["path", { d:"M12 7v5l3.2 2" }]], key:[["circle", { cx:8, cy:15, r:4 }], ["path", { d:"M11 12l8.5-8.5M16 7l3 3M14 9l2 2" }]] };
+  function svg(name){
+    const e = document.createElementNS(NS, "svg");
+    e.setAttribute("viewBox", "0 0 24 24"); e.setAttribute("aria-hidden", "true"); e.setAttribute("focusable", "false");
+    for(const [tag, attrs] of ICONS[name]){ const c = document.createElementNS(NS, tag); for(const k in attrs) c.setAttribute(k, attrs[k]); e.append(c); }
+    return e;
+  }
+  const AV = { groq:"G", gemini:"G", openrouter:"O" };
+  const needsFix = k => k.kind === "invalid" || k.kind === "forbidden";
+  function kbadge(k){
+    if(k.kind === "invalid") return { cls:"bad", txt:t(k.expired ? "stExpired" : "stInvalid") };
+    if(k.kind === "forbidden") return { cls:"bad", txt:t("stBlocked") };
+    if(k.kind === "needs_credit") return { cls:"warn", txt:t("stCredit") };
+    if(k.kind === "limited") return { cls:"warn", txt:t(k.scope === "minute" ? "stMinute" : k.scope === "upstream" ? "stBusy" : k.scope === "day" ? "stDay" : "stLimited") };
+    return { cls:"unk", txt:t("stBusy") };
+  }
+  function kdetail(k, sk){
+    if(k.kind === "invalid") return t(k.expired ? "dExpired" : "dInvalid");
+    if(k.kind === "forbidden") return t("dBlocked");
+    if(k.kind === "needs_credit") return t("dCredit");
     if(k.kind === "limited"){
-      if(k.scope === "upstream") return t("rUpstream", { p });
-      if(k.scope === "minute") return t("rMinute", { p });
-      return t(k.scope === "day" ? "rDay" : "rLimited", { p, reset:rs });
+      if(k.scope === "minute") return t("dMinute");
+      if(k.scope === "upstream") return t("dUpstream");
+      return k.reset_at ? t(k.approx ? "dLimitedAbout" : "dLimitedWhen", { when:fmtWhen(k.reset_at, sk) }) : t("dLimitedAuto");
     }
-    return t("rTransient", { p });
+    return t("dTransient");
+  }
+  // From the card's "Replace" button (or Fix my keys when exactly one key is the problem): the Keys screen, with THAT provider's box already open for a new key.
+  function fixKey(p){
+    closeSheet();
+    try{ navTo("/keys"); }catch(_){ show("keys"); loadKeysUI(); }
+    let tries = 0;
+    const go = () => {
+      if(currentScreen() === "keys" && $("kyb_" + p)){      // onOpen() has drawn the screen (it clears every "edit" state when it opens, so this must come after it)
+        mode[p] = "edit"; msg(p, ""); paintBlock(p);
+        const i = $(FIELD[p]); if(i){ i.value = ""; try{ i.focus(); i.scrollIntoView({ block:"center" }); }catch(_){} }
+      } else if(tries++ < 20) setTimeout(go, 150);
+    };
+    setTimeout(go, 200);
   }
   function paintSheet(kp){
     const sh = $("kySheet"); if(!sh) return;
     const sk = kp.now ? kp.now * 1000 - Date.now() : skew();
-    const st = kp.state, title = st === "all_invalid" ? t("popInvalid") : st === "all_limited" ? t("popLimited") : st === "no_keys" ? t("popNone") : t("popDegraded");
-    const bad = (kp.keys || []).filter(k => k.kind !== "transient");
-    const anyLimited = (kp.keys || []).some(k => k.kind === "limited" || k.kind === "needs_credit");
+    const st = kp.state, all = kp.keys || [], bad = all.filter(k => k.kind !== "transient"), rows = bad.length ? bad : all;
+    const fixes = rows.filter(needsFix), limits = rows.filter(k => k.kind === "limited" || k.kind === "needs_credit");
+    const title = st === "no_keys" ? t("popNone") : (st === "all_invalid" || (fixes.length && limits.length && st !== "degraded")) ? t("popInvalid") : st === "all_limited" ? t("popLimited") : t("popDegraded");
+    const sev = st === "no_keys" ? "info" : fixes.length ? "bad" : limits.length ? "warn" : "info";
+    const resets = limits.filter(k => k.reset_at && k.scope !== "minute" && k.scope !== "upstream").map(k => k.reset_at);
+    const sub = st === "no_keys" ? t("popSubNone")
+      : st === "degraded" ? t("popSubDegraded")
+      : fixes.length && limits.length ? t("popSubMixed")
+      : fixes.length ? t(fixes.length > 1 ? "popSubInvalidN" : "popSubInvalid1")
+      : resets.length ? t("popSubLimitedWhen", { when:fmtWhen(Math.min(...resets), sk) }) : t("popSubLimited");
+    const row = k => {
+      const b = kbadge(k), p = k.provider, nm = NAME[p] || p;
+      return h("li", { class:"ky-k " + b.cls },
+        h("span", { class:"ky-av ky-av-" + p, "aria-hidden":"true", text:AV[p] || "?" }),
+        h("div", { class:"ky-kb" }, h("div", { class:"ky-kt" }, h("b", { text:nm }), h("span", { class:"ky-chip " + b.cls, text:b.txt })), h("p", { class:"ky-kd", text:kdetail(k, sk) })),
+        needsFix(k) ? h("button", { type:"button", class:"ky-rep", "aria-label":t("popRowReplace") + " " + nm, onclick:() => fixKey(p), text:t("popRowReplace") }) : null);
+    };
     const kids = [
-      h("div", { class:"ky-head" }, h("h3", { id:"kyTitle", tabindex:"-1", text:title }), h("button", { type:"button", class:"ky-x", "aria-label":t("close"), text:"✕", onclick:closeSheet })),
-      h("p", { class:"ky-pop-intro", text:t("popIntro") }),
-      h("ul", { class:"ky-pop-list" }, ...(bad.length ? bad : kp.keys || []).map(k => h("li", { text:reasonLine(k, sk) })))
+      h("span", { class:"ky-grab", "aria-hidden":"true" }),
+      h("div", { class:"ky-hero " + sev },
+        h("span", { class:"ky-ico", "aria-hidden":"true" }, svg(sev === "warn" ? "clock" : "key")),
+        h("div", { class:"ky-ht" }, h("h3", { id:"kyTitle", tabindex:"-1", text:title }), h("p", { class:"ky-sub", text:sub })),
+        h("button", { type:"button", class:"ky-x", "aria-label":t("close"), text:"✕", onclick:closeSheet })),
+      h("ul", { class:"ky-pop-list" }, ...rows.map(row))
     ];
-    if(anyLimited) kids.push(h("p", { class:"ky-pop-why", text:t("popWhy") }));
+    if(limits.length) kids.push(h("p", { class:"ky-pop-why", text:t("popWhy") }));
     kids.push(h("div", { class:"ky-pop-acts" },
-      h("button", { type:"button", class:"btn primary", onclick:() => { closeSheet(); try{ navTo("/keys"); }catch(_){ show("keys"); loadKeysUI(); } }, text:t("popFix") }),
-      anyLimited ? h("button", { type:"button", class:"btn ghost", onclick:() => { closeSheet(); try{ navTo("/subscribe"); }catch(_){} }, text:t("popPlans") }) : null,
+      h("button", { type:"button", class:"btn primary", onclick:() => { if(fixes.length === 1 && !limits.length) fixKey(fixes[0].provider); else { closeSheet(); try{ navTo("/keys"); }catch(_){ show("keys"); loadKeysUI(); } } }, text:t("popFix") }),
+      limits.length ? h("button", { type:"button", class:"btn ghost", onclick:() => { closeSheet(); try{ navTo("/subscribe"); }catch(_){} }, text:t("popPlans") }) : null,
       h("button", { type:"button", class:"btn ghost", onclick:closeSheet, text:t("popLater") })));
     sh.replaceChildren(...kids);
   }
