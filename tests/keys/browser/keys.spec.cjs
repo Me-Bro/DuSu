@@ -321,9 +321,12 @@ async function fresh(browser, who, o = {}) {
     T.has(await txt(p, '#kySheet .ky-sub'), 'It should be back', 'the one-line summary says when it is back');
     T.ok(/Your chats are safe/.test(await txt(p, '#kySheet .ky-sub')), '... and that nothing is lost');
     T.eq(await p.evaluate(() => [document.querySelector('#kySheet .ky-hero').className, !!document.querySelector('#kySheet .ky-ico svg')]), ['ky-hero warn', true], 'an amber hero with an icon for a limit');
-    T.ok(/paid plans/.test(await txt(p, '#kySheet')), 'and the one-line reason: free keys have daily limits, paid plans remove them');
+    const full = await txt(p, '#kySheet');
+    T.ok(/free version . free keys/i.test(await txt(p, '#kySheet .ky-tag')), 'a tag says plainly: Free version, Free keys');
+    T.ok(/free version with free AI keys/.test(full) && /daily limits/.test(full) && /can stop working/.test(full), 'and one sentence says what that means: free keys have daily limits and can stop working');
+    T.ok(/Better practice with a DuSu plan/.test(full) && /no keys to find, paste or fix/.test(full), 'and a plan card says what a plan gives: more practice, no keys to manage');
     const btns = await p.evaluate(() => [...document.querySelectorAll('#kySheet .ky-pop-acts .btn')].map(e => e.textContent));
-    T.eq(btns, ['Fix my keys', 'See plans', 'Later'], 'buttons: Fix my keys, See plans, Later');
+    T.eq(btns, ['See plans', 'My keys', 'Later'], 'a limit is not a broken key: See plans first, then My keys, then Later');
     T.ok(!/Settings/.test(await txt(p, '#kySheet')) && !/WhatsApp/i.test(await txt(p, '#kySheet')), 'no "Settings" (it does not exist) and no WhatsApp link (a learner could paste a key there)');
     T.ok(!/Your API keys hit their limit/.test(await notif(p)) || !(await vis(p, '#notifBar')), 'the notification bar does not repeat the pop-up');
     // the same news again: one pop-up, repainted
@@ -347,14 +350,14 @@ async function fresh(browser, who, o = {}) {
     T.eq([r.status, r.detail, r.kp], [429, 'quota', true], 'an HTTP 429 body still reaches the caller untouched (status, detail, kp) - the fetch wrapper only LOOKS');
     T.ok(await until(() => sheetOn(p), 15000), 'and the same error opens the pop-up (one place covers every HTTP site)');
     // buttons
-    await p.click('#kySheet .ky-pop-acts .btn:first-child');
-    T.ok(await until(async () => (await screen(p)) === 'keys'), 'Fix my keys goes to the Keys screen');
+    await p.click('#kySheet .ky-pop-acts .btn:nth-child(2)');
+    T.ok(await until(async () => (await screen(p)) === 'keys'), 'My keys goes to the Keys screen');
     T.ok(!(await sheetOn(p)), '... and closes the pop-up');
     await behave('groq', 'limited'); await behave('gemini', 'limited');
     await p.evaluate(() => KY.problem({ state: 'all_limited', now: Math.floor(Date.now() / 1000), keys: [{ provider: 'groq', kind: 'limited', scope: 'minute' }, { provider: 'gemini', kind: 'limited', scope: 'day' }, { provider: 'openrouter', kind: 'limited', scope: 'upstream' }] }));
     await sleep(500);
     T.ok(await sheetOn(p), 'another problem opens it again');
-    await p.click('#kySheet .ky-pop-acts .btn:nth-child(2)');
+    await p.click('#kySheet .ky-pop-acts .btn:first-child');
     T.ok(await until(async () => (await screen(p)) === 'subscribe'), 'See plans goes to the plans page');
     await c.close();
   }
@@ -381,6 +384,78 @@ async function fresh(browser, who, o = {}) {
     await c.close();
   }
   {
+    // the free version's own limits and an unnamed limit: the bottom pop-up (with See plans), never the small banner at the top
+    await reset();
+    const SRSTUB = "class X { start(){} stop(){} abort(){} } window.SpeechRecognition = X; window.webkitSpeechRecognition = X;";
+    const { c, p } = await fresh(browser, 'dev', { lang: 'en', init: SRSTUB });
+    await sleep(900);
+    const bannerUp = () => p.evaluate(() => { const b = document.getElementById('notifBar'); return !!b && !b.hidden && getComputedStyle(b).display !== 'none'; });
+    const kinds = async () => p.evaluate(() => ({ title: document.getElementById('kyTitle').textContent, sub: document.querySelector('#kySheet .ky-sub').textContent, tag: document.querySelector('#kySheet .ky-tag').textContent,
+      rows: document.querySelectorAll('#kySheet .ky-pop-list li').length, note: !!document.querySelector('#kySheet .ky-note'), plan: !!document.querySelector('#kySheet .ky-plan'),
+      btns: [...document.querySelectorAll('#kySheet .ky-pop-acts .btn')].map(e => e.textContent) }));
+    // 1 the server's daily free limit (WebSocket frame quota_exceeded)
+    await p.evaluate(() => onMessage({ data: JSON.stringify({ type: 'quota_exceeded', left: 0, limit: 5, trial_over: false }) }));
+    T.ok(await until(() => sheetOn(p), 8000), 'quota_exceeded (the free daily limit) opens the pop-up');
+    let k = await kinds();
+    T.eq([k.title, k.tag, k.rows, k.note, k.plan, k.btns], ["You've used today's free practice", 'Free version', 0, false, true, ['See plans', 'Later']], 'its title, the "Free version" tag, no key rows, the plan card, and just See plans / Later');
+    T.has(k.sub, 'The free version allows 5 turns a day', 'the summary says what the free version allows');
+    T.ok(!(await bannerUp()), 'and the small banner at the top is NOT shown');
+    T.ok((await screen(p)) !== 'subscribe', 'nor is the learner thrown onto the plans page');
+    await p.click('#kySheet .ky-pop-acts .btn:first-child');
+    T.ok(await until(async () => (await screen(p)) === 'subscribe'), 'See plans goes to the plans page');
+    await p.evaluate(() => { navTo('/'); });
+    await sleep(500);
+    // 2 the free trial is over
+    await p.evaluate(() => onMessage({ data: JSON.stringify({ type: 'quota_exceeded', left: 0, limit: 5, trial_over: true }) }));
+    T.ok(await until(() => sheetOn(p), 8000), 'a finished trial opens the pop-up too');
+    k = await kinds();
+    T.eq([k.title, k.sub], ['Your free trial has ended', 'Choose a plan to keep practising with DuSu.'], 'with its own title and summary');
+    await p.click('#kySheet .ky-pop-acts .btn:last-child'); await sleep(400);
+    // 3 today's free sessions are used up (checked when a chat is started)
+    await p.evaluate(() => { window.isUnlimited = () => false; localStorage.setItem('dusu_usage', JSON.stringify({ d: new Date().toISOString().slice(0, 10), n: 9999 })); chooseMode('conversation'); });
+    T.ok(await until(() => sheetOn(p), 8000), "starting a chat when today's free sessions are used up opens the pop-up");
+    k = await kinds();
+    T.eq([k.title, k.btns], ["You've used today's free practice", ['See plans', 'Later']], 'the same wording');
+    T.ok(/free version has a daily limit \(\d+ sessions\)/.test(k.sub), 'and the number of sessions the free version allows (' + k.sub + ')');
+    T.ok(!(await bannerUp()), 'no banner');
+    T.ok((await screen(p)) !== 'session', 'and no chat was started');
+    await p.click('#kySheet .ky-pop-acts .btn:last-child'); await sleep(400);
+    await p.evaluate(() => { localStorage.removeItem('dusu_usage'); delete window.isUnlimited; });
+    // 4 a `quota` frame that names no key: a generic pop-up, not the banner
+    await p.evaluate(() => onMessage({ data: JSON.stringify({ type: 'quota', msg: 'rate limit' }) }));
+    T.ok(await until(() => sheetOn(p), 8000), 'a `quota` frame with no key named opens a generic pop-up');
+    k = await kinds();
+    T.eq([k.title, k.tag, k.rows, k.note, k.plan, k.btns], ['Your free AI limit is used up for now', 'Free version · Free keys', 0, true, true, ['See plans', 'My keys', 'Later']], 'free-version / free-keys wording, the note, the plan card, See plans first');
+    T.ok(!(await bannerUp()), 'no banner');
+    await p.click('#kySheet .ky-pop-acts .btn:last-child'); await sleep(400);
+    // 5 an HTTP 429 with no `kp` in its body (a lesson / level-test call)
+    await p.evaluate(() => limitPopup(new Response(JSON.stringify({ detail: 'quota' }), { status: 429, headers: { 'Content-Type': 'application/json' } }), 'old banner text'));
+    T.ok(await until(() => sheetOn(p), 8000), 'an HTTP 429 with no `kp` opens the generic pop-up');
+    T.ok(!(await bannerUp()), 'no banner');
+    await p.click('#kySheet .ky-pop-acts .btn:last-child'); await sleep(400);
+    // 6 Hindi
+    await setLang('dev', 'hi');
+    await p.evaluate(() => { LG.set('hi'); });
+    await p.evaluate(() => onMessage({ data: JSON.stringify({ type: 'quota_exceeded', left: 0, limit: 5, trial_over: false }) }));
+    T.ok(await until(() => sheetOn(p), 8000), 'Hindi: the pop-up opens');
+    const hiText = await txt(p, '#kySheet');
+    T.ok(/[ऀ-ॿ]/.test(hiText) && /Free version/.test(hiText) && /plan/.test(hiText), 'in Devanagari, with "Free version" and "plan"');
+    T.ok(!/\b(रहे हो|सकते हो|बोलोगे)\b/.test(hiText), 'and no gendered forms toward the learner');
+    await p.click('#kySheet .ky-pop-acts .btn:last-child'); await sleep(400);
+    await setLang('dev', 'en');
+    await c.close();
+    // with the key screens OFF the old behaviour is untouched: the top notice and the plans page
+    await reset({ keys_ui: 'off' });
+    const o = await fresh(browser, 'dev', { lang: 'en', init: SRSTUB });
+    await sleep(900);
+    await o.p.evaluate(() => onMessage({ data: JSON.stringify({ type: 'quota_exceeded', left: 0, limit: 5, trial_over: false }) }));
+    await sleep(900);
+    T.ok(!(await sheetOn(o.p)), 'screens off: no pop-up');
+    T.ok(await until(async () => (await screen(o.p)) === 'subscribe', 5000), 'screens off: the old behaviour - straight to the plans page');
+    await o.c.close();
+    await reset({ keys_ui: 'on' });
+  }
+  {
     // "Replace" on a rejected key's card opens THAT key's box on the Keys screen
     await reset();
     const { c, p } = await fresh(browser, 'tester', { lang: 'en' });
@@ -390,6 +465,8 @@ async function fresh(browser, who, o = {}) {
     T.eq(await p.evaluate(() => document.querySelector('#kySheet .ky-rep').getAttribute('aria-label')), 'Replace Gemini', 'the Replace button names its key (for a screen reader)');
     T.eq(await txt(p, '#kyTitle'), 'One of your keys needs attention', 'one key down, the others fine: a calm headline');
     T.ok(/keeps going on your other key/.test(await txt(p, '#kySheet .ky-sub')), '... and the summary says DuSu keeps going on the other key');
+    T.eq(await p.evaluate(() => [...document.querySelectorAll('#kySheet .ky-pop-acts .btn')].map(e => e.textContent)), ['Fix my keys', 'See plans', 'Later'], 'a rejected key: Fix my keys first, See plans second');
+    T.ok(/free version with free AI keys/.test(await txt(p, '#kySheet')) && /Better practice with a DuSu plan/.test(await txt(p, '#kySheet')), 'the free-version note and the plan card are there too');
     await p.click('#kySheet .ky-rep');
     T.ok(await until(async () => (await screen(p)) === 'keys'), 'Replace goes to the Keys screen');
     T.ok(await until(() => p.evaluate(() => !!document.activeElement && document.activeElement.id === 'kGemini'), 6000), 'with the Gemini box open and focused');

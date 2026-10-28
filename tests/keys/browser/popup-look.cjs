@@ -25,16 +25,19 @@ const STATES = {
       const c = await ctxFor(browser, 'ph', { lang, viewport: vp, seed: { dusu_tutorial_seen: '1' } });
       const p = await boot(c, '/');
       await sleep(900);
-      for (const [name, mk] of Object.entries(STATES)) {
-        if (vl !== '390' && !['limited', 'mixed'].includes(name)) continue;
-        if (ll === 'hi' && !['limited', 'invalid'].includes(name)) continue;
+      const PLANS = { planDaily: () => KY.plan('daily', { limit: 5 }), planTrial: () => KY.plan('trial', {}), planSessions: () => KY.plan('sessions', { limit: 20 }), generic: () => KY.generic() };
+      for (const [name, mk] of Object.entries(Object.assign({}, STATES, PLANS))) {
+        if (vl !== '390' && !['limited', 'mixed', 'planDaily'].includes(name)) continue;
+        if (ll === 'hi' && !['limited', 'invalid', 'planDaily', 'planTrial'].includes(name)) continue;
         await p.evaluate(() => { try { localStorage.removeItem('dusu_ky_seen'); } catch (e) {} KY.closeSheet(); });
-        await p.evaluate(kp => KY.problem(kp), mk());
+        if (name in PLANS) await p.evaluate(`(${PLANS[name].toString()})()`); else await p.evaluate(kp => KY.problem(kp), mk());
         await sleep(650);
         T.ok(await vis(p, '#kySheet.on'), `${vl}/${ll}/${name}: the pop-up is open`);
         const r = await p.evaluate(() => { const sh = document.getElementById('kySheet'), b = sh.getBoundingClientRect(); return { inside: b.left >= -1 && b.right <= innerWidth + 1 && b.top >= -1 && b.bottom <= innerHeight + 1, overflowX: sh.scrollWidth > sh.clientWidth + 1,
           small: [...sh.querySelectorAll('button')].filter(x => { const q = x.getBoundingClientRect(); return q.width < 40 || q.height < 40; }).map(x => x.textContent) }; });
         T.ok(r.inside && !r.overflowX, `${vl}/${ll}/${name}: fits the screen, nothing overflows`);
+        const reach = await p.evaluate(() => { const b = document.querySelector('#kySheet .ky-pop-acts .btn.primary'); if (!b) return null; const q = b.getBoundingClientRect(); return q.top >= 0 && q.bottom <= innerHeight + 1; });
+        T.ok(reach === true, `${vl}/${ll}/${name}: the main button is on screen without scrolling`);
         T.eq(r.small, [], `${vl}/${ll}/${name}: every control is at least 40 x 40`);
         await shot(p, `look-${vl}-${ll}-${name}`);
         await p.keyboard.press('Escape'); await sleep(300);

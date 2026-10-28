@@ -133,7 +133,7 @@ const order = log => log.map(e => e[0]);
   T.section('7 - versions and caching');
   {
     const w = load();
-    T.has(SRC, 'const CACHE = "dusu-v36"', 'the cache moved on (v33 = the install icons + manifest id, v34 = the locked-screen fix for Daily / Learn, v35 = the same for the other chats, v36 = the redrawn key pop-up): old shells and the old manifest are dropped on activate');
+    T.has(SRC, 'const CACHE = "dusu-v37"', 'the cache moved on (v33 = the install icons + manifest id, v34 = the locked-screen fix for Daily / Learn, v35 = the same for the other chats, v36 = the redrawn key pop-up, v37 = free-version limits in the pop-up): old shells and the old manifest are dropped on activate');
     T.has(SRC, 'CACHEABLE_PREFIXES = ["/logo.png", "/manifest.webmanifest", "/assets/"]', 'static icons stay cache-first (they have versioned names)');
     T.ok(!/\/keys|\/notify|\/planner|\/me/.test(/CACHEABLE_PREFIXES = \[[^\]]*\]/.exec(SRC)[0]), 'per-user endpoints (/keys, /notify, /planner, /me) are never cached');
     T.ok(typeof w.handlers.install === 'function' && typeof w.handlers.activate === 'function' && typeof w.handlers.fetch === 'function', 'install, activate and fetch handlers are all still registered');

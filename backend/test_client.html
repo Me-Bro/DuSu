@@ -2020,8 +2020,17 @@
   .ky-rep{ flex:none; min-width:68px; min-height:40px; padding:0 14px; border-radius:12px; font:inherit; font-size:13px; font-weight:600; color:var(--ink); cursor:pointer;
     background:linear-gradient(135deg,rgba(111,140,255,.28),rgba(122,92,240,.2)); border:1px solid color-mix(in srgb,var(--gold) 45%,transparent); }
   .ky-rep:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:2px; }
-  .ky-pop-why{ margin:0 0 14px; padding:0 2px; font-size:12.5px; line-height:1.5; color:var(--ink-faint); }
-  .ky-pop-acts{ display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+  .ky-tag{ display:inline-block; margin:0 0 7px; padding:3px 10px; border-radius:99px; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--gold-lt); background:rgba(111,140,255,.14); border:1px solid color-mix(in srgb,var(--gold) 42%,transparent); }
+  .ky-note{ margin:0 0 12px; padding:0 2px; font-size:13px; line-height:1.5; color:var(--ink-dim); }
+  .ky-plan{ display:flex; align-items:flex-start; gap:12px; margin:0 0 14px; padding:13px 14px; border-radius:16px;
+    background:linear-gradient(135deg,rgba(111,140,255,.17),rgba(122,92,240,.10)); border:1px solid color-mix(in srgb,var(--gold) 52%,transparent); }
+  .ky-plan-ic{ flex:none; display:grid; place-items:center; width:38px; height:38px; border-radius:12px; color:var(--gold-lt); background:rgba(255,255,255,.07); border:1px solid color-mix(in srgb,var(--gold) 45%,transparent); }
+  .ky-plan-ic svg{ width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .ky-plan b{ display:block; font-family:var(--font-d); font-size:16.5px; font-weight:600; margin:1px 0 3px; }
+  .ky-plan p{ margin:0; font-size:13px; line-height:1.5; color:var(--ink-dim); }
+  .ky-pop-acts{ position:sticky; bottom:0; z-index:2; display:flex; flex-wrap:wrap; gap:8px; margin:6px -18px calc(-22px - env(safe-area-inset-bottom)); padding:14px 18px calc(22px + env(safe-area-inset-bottom));
+    background:linear-gradient(180deg,rgba(12,17,32,0),#0c1120 26%); }   /* always in reach: on a small phone with three key cards the buttons stay at the bottom of the sheet */
   .ky-pop-acts .btn{ flex:1 1 calc(50% - 4px); min-height:46px; }
   .ky-pop-acts .btn.primary{ flex:1 1 100%; min-height:50px; font-size:16px; }
   .inst-sheet .btn, .cm-sheet .btn{ flex:1 1 130px; min-height:46px; }
@@ -2053,6 +2062,7 @@
       transition:transform .28s cubic-bezier(.2,.7,.2,1), opacity .2s ease, visibility 0s linear .28s; }
     .ky-sheet.on, .inst-sheet.on, .cm-sheet.on{ transform:translate(-50%,-50%) scale(1); opacity:1; }
     .ky-grab{ display:none; }
+    .ky-pop-acts{ margin:6px -24px -26px; padding:14px 24px 26px; }
     #moreHome > #kyCard, #moreHome > #ntPrompt, #moreHome > #instPrompt, #moreHome > #waPrompt{ max-width:780px; margin-left:auto; margin-right:auto; }
   }
   @media (prefers-reduced-motion:reduce){ .ky-sheet, .ky-bg, .inst-sheet, .inst-bg, .cm-sheet, .cm-bg{ transition:none; } .ky-sheet.on .ky-k{ animation:none; } }
@@ -5462,7 +5472,7 @@ function startSession(mode){
   if(guardKeys()) return;   // no verified own keys → keys screen (covers direct callers, not just chooseMode)
   if(!SR){ showNotif(lgt("needChrome")); return; }
   if(overLimit()){
-    showNotif(lgt("limitReached", { n: MAX_SESSIONS }));
+    limitNote();
     return;
   }
   currentMode = mode;
@@ -5683,7 +5693,7 @@ function onMessage(ev){
     case "quota": running=false; try{stopListening();}catch(_){};
       if(currentMode === "daily") dailyPendingMe = null; else if(currentMode === "learning") learnPending = "";   // nothing is on its way any more: a pause must not wait for it
       // With the key pop-up on, IT tells the learner (and says which key and when it resets); the notification bar would only repeat it.
-      if(!(m.kp && window.KY && KY.active())) showNotif(m.msg || lgt("keysLimit"));
+      if(!(m.kp && window.KY && KY.active()) && !(window.KY && KY.generic())) showNotif(m.msg || lgt("keysLimit"));   // a limit is told by the pop-up (a generic one when the server named no key); the top notice is only the fallback while the key screens are off
       // …and bring the orb out of "thinking", or its comet ring would orbit forever
       if(currentMode === "daily"){ dailyOrb("idle"); dState(lgt("dKeysLimit")); if(window.KY && KY.active()){ try{ dMic(true); }catch(_){} } }   // hand the mic back (it stayed dead)
       else if(currentMode === "learning" && window.KY && KY.active()){ try{ learnState(lgt("dKeysLimit")); micEnable(true); }catch(_){} }
@@ -5698,6 +5708,7 @@ function onMessage(ev){
       running=false; try{stopListening();}catch(_){}
       if(userState){ userState.requests_left = 0; if(m.trial_over) userState.trial_over = true; }
       try{ stopAllVoice(); }catch(_){}
+      if(window.KY && KY.plan(m.trial_over ? "trial" : "daily", { limit:m.limit || (userState && userState.request_limit) || 0 })) break;   // the free version's own limit: the pop-up, with See plans
       showNotif(m.trial_over ? "Your 20-day free trial has ended. Please subscribe to keep going."
                              : `Your daily free limit (${(userState&&userState.request_limit)||5}) is over. Please subscribe.`);
       openSubscribe(); break;
@@ -6037,7 +6048,7 @@ function startLearning(){
   if(guardKeys()) return;   // no verified own keys → keys screen (covers direct callers, not just chooseMode)
   if(!SR){ showNotif(lgt("needChromeShort")); return; }
   if(overLimit()){
-    showNotif(lgt("limitReached", { n: MAX_SESSIONS })); return;
+    limitNote(); return;
   }
   currentMode = "learning"; lastEnglish = ""; thinkHide();
   $("transCard").hidden = true; $("tcHindi").textContent = ""; $("tcEng").textContent = "";
@@ -6262,7 +6273,7 @@ function startDaily(from){
   if(guardKeys()) return;
   if(!SR){ showNotif(lgt("needChromeShort")); show("home"); return; }
   if(overLimit()){
-    showNotif(lgt("limitReached", { n: MAX_SESSIONS })); show("home"); return;
+    limitNote(); show("home"); return;
   }
   dailyFrom = from || "";
   dailyInputs = 0;   // count THIS session's inputs (resumed history must not trigger the reminder)
@@ -6806,7 +6817,7 @@ async function aLoadTest(){
     }
     else if(r.status === 402){ aActive = false; show("keys"); loadKeysUI();
       if($("keysStatus")) $("keysStatus").innerHTML = "🔒 Add 2 working API keys below to start the test."; return; }
-    else if(r.status === 429){ showNotif("Your API keys hit their limit — add or replace a key in More → DuSu keys."); }
+    else if(r.status === 429){ limitPopup(r, "Your API keys hit their limit — add or replace a key in More → DuSu keys."); }
   }catch(_){}   // any failure → static fallback questions below
   aGoal();
 }
@@ -6845,7 +6856,7 @@ async function aStartVoice(){
       if(d.think_hindi) aData.think_hindi = d.think_hindi;
       if(d.open) aData._open = d.open; }
     else if(r.status === 402){ aActive = false; show("keys"); loadKeysUI(); if($("keysStatus")) $("keysStatus").innerHTML = "🔒 Add your keys to start the test."; return; }
-    else if(r.status === 429){ showNotif("Your API keys hit their limit — add or replace a key."); }
+    else if(r.status === 429){ limitPopup(r, "Your API keys hit their limit — add or replace a key."); }
   }catch(_){}   // fall back to the built-in prompts on any failure
   aVoice(0);
 }
@@ -7969,6 +7980,13 @@ const MAX_SESSIONS = Number("__MAX_SESSIONS__") || 20;
 // Owner account(s) get unlimited sessions (no daily cap).
 const OWNER_EMAILS = ["david123rana@gmail.com"];
 function overLimit(){ return !isUnlimited() && usageGet().n >= MAX_SESSIONS; }
+// "You've used today's free sessions": the free version's own limit - the pop-up (with See plans); the old top notice only while the key screens are off.
+function limitNote(){ if(!(window.KY && KY.plan("sessions", { limit:MAX_SESSIONS }))) showNotif(lgt("limitReached", { n:MAX_SESSIONS })); }
+// An HTTP 429 from a lesson / level-test call: when the body names the keys (`kp`) the KY fetch wrapper already opened the pop-up; otherwise open a generic one (or, with the key screens off, the old top notice).
+function limitPopup(res, fallbackText){
+  if(!(window.KY && KY.active())){ showNotif(fallbackText); return; }
+  res.clone().json().then(d => { if(!(d && d.kp)) KY.generic(); }).catch(() => KY.generic());
+}
 function usageGet(){
   const today = new Date().toISOString().slice(0, 10);
   let u = JSON.parse(localStorage.getItem("dusu_usage") || "null");
@@ -9368,7 +9386,7 @@ const PR = (function(){
   function startTalk(cfg){
     if(guardKeys()) return;
     if(!SR){ showNotif(lgt("needChrome")); return; }
-    if(overLimit()){ showNotif(lgt("limitReached", { n: MAX_SESSIONS })); return; }
+    if(overLimit()){ limitNote(); return; }
     currentMode = "practice"; LG.setPracticeLang(cfg.lang);
     sessFrame = null; sessAway = 0; sessReviving = false; sessEnding = false; sessThen = ""; sessNeedsTap = false; try{ VP.clear(); }catch(_){}
     $("feed").innerHTML = ""; thinkHide();
@@ -9663,7 +9681,7 @@ const HM = (function(){
     o = o || {};
     if(!enabled()){ goHome(); return; }
     if(guardKeys()) return;
-    if(overLimit()){ showNotif(lgt("limitReached", { n: MAX_SESSIONS })); return; }
+    if(overLimit()){ limitNote(); return; }
     const L = lang(), t = T[L], g = greeting();
     const speaksFirst = !o.text;                                 // Start Speaking: DuSu says the greeting aloud, at once
     textMode = !SR || !!o.typed;
@@ -11237,7 +11255,12 @@ const KY = (function(){
       cardT:"Your AI keys", cardSub:"{w} working · {u}", cardTap:"Tap to manage your keys", cardFix:"Needs attention - tap to fix",
       chipLeft:"{n} left", chipAbout:"about {n} left",
       popInvalid:"Your AI keys need attention", popLimited:"Your free AI limit is used up for now", popDegraded:"One of your keys needs attention", popNone:"Add your AI keys",
-      popWhy:"Free keys have daily limits. DuSu is getting paid plans that remove them.",
+      popFreeTag:"Free version · Free keys", planTag:"Free version",
+      popFreeNote:"You're using DuSu's free version with free AI keys. Free keys have daily limits and can stop working without warning.",
+      planCardT:"Better practice with a DuSu plan", planCardP:"More practice every day, and no keys to find, paste or fix.",
+      planUsedT:"You've used today's free practice", planTrialT:"Your free trial has ended",
+      planSessionsS:"The free version has a daily limit ({n} sessions). It starts again tomorrow.", planDailyS:"The free version allows {n} turns a day. It starts again tomorrow.",
+      planTomorrowS:"The free version has a daily limit. It starts again tomorrow.", planTrialS:"Choose a plan to keep practising with DuSu.", popManage:"My keys",
       popFix:"Fix my keys", popPlans:"See plans", popLater:"Later", busy:"The AI is busy right now - your keys are fine. Please try again in a minute.",
       popSubLimitedWhen:"It should be back {when}. Your chats are safe.", popSubLimited:"It resets by itself. Your chats are safe.",
       popSubInvalid1:"DuSu can't use this key. Replace it and you're back in a minute.", popSubInvalidN:"DuSu can't use these keys. Replace them and you're back in a minute.",
@@ -11271,7 +11294,12 @@ const KY = (function(){
       cardT:"तुम्हारी AI keys", cardSub:"{w} चालू · {u}", cardTap:"Keys संभालने के लिए tap करो", cardFix:"ध्यान चाहिए - ठीक करने के लिए tap करो",
       chipLeft:"{n} बची", chipAbout:"लगभग {n} बची",
       popInvalid:"तुम्हारी AI keys को ध्यान चाहिए", popLimited:"अभी के लिए तुम्हारी free AI limit पूरी हो गई", popDegraded:"तुम्हारी एक key को ध्यान चाहिए", popNone:"अपनी AI keys जोड़ो",
-      popWhy:"Free keys की daily limit होती है। DuSu के paid plans आने वाले हैं, जिनमें ये limits नहीं होंगी।",
+      popFreeTag:"Free version · Free keys", planTag:"Free version",
+      popFreeNote:"अभी तुम्हारे पास DuSu का free version और free AI keys हैं। Free keys की daily limit होती है और ये बिना बताए बंद भी हो सकती हैं।",
+      planCardT:"DuSu plan से और बेहतर practice", planCardP:"रोज़ ज़्यादा practice, और keys ढूँढने, paste करने या ठीक करने का झंझट नहीं।",
+      planUsedT:"आज की free practice पूरी हो गई", planTrialT:"तुम्हारा free trial खत्म हो गया",
+      planSessionsS:"Free version में रोज़ की limit होती है ({n} sessions)। कल फिर से शुरू होगी।", planDailyS:"Free version में रोज़ {n} turns मिलते हैं। कल फिर से शुरू होंगे।",
+      planTomorrowS:"Free version में रोज़ की limit होती है। कल फिर से शुरू होगी।", planTrialS:"DuSu के साथ practice जारी रखने के लिए plan चुनो।", popManage:"मेरी keys",
       popFix:"मेरी keys ठीक करो", popPlans:"Plans देखो", popLater:"बाद में", busy:"अभी AI busy है - तुम्हारी keys ठीक हैं। एक मिनट बाद फिर कोशिश करो।",
       popSubLimitedWhen:"{when} वापस आ जाएगी। तुम्हारी chats सुरक्षित हैं।", popSubLimited:"ये अपने आप reset हो जाती है। तुम्हारी chats सुरक्षित हैं।",
       popSubInvalid1:"DuSu ये key use नहीं कर सकती। इसे बदल दो, एक मिनट में सब ठीक।", popSubInvalidN:"DuSu ये keys use नहीं कर सकती। इन्हें बदल दो, एक मिनट में सब ठीक।",
@@ -11563,13 +11591,14 @@ const KY = (function(){
   function paintAll(){ try{ paintKeys(); }catch(_){} try{ paintCard(); }catch(_){} }
 
   /* ---------- the pop-up ---------- */
-  function sigOf(kp){ return (kp.state || "") + ":" + (kp.keys || []).map(k => k.provider + "." + k.kind + "." + (k.scope || "")).join(","); }
+  function sigOf(kp){ if(kp.plan) return "plan:" + kp.plan; return (kp.generic ? "generic:" : "") + (kp.state || "") + ":" + (kp.keys || []).map(k => k.provider + "." + k.kind + "." + (k.scope || "")).join(","); }
   function readSeen(){ try{ return JSON.parse(localStorage.getItem(LS_SEEN) || "null"); }catch(_){ return null; } }
   function writeSeen(sig){ try{ localStorage.setItem(LS_SEEN, JSON.stringify({ sig, at:Date.now() })); }catch(_){} }
   /* What the learner sees: WHAT happened (an icon + a title + one plain sentence, with when it is back), TO WHICH key (a card per key: avatar, name, a coloured status, the detail), and ONE clear
      next step. DOM-builder only (no innerHTML). */
   const NS = "http://www.w3.org/2000/svg";
-  const ICONS = { clock:[["circle", { cx:12, cy:12, r:9 }], ["path", { d:"M12 7v5l3.2 2" }]], key:[["circle", { cx:8, cy:15, r:4 }], ["path", { d:"M11 12l8.5-8.5M16 7l3 3M14 9l2 2" }]] };
+  const ICONS = { clock:[["circle", { cx:12, cy:12, r:9 }], ["path", { d:"M12 7v5l3.2 2" }]], key:[["circle", { cx:8, cy:15, r:4 }], ["path", { d:"M11 12l8.5-8.5M16 7l3 3M14 9l2 2" }]],
+    star:[["path", { d:"M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.9l-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z" }]] };
   function svg(name){
     const e = document.createElementNS(NS, "svg");
     e.setAttribute("viewBox", "0 0 24 24"); e.setAttribute("aria-hidden", "true"); e.setAttribute("focusable", "false");
@@ -11609,19 +11638,28 @@ const KY = (function(){
     };
     setTimeout(go, 200);
   }
+  /* The free version's OWN limits (no key is at fault): today's free practice used up, the trial over, or "something is at its limit" when the server did not say which. */
+  function planKp(kind, info){ return { state:"plan_limit", plan:kind, limit:(info && info.limit) || null, keys:[], now:Math.floor(Date.now() / 1000) }; }
   function paintSheet(kp){
     const sh = $("kySheet"); if(!sh) return;
     const sk = kp.now ? kp.now * 1000 - Date.now() : skew();
-    const st = kp.state, all = kp.keys || [], bad = all.filter(k => k.kind !== "transient"), rows = bad.length ? bad : all;
-    const fixes = rows.filter(needsFix), limits = rows.filter(k => k.kind === "limited" || k.kind === "needs_credit");
-    const title = st === "no_keys" ? t("popNone") : (st === "all_invalid" || (fixes.length && limits.length && st !== "degraded")) ? t("popInvalid") : st === "all_limited" ? t("popLimited") : t("popDegraded");
-    const sev = st === "no_keys" ? "info" : fixes.length ? "bad" : limits.length ? "warn" : "info";
+    const isPlan = !!kp.plan, st = kp.state, all = kp.keys || [], bad = all.filter(k => k.kind !== "transient"), rows = bad.length ? bad : all;
+    const fixes = isPlan ? [] : rows.filter(needsFix), limits = isPlan ? [] : rows.filter(k => k.kind === "limited" || k.kind === "needs_credit");
     const resets = limits.filter(k => k.reset_at && k.scope !== "minute" && k.scope !== "upstream").map(k => k.reset_at);
-    const sub = st === "no_keys" ? t("popSubNone")
-      : st === "degraded" ? t("popSubDegraded")
-      : fixes.length && limits.length ? t("popSubMixed")
-      : fixes.length ? t(fixes.length > 1 ? "popSubInvalidN" : "popSubInvalid1")
-      : resets.length ? t("popSubLimitedWhen", { when:fmtWhen(Math.min(...resets), sk) }) : t("popSubLimited");
+    let title, sub, sev, icon = "clock";
+    if(isPlan){
+      sev = "warn"; title = t(kp.plan === "trial" ? "planTrialT" : "planUsedT"); if(kp.plan === "trial") icon = "star";
+      sub = kp.plan === "trial" ? t("planTrialS") : kp.plan === "sessions" ? t("planSessionsS", { n:kp.limit }) : kp.limit ? t("planDailyS", { n:kp.limit }) : t("planTomorrowS");
+    } else {
+      title = st === "no_keys" ? t("popNone") : (st === "all_invalid" || (fixes.length && limits.length && st !== "degraded")) ? t("popInvalid") : st === "all_limited" ? t("popLimited") : t("popDegraded");
+      sev = st === "no_keys" ? "info" : fixes.length ? "bad" : (limits.length || kp.generic) ? "warn" : "info";
+      sub = st === "no_keys" ? t("popSubNone")
+        : st === "degraded" ? t("popSubDegraded")
+        : fixes.length && limits.length ? t("popSubMixed")
+        : fixes.length ? t(fixes.length > 1 ? "popSubInvalidN" : "popSubInvalid1")
+        : resets.length ? t("popSubLimitedWhen", { when:fmtWhen(Math.min(...resets), sk) }) : t("popSubLimited");
+      icon = sev === "warn" ? "clock" : "key";
+    }
     const row = k => {
       const b = kbadge(k), p = k.provider, nm = NAME[p] || p;
       return h("li", { class:"ky-k " + b.cls },
@@ -11629,19 +11667,26 @@ const KY = (function(){
         h("div", { class:"ky-kb" }, h("div", { class:"ky-kt" }, h("b", { text:nm }), h("span", { class:"ky-chip " + b.cls, text:b.txt })), h("p", { class:"ky-kd", text:kdetail(k, sk) })),
         needsFix(k) ? h("button", { type:"button", class:"ky-rep", "aria-label":t("popRowReplace") + " " + nm, onclick:() => fixKey(p), text:t("popRowReplace") }) : null);
     };
+    const toPlans = () => { closeSheet(); try{ navTo("/subscribe"); }catch(_){} };
+    const toKeys = () => { closeSheet(); try{ navTo("/keys"); }catch(_){ show("keys"); loadKeysUI(); } };
+    const later = () => { closeSheet(); if(isPlan && kp.plan !== "sessions" && VOICE_SCREENS.has(currentScreen())){ try{ goHome(); }catch(_){} } };   // a chat that was refused cannot go on: back to Home
+    const fixFirst = !isPlan && (fixes.length > 0 || st === "no_keys");
     const kids = [
       h("span", { class:"ky-grab", "aria-hidden":"true" }),
       h("div", { class:"ky-hero " + sev },
-        h("span", { class:"ky-ico", "aria-hidden":"true" }, svg(sev === "warn" ? "clock" : "key")),
-        h("div", { class:"ky-ht" }, h("h3", { id:"kyTitle", tabindex:"-1", text:title }), h("p", { class:"ky-sub", text:sub })),
-        h("button", { type:"button", class:"ky-x", "aria-label":t("close"), text:"✕", onclick:closeSheet })),
-      h("ul", { class:"ky-pop-list" }, ...rows.map(row))
+        h("span", { class:"ky-ico", "aria-hidden":"true" }, svg(icon)),
+        h("div", { class:"ky-ht" }, h("span", { class:"ky-tag", text:t(isPlan ? "planTag" : "popFreeTag") }), h("h3", { id:"kyTitle", tabindex:"-1", text:title }), h("p", { class:"ky-sub", text:sub })),
+        h("button", { type:"button", class:"ky-x", "aria-label":t("close"), text:"✕", onclick:closeSheet }))
     ];
-    if(limits.length) kids.push(h("p", { class:"ky-pop-why", text:t("popWhy") }));
+    if(rows.length) kids.push(h("ul", { class:"ky-pop-list" }, ...rows.map(row)));
+    if(!isPlan) kids.push(h("p", { class:"ky-note", text:t("popFreeNote") }));
+    kids.push(h("div", { class:"ky-plan" }, h("span", { class:"ky-plan-ic", "aria-hidden":"true" }, svg("star")), h("div", {}, h("b", { text:t("planCardT") }), h("p", { text:t("planCardP") }))));
     kids.push(h("div", { class:"ky-pop-acts" },
-      h("button", { type:"button", class:"btn primary", onclick:() => { if(fixes.length === 1 && !limits.length) fixKey(fixes[0].provider); else { closeSheet(); try{ navTo("/keys"); }catch(_){ show("keys"); loadKeysUI(); } } }, text:t("popFix") }),
-      limits.length ? h("button", { type:"button", class:"btn ghost", onclick:() => { closeSheet(); try{ navTo("/subscribe"); }catch(_){} }, text:t("popPlans") }) : null,
-      h("button", { type:"button", class:"btn ghost", onclick:closeSheet, text:t("popLater") })));
+      isPlan ? h("button", { type:"button", class:"btn primary", onclick:toPlans, text:t("popPlans") })
+      : fixFirst ? h("button", { type:"button", class:"btn primary", onclick:() => { if(fixes.length === 1 && !limits.length) fixKey(fixes[0].provider); else toKeys(); }, text:t("popFix") })
+      : h("button", { type:"button", class:"btn primary", onclick:toPlans, text:t("popPlans") }),
+      isPlan ? null : fixFirst ? h("button", { type:"button", class:"btn ghost", onclick:toPlans, text:t("popPlans") }) : h("button", { type:"button", class:"btn ghost", onclick:toKeys, text:t("popManage") }),
+      h("button", { type:"button", class:"btn ghost", onclick:later, text:t("popLater") })));
     sh.replaceChildren(...kids);
   }
   function openSheet(kp){
@@ -11669,6 +11714,10 @@ const KY = (function(){
     refreshStatus(true);                                                                // the card and the screen catch up with what just happened
     return true;
   }
+  /* The free version's own limits, and "something is at its limit" without a cause. Both return false while the key screens are off (the caller then keeps the old top notice). They are shown every time:
+     the learner has just tried something and been refused, so a silent no-op would look like a dead button. */
+  function plan(kind, info){ if(!active()) return false; const kp = planKp(kind, info); if(isOpen) paintSheet(kp); else openSheet(kp); return true; }
+  function generic(){ if(!active()) return false; const kp = { state:"all_limited", generic:true, keys:[], now:Math.floor(Date.now() / 1000) }; if(isOpen) paintSheet(kp); else openSheet(kp); return true; }
   /* On Home load: a key that died while the learner was away is explained BEFORE they start, not after a failed turn. */
   function sync(){
     if(!active()){ teardown(); const el = $("kyCard"); if(el){ el.hidden = true; el.replaceChildren(); } try{ ARB.report("key", false); }catch(_){} return; }
@@ -11717,7 +11766,7 @@ const KY = (function(){
       return p;
     };
   }
-  return { active, problem, sync, onOpen, paintKeys, paintCard, refreshStatus, reset, closeSheet, _txt:TXT };
+  return { active, problem, plan, generic, sync, onOpen, paintKeys, paintCard, refreshStatus, reset, closeSheet, _txt:TXT };
 })();
 window.KY = KY;
 
