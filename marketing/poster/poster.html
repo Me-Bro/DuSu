@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<title>DuSu — पोस्टर (A4)</title>
+<!--
+  A4 poster, 210 x 297 mm trim + 3 mm bleed = 216 x 303 mm page.
+  Text and the QR stay >= 8 mm inside the trim (11 mm from the page edge).
+  Add ?guides to the URL to draw the trim (red) and safe (green) lines for checking.
+  The QR is inlined by build.sh from qr.svg (placeholder: <!--QR-->).
+-->
+<style>
+  @font-face { font-family:"Baloo2"; src:url("fonts/Baloo2-ExtraBold.ttf") format("truetype"); font-weight:800; }
+  @font-face { font-family:"Baloo2"; src:url("fonts/Baloo2-Bold.ttf") format("truetype"); font-weight:700; }
+  @font-face { font-family:"Mukta"; src:url("fonts/Mukta-Regular.ttf") format("truetype"); font-weight:400; }
+  @font-face { font-family:"Mukta"; src:url("fonts/Mukta-Medium.ttf") format("truetype"); font-weight:500; }
+  @font-face { font-family:"Mukta"; src:url("fonts/Mukta-SemiBold.ttf") format("truetype"); font-weight:600; }
+  @font-face { font-family:"Mukta"; src:url("fonts/Mukta-Bold.ttf") format("truetype"); font-weight:700; }
+  @font-face { font-family:"Mukta"; src:url("fonts/Mukta-ExtraBold.ttf") format("truetype"); font-weight:800; }
+
+  @page { size:216mm 303mm; margin:0; }
+  :root{
+    --bg0:#060914; --bg1:#0a1030; --bg2:#101a4a;
+    --cyan:#35c7ff; --blue:#6f8cff; --violet:#8a5cff; --amber:#ffb23f; --orange:#ff8a3d;
+    --ink:#f3ecd8; --ink2:#c9d2f2;
+    --grad:linear-gradient(100deg,#35c7ff 0%,#6f8cff 38%,#8a5cff 68%,#ffb23f 100%);
+    --hi:"Baloo2","Mukta",sans-serif; --body:"Mukta","Baloo2",sans-serif;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ width:216mm; height:303mm; background:var(--bg0); }
+  body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; font-family:var(--body); color:var(--ink); }
+
+  .page{ position:relative; width:216mm; height:303mm; overflow:hidden;
+    background:
+      radial-gradient(120mm 95mm at 6% 4%, rgba(53,199,255,.30), transparent 70%),
+      radial-gradient(110mm 90mm at 100% 36%, rgba(138,92,255,.30), transparent 70%),
+      radial-gradient(120mm 90mm at 92% 100%, rgba(255,138,61,.22), transparent 72%),
+      radial-gradient(100mm 80mm at 0% 78%, rgba(63,90,230,.28), transparent 72%),
+      linear-gradient(170deg,var(--bg1),var(--bg0) 62%); }
+  /* faint dot grid + sound-wave arcs for depth */
+  .dots{ position:absolute; inset:0; opacity:.5;
+    background-image:radial-gradient(rgba(255,255,255,.16) .28mm, transparent .32mm);
+    background-size:7mm 7mm;
+    -webkit-mask-image:linear-gradient(180deg,#000 0,transparent 38%,transparent 62%,#000 100%);
+            mask-image:linear-gradient(180deg,#000 0,transparent 38%,transparent 62%,#000 100%); }
+  .arcs{ position:absolute; right:-52mm; top:128mm; width:150mm; height:150mm; border-radius:50%;
+    border:.5mm solid rgba(138,92,255,.30);
+    box-shadow:0 0 0 12mm rgba(138,92,255,.05), 0 0 0 26mm rgba(53,199,255,.04), 0 0 0 40mm rgba(255,178,63,.03); }
+
+  .safe{ position:absolute; left:11mm; right:11mm; top:11mm; bottom:11mm; display:flex; flex-direction:column; }
+
+  /* ---- header ---- */
+  .head{ display:flex; flex-direction:column; align-items:center; }
+  .logo{ width:31mm; height:31mm; display:block; filter:drop-shadow(0 0 5mm rgba(80,130,255,.55)); }
+  .chip{ margin-top:1.6mm; font:700 11.5pt/1 var(--body); letter-spacing:.02em; color:#eaf3ff;
+    padding:2.1mm 5.2mm 2.5mm; border-radius:99mm;
+    background:linear-gradient(90deg,rgba(53,199,255,.22),rgba(138,92,255,.22));
+    border:.3mm solid rgba(157,180,255,.5); }
+  .chip b{ color:var(--amber); font-weight:800; }
+
+  /* ---- hero ---- */
+  .hero{ text-align:center; margin-top:4mm; }
+  .hook{ font:600 15.5pt/1.4 var(--body); color:var(--amber); }
+  h1{ font:800 54pt/1.18 var(--hi); margin-top:1mm; letter-spacing:-.005em;
+    background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent;
+    padding:0 2mm .8mm; }
+  .sub{ font:700 18pt/1.35 var(--hi); color:#fff; margin-top:.4mm; }
+  .sub em{ font-style:normal; color:var(--cyan); }
+  .intro{ margin:2.6mm auto 0; text-align:center; font:500 13.2pt/1.5 var(--body); color:var(--ink2); }
+  .intro b{ color:#fff; font-weight:700; }
+
+  /* ---- features ---- */
+  .feats{ margin-top:4.6mm; display:grid; grid-template-columns:1fr 1fr; gap:3mm 3.6mm; }
+  .f{ display:flex; gap:3.2mm; align-items:center; padding:2.6mm 3.4mm 2.6mm 2.8mm; border-radius:4.2mm;
+    background:linear-gradient(135deg,rgba(255,255,255,.085),rgba(255,255,255,.035));
+    border:.3mm solid rgba(157,180,255,.28); box-shadow:0 1.4mm 5mm -1.8mm rgba(0,0,0,.6); }
+  .ic{ flex:0 0 12.5mm; height:12.5mm; border-radius:3.4mm; display:grid; place-items:center;
+    background:linear-gradient(140deg,var(--c1),var(--c2)); box-shadow:0 0 4mm -.5mm var(--c1); }
+  .ic svg{ width:7.4mm; height:7.4mm; fill:none; stroke:#fff; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+  .f h3{ font:800 13.5pt/1.2 var(--hi); color:#fff; }
+  .f p{ font:500 10.2pt/1.34 var(--body); color:var(--ink2); margin-top:.4mm; }
+
+  /* ---- scan + steps ---- */
+  .go{ margin-top:6.2mm; display:flex; gap:6mm; align-items:stretch; }
+  .steps{ flex:1 1 auto; display:flex; flex-direction:column; justify-content:space-between; gap:2.6mm; }
+  .steps h2{ font:800 20.5pt/1.2 var(--hi); color:#fff; }
+  .steps h2 span{ background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .s{ display:flex; gap:3.2mm; align-items:flex-start; }
+  .n{ flex:0 0 9.5mm; height:9.5mm; border-radius:50%; display:grid; place-items:center;
+    font:800 15pt/1 var(--hi); color:#0a1030; background:linear-gradient(140deg,#ffd37a,var(--amber) 55%,var(--orange));
+    box-shadow:0 0 3.5mm -.4mm rgba(255,178,63,.7); padding-top:.5mm; }
+  .s b{ display:block; font:800 13.5pt/1.2 var(--hi); color:#fff; }
+  .s span{ display:block; font:500 10.6pt/1.34 var(--body); color:var(--ink2); margin-top:.3mm; }
+  .s span i{ font-style:normal; color:var(--amber); font-weight:700; }
+
+  .scan{ flex:0 0 66mm; display:flex; flex-direction:column; align-items:center; }
+  .scan .lead{ font:800 12.4pt/1.2 var(--hi); color:#fff; text-align:center; white-space:nowrap; }
+  .halo{ margin-top:1.6mm; padding:1.4mm; border-radius:7.4mm; background:var(--grad);
+    box-shadow:0 0 12mm -1mm rgba(111,140,255,.75), 0 0 26mm -4mm rgba(255,178,63,.45); }
+  .qrcard{ background:#fff; border-radius:6mm; padding:0; overflow:hidden; }
+  /* 62.6 mm svg = 41 modules (33 + 4-module quiet zone each side) -> the code itself is 50.4 mm */
+  .qrcard svg{ display:block; width:62.6mm; height:62.6mm; }
+  .urlbox{ display:flex; align-items:center; gap:3.2mm; padding:2.2mm 4mm 2.4mm; border-radius:99mm;
+    background:rgba(255,255,255,.07); border:.3mm solid rgba(157,180,255,.4); align-self:flex-start; }
+  .urlbox .u{ font:800 14pt/1.1 var(--body); color:#fff; letter-spacing:.01em; }
+  .urlbox .c{ font:700 10.5pt/1.1 var(--body); color:#0a1030; background:var(--cyan); border-radius:99mm; padding:1.1mm 3mm 1.3mm; }
+
+  /* ---- Q&A ---- */
+  .qa{ margin-top:4.8mm; display:grid; grid-template-columns:repeat(3,1fr); gap:3.4mm; }
+  .q{ position:relative; overflow:hidden; padding:3.4mm 3.4mm 2.8mm; border-radius:4mm; background:rgba(255,255,255,.055);
+    border:.3mm solid rgba(157,180,255,.26); }
+  .q::before{ content:""; position:absolute; left:0; right:0; top:0; height:1mm; background:linear-gradient(90deg,var(--amber),var(--orange)); }
+  .q h4{ font:800 12.2pt/1.25 var(--hi); color:var(--amber); }
+  .q p{ font:500 10pt/1.38 var(--body); color:#e6ebfb; margin-top:.8mm; }
+  .q p b{ color:#fff; font-weight:700; }
+
+  /* ---- footer ---- */
+  .foot{ margin-top:auto; display:flex; justify-content:space-between; align-items:flex-end; gap:6mm;
+    padding:3.4mm 0 1.4mm; border-top:.3mm solid rgba(157,180,255,.28); }
+  .foot .by{ font:700 11pt/1.5 var(--body); color:#fff; }
+  .foot .by span{ color:var(--ink2); font-weight:500; }
+  .foot .fine{ font:500 8.4pt/1.35 var(--body); color:#aeb8dc; text-align:right; max-width:98mm; }
+
+  /* ---- debug overlay (?guides) ---- */
+  .g{ display:none; position:absolute; pointer-events:none; }
+  body.guides .g{ display:block; }
+  .g.trim{ inset:3mm; border:.3mm dashed #ff3b3b; }
+  .g.safe8{ inset:11mm; border:.3mm dashed #3bff7a; }
+
+  /* =====================================================================================================
+     PRINTER-FRIENDLY THEMES  -  <html class="print"> (colour, ink-saving) and <html class="print mono"> (black only)
+     Plain white paper: no page fill, no glows, no tinted cards, no filled icon chips. Colour lives only in text and
+     thin lines. A4 210 x 297 mm exactly (no bleed), every element >= 12 mm from the edge (home/office printers cannot
+     print the last 4-6 mm). Print at 100 % ("actual size"), not "fit to page".
+     ===================================================================================================== */
+  html.print{ --p-ink:#000; --p-ink2:#2e2e2e; --p-acc:#b94700; --p-blue:#1b5fd0; --p-line:#7f8bc0;
+    --p-grad:linear-gradient(100deg,#1b6fe0 0%,#3f4fd8 40%,#7a3fd8 72%,#d4570a 100%); }
+  html.print.mono{ --p-ink:#000; --p-ink2:#262626; --p-acc:#000; --p-blue:#000; --p-line:#555;
+    --p-grad:linear-gradient(#000,#000); }
+  html.print, html.print body{ width:210mm; height:297mm; background:#fff; color:var(--p-ink); overflow:hidden; }
+  html.print .page{ width:210mm; height:297mm; background:#fff; }
+  html.print .dots, html.print .arcs{ display:none; }
+  html.print .safe{ left:12mm; right:12mm; top:12mm; bottom:12mm; }
+  html.print .g.trim{ display:none; }
+  html.print .g.safe8{ inset:12mm; }
+
+  html.print .logo{ width:23mm; height:23mm; filter:none; }
+  html.print.mono .logo{ filter:grayscale(1); }
+  html.print .chip{ margin-top:1.4mm; color:var(--p-ink); background:none; border:.35mm solid var(--p-blue); padding:1.7mm 5mm 2.1mm; }
+  html.print .chip b{ color:var(--p-acc); }
+
+  html.print .hero{ margin-top:3.4mm; }
+  html.print .hook{ color:var(--p-acc); }
+  html.print h1{ background:var(--p-grad); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  html.print .sub{ color:var(--p-ink); }
+  html.print .sub em{ color:var(--p-blue); }
+  html.print .intro{ color:var(--p-ink2); }
+  html.print .intro b{ color:var(--p-ink); }
+
+  html.print .feats{ margin-top:4mm; gap:2.6mm 3.4mm; }
+  html.print .f{ background:none; box-shadow:none; border:.35mm solid var(--p-line); padding:2.2mm 3mm 2.2mm 2.6mm; border-radius:3.6mm; }
+  html.print .ic{ flex:0 0 11.5mm; height:11.5mm; border-radius:50%; background:none; box-shadow:none; border:.55mm solid var(--d); }
+  html.print.mono .ic{ border-color:#000; }
+  html.print .ic svg{ stroke:var(--d); width:6.6mm; height:6.6mm; }
+  html.print.mono .ic svg{ stroke:#000; }
+  html.print .f h3{ color:var(--p-ink); }
+  html.print .f p{ color:var(--p-ink2); }
+
+  html.print .go{ margin-top:5mm; }
+  html.print .steps h2{ color:var(--p-ink); padding-left:.9mm; } /* the Devanagari 'त' overhangs its box by ~0.7 mm: keep ink out of the unprintable margin */
+  html.print .steps h2 span{ background:var(--p-grad); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  html.print .n{ background:none; box-shadow:none; border:.6mm solid var(--p-acc); color:var(--p-acc); }
+  html.print .s b{ color:var(--p-ink); }
+  html.print .s span{ color:var(--p-ink2); }
+  html.print .s span i{ color:var(--p-acc); }
+  html.print .urlbox{ background:none; border:.45mm solid var(--p-blue); }
+  html.print .urlbox .u{ color:var(--p-ink); }
+  html.print .urlbox .c{ background:none; border:.35mm solid var(--p-blue); color:var(--p-blue); padding:.8mm 2.8mm 1mm; }
+
+  html.print .scan{ flex:0 0 70mm; }
+  /* 66 mm svg = 41 modules -> the code itself is 53.1 mm (the dark poster's is 50.4 mm) */
+  html.print .qrcard svg{ width:66mm; height:66mm; }
+  html.print .scan .lead{ color:var(--p-ink); }
+  html.print .halo{ padding:0; background:none; box-shadow:none; border:1.1mm solid var(--p-blue); border-radius:7mm; }
+  html.print .qrcard{ border-radius:5.8mm; }
+  /* pure black modules: black ink / toner only (a navy would be mixed from coloured ink, and a B&W printer would have to guess) */
+  html.print .qrcard svg path{ fill:#000; }
+
+  html.print .qa{ margin-top:4.4mm; gap:3mm; }
+  html.print .q{ background:none; border:.35mm solid var(--p-line); }
+  html.print .q::before{ background:var(--p-acc); height:.9mm; }
+  html.print .q h4{ color:var(--p-acc); }
+  html.print .q p{ color:var(--p-ink); }
+  html.print .q p b{ color:var(--p-ink); }
+
+  html.print .foot{ border-top:.3mm solid var(--p-line); }
+  html.print .foot .by{ color:var(--p-ink); }
+  html.print .foot .by span{ color:var(--p-ink2); }
+  html.print .foot .fine{ color:var(--p-ink2); }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="dots"></div>
+  <div class="arcs"></div>
+
+  <div class="safe">
+    <header class="head">
+      <img class="logo" src="logo.png" alt="DuSu">
+      <div class="chip">AI इंग्लिश स्पीकिंग पार्टनर</div>
+    </header>
+
+    <section class="hero">
+      <p class="hook">अंग्रेज़ी आती है, फिर बोलते वक़्त दिमाग़ ब्लैंक क्यों?</p>
+      <h1>गलती DuSu के सामने।</h1>
+      <p class="sub">ताकि इंटरव्यू में आप <em>बेझिझक</em> बोलें।</p>
+      <p class="intro">आप बोलिए — <b>DuSu</b> सुनती है, बोलकर जवाब देती है और गलतियाँ सुधारना सिखाती है।</p>
+    </section>
+
+    <section class="feats">
+      <div class="f" style="--c1:#35c7ff;--c2:#4f6dff;--d:#1670d0">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v10H12l-5 4v-4H4z"/><path d="M8.5 10.5h.01M12 10.5h.01M15.5 10.5h.01"/></svg></div>
+        <div><h3>रोज़ की बातचीत</h3><p>DuSu से इंग्लिश में खुलकर बात कीजिए</p></div>
+      </div>
+      <div class="f" style="--c1:#6f8cff;--c2:#8a5cff;--d:#4b4fd6">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5"/></svg></div>
+        <div><h3>हिंदी बोलिए, इंग्लिश सीखिए</h3><p>DuSu बताएगी इंग्लिश में कैसे कहें</p></div>
+      </div>
+      <div class="f" style="--c1:#ff8a3d;--c2:#ffb23f;--d:#c2570a">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect x="3.5" y="7.5" width="17" height="12" rx="2"/><path d="M9 7.5v-2h6v2M3.5 12.5h17"/></svg></div>
+        <div><h3>मॉक इंटरव्यू</h3><p>असली जैसा इंटरव्यू, बोलकर — और अंत में रिपोर्ट</p></div>
+      </div>
+      <div class="f" style="--c1:#8a5cff;--c2:#c05cff;--d:#7b3fd0">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M6.5 3.5h8l4 4v13h-12z"/><path d="M14 3.5v4.5h4.5M9 13.5l2 2 4-4.5"/></svg></div>
+        <div><h3>रेज़्यूमे वाला इंटरव्यू</h3><p>रेज़्यूमे और जॉब डिस्क्रिप्शन से, उसी नौकरी की प्रैक्टिस</p></div>
+      </div>
+      <div class="f" style="--c1:#35c7ff;--c2:#2fd1a6;--d:#0e8a78">
+        <div class="ic"><svg viewBox="0 0 24 24"><circle cx="8" cy="8.5" r="2.7"/><circle cx="16.5" cy="8.5" r="2.7"/><path d="M2.8 19c.4-3.2 2.6-5 5.2-5s4.8 1.8 5.2 5M13.4 14.4c.9-.3 1.8-.4 3.1-.4 2.6 0 4.7 1.8 5.1 5"/></svg></div>
+        <div><h3>ग्रुप डिस्कशन, वाइवा, प्रेज़ेंटेशन</h3><p>बोलिए और अपनी रिपोर्ट देखिए</p></div>
+      </div>
+      <div class="f" style="--c1:#ffb23f;--c2:#ff6f61;--d:#c2410c">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M3.5 17.5l3.2-9 3.2 9M4.8 14h3.8M12.5 14.2l2.6 2.6 5.2-6"/></svg></div>
+        <div><h3>ग्रामर कोच</h3><p>हर इंग्लिश वाक्य की गलती, सुधार और कारण</p></div>
+      </div>
+    </section>
+
+    <section class="go">
+      <div class="steps">
+        <h2>तीन आसान कदम — <span>अभी शुरू कीजिए</span></h2>
+        <div class="s"><div class="n">1</div><div><b>QR स्कैन कीजिए</b><span>फ़ोन के कैमरे से स्कैन करके <i>Chrome</i> में खोलिए</span></div></div>
+        <div class="s"><div class="n">2</div><div><b>साइन-इन कीजिए</b><span>Google से लॉगिन, फिर <i>2 फ्री AI key</i> जोड़िए — बस एक बार</span></div></div>
+        <div class="s"><div class="n">3</div><div><b>बोलना शुरू कीजिए</b><span>माइक चालू कीजिए और बोलिए, DuSu सुन रही है</span></div></div>
+        <div class="urlbox"><span class="u">dusu.ranabrothers.online</span><span class="c">Chrome में खोलें</span></div>
+      </div>
+      <div class="scan">
+        <div class="lead">स्कैन कीजिए, बोलना शुरू कीजिए</div>
+        <div class="halo"><div class="qrcard"><!--QR--></div></div>
+      </div>
+    </section>
+
+    <section class="qa">
+      <div class="q"><h4>क्या यह फ्री है?</h4><p>फ्री में शुरू कीजिए। बस <b>2 फ्री AI key</b> खुद जोड़नी होंगी।</p></div>
+      <div class="q"><h4>कौन-सा फ़ोन चाहिए?</h4><p><b>Chrome</b> वाला कोई भी Android फ़ोन या लैपटॉप। कुछ इंस्टॉल नहीं करना।</p></div>
+      <div class="q"><h4>किनके लिए है?</h4><p>स्टूडेंट्स और फ्रेशर्स के लिए, जो इंग्लिश समझते हैं पर बोलने में झिझकते हैं।</p></div>
+    </section>
+
+    <footer class="foot">
+      <div class="by">DuSu <span>· राणा ब्रदर्स का एक प्रोजेक्ट</span></div>
+      <div class="fine">AI के साथ बोलकर अभ्यास का साथी — किसी नौकरी की गारंटी नहीं।</div>
+    </footer>
+  </div>
+
+  <div class="g trim"></div>
+  <div class="g safe8"></div>
+</div>
+<script>
+  var q = new URLSearchParams(location.search);
+  (q.get("theme") || "").split(/[ ,+]/).filter(Boolean).forEach(function (c) { document.documentElement.classList.add(c); });
+  if (q.has("guides")) document.body.classList.add("guides");
+</script>
+</body>
+</html>
