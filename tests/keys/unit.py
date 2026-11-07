@@ -25,7 +25,7 @@ import httpx                                              # noqa: E402
 import openai                                             # noqa: E402
 
 from world import (World, install, ok, err, timeout, conn, completion, R,                      # noqa: E402
-                   GROQ_401, GROQ_429_TPD, GROQ_429_TPM, GROQ_429_PLAIN, GEMINI_400_KEY, GEMINI_400_EXPIRED, GEMINI_400_OTHER,
+                   GROQ_401, GROQ_429_TPD, GROQ_429_TPM, GROQ_429_PLAIN, GEMINI_400_KEY, GEMINI_400_AUTH_KEY, GEMINI_400_EXPIRED, GEMINI_400_OTHER,
                    GEMINI_403_LEAKED, GEMINI_429_DAY, GEMINI_429_MIN, GEMINI_429_BARE, GEMINI_503, OPENROUTER_401, OPENROUTER_402,
                    OPENROUTER_404, OPENROUTER_429_DAY, OPENROUTER_429_UPSTREAM)
 
@@ -76,6 +76,8 @@ o = classify.classify("groq", sdk_err(401, GROQ_401), NOW)
 check("Groq 401: invalid", o.kind == "invalid" and o.http == 401 and not o.expired, o)
 o = classify.classify("gemini", sdk_err(400, GEMINI_400_KEY), NOW)
 check("Gemini 400 'API key not valid' (a LIST body): invalid - the case that used to match nothing", o.kind == "invalid" and o.http == 400, o)
+o = classify.classify("gemini", sdk_err(400, GEMINI_400_AUTH_KEY), NOW)
+check("Gemini 400 'Invalid Auth key.' (Google's answer to a wrong AQ. key, measured 2026-11-07): invalid, not expired - it used to read as bad_request -> 'couldn't reach'", o.kind == "invalid" and o.http == 400 and not o.expired, o)
 o = classify.classify("gemini", sdk_err(400, GEMINI_400_EXPIRED), NOW)
 check("Gemini 400 'API key expired': invalid AND expired", o.kind == "invalid" and o.expired, o)
 o = classify.classify("gemini", sdk_err(400, GEMINI_400_OTHER), NOW)

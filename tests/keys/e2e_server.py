@@ -19,7 +19,7 @@ import uvicorn                                                      # noqa: E402
 from fastapi import Request                                         # noqa: E402
 from sqlalchemy import update                                       # noqa: E402
 
-from world import (World, install, ok, err, R, completion, GROQ_401, GROQ_429_TPD, GROQ_429_TPM, GEMINI_400_KEY, GEMINI_400_EXPIRED, GEMINI_429_DAY, GEMINI_429_MIN,      # noqa: E402
+from world import (World, install, ok, err, R, completion, GROQ_401, GROQ_429_TPD, GROQ_429_TPM, GEMINI_400_KEY, GEMINI_400_AUTH_KEY, GEMINI_400_EXPIRED, GEMINI_429_DAY, GEMINI_429_MIN,      # noqa: E402
                    GEMINI_503, GEMINI_403_FREE_TIER, OPENROUTER_401, OPENROUTER_429_DAY, OPENROUTER_429_UPSTREAM, conn)
 import httpx                                                        # noqa: E402
 
@@ -38,6 +38,7 @@ CHAT_ERR = {
     "limited_min": {"groq": (429, GROQ_429_TPM), "gemini": (429, GEMINI_429_MIN), "openrouter": (429, OPENROUTER_429_UPSTREAM)},
     "upstream": {"groq": (429, GROQ_429_TPM), "gemini": (429, GEMINI_429_MIN), "openrouter": (429, OPENROUTER_429_UPSTREAM)},
     "invalid": {"groq": (401, GROQ_401), "gemini": (400, GEMINI_400_KEY), "openrouter": (401, OPENROUTER_401)},
+    "invalid_aq": {"groq": (401, GROQ_401), "gemini": (400, GEMINI_400_AUTH_KEY), "openrouter": (401, OPENROUTER_401)},     # Google's wording for a wrong AQ. key
     "expired": {"groq": (401, {"error": {"message": "API key expired", "code": "invalid_api_key"}}), "gemini": (400, GEMINI_400_EXPIRED), "openrouter": (401, OPENROUTER_401)},
     "down": {"groq": (503, {"error": {"message": "boom"}}), "gemini": (503, GEMINI_503), "openrouter": (503, {"error": {"message": "boom"}})},
     "chat_down": {"groq": (503, {"error": {"message": "boom"}}), "gemini": (503, GEMINI_503), "openrouter": (503, {"error": {"message": "boom"}})},      # like `down`, but the zero-quota checks still answer ok: the KEY is fine, the AI is not

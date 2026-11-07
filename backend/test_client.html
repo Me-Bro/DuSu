@@ -3167,7 +3167,7 @@
         <div class="kstep"><span class="n">3</span><span class="t">Sign in there with <b>Google</b> or <b>GitHub</b> —
           no card, no payment, completely free.</span></div>
         <div class="kstep"><span class="n">4</span><span class="t">Click <b>“Create API key”</b>, then copy the key it
-          shows you (it starts with something like <code>gsk_</code> or <code>AIza</code>).</span></div>
+          shows you (it starts with something like <code>gsk_</code>, <code>AQ.</code> or <code>AIza</code>).</span></div>
         <div class="kstep"><span class="n">5</span><span class="t">Come back to this tab, <b>paste the key</b> into the
           paste box, then <b>repeat steps 2–4 for a second service</b>.</span></div>
         <div class="kstep"><span class="n">6</span><span class="t">Tap <b>“Save key”</b>. DuSu tests the key
@@ -3190,7 +3190,7 @@
         <div class="keyblk">
           <div class="keyblk-hd"><span class="keyblk-name">Google Gemini</span>
             <a class="keyblk-get" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Get free key ↗</a></div>
-          <label class="keyrow"><input id="kGemini" type="password" autocomplete="off" placeholder="AIza…"><i class="kst" id="stGemini"></i></label>
+          <label class="keyrow"><input id="kGemini" type="password" autocomplete="off" placeholder="AQ.… or AIza…"><i class="kst" id="stGemini"></i></label>
           <div class="keyblk-hint">Sign in with Google → "Create API key" → copy.</div>
         </div>
 
@@ -11879,7 +11879,7 @@ const KY = (function(){
       ksHelpSum:"Need help? Watch how, or follow the steps",
       ksWhy:"Why a key? DuSu is free for you because you use your own free key. Free keys have daily limits set by the service.",
       ksStepLevel:"With 2 working keys you go straight into your level check, then you can start speaking. 🎤",
-      gemHint:"Gemini keys start with AIza. A key that starts with AQ. is a short-lived token that stops working - make a new key at aistudio.google.com.",
+      gemHint:"New Gemini keys start with AQ. (older ones with AIza). Copy the whole key with the copy button.", ksGemSkip:"You don't need Gemini: any two of Groq, Gemini and OpenRouter will do.",
       cardT:"Your AI keys", cardSub:"{w} working · {u}", cardTap:"Tap to manage your keys", cardFix:"Needs attention - tap to fix",
       chipLeft:"{n} left", chipAbout:"about {n} left",
       popInvalid:"Your AI keys need attention", popLimited:"Your free AI limit is used up for now", popDegraded:"One of your keys needs attention", popNone:"Add your AI keys",
@@ -11932,7 +11932,7 @@ const KY = (function(){
       ksHelpSum:"मदद चाहिए? देखो कैसे करते हैं, या steps पढ़ो",
       ksWhy:"Key क्यों? तुम अपनी free key इस्तेमाल करते हो, इसलिए DuSu तुम्हारे लिए free है। Free keys की daily limit service तय करती है।",
       ksStepLevel:"2 चालू keys होते ही तुम सीधे level check में जाओगे, फिर बोलना शुरू कर सकते हो। 🎤",
-      gemHint:"Gemini keys AIza से शुरू होती हैं। जो key AQ. से शुरू हो वो थोड़े समय का token है और बंद हो जाता है - aistudio.google.com पर नई key बनाओ।",
+      gemHint:"नई Gemini keys AQ. से शुरू होती हैं (पुरानी AIza से)। Copy button से पूरी key copy करो।", ksGemSkip:"Gemini ज़रूरी नहीं है: Groq, Gemini और OpenRouter में से कोई भी दो keys चलेंगी।",
       cardT:"तुम्हारी AI keys", cardSub:"{w} चालू · {u}", cardTap:"Keys संभालने के लिए tap करो", cardFix:"ध्यान चाहिए - ठीक करने के लिए tap करो",
       chipLeft:"{n} बची", chipAbout:"लगभग {n} बची",
       popInvalid:"तुम्हारी AI keys को ध्यान चाहिए", popLimited:"अभी के लिए तुम्हारी free AI limit पूरी हो गई", popDegraded:"तुम्हारी एक key को ध्यान चाहिए", popNone:"अपनी AI keys जोड़ो",
@@ -12130,7 +12130,7 @@ const KY = (function(){
      A brand-new learner used to land on five phone screens of guide, videos and three identical "Save key" buttons. Now: ONE next action at a time ("Key 1 of 2"), ONE paste box that
      recognises the service from the key's own prefix, the long guide BELOW and collapsed. This only DRAWS the screen: verifying, saving, the messages and the way into the app are
      saveKey() / afterChange(), so there is still exactly one code path that stores a key. The older three-box form stays for managing keys (More -> My AI keys). */
-  const PREFIX = [["groq", /^gsk_/], ["gemini", /^AIza/], ["openrouter", /^sk-or-/]];
+  const PREFIX = [["groq", /^gsk_/], ["gemini", /^(AIza|AQ\.)/], ["openrouter", /^sk-or-/]];     // since 2026-05-28 AI Studio hands out only "AQ." keys; older keys start "AIza"
   const GETURL = { groq:"https://console.groq.com/keys", gemini:"https://aistudio.google.com/apikey", openrouter:"https://openrouter.ai/keys" };
   let picked = "", wizBusy = false;
   const wizardOn = () => active() && typeof needsKeys === "function" && needsKeys();
@@ -12158,7 +12158,7 @@ const KY = (function(){
     inp.addEventListener("input", () => {
       picked = ""; showPick(false);
       const v = cleanPaste(inp.value), p = detect(v);
-      if(!v) wdet("", ""); else if(/^AQ\./.test(v)) wdet(t("gemHint"), "bad"); else if(p) wdet(t("ksDetected", { p:NAME[p] }), "ok"); else wdet("", "");
+      if(!v) wdet("", ""); else if(p) wdet(t("ksDetected", { p:NAME[p] }), "ok"); else wdet("", "");
     });
     inp.addEventListener("keydown", ev => { if(ev.key === "Enter"){ ev.preventDefault(); wizSave(); } });
     const w = h("div", { class:"ks-wiz", id:"ksWiz" },
@@ -12203,7 +12203,6 @@ const KY = (function(){
     const inp = $("ksPaste"); if(!inp) return;
     const v = cleanPaste(inp.value);
     if(!v){ wdet(t("empty"), "bad"); inp.focus(); return; }
-    if(/^AQ\./.test(v)){ wdet(t("gemHint"), "bad"); return; }
     const p = detect(v) || picked;
     if(!p){ wdet(t("ksUnknown"), ""); showPick(true); return; }
     wizBusy = true; wdet(t("saving"), ""); paintWizard();
@@ -12211,7 +12210,7 @@ const KY = (function(){
     try{ await saveKey(p); }
     finally{ wizBusy = false; picked = ""; }
     const m = lastMsg.p === p ? lastMsg : null;
-    wdet((m && m.text) || "", (m && m.cls) || "");
+    wdet(((m && m.text) || "") + (m && m.cls === "bad" && p === "gemini" ? " " + t("ksGemSkip") : ""), (m && m.cls) || "");     // a refused Gemini key must not be a dead end: the learner can use the other two
     if(m && m.cls === "ok"){ if(cleanPaste(inp.value) === v) inp.value = ""; showPick(false); }       // a second key pasted while the first was saving must survive
     paintWizard();
     if(m && m.cls === "ok" && mustAddKeys()){ try{ inp.focus(); }catch(_){} }

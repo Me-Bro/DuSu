@@ -104,9 +104,10 @@ demo Google account and put its credentials in the **App access** section.
 pick, the reviewer rides the default chain — and if it is down (as it was on
 2026-09-21: Groq revoked, Gemini expired, GitHub retired) the reviewer sees an app
 that cannot answer. Check `curl https://dusu.ranabrothers.online/health` and compare
-`available` against `cooling`. Note a Gemini `AQ.`-prefixed value is a short-lived
-OAuth token, not an API key — use an `AIza` key from AI Studio so it does not expire
-mid-review.
+`available` against `cooling`. (Corrected 2026-11-07: a Gemini key that starts with
+`AQ.` is NOT a short-lived token - since 2026-05-28 it is the only kind of key AI Studio
+hands out, and DuSu's own `AQ.` key has worked since 2026-09-21. Old `AIza` keys are being
+retired by Google.)
 
 ---
 
@@ -404,7 +405,7 @@ Only after 14 days of closed testing:
 |---|---|---|
 | 1 | **Phone screenshots** (2 minimum) | You — needs your device |
 | 2 | **12 testers not invited** — the 14-day closed-testing clock has not started | You |
-| 3 | **Server LLM keys** — Groq revoked, Gemini running on an expiring `AQ.` OAuth token. With no reviewer exemption this only affects the owner account, not testers or the reviewer (all on their own keys). Still worth fixing so you can use your own app. | You — new keys |
+| 3 | **Server LLM keys** — Groq revoked, Gemini on an `AQ.` key (corrected 2026-11-07: that is a normal AI Studio key, not an expiring token). With no reviewer exemption this only affects the owner account, not testers or the reviewer (all on their own keys). Still worth fixing so you can use your own app. | You — new keys |
 
 **Decided, not blocking:** reviewer access — no exemption, reviewer does BYOK like
 everyone else (§1b). Accepted risk; mitigation is the §5 instructions.

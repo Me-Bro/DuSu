@@ -96,7 +96,7 @@ async function K(browser) {
   check('P0-1', 'an AIza key is recognised as Gemini', /Gemini/.test(await det('AIza' + 'b'.repeat(35)) || ''));
   check('P0-1', 'an sk-or- key is recognised as OpenRouter', /OpenRouter/.test(await det('sk-or-v1-' + 'c'.repeat(40)) || ''));
   check('P0-1', 'a pasted key with quotes and "Bearer " in front is still recognised', /Groq/.test(await det('Bearer "gsk_' + 'd'.repeat(40) + '"') || ''));
-  check('P0-1', 'a short-lived AQ. token is explained instead of being saved', /AQ\./.test(await det('AQ.' + 'e'.repeat(30)) || ''));
+  check('P0-1', 'an AQ. key (what Google AI Studio hands out since 2026-05-28) is recognised as Gemini, never refused as a "short-lived token"', /Gemini/.test(await det('AQ.' + 'e'.repeat(30)) || '') && !/short-lived/i.test(await det('AQ.' + 'e'.repeat(30)) || ''));
   check('P0-1', 'nothing is shown for an empty or unrecognisable box', (await det('')) === '' );
   await p.fill('#ksPaste', 'zzzz' + 'q'.repeat(30)); await tap(p, '#ksSave'); await settle(p, 500);
   check('P0-1', 'an unrecognisable key asks which service it is from (three choices) and saves nothing', await p.evaluate(() => { const b = document.getElementById('ksPick'); return !b.hidden && b.querySelectorAll('button').length === 3; }) && !(await A.api('newbie', '/keys/status')).body.keys.length, (await A.api('newbie', '/keys/status')).body);

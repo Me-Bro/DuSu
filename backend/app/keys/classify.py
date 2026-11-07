@@ -144,7 +144,8 @@ def quota_day(provider: str, now: float) -> str:
 _DAY_WORDS = ("per day", "perday", "per-day", "per_day", "daily", "(tpd)", "(rpd)", " tpd", " rpd", "free-models-per-day", "free_tier_requests_per_day")
 _MIN_WORDS = ("per minute", "perminute", "per-minute", "per_minute", "(tpm)", "(rpm)", " tpm", " rpm", "per second", "per-second", "persecond")
 _INVALID_WORDS = ("api key not valid", "pass a valid api key", "api_key_invalid", "api key expired", "invalid api key", "api key is invalid",
-                  "invalid_api_key", "incorrect api key", "no auth credentials", "invalid authentication", "api key was reported as leaked")
+                  "invalid_api_key", "incorrect api key", "no auth credentials", "invalid authentication", "api key was reported as leaked",
+                  "invalid auth key")       # Google's 400 for a wrong / cut / mistyped "AQ." key (measured 2026-11-07); an AIza key gets "API key not valid"
 _RATE_TEXT = re.compile(r"(?<![\w.])429(?!\w|\.\d)|rate limit|rate_limit|resource_exhausted|too many requests|exceeded your current quota")
 _KEY_DEAD_403 = ("leaked", "revoked", "disabled", "suspended", "invalid api key", "api key not valid", "api key expired")
 

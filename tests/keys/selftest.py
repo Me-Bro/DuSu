@@ -26,7 +26,7 @@ import httpx                                                        # noqa: E402
 from sqlalchemy import func, select, text as sa_text                # noqa: E402
 from sqlalchemy.exc import OperationalError                         # noqa: E402
 
-from world import (World, install, ok, err, timeout, conn, completion, R, GROQ_401, GROQ_429_TPD, GROQ_429_PLAIN, GEMINI_400_KEY, GEMINI_429_DAY, GEMINI_503,   # noqa: E402
+from world import (World, install, ok, err, timeout, conn, completion, R, GROQ_401, GROQ_429_TPD, GROQ_429_PLAIN, GEMINI_400_KEY, GEMINI_400_AUTH_KEY, GEMINI_429_DAY, GEMINI_503,   # noqa: E402
                    OPENROUTER_401, OPENROUTER_429_DAY)
 
 from app import auth, db, main as M                                 # noqa: E402
@@ -277,6 +277,16 @@ async def main():
         WORLD.on("gemini", bad2, err(400, GEMINI_400_KEY), kind="models")
         r = await save("ann", "gemini", bad2)
         check("a Gemini 'API key not valid' (a 400 with a LIST body) is rejected the same way", r.json()["ok"] is False and r.json()["result"]["status"] == "invalid", r.text)
+        bad_aq = "AQ.Ab8RN6" + "w" * 40 + "ann9"
+        WORLD.on("gemini", bad_aq, err(400, GEMINI_400_AUTH_KEY), kind="models")
+        r = await save("ann", "gemini", bad_aq)
+        check("a wrong AQ. key (Google: 400 'Invalid Auth key.') is 'invalid', never 'unreachable', and is not stored", r.json()["ok"] is False and r.json()["result"]["status"] == "invalid"
+              and (await stored("ann"))["gemini"] == m1, r.text)
+        good_aq = "AQ.Ab8RN6" + "v" * 40 + "ann8"
+        r = await save("ann", "gemini", good_aq)
+        check("a good AQ. key (the only kind AI Studio hands out since 2026-05-28) is saved and shown as AQ.••••<last four>", r.json()["ok"] is True and r.json()["result"]["masked"] == "AQ.••••ann8"
+              and (await stored("ann"))["gemini"] == good_aq, r.text)
+        await save("ann", "gemini", m1)                                    # put the earlier key back: the sections below expect it
         bad3 = OK_("ann", 9)
         WORLD.on("openrouter", bad3, err(401, OPENROUTER_401), kind="key")
         r = await save("ann", "openrouter", bad3)
