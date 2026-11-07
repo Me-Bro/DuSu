@@ -81,7 +81,10 @@ async def save(body: dict = Body(...), authorization: str | None = Header(None))
         await db.login(claims)                               # the user row must exist (the stored keys reference it) - same as the older /keys/verify
     except Exception as e:
         print(f"[keys] login: {type(e).__name__}")
-    return await svc.verify_and_save(uid, provider, key)
+    res = await svc.verify_and_save(uid, provider, key)
+    from .. import main as M
+    await M._ev_keys(uid)                                    # insights: first / second key saved (a milestone is written once)
+    return res
 
 
 @router.post("/remove")

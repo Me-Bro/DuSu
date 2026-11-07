@@ -384,12 +384,12 @@ const openMoreRow = async (page, row) => { await page.evaluate(() => { openMore(
     const r = await p.evaluate(() => {
       const sh = document.getElementById('instSheet'), b = sh.getBoundingClientRect(), ctl = [...sh.querySelectorAll('button')];
       return { role: sh.getAttribute('role'), modal: sh.getAttribute('aria-modal'), lab: !!document.getElementById(sh.getAttribute('aria-labelledby')), focus: document.activeElement && document.activeElement.id,
-               inside: b.left >= -1 && b.right <= window.innerWidth + 1 && b.top >= -1 && b.bottom <= window.innerHeight + 1, small: ctl.filter(x => { const q = x.getBoundingClientRect(); return q.width < 40 || q.height < 40; }).map(x => x.textContent),
+               inside: b.left >= -1 && b.right <= window.innerWidth + 1 && b.top >= -1 && b.bottom <= window.innerHeight + 1, small: ctl.filter(x => { const q = x.getBoundingClientRect(); return q.width < 44 || q.height < 44; }).map(x => x.textContent),
                noname: ctl.filter(x => !(x.getAttribute('aria-label') || x.textContent || '').trim()).length, overflow: document.documentElement.scrollWidth > window.innerWidth + 1 };
     });
     T.eq([r.role, r.modal, r.lab, r.focus], ['dialog', 'true', true, 'instTitle'], `${label}: dialog semantics, labelled, focus on the title`);
     T.ok(r.inside && !r.overflow, `${label}: the install sheet fits inside the screen`);
-    T.eq([r.small, r.noname], [[], 0], `${label}: every control is at least 40 x 40 and named`);
+    T.eq([r.small, r.noname], [[], 0], `${label}: every control is at least 44 x 44 and named`);
     let stayed = true;
     for (let i = 0; i < 8; i++) { await p.keyboard.press('Tab'); if (!(await p.evaluate(() => !!document.activeElement.closest('#instSheet')))) stayed = false; }
     T.ok(stayed, `${label}: Tab never leaves the open sheet`);

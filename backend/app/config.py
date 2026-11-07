@@ -89,7 +89,10 @@ class Settings(BaseSettings):
                 # only. gpt-oss-*:free and z-ai/glm-5.2:free were dropped from the
                 # free tier (404, "paid version available now") — probed 2026-10-20,
                 # OpenRouter's free catalog is actively collapsing, not just these two.
-                "models": ["google/gemma-4-31b-it:free"],
+                # The free pool of ONE model is often "busy upstream" (429) while another model's is not - measured 30 Oct 2026 with tests/keys/probe_models.py: gemma-4-31b
+                # answered 429 twice in a row, gemma-4-26b answered valid Hindi JSON in 2 s. nemotron-3-ultra (slow, broke the JSON) and nemotron-3.5-lightning (empty
+                # answers) were tried and left out. Re-run the probe before changing this list.
+                "models": ["google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free"],
                 "headers": {"HTTP-Referer": PUBLIC_ORIGIN, "X-Title": "DuSu"},
                 "extra": {"reasoning": {"exclude": True, "effort": "low"}},
             })
@@ -117,7 +120,7 @@ class Settings(BaseSettings):
         if k.get("openrouter"):
             chain.append({"name": "openrouter", "base_url": "https://openrouter.ai/api/v1",
                 "key": k["openrouter"],
-                "models": ["google/gemma-4-31b-it:free"],
+                "models": ["google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free"],
                 "headers": {"HTTP-Referer": PUBLIC_ORIGIN, "X-Title": "DuSu"},
                 "extra": {"reasoning": {"exclude": True, "effort": "low"}}})
         return chain                       # (a stored / sent "github" key is ignored: see providers())

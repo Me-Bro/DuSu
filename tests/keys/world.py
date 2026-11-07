@@ -61,6 +61,7 @@ GEMINI_400_EXPIRED = [{"error": {"code": 400, "message": "API key expired. Pleas
                                  "details": [{"@type": "type.googleapis.com/google.rpc.ErrorInfo", "reason": "API_KEY_INVALID", "domain": "googleapis.com"}]}}]
 GEMINI_400_OTHER = [{"error": {"code": 400, "message": "Unsupported value for max_tokens.", "status": "INVALID_ARGUMENT"}}]
 GEMINI_403_LEAKED = [{"error": {"code": 403, "message": "Your API key was reported as leaked. Please use another API key.", "status": "PERMISSION_DENIED"}}]
+GEMINI_403_FREE_TIER = [{"error": {"code": 403, "message": "The Gemini API free tier is not available for this project. To use the Gemini API, please set up billing to upgrade to the paid tier at https://aistudio.google.com/billing", "status": "PERMISSION_DENIED"}}]
 GEMINI_429_DAY = [{"error": {"code": 429, "message": "You exceeded your current quota, please check your plan and billing details.", "status": "RESOURCE_EXHAUSTED",
                              "details": [{"@type": "type.googleapis.com/google.rpc.QuotaFailure", "violations": [
                                  {"quotaMetric": "generativelanguage.googleapis.com/generate_content_free_tier_requests",

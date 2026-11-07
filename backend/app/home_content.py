@@ -88,7 +88,7 @@ FEATURES: list[dict] = [
      "en": {"title": "Grammar Coach",
             "desc": "After you speak English, DuSu checks every sentence and shows what to fix, the corrected sentence, why, and how Hindi speakers often slip - with short drills built from your own mistakes.",
             "best": "Best for: speaking English with fewer mistakes and more confidence.",
-            "say": "checks every English sentence the learner spoke in Face-to-Face, Interview Prep, Practice or Job Interview Practice and shows the mistakes, the corrected sentence, the rule and short drills (not a chat feature; it never corrects during a talk)"},
+            "say": "checks every English sentence the learner spoke in Face to Face Talk, Interview Prep, Practice or Job Interview Practice and shows the mistakes, the corrected sentence, the rule and short drills (not a chat feature; it never corrects during a talk)"},
      "hi": {"title": "Grammar Coach",
             "desc": "English बोलने के बाद DuSu हर sentence check करती है और बताती है कि क्या सुधारना है, सही sentence क्या होगा, क्यों, और Hindi बोलने वाले अक्सर कहाँ चूकते हैं - साथ में तुम्हारी अपनी mistakes से बने छोटे drills।",
             "best": "किसके लिए: कम mistakes और ज़्यादा confidence के साथ English बोलना।"}},

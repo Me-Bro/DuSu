@@ -24,6 +24,8 @@ FORBIDDEN_S = 300
 PROBE_GAP_S = 60
 INFLIGHT_STALE_S = 90               # a probe that never reported back (a bug, a killed task) must not gate a key forever
 MAX_ENTRIES = 20000                 # the map is bounded: a long-running process must not grow it forever
+MODEL_GONE_S = 1800                 # a model that answered 404 ("no such model / no endpoints") is not asked again for 30 minutes (per key)
+MAX_MODEL_ENTRIES = 5000
 
 
 @dataclass
@@ -44,11 +46,16 @@ class KeyState:
 
 
 _state: dict[tuple[str, str], KeyState] = {}
+# The same idea one level down, for the providers that limit PER MODEL (Gemini, Groq): (provider, fingerprint, model) -> why this ONE model is skipped for now
+# ("limited" = its own bucket is empty, "gone" = the provider answered 404). Keyed by the key too: a 404 can come from one key's own settings (OpenRouter's
+# "free endpoints" privacy switch), so it must never make a model look dead for everyone.
+_models: dict[tuple[str, str, str], KeyState] = {}
 
 
 def reset_all() -> None:
     """Tests only."""
     _state.clear()
+    _models.clear()
 
 
 # --------------------------------------------------------------------------------------------- fingerprints and masks
@@ -175,8 +182,10 @@ def release(provider: str, fp: str) -> None:
 
 
 def clear(provider: str, fp: str) -> None:
-    """The key was just re-added or re-verified by the learner: forget whatever we believed about it."""
+    """The key was just re-added or re-verified by the learner: forget whatever we believed about it (its models too)."""
     _state.pop((provider, fp), None)
+    for k in [k for k in _models if k[0] == provider and k[1] == fp]:
+        _models.pop(k, None)
 
 
 def blocked(provider: str, fp: str, now: float) -> KeyState | None:
@@ -194,3 +203,79 @@ def chain_limited(chain: list, now: float) -> bool:
         if st is not None and st.status == "limited":
             return True
     return False
+
+
+# --------------------------------------------------------------------------------------------- per-model memory (Gemini and Groq limit PER MODEL)
+def model_verdict(provider: str, fp: str, model: str, now: float) -> str:
+    """'go' (nothing known against this model) | 'probe' (its skip time ended and THIS caller is the one half-open probe) | 'skip'. Same single-flight rule as `verdict`."""
+    st = _models.get((provider, fp, model))
+    if st is None:
+        return "go"
+    if now < st.until:
+        return "skip"
+    if st.inflight and now - st.inflight_at < INFLIGHT_STALE_S:
+        return "skip"
+    st.inflight, st.inflight_at = True, now
+    return "probe"
+
+
+def model_get(provider: str, fp: str, model: str) -> KeyState | None:
+    return _models.get((provider, fp, model))
+
+
+def model_blocked(provider: str, fp: str, model: str, now: float) -> KeyState | None:
+    """Why this model is skipped right now (display / the 'all models limited' question) - None when it may be asked."""
+    st = _models.get((provider, fp, model))
+    if st is not None and now < st.until:
+        return st
+    return None
+
+
+def _put_model(provider: str, fp: str, model: str, st: KeyState) -> KeyState:
+    if len(_models) >= MAX_MODEL_ENTRIES and (provider, fp, model) not in _models:
+        for k in sorted(_models, key=lambda k: _models[k].until)[:MAX_MODEL_ENTRIES // 10]:
+            _models.pop(k, None)
+    _models[(provider, fp, model)] = st
+    return st
+
+
+def mark_model_limited(provider: str, fp: str, model: str, now: float, seconds: float, *, scope: str = "", reset_at: float | None = None, evidence: bool = False,
+                       approx: bool = False, http: int = 429) -> KeyState:
+    return _put_model(provider, fp, model, KeyState(status="limited", kind="limited", scope=scope, since=now, until=now + max(1.0, float(seconds)), reset_at=reset_at,
+                                                    evidence=evidence, approx=approx, http=http))
+
+
+def mark_model_gone(provider: str, fp: str, model: str, now: float, seconds: float = MODEL_GONE_S, *, http: int = 404) -> KeyState:
+    return _put_model(provider, fp, model, KeyState(status="gone", kind="model_gone", since=now, until=now + max(1.0, float(seconds)), http=http))
+
+
+def model_ok(provider: str, fp: str, model: str) -> None:
+    """This model just answered: whatever we believed about it is over."""
+    _models.pop((provider, fp, model), None)
+
+
+def model_release(provider: str, fp: str, model: str) -> None:
+    """A half-open probe of a model ended without a verdict (cancelled, a passing error): let the next caller take the slot."""
+    st = _models.get((provider, fp, model))
+    if st is not None:
+        st.inflight = False
+
+
+def probe_soonest_model(provider: str, fp: str, models: list, now: float) -> None:
+    """The EARLY probe of a key whose every model is limited: let the model that frees up soonest be asked now. Its memory would otherwise keep it skipped until its
+    time is up - which is exactly what an early probe exists to cut short (a limit that ended before the provider's own estimate)."""
+    best, best_until = None, None
+    for m in models:
+        st = _models.get((provider, fp, m))
+        if st is None or st.status != "limited" or now >= st.until:
+            continue
+        if best is None or st.until < best_until:
+            best, best_until = m, st.until
+    if best is not None:
+        _models[(provider, fp, best)].until = now
+
+
+def gone_models(fps: set, now: float) -> list[tuple[str, str]]:
+    """[(provider, model)] currently remembered as gone for any of these key fingerprints (the owner's /health asks it for DuSu's OWN keys only)."""
+    out = {(k[0], k[2]) for k, st in _models.items() if k[1] in fps and st.status == "gone" and now < st.until}
+    return sorted(out)

@@ -125,7 +125,7 @@ async function fillRule(page, { title, time, mode, days }) {
   const ringsAll = (await rem('ann')).filter(r => r.rule_id);
   T.ok(ringsAll.some(r => r.title === 'Drink water' && r.repeat && r.repeat.days === 'daily'), 'the daily rule has rings in the reminder list, each carrying its repeat');
   T.ok(!ringsAll.some(r => r.title === 'Call mom') || wd(now0) === 5 || wd(new Date(now0.getTime() + DAY)) === 5, 'the Saturday rule has no ring unless today or tomorrow is Saturday');
-  T.ok(/Tomorrow/.test(await body(pg)), 'the list has a Tomorrow group (the rings of the next two days)');
+  T.ok(/tomorrow/i.test(await body(pg)), 'the list has a Tomorrow group (the rings of the next two days; the heading is upper-cased by the CSS, so before 09:00 - when today\'s ring is still ahead and the group heading is the only place the word appears - the match must ignore case)');
   const ringRow = await pg.evaluate(() => { const r = [...document.querySelectorAll('#plBody .pl-card .pl-row')].find(x => x.querySelector('.pl-chk') && x.textContent.includes('Drink water')); return r ? r.textContent.replace(/\s+/g, ' ') : null; });
   T.ok(ringRow && /🔁 Drink water[\s\S]*Every day/.test(ringRow), `a ring row carries the 🔁 and says how often (got ${JSON.stringify(ringRow)})`);
   T.eq(await pg.evaluate(() => document.querySelectorAll('#plBody .pl-chk').length) > 0, true, 'and a round check to tick it off');

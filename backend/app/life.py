@@ -42,19 +42,19 @@ _LEVEL_NAMES = {1: "Thinking in English", 2: "Simple Speaking", 3: "Daily Conver
                 5: "Interview", 6: "Professional English", 7: "Fluency"}
 _RANK_LABELS = {"starter": "Starter", "speaker": "Speaker", "confident_speaker": "Confident Speaker",
                 "fluent_communicator": "Fluent Communicator", "english_pro": "English Pro"}
-_MODE_LABELS = {"conversation": "Face-to-Face", "daily": "Daily Talk", "interview": "Interview",
+_MODE_LABELS = {"conversation": "Face to Face Talk", "daily": "Daily Talk", "interview": "Interview",
                 "presentation": "Presentation", "viva": "Viva", "speech": "Speech", "seminar": "Seminar",
                 "discussion": "Discussion", "custom": "Practice Room", "resume_interview": "Job Interview Practice"}
 _SKILLS = ("confidence", "pronunciation", "listening", "vocabulary", "grammar", "thinking")
 _BADGES = {
     "first_lesson": "First Lesson", "first_converse": "First Chat", "streak_3": "Getting Started (3 days)",
     "streak_7": "Consistent Speaker (7 days)", "streak_30": "Serious Speaker (30 days)",
-    "streak_100": "Dedicated Speaker (100 days)", "streak_180": "DUSU Speaker (180 days)",
+    "streak_100": "Dedicated Speaker (100 days)", "streak_180": "DuSu Speaker (180 days)",
     "sentences_100": "100 Sentences", "level_up": "Level Up", "courage_no_hindi": "Spoke without Hindi",
     "courage_question": "Asked a question", "courage_5min": "5-Minute Talk",
     "courage_first_convo": "First Conversation", "courage_confident": "Aced a Challenge",
-    "consistent_speaker": "Consistent Speaker (50+ hrs)", "conversation_builder": "Conversation Builder (100 chats)",
-    "fearless_speaker": "Fearless Speaker (50 Face-to-Face)", "interview_ready": "Interview Ready (50 interviews)",
+    "consistent_speaker": "Marathon Speaker (50+ hrs)", "conversation_builder": "Conversation Builder (100 chats)",
+    "fearless_speaker": "Fearless Speaker (50 Face to Face talks)", "interview_ready": "Interview Ready (50 interviews)",
     "vocabulary_explorer": "Vocabulary Explorer (1,000 words)", "first_presentation": "First Presentation",
     "presentation_10": "10 Presentations", "presentation_80": "Presentation 80+",
     "presentation_90": "Presentation 90+", "bridge_builder": "Bridge Builder"}

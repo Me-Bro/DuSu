@@ -34,11 +34,11 @@ const STATES = {
         await sleep(650);
         T.ok(await vis(p, '#kySheet.on'), `${vl}/${ll}/${name}: the pop-up is open`);
         const r = await p.evaluate(() => { const sh = document.getElementById('kySheet'), b = sh.getBoundingClientRect(); return { inside: b.left >= -1 && b.right <= innerWidth + 1 && b.top >= -1 && b.bottom <= innerHeight + 1, overflowX: sh.scrollWidth > sh.clientWidth + 1,
-          small: [...sh.querySelectorAll('button')].filter(x => { const q = x.getBoundingClientRect(); return q.width < 40 || q.height < 40; }).map(x => x.textContent) }; });
+          small: [...sh.querySelectorAll('button')].filter(x => { const q = x.getBoundingClientRect(); return q.width < 44 || q.height < 44; }).map(x => x.textContent) }; });
         T.ok(r.inside && !r.overflowX, `${vl}/${ll}/${name}: fits the screen, nothing overflows`);
         const reach = await p.evaluate(() => { const b = document.querySelector('#kySheet .ky-pop-acts .btn.primary'); if (!b) return null; const q = b.getBoundingClientRect(); return q.top >= 0 && q.bottom <= innerHeight + 1; });
         T.ok(reach === true, `${vl}/${ll}/${name}: the main button is on screen without scrolling`);
-        T.eq(r.small, [], `${vl}/${ll}/${name}: every control is at least 40 x 40`);
+        T.eq(r.small, [], `${vl}/${ll}/${name}: every control is at least 44 x 44`);
         await shot(p, `look-${vl}-${ll}-${name}`);
         await p.keyboard.press('Escape'); await sleep(300);
       }

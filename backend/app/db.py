@@ -335,8 +335,27 @@ async def init_db() -> None:
         await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_practice_attempts_user_created ON practice_attempts (user_id, created_at DESC)"))
 
 
+def _live_counters(prog: "Progress | None") -> tuple[int, int]:
+    """(streak_days, sessions_today) as they stand NOW, on the IST day the rest of the app uses.
+
+    The stored numbers only move when the learner next practises (complete_lesson / award_speaker_progress), so read raw they
+    show yesterday's three sessions as "today's" every morning and keep a streak that died a week ago alive. A streak is still
+    alive if the last practice was yesterday (today's practice extends it); anything older is 0."""
+    if prog is None:
+        return 0, 0
+    streak, sessions = prog.streak_days or 0, prog.sessions_today or 0
+    today = _ist_now().date()
+    last = prog.last_active
+    if last != today:
+        sessions = 0
+        if last != today - dt.timedelta(days=1):
+            streak = 0
+    return streak, sessions
+
+
 def _state(user: User, prof: Profile, prog: Progress, mem: "Memory | None" = None) -> dict:
     """Everything the client needs about a returning user (incl. emotional memory)."""
+    streak_now, sessions_now = _live_counters(prog)
     return {
         "user": {"id": user.id, "email": user.email, "name": user.name, "picture": user.picture,
                  "created_at": user.created_at.isoformat() if user.created_at else None},
@@ -348,8 +367,8 @@ def _state(user: User, prof: Profile, prog: Progress, mem: "Memory | None" = Non
             "level": prof.level, "scores": prof.scores or {}, "weak_areas": prof.weak_areas or [],
         },
         "progress": {
-            "xp": prog.xp, "coins": prog.coins, "streak_days": prog.streak_days,
-            "sessions_today": prog.sessions_today, "daily_goal": prog.daily_goal,
+            "xp": prog.xp, "coins": prog.coins, "streak_days": streak_now,
+            "sessions_today": sessions_now, "daily_goal": prog.daily_goal,
             "badges": prog.badges or [], "journey": prog.journey or {},
         },
         "memory": (mem.facts or {}) if mem else {},
@@ -604,6 +623,7 @@ async def leaderboard(me_id: str, limit: int = 20) -> dict:
         rows = (await s.execute(
             select(User.id, Progress.xp, Progress.streak_days, Progress.journey)
             .join(Progress, Progress.user_id == User.id)
+            .where(Progress.xp > 0)                           # a board of people who have earned something (audit UI-12): accounts with no XP are not "ranked"
             .order_by(desc(Progress.xp)).limit(limit)
         )).all()
         top = []
@@ -954,7 +974,7 @@ async def get_weekly_missions(user_id: str) -> dict:
             missions.append({"id": "long_session", "text": "Have one 10-minute uninterrupted conversation",
                               "metric": "long_session", "target": 10, "progress": 0, "xp": 100})
         if prev_sessions < 3:
-            missions.append({"id": "sessions", "text": "Complete 3 Face-to-Face sessions this week",
+            missions.append({"id": "sessions", "text": "Complete 3 Face to Face Talk sessions this week",
                               "metric": "conversation_sessions", "target": 3, "progress": 0, "xp": 100})
         else:
             missions.append({"id": "sessions_advanced", "text": "Complete 5 sessions across any mode this week",
@@ -1425,7 +1445,8 @@ async def build_growth(user_id: str) -> dict:
     return {
         "confidence": {"value": conf, "delta": delta},
         "vocabulary": {"total": vocab_total, "today": vocab_today},
-        "streak": streak, "sentences": total_sent, "minutes": total_min,
+        "streak": _live_counters(prog)[0],      # what the Home chip shows: a streak that died is not "4-day" (the confidence composite above keeps the stored number, as it always did)
+        "sentences": total_sent, "minutes": total_min,
         "dream": f.get("dream", ""), "dream_pct": round(cur_level / MAX_LEVEL * 100),
         "timeline": items,
     }
@@ -1826,6 +1847,15 @@ async def incr_request(user_id: str, day: str, limit: int | None) -> dict:
                 "left": (None if limit is None else max(0, limit - used2)), "limit": limit}
 
 
+async def refund_request(user_id: str, day: str) -> None:
+    """Give back ONE counted model request for the user's local day (never below zero): the turn it paid for failed on DuSu's side, not the learner's."""
+    async with _Session() as s:               # type: ignore[misc]
+        row = await s.get(UsageDaily, (user_id, day), with_for_update=True)
+        if row is not None and row.requests > 0:
+            row.requests -= 1
+            await s.commit()
+
+
 async def usage_today(user_id: str, day: str) -> int:
     async with _Session() as s:               # type: ignore[misc]
         row = await s.get(UsageDaily, (user_id, day))
@@ -2134,8 +2164,8 @@ async def admin_list_users() -> list[dict]:
                 "level": (prof.level if prof else "") or "",
                 "goal": (prof.goal if prof else "") or "",
                 "xp": (prog.xp if prog else 0) or 0,
-                "streak_days": (prog.streak_days if prog else 0) or 0,
-                "sessions_today": (prog.sessions_today if prog else 0) or 0,
+                "streak_days": _live_counters(prog)[0],
+                "sessions_today": _live_counters(prog)[1],
                 "daily_goal": (prog.daily_goal if prog else 0) or 0,
                 "total_sessions": int(convos),
                 "total_minutes": round(int(f.get("total_seconds", 0)) / 60),
@@ -2346,6 +2376,8 @@ async def admin_wipe_users(keep_emails: set[str]) -> int:
         await _nt.delete_rows(s, del_ids)
         from .keys import service as _ky               # Keys: which key was used / limited / rejected, and how often - counts and statuses, never key text - same rule
         await _ky.delete_rows(s, del_ids)
+        from .insights import service as _ev           # Insights: which first-run steps a learner reached + the plans they reserved - same rule
+        await _ev.delete_rows(s, del_ids)
         for tbl in (Conversation, Memory, Progress, Profile, UserKey, Feedback, UsageDaily,
                     SessionScore, WeeklyStat, SeasonAward, PracticeAttempt):
             await s.execute(delete(tbl).where(tbl.user_id.in_(del_ids)))
@@ -2373,6 +2405,8 @@ async def delete_user(user_id: str) -> bool:
         await _nt.delete_rows(s, [user_id])
         from .keys import service as _ky
         await _ky.delete_rows(s, [user_id])
+        from .insights import service as _ev
+        await _ev.delete_rows(s, [user_id])
         for tbl in (Conversation, Memory, Progress, Profile, UserKey, Feedback, UsageDaily,
                     SessionScore, WeeklyStat, SeasonAward, PracticeAttempt):
             await s.execute(delete(tbl).where(tbl.user_id == user_id))

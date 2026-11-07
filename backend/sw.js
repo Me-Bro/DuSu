@@ -2,8 +2,11 @@
    Network-first for navigations (always try fresh HTML so deploys show up),
    falling back to cache when offline. WebSocket + API calls are never cached. */
 
-const CACHE = "dusu-v37";   // bumped: a limit (free daily limit, trial over, free sessions used up, an unnamed key limit) is now the bottom pop-up with a "Free version / Free keys" note and a plan card, never the small top banner (v36: the key-problem pop-up and the Keys screen redrawn - an icon, one plain sentence with when it is back, a card per key with a coloured status and a Replace button (v35: a locked screen no longer kills Face-to-Face / Interview / a practice conversation / the Home chat either - they pause, and reconnect quietly if the connection dropped (v34: the same for Daily Talk / Learn (the mic and Reply come back) (v33: real install icons + manifest id (the web-app install button), the key screens, notification fixes - the push is shown FIRST and the "arrived" receipt follows, a nudge while the app is open is silent + an in-app notice, a monochrome badge (v32: Notifications (flag-gated, ships dark: personal practice / streak / weekly-note nudges as push, an "arrived" receipt and a tap beacon) (v31: Grammar Coach (flag-gated, ships dark: every English sentence checked, corrected and explained, in its own section) (v30: My Day check / uncheck on tasks, habits, goals and reminders - a finished item stays where it was checked and one tap puts it back (v29: My Day repeating reminders - set once, they ring on chosen weekdays until paused or deleted (v28: Job Interview Practice (renamed from Resume Interview) with detailed saved reports, improvement plan and progress since the last interview (v27: Resume Interview (flag-gated, ships dark) (v26: My Day lists show everything with visible edit/delete/add, first-use crash fixed (v25: My Day reminders in Today + their own tab, edit/delete, DuSu reads them all (v24: dashboard early-access list; v23: My Day; v22: language scope (old features pinned) + Home feature icons; v21: Home 2.0; v19: "DuSu knows your progress" switch, v18: Practice Room)
-const SHELL = ["/", "/logo.png", "/manifest.webmanifest"];
+const CACHE = "dusu-v40";   // bumped: v40 = first-visit weight (audit WP2): the page no longer precaches or draws the 1.7 MB logo, fonts are self-hosted and cached for offline, and a slow network no longer holds the app hostage - a navigation that gets no answer in 3 s opens the cached shell (v39: the "AI did not answer" pop-up lists every one of the learner's keys as Working / Rejected / Blocked after a real check, shows the OWNER DuSu's own keys with the provider's own reason, and carries a gentle way to the plans (v38: "AI busy" is one calm bottom pop-up with an honest countdown, one automatic retry and a button that sends the same words again - never the small top banner or an English line in the chat (v37: a limit (free daily limit, trial over, free sessions used up, an unnamed key limit) is now the bottom pop-up with a "Free version / Free keys" note and a plan card, never the small top banner (v36: the key-problem pop-up and the Keys screen redrawn - an icon, one plain sentence with when it is back, a card per key with a coloured status and a Replace button (v35: a locked screen no longer kills Face-to-Face / Interview / a practice conversation / the Home chat either - they pause, and reconnect quietly if the connection dropped (v34: the same for Daily Talk / Learn (the mic and Reply come back) (v33: real install icons + manifest id (the web-app install button), the key screens, notification fixes - the push is shown FIRST and the "arrived" receipt follows, a nudge while the app is open is silent + an in-app notice, a monochrome badge (v32: Notifications (flag-gated, ships dark: personal practice / streak / weekly-note nudges as push, an "arrived" receipt and a tap beacon) (v31: Grammar Coach (flag-gated, ships dark: every English sentence checked, corrected and explained, in its own section) (v30: My Day check / uncheck on tasks, habits, goals and reminders - a finished item stays where it was checked and one tap puts it back (v29: My Day repeating reminders - set once, they ring on chosen weekdays until paused or deleted (v28: Job Interview Practice (renamed from Resume Interview) with detailed saved reports, improvement plan and progress since the last interview (v27: Resume Interview (flag-gated, ships dark) (v26: My Day lists show everything with visible edit/delete/add, first-use crash fixed (v25: My Day reminders in Today + their own tab, edit/delete, DuSu reads them all (v24: dashboard early-access list; v23: My Day; v22: language scope (old features pinned) + Home feature icons; v21: Home 2.0; v19: "DuSu knows your progress" switch, v18: Practice Room)
+// The shell: the page, the manifest, the two latin fonts and the small logo (~110 KB) - what an OFFLINE reload needs to look right. Added one by one: a single
+// failed URL must not stop the others (cache.addAll is all-or-nothing, so one 404 used to leave NO shell at all). The 1.7 MB /logo.png is no longer precached.
+const SHELL = ["/", "/manifest.webmanifest", "/assets/fonts/inter-latin-v1.woff2", "/assets/fonts/cormorant-garamond-latin-v1.woff2", "/assets/icons/dusu-logo-300-v1.webp"];
+const NAV_TIMEOUT_MS = 3000;     // how long a navigation waits for the network before the cached shell is shown instead
 // Cache-first is now an ALLOWLIST, not a denylist — every new authenticated GET
 // endpoint added to main.py is safe by default instead of needing a matching
 // entry here (the old denylist silently went stale as endpoints were added:
@@ -11,9 +14,36 @@ const SHELL = ["/", "/logo.png", "/manifest.webmanifest"];
 // through to cache-first and either leaked one user's data to the next user on
 // a shared device, or froze permanently for the life of the cached entry).
 const CACHEABLE_PREFIXES = ["/logo.png", "/manifest.webmanifest", "/assets/"];
+// Real documents that are NOT the app shell. They must never be stored as the offline "/" shell (a learner who read the privacy page would later be shown IT in place of DuSu whenever
+// the network is slow) and never be answered from it: they simply go to the network.
+const STATIC_PAGES = ["/privacy", "/terms", "/account-deletion"];
+
+async function navigate(req, event) {
+  if (STATIC_PAGES.includes(new URL(req.url).pathname)) return fetch(req);
+  const network = fetch(req).then((res) => {
+    if (res.ok && (res.headers.get("content-type") || "").includes("text/html")) {
+      const copy = res.clone();
+      caches.open(CACHE).then((c) => c.put("/", copy)).catch(() => {});
+    }
+    return res;
+  });
+  event.waitUntil(network.catch(() => {}));                       // finish (and cache) the fresh page even when the cached one was shown first
+  let cached;
+  try { cached = await (await caches.open(CACHE)).match("/"); } catch (_) { cached = undefined; }
+  if (!cached) return network;                                    // first visit: nothing to fall back to
+  let timer;
+  const late = new Promise((resolve) => { timer = setTimeout(() => resolve(null), NAV_TIMEOUT_MS); });
+  try {
+    const first = await Promise.race([network, late]);
+    // the network answered in time: a deploy shows immediately, exactly as before. A 5xx is not an answer worth showing when a working shell is cached (a tunnel or
+    // origin outage returns a bare "Bad gateway" page); 2xx-4xx are passed through untouched.
+    if (first && (first.ok || first.status < 500)) return first;
+  } catch (_) { /* offline or failed: the cached shell below */ } finally { clearTimeout(timer); }
+  return cached;
+}
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {}));
+  event.waitUntil(caches.open(CACHE).then((c) => Promise.all(SHELL.map((u) => c.add(u).catch(() => {})))).catch(() => {}));
   self.skipWaiting();
 });
 
@@ -31,21 +61,13 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;                       // never cache POST/auth
   const url = new URL(req.url);
 
-  // Navigations: network-first so a new deploy is picked up immediately. Only
-  // store the response as the offline "/" shell if it's actually the HTML app —
-  // an unauthenticated 401 JSON hit on a client route that shadows a real API
-  // path (e.g. /leaderboard with no token) must NOT permanently replace the
-  // cached shell with an error body.
+  // Navigations: network-first so a new deploy is picked up immediately - but never at any price. If the network has not answered in NAV_TIMEOUT_MS (a bad
+  // connection: the audit measured 12 s on Slow 4G and 46 s on 3G to first paint) or fails outright, the cached shell opens at once, and the network request is
+  // kept alive so the cache is refreshed for the NEXT open. With nothing cached yet (the very first visit) there is no choice but to wait for the network.
+  // Only store the response as the offline "/" shell if it's actually the HTML app - an unauthenticated 401 JSON hit on a client route that shadows a real API
+  // path (e.g. /leaderboard with no token) must NOT permanently replace the cached shell with an error body.
   if (req.mode === "navigate") {
-    event.respondWith(
-      fetch(req).then((res) => {
-        if (res.ok && (res.headers.get("content-type") || "").includes("text/html")) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put("/", copy)).catch(() => {});
-        }
-        return res;
-      }).catch(() => caches.match("/"))
-    );
+    event.respondWith(navigate(req, event));
     return;
   }
 
@@ -57,8 +79,8 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     caches.match(req).then((hit) =>
       hit || fetch(req).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+        // only a good answer is kept: a 502 / 503 page for a font or an icon during a deploy would otherwise be served from the cache for as long as this CACHE name lives
+        if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {}); }
         return res;
       }).catch(() => hit)
     )

@@ -238,14 +238,19 @@ def _classify(provider: str, exc, now: float) -> Outcome:
     return Outcome("unknown", http=status)
 
 
+UPSTREAM_BUSY_S = 20.0      # OpenRouter's shared FREE pool says "busy, retry shortly": that passes in seconds, so it is skipped for seconds - not the 90 s of a per-minute limit
+
+
 def limit_seconds(out: Outcome, fallback: float = 90.0) -> float:
-    """How long to skip a limited key: the provider's own retry-after (+1 s, clamped), else 30 min for a daily limit, 90 s for a per-minute / shared-pool one,
-    else `fallback` (the walker passes the legacy text-based class)."""
+    """How long to skip a limited key: the provider's own retry-after (+1 s, clamped), else 30 min for a daily limit, 90 s for a per-minute limit, 20 s for a busy
+    shared pool, else `fallback` (the walker passes the legacy text-based class)."""
     if out.evidence and out.retry_after is not None:
         return min(21600.0, max(5.0, out.retry_after + 1.0))
     if out.scope == "day":
         return 1800.0
-    if out.scope in ("minute", "upstream"):
+    if out.scope == "upstream":
+        return UPSTREAM_BUSY_S
+    if out.scope == "minute":
         return 90.0
     return float(fallback)
 

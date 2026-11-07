@@ -12,7 +12,7 @@ declare -A FILE DESC OLD NEW TIER
 add() { FILE[$1]="$2"; DESC[$1]="$3"; OLD[$1]="$4"; NEW[$1]="$5"; }
 
 CLS=app/keys/classify.py; GATE=app/keys/gate.py; ERR=app/keys/errors.py; LED=app/keys/ledger.py; SVC=app/keys/service.py; API=app/keys/api.py
-PRV=app/providers/openrouter_provider.py; MAIN=app/main.py; DB=app/db.py; NSV=app/notify/service.py
+PRV=app/providers/openrouter_provider.py; PROBE=app/keys/probe.py; MAIN=app/main.py; DB=app/db.py; NSV=app/notify/service.py
 
 add M1  $CLS "a 401 is not read as a rejected key" '    if status == 401:
         return Outcome("invalid", http=401, expired="expired" in text)' '    if status == 401:
@@ -114,6 +114,44 @@ add M43 $SVC "a replaced key's old status row is kept" '        await s.execute(
 add M44 $PRV "a provider that answers with an empty body is not counted at all" '                    ledger.settle(tok, "other", t_in, t_out)         # an empty answer: it cost a request and told us nothing about the key
                     done = True' '                    done = True'
 
+# --- "AI busy" (the walker's second pass, per-model limits, the model memory, the frames, the refund, the early warning)
+add M45 $MAIN "any failure the key engine classified is called quota again (the mislabel: a busy provider became 'your keys hit their limit')" '        return is_keys_problem(kp)' '        return True'
+add M46 $MAIN "a failed turn keeps costing a free daily turn" '            await turn_quota.refund()' '            pass'
+add M47 $MAIN "a failed Face-to-Face turn leaves the unanswered line on the server (a resend is said twice)" '                    del session.transcript[n_before:]      # the line DuSu could not answer is taken back, so the learner saying it again (or the page re-sending it) is not said twice
+                    session.turns = turns_before' '                    pass'
+add M48 $ERR "DuSu's own keys are shown to the learner as key rows with the real reason" '        if not self.own:
+            out = {"state": "transient", "own": False, "keys": [], "now": now_i}' '        if False:
+            out = {"state": "transient", "own": False, "keys": [], "now": now_i}'
+add M49 $PRV "a REJECTED key earns a second pass" '    if kind == "invalid":
+        gate.mark_invalid(name, fp, now, http=out.http, expired=out.expired)' '    if kind == "invalid":
+        w.want(1.0)
+        gate.mark_invalid(name, fp, now, http=out.http, expired=out.expired)'
+add M50 $PRV "Groq and Gemini are treated as one limit per provider again (no per-model fall-through)" 'PER_MODEL_LIMITS = frozenset({"gemini", "groq"})' 'PER_MODEL_LIMITS = frozenset()'
+add M51 $PRV "a model the provider says does not exist is asked again on every turn" '        gate.mark_model_gone(name, fp, model, now, http=out.http)' '        pass'
+add M52 $PRV "a background caller (Grammar Coach, cool=False) waits for the second pass" 'if pass_no == 0 and cool and w.wait is not None' 'if pass_no == 0 and w.wait is not None'
+add M53 $PRV "the failure log line carries what the provider wrote (it can echo the learner's words)" '    _log_failure(state, byok, attempts)
+    raise ProviderChainError(last_err, state, keys, own=byok)' '    _log_failure(state, byok, attempts + [str(w.last_err)])
+    raise ProviderChainError(last_err, state, keys, own=byok)'
+add M54 $PROBE "an alias (gemini-flash-lite-latest) is judged against the provider's list (a false 'model missing' alarm)" '                miss = [m for m in p["models"] if m not in have and not m.endswith("-latest")]' '                miss = [m for m in p["models"] if m not in have]'
+add M55 $GATE "re-adding a key leaves what was believed about its models" '    for k in [k for k in _models if k[0] == provider and k[1] == fp]:
+        _models.pop(k, None)' '    pass'
+add M56 $ERR "a daily limit gets a countdown (waiting will not help)" '            elif kind == "limited" and k.get("scope") in ("minute", "upstream", ""):' '            elif kind == "limited":'
+add M57 $PRV "the second pass ignores the 30 s ceiling" 'deadline - time.time() >= w.wait + _REPASS_MIN_LEFT_S' 'True'
+add M58 $PRV "a model that answers again stays remembered as limited" '                        gate.model_ok(name, fp, model)' '                        pass'
+add M59 $PRV "the early probe cannot reach a model whose own memory still says limited" '            gate.probe_soonest_model(name, fp, p["models"], time.time())' '            pass'
+add M61 $MAIN "/health lists a learner's own key's gone models too" 'keys_gate.gone_models({keys_gate.fingerprint(p["name"], p["key"]) for p in settings.providers()}, time.time())' 'keys_gate.gone_models({k[1] for k in keys_gate._models}, time.time())'
+add M62 $PRV "the same failure line is printed on every failed turn" '    if now - _fail_logged.get(line, 0.0) < _LOG_EVERY_S:
+        return' '    pass'
+add M63 $PRV "OpenRouter's busy-upstream 429 gates the whole key again (the second free model is never asked)" '        if name in PER_MODEL_LIMITS or out.scope == "upstream":' '        if name in PER_MODEL_LIMITS:'
+add M64 $PROBE "DuSu's own key is never asked to chat (a key that lists models but is refused every call reads ok)" '        if st == "ok" and p["name"] != "openrouter":' '        if False:'
+add M65 $PROBE "a passing chat failure (a hiccup, a limit) turns a healthy server key red" '            if c["kind"] in ("forbidden", "invalid"):
+                st = c["kind"]' '            if c["kind"] != "ok":
+                st = "forbidden"'
+add M66 $MAIN "the owner's view of DuSu's own keys is sent to every learner" '        if kp and kp.get("own") is False and role_for(_email) == "owner":' '        if kp and kp.get("own") is False:'
+add M67 $PROBE "a key-shaped string in a provider's reason reaches the owner's alert" '    msg = _KEYISH.sub("<key>", " ".join(msg.split()))' '    msg = " ".join(msg.split())'
+add M68 $PROBE "the provider's reason is cut in the middle of a word / link" '        msg = msg[:WHY_MAX].rsplit(" ", 1)[0].rstrip(".,;:") + "…"' '        msg = msg[:WHY_MAX] + "…"'
+add M69 $PROBE "the owner's dashboard never gets the provider's reason for a refused chat" '                out[p["name"]].update(status=st, http=c["http"], chat=c["kind"], why=c.get("why", ""))' '                out[p["name"]].update(status=st, http=c["http"], chat=c["kind"])'
+
 # ----------------------------------------------------------------------------------------------------------------------------- client mutants (browser specs, slow)
 declare -A CFILE CDESC COLD CNEW CSPEC
 cadd() { CFILE[$1]="$2"; CDESC[$1]="$3"; COLD[$1]="$4"; CNEW[$1]="$5"; CSPEC[$1]="$6"; }
@@ -155,7 +193,7 @@ if [ "${1:-}" = "--client" ]; then
   echo; echo "client mutants: ${caught} caught, ${#survived[@]} survived: ${survived[*]:-none}"; exit 0
 fi
 
-WANT=("$@"); [ ${#WANT[@]} -eq 0 ] && WANT=($(for i in $(seq 1 44); do echo M$i; done))
+WANT=("$@"); [ ${#WANT[@]} -eq 0 ] && WANT=($(for i in $(seq 1 59) 61 62 63 64 65 66 67 68 69; do echo M$i; done))
 caught=0; survived=()
 for m in "${WANT[@]}"; do
   fresh_copy

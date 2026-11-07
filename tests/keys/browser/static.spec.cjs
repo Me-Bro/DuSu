@@ -58,7 +58,7 @@ const dupSet = list => new Set(list.filter((x, i) => list.indexOf(x) !== i));
 const origPath = path.join(REPO, 'tests', 'keys', '.orig.html');
 const baseline = fs.existsSync(origPath) ? dupSet([...fs.readFileSync(origPath, 'utf8').matchAll(/\sid="([\w-]+)"/g)].map(x => x[1])) : new Set(['plTitle2', 'plTime', 'plRrDays', 'plDate']);
 T.eq([...dupSet(all)].filter(x => !baseline.has(x)), [], 'these changes added no duplicate id (4 older My Day ones sit inside script templates, not in the markup)');
-const created = { KY: ['kySum', 'kyAll', 'kym_all', 'kyTitle'], INST: ['instTitle', 'instGo', 'instCopy'], CM: ['waTitle'] };
+const created = { KY: ['kySum', 'kyAll', 'kym_all', 'kyTitle', 'kyCount', 'kyBar', 'kyKeys', 'ksWiz', 'ksStep', 'ksBarI', 'ksHead', 'ksBody', 'ksGet', 'ksOr', 'ksLab', 'ksPaste', 'ksSave', 'ksPick', 'ksDet', 'ksWhy', 'ksNever'], INST: ['instTitle', 'instGo', 'instCopy'], CM: ['waTitle'] };
 for (const n of ['KY', 'INST', 'CM']) {
   const ids = new Set([...MODULES[n].matchAll(/\$\("(\w+)"\)/g)].map(x => x[1]));
   const missing = [...ids].filter(id => !staticIds.has(id) && !created[n].includes(id) && !/^ky[bem]_|^kySave_|^kyCancel_/.test(id));
@@ -86,6 +86,6 @@ T.ok(!/chat\.whatsapp\.com\/[A-Za-z0-9]{10,}/.test(html), 'no WhatsApp invite li
 T.ok(!/\bgsk_[A-Za-z0-9]{20,}|\bAIza[A-Za-z0-9_-]{30,}|\bsk-or-v1-[A-Za-z0-9]{20,}/.test(html), 'no API key in the page');
 
 T.section('7 - wording');
-T.ok(!/key in Settings/.test(html.replace(/pushHintB[^\n]*\n/, '')), 'no message sends a learner to a "Settings" screen for their keys (the real path is More -> DuSu keys)');
-T.ok(/More → DuSu keys/.test(html), 'the real path is named');
+T.ok(!/key in Settings/.test(html.replace(/pushHintB[^\n]*\n/, '')), 'no message sends a learner to a "Settings" screen for their keys (the real path is More -> My AI keys)');
+T.ok(/More → My AI keys/.test(html), "the real path is named: the More row is called My AI keys");
 process.exit(T.done() ? 0 : 1);

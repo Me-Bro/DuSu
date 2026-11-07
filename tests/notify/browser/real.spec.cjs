@@ -106,7 +106,7 @@ const GENDERED = ['रहे हो', 'सकते हो', 'बोलोगे
     T.ok(await until(async () => !(await hidden(p, '#ntPrompt'))), 'cat has practised: the prompt appears');
     const pt = await text(p, '#ntPrompt');
     T.has(pt, 'Want a reminder to practise?', 'the prompt asks plainly');
-    T.has(pt, '7:00 pm', 'it names the time (the default 19:00)');
+    T.has(pt, '7:00 PM', 'it names the time (the default 19:00) in the one time style used everywhere, 8:30 PM (audit C-3)');
     T.ok(/Turn on/.test(pt) && /Not now/.test(pt), 'two clear buttons: Turn on / Not now');
     await p.locator('#ntPrompt').scrollIntoViewIfNeeded(); await sleep(300);
     await shot(p, 'nt-prompt-390');

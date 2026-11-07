@@ -118,9 +118,9 @@ check("the classifier never raises (None, an object, a bad body)", all(classify.
 bad = sdk_err(429, GROQ_429_PLAIN)
 bad.body = {"a": {"b": {"c": {"d": {"e": {"f": {"g": "x" * 5000}}}}}}}
 check("a deeply nested / huge body does not break it", classify.classify("groq", bad, NOW).kind == "limited")
-check("limit_seconds: provider evidence wins (+1 s), day = 30 min, minute / upstream = 90 s, unknown = the fallback",
+check("limit_seconds: provider evidence wins (+1 s), day = 30 min, minute = 90 s, a busy shared pool (upstream) = 20 s, unknown = the fallback",
       classify.limit_seconds(classify.Outcome("limited", retry_after=10, evidence=True)) == 11 and classify.limit_seconds(classify.Outcome("limited", scope="day")) == 1800
-      and classify.limit_seconds(classify.Outcome("limited", scope="minute")) == 90 and classify.limit_seconds(classify.Outcome("limited", scope="upstream")) == 90
+      and classify.limit_seconds(classify.Outcome("limited", scope="minute")) == 90 and classify.limit_seconds(classify.Outcome("limited", scope="upstream")) == 20
       and classify.limit_seconds(classify.Outcome("limited"), 77) == 77 and classify.limit_seconds(classify.Outcome("limited", retry_after=99999999, evidence=True)) == 21600
       and classify.limit_seconds(classify.Outcome("limited", retry_after=0, evidence=True)) == 5)
 check("parse_duration", classify.parse_duration("2m59.56s") == 179.56 and abs(classify.parse_duration("1h2m3s") - 3723) < 1e-9 and classify.parse_duration("35ms") == 0.035
@@ -217,7 +217,7 @@ check("... a limit on the shared free pool is transient, not 'your keys'", chain
 e = ProviderChainError("Error code: 429 - rate limit", "all_limited", [{"provider": "groq", "kind": "limited", "scope": "day", "reset_at": NOW + 5, "approx": True}, {"provider": "gemini", "kind": "invalid", "expired": True}])
 check("ProviderChainError IS a RuntimeError with the legacy message text (every old string check keeps working)", isinstance(e, RuntimeError) and str(e) == "all providers/models unavailable: Error code: 429 - rate limit")
 kp = e.kp(NOW)
-check("kp: state + per-key {provider, kind, scope, reset_at, approx, expired} + now, nothing else", kp == {"state": "all_limited", "now": int(NOW), "keys": [
+check("kp: state + own + per-key {provider, kind, scope, reset_at, approx, expired} + now, nothing else (no retry_in for a state the learner must act on)", kp == {"state": "all_limited", "own": True, "now": int(NOW), "keys": [
     {"provider": "groq", "kind": "limited", "scope": "day", "reset_at": int(NOW + 5), "approx": True}, {"provider": "gemini", "kind": "invalid", "expired": True}]}, kp)
 check("kp carries no provider error text and no key", "rate limit" not in str(kp) and "gsk_" not in str(kp))
 
@@ -236,6 +236,17 @@ def fresh(keys, uid="uA", engine=True, w=None):
     world = w or World()
     install(world)
     op.set_active_keys(keys, uid=uid, engine=engine)
+
+
+def age_limit(provider, key):
+    """Pretend a limit has run its course: the key's gate and every model remembered for that key expire together (as they do in production)."""
+    fp = gate.fingerprint(provider, key)
+    st = gate.get(provider, fp)
+    if st is not None:
+        st.until = time.time() - 1
+    for (p, f, _m), ms in list(gate._models.items()):
+        if p == provider and f == fp:
+            ms.until = time.time() - 1
 
 
 def usage_of(uid, provider=None):
@@ -266,14 +277,14 @@ async def t_limit_falls_through():
     fresh(LA, w=w)
     text = await op._complete(MSG, 50)
     g = gate.get("groq", gate.fingerprint("groq", K1))
-    check("Groq limited -> Gemini answered", text == "OK" and [c[0] for c in world.calls_for()] == ["groq", "gemini"], world.calls)
+    check("Groq limited on BOTH its models (Groq limits per model: the second one is asked too) -> Gemini answered", text == "OK" and [c[0] for c in world.calls_for()] == ["groq", "groq", "gemini"], world.calls)
     check("the limited key is gated for the PROVIDER'S OWN wait (405.6 s + 1), not a guess", g is not None and g.status == "limited" and abs((g.until - time.time()) - 406.6) < 3, g)
     n = len(world.calls_for())
     await op._complete(MSG, 50)
     check("the NEXT call does not touch the limited key at all", [c[0] for c in world.calls_for()][n:] == ["gemini"], world.calls)
-    check("the model list of a limited provider is skipped (one request, not two)", len([c for c in world.calls_for("groq")]) == 1)
+    check("a provider whose every model is limited is skipped whole afterwards (two requests in total, one per model - never again)", len([c for c in world.calls_for("groq")]) == 2)
     u = usage_of("uA", "groq")
-    check("the ledger saw the limited attempt", u["requests"] == 1 and u["limited"] == 1, u)
+    check("the ledger saw both limited attempts", u["requests"] == 2 and u["limited"] == 2, u)
 
 
 async def t_dead_keys():
@@ -384,7 +395,7 @@ async def t_isolation():
     n = len(world.calls_for("groq"))
     await op._complete(MSG, 50)
     check("learner A's limited Groq key does NOT make learner B's Groq key look limited (the old cooldown was per provider NAME)", len(world.calls_for("groq")) == n + 1 and world.calls_for("groq")[-1][1] == LB["groq"], world.calls)
-    check("... and the ledger kept the two learners apart", usage_of("uA", "groq")["limited"] == 1 and usage_of("uB", "groq")["ok"] == 1 and usage_of("uB", "groq")["limited"] == 0)
+    check("... and the ledger kept the two learners apart", usage_of("uA", "groq")["limited"] == 2 and usage_of("uB", "groq")["ok"] == 1 and usage_of("uB", "groq")["limited"] == 0)
     op.set_active_keys({"groq": K1}, uid="uC", engine=True)
     n = len(world.calls_for("groq"))
     try:
@@ -400,7 +411,7 @@ async def t_server_chain():
     w = World().on("groq", settings.groq_api_key, err(429, GROQ_429_PLAIN))
     fresh(None, uid="owner", w=w)
     text = await op._complete(MSG, 50)
-    check("the server chain works through the same walker", text == "OK" and [c[0] for c in world.calls_for()] == ["groq", "gemini"], world.calls)
+    check("the server chain works through the same walker (Groq's two models, then Gemini)", text == "OK" and [c[0] for c in world.calls_for()] == ["groq", "groq", "gemini"], world.calls)
     check("a limit on a SERVER key keeps today's process-wide cooldown map up to date (/health.cooling)", "groq" in op.cooling_down())
     check("... and the cooldown length is the legacy class for that text (90 s)", abs(op._cooldown["groq"] - time.time() - 90) < 3)
     fresh(None, uid="owner", w=World().on("groq", settings.groq_api_key, err(429, GROQ_429_PLAIN)))
@@ -422,8 +433,7 @@ async def t_single_flight():
     w = World().on("groq", K1, err(429, GROQ_429_PLAIN))
     fresh(LA, w=w)
     await op._complete(MSG, 50)
-    g = gate.get("groq", gate.fingerprint("groq", K1))
-    g.until = time.time() - 1                                         # the limit has run its course
+    age_limit("groq", K1)                                             # the limit has run its course (for the key AND for each of its models: they expire together)
     w.on("groq", K1, R(200, completion("OK"), delay=0.15))              # a real answer takes time: the callers interleave exactly as they do in production
     n = len(world.calls_for("groq"))
     res = await asyncio.gather(*[op._complete(MSG, 50) for _ in range(12)])
@@ -518,6 +528,190 @@ for t in (t_success, t_limit_falls_through, t_dead_keys, t_all_down, t_leave_and
     print(f"\n-- {t.__name__}")
     run(t())
 
+# ============================================================================================ D3. the "AI busy" work
+section("D3. 'AI busy': one more pass for a passing failure, limits per model, the model memory, one safe log line")
+import contextlib                                          # noqa: E402
+import io                                                  # noqa: E402
+
+BOOM = {"error": {"message": "boom"}}
+
+
+class Pauses:
+    """Stands in for op._pause: records how long the walk wanted to wait; `age` lets the test move time forward (a limit runs its course)."""
+
+    def __init__(self, age=None):
+        self.log, self.age = [], age
+
+    async def __call__(self, secs):
+        self.log.append(round(secs, 2))
+        if self.age:
+            self.age()
+
+
+async def walk(keys=None, w=None, uid="uA", pz=None, **kw):
+    """One walk with a fake pause. -> (text or the ProviderChainError, the pauses it asked for)."""
+    fresh(keys, uid=uid, w=w)
+    pz = pz or Pauses()
+    saved, op._pause = op._pause, pz
+    try:
+        try:
+            return await op._complete(MSG, 50, **kw), pz.log
+        except ProviderChainError as e:
+            return e, pz.log
+    finally:
+        op._pause = saved
+
+
+async def t_repass():
+    r, pz = await walk({"groq": K1}, World().on("groq", K1, err(503, BOOM), err(503, BOOM), ok()))
+    check("a passing failure (503 on every model): the walk pauses ~1.2-1.8 s and goes round ONCE more - the learner never sees it",
+          r == "OK" and len(pz) == 1 and 1.2 <= pz[0] <= 1.8 and len(world.calls_for("groq")) == 3, (r, pz, world.calls))
+    r, pz = await walk({"groq": K1}, World().on("groq", K1, err(503, BOOM)))
+    check("... and when the second pass fails too: a ProviderChainError 'transient' after exactly two passes (2 models x 2) and one pause", isinstance(r, ProviderChainError) and r.state == "transient"
+          and len(pz) == 1 and len(world.calls_for("groq")) == 4, (r, pz, len(world.calls)))
+    kp = r.kp()
+    check("... whose kp carries the short default countdown (nothing the provider said) and says these are the learner's OWN keys", kp["retry_in"] == 6 and kp["own"] is True and kp["state"] == "transient", kp)
+    r, pz = await walk({"groq": K1}, World().on("groq", K1, err(401, GROQ_401)))
+    check("a REJECTED key never earns a second pass", isinstance(r, ProviderChainError) and r.state == "all_invalid" and pz == [] and len(world.calls_for("groq")) == 1, (r, pz))
+    r, pz = await walk({"groq": K1}, World().on("groq", K1, err(429, GROQ_429_PLAIN)))
+    check("a limit with a long wait (90 s) never earns one either", isinstance(r, ProviderChainError) and r.state == "all_limited" and pz == [], (r, pz))
+    r, pz = await walk({"groq": K1}, World().on("groq", K1, err(429, GROQ_429_TPM), err(429, GROQ_429_TPM), ok()), pz=Pauses(age=lambda: age_limit("groq", K1)))
+    check("a limit that ends in seconds ('try again in 3.2s' -> held 5 s, the classifier's floor) is WAITED OUT: one pause of ~5.25 s, then the answer", r == "OK" and len(pz) == 1 and 5.0 <= pz[0] <= 5.5, (r, pz, world.calls))
+    r, pz = await walk({"groq": K1}, World().on("groq", K1, err(400, {"error": {"message": "Unsupported value"}})))
+    check("a bad request (every model refuses it) is deterministic: no second pass", isinstance(r, ProviderChainError) and pz == [], (r, pz))
+    r, pz = await walk({"groq": K1}, World().on("groq", K1, err(404, OPENROUTER_404)))
+    check("every model 'not found': no second pass either", isinstance(r, ProviderChainError) and pz == [] and len(world.calls_for("groq")) == 2, (r, pz, world.calls))
+    r, pz = await walk({"groq": K1}, World().on("groq", K1, err(503, BOOM), err(503, BOOM), ok()), cool=False)
+    check("a BACKGROUND caller (cool=False: Grammar Coach) never waits", isinstance(r, ProviderChainError) and pz == [], (r, pz))
+    saved_dl = op._CHAIN_DEADLINE_S
+    op._CHAIN_DEADLINE_S = 5.0
+    try:
+        r, pz = await walk({"groq": K1}, World().on("groq", K1, err(503, BOOM), err(503, BOOM), ok()))
+    finally:
+        op._CHAIN_DEADLINE_S = saved_dl
+    check("the 30 s ceiling still rules: not enough of it left -> no second pass", isinstance(r, ProviderChainError) and pz == [], (r, pz))
+    r, pz = await walk({"groq": K1, "gemini": K2}, World().on("groq", K1, err(503, BOOM)).on("gemini", K2, ok()))
+    check("an answer from the NEXT provider needs no pause at all", r == "OK" and pz == [], (r, pz))
+    r, pz = await walk({"groq": K1}, World().on("groq", K1, R(200, completion("")), R(200, completion("")), ok()))
+    check("an EMPTY answer on every model is a passing failure too: one pause, then the answer", r == "OK" and len(pz) == 1, (r, pz))
+    r, pz = await walk({"groq": K1}, World().on("groq", K1, timeout(), ok()))
+    check("a timeout leaves the provider (as before) - and the second pass asks it again after the pause", r == "OK" and len(pz) == 1 and len(world.calls_for("groq")) == 2, (r, pz, world.calls))
+
+
+async def t_per_model():
+    r, pz = await walk({"groq": K1}, World().on("groq", K1, err(429, GROQ_429_PLAIN), ok()))
+    fp = gate.fingerprint("groq", K1)
+    check("Groq limits PER MODEL: the first model limited, the second answers - the learner got an answer and the KEY is not gated",
+          r == "OK" and [c[3] for c in world.calls_for("groq")] == ["openai/gpt-oss-120b", "openai/gpt-oss-20b"] and gate.get("groq", fp) is None, (r, world.calls))
+    check("... only the limited MODEL is remembered", gate.model_blocked("groq", fp, "openai/gpt-oss-120b", time.time()) is not None and gate.model_blocked("groq", fp, "openai/gpt-oss-20b", time.time()) is None)
+    n = len(world.calls_for("groq"))
+    text = await op._complete(MSG, 50)
+    check("the NEXT call goes straight to the model that works (no wasted round trip on the limited one)", text == "OK" and [c[3] for c in world.calls_for("groq")][n:] == ["openai/gpt-oss-20b"], world.calls)
+    u = usage_of("uA", "groq")
+    check("the ledger saw all three requests (1 limited, 2 ok)", u["requests"] == 3 and u["limited"] == 1 and u["ok"] == 2, u)
+    age_limit("groq", K1)
+    n = len(world.calls_for("groq"))
+    await op._complete(MSG, 50)
+    check("when the model's time is up it is asked again (ONE half-open probe), and its memory is cleared by the answer",
+          [c[3] for c in world.calls_for("groq")][n:] == ["openai/gpt-oss-120b"] and gate.model_get("groq", fp, "openai/gpt-oss-120b") is None, (world.calls, gate._models))
+    r, _ = await walk({"groq": K1}, World().on("groq", K1, err(429, GROQ_429_PLAIN)))
+    check("EVERY model limited -> now the key is gated, shown as limited, and a call after that sends nothing", isinstance(r, ProviderChainError) and r.state == "all_limited"
+          and gate.get("groq", fp) is not None and gate.get("groq", fp).status == "limited", r)
+    n = len(world.calls)
+    try:
+        await op._complete(MSG, 50)
+    except ProviderChainError:
+        pass
+    check("... fail-fast: nothing was sent", len(world.calls) == n)
+    r, _ = await walk({"groq": K1}, World().on("groq", K1, err(429, GROQ_429_PLAIN), err(503, BOOM)))
+    check("one model limited and the other 503: NOT 'all limited' - the failure is mixed, so the state is transient and the key is not gated", isinstance(r, ProviderChainError)
+          and r.state == "transient" and gate.get("groq", fp) is None, r)
+    r, _ = await walk({"groq": K1}, World().on("groq", K1, err(429, GROQ_429_PLAIN)), uid="uA", cool=False)
+    check("cool=False on a LEARNER'S OWN key still records the limit", gate.get("groq", fp) is not None)
+    from app.config import settings
+    settings.groq_api_key = "gsk_SERVER" + "q" * 30
+    r, _ = await walk(None, World().on("groq", settings.groq_api_key, err(429, GROQ_429_PLAIN)), uid="owner", cool=False)
+    sfp = gate.fingerprint("groq", settings.groq_api_key)
+    check("cool=False on the SERVER chain neither gates the key nor remembers a limited model (a background call must never cost everyone's chat)",
+          gate.get("groq", sfp) is None and not gate._models, (gate.get("groq", sfp), gate._models))
+    settings.groq_api_key = ""
+    r, _ = await walk({"openrouter": K3}, World().on("openrouter", K3, err(429, OPENROUTER_429_DAY)))
+    fp3 = gate.fingerprint("openrouter", K3)
+    check("OpenRouter's DAY limit is the whole account's: the key is gated at once and the second model is not even asked", gate.get("openrouter", fp3) is not None and len(world.calls_for("openrouter")) == 1, world.calls)
+    r, _ = await walk({"openrouter": K3}, World().on("openrouter", K3, err(429, OPENROUTER_429_UPSTREAM), ok()))
+    check("OpenRouter's 'busy upstream' 429 is per MODEL (each free model has its own pool): the first is busy, the second answers - and the key is not gated",
+          r == "OK" and [c[3] for c in world.calls_for("openrouter")] == ["google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free"] and gate.get("openrouter", fp3) is None, (r, world.calls))
+    r, pz = await walk({"openrouter": K3}, World().on("openrouter", K3, err(429, OPENROUTER_429_UPSTREAM)))
+    g3 = gate.get("openrouter", fp3)
+    check("both pools busy: the key is held for ~20 s (a busy pool passes in seconds, not the 90 s of a per-minute limit) and the state is 'transient', never 'your keys'",
+          isinstance(r, ProviderChainError) and r.state == "transient" and g3 is not None and abs(g3.until - time.time() - 20) < 3 and r.kp()["retry_in"] == 20, (r, g3))
+
+
+async def t_gone_models():
+    fp = gate.fingerprint("groq", K1)
+    r, _ = await walk({"groq": K1}, World().on("groq", K1, err(404, OPENROUTER_404), ok()))
+    check("a model that answers 404 is skipped (the next model answered) and remembered as GONE for 30 minutes",
+          r == "OK" and gate.model_get("groq", fp, "openai/gpt-oss-120b").status == "gone" and abs(gate.model_get("groq", fp, "openai/gpt-oss-120b").until - time.time() - 1800) < 5, (r, gate._models))
+    check("... the key itself is untouched (a missing model says nothing about the key)", gate.get("groq", fp) is None)
+    n = len(world.calls_for("groq"))
+    await op._complete(MSG, 50)
+    check("the NEXT call never asks the gone model", [c[3] for c in world.calls_for("groq")][n:] == ["openai/gpt-oss-20b"], world.calls)
+    check("/health's list names it (for DuSu's own key fingerprints only)", gate.gone_models({fp}, time.time()) == [("groq", "openai/gpt-oss-120b")] and gate.gone_models({"someone-else"}, time.time()) == [])
+    op.set_active_keys(LB, uid="uB", engine=True)
+    n = len(world.calls_for("groq"))
+    await op._complete(MSG, 50)
+    check("it is remembered per KEY: another learner's key asks the model again", [c[3] for c in world.calls_for("groq")][n:][:1] == ["openai/gpt-oss-120b"], world.calls)
+    age_limit("groq", K1)
+    for k, ms in gate._models.items():
+        ms.until = time.time() - 1
+    op.set_active_keys({"groq": K1}, uid="uA", engine=True)
+    n = len(world.calls_for("groq"))
+    await op._complete(MSG, 50)
+    check("after 30 minutes it is asked again (once)", [c[3] for c in world.calls_for("groq")][n:][:1] == ["openai/gpt-oss-120b"], world.calls)
+    gate.mark_model_gone("groq", fp, "openai/gpt-oss-120b", time.time())
+    gate.mark_model_limited("groq", fp, "openai/gpt-oss-20b", time.time(), 60)
+    other_key = gate.fingerprint("groq", "gsk_someone_else_000000000000000000")
+    gate.mark_model_gone("groq", other_key, "openai/gpt-oss-120b", time.time())
+    check("(two models of this key are remembered, and one of another learner's)", len([k for k in gate._models if k[1] == fp]) == 2 and len([k for k in gate._models if k[1] == other_key]) == 1)
+    gate.clear("groq", fp)
+    check("a learner re-adding / re-verifying the key wipes what was believed about ITS models - and only its own", not [k for k in gate._models if k[1] == fp] and len([k for k in gate._models if k[1] == other_key]) == 1, gate._models)
+    r, pz = await walk({"groq": K1}, World().on("groq", K1, err(404, OPENROUTER_404)))
+    check("EVERY model gone: 'transient' with kind 'unavailable' and NO countdown (waiting will not bring a model back)", isinstance(r, ProviderChainError) and r.state == "transient"
+          and r.keys[0]["kind"] == "unavailable" and r.kp().get("retry_in") is None and pz == [], (r.keys if isinstance(r, ProviderChainError) else r, pz))
+    n = len(world.calls)
+    try:
+        await op._complete(MSG, 50)
+    except ProviderChainError as e2:
+        again = e2
+    check("... and the next call sends nothing at all (both models are remembered as gone) yet still answers the same way", len(world.calls) == n and again.state == "transient")
+    r, _ = await walk({"groq": K1}, World().on("groq", K1, err(404, OPENROUTER_404), err(429, GROQ_429_PLAIN)))
+    check("a gone model never counts against the key: 120b gone + 20b limited = the key IS limited", isinstance(r, ProviderChainError) and r.state == "all_limited", r)
+
+
+async def t_failure_log():
+    op._fail_logged.clear(); op._gone_logged.clear()
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        r, _ = await walk({"groq": K1}, World().on("groq", K1, err(503, {"error": {"message": "secret learner words: my salary is 90000"}})), uid="uA-secret-id")
+        first = buf.getvalue()
+        r, _ = await walk({"groq": K1}, World().on("groq", K1, err(503, {"error": {"message": "secret learner words: my salary is 90000"}})), uid="uA-secret-id")
+    out = buf.getvalue()
+    lines = [l for l in out.splitlines() if l.startswith("[keys] chain failed")]
+    check("a failed walk leaves ONE line: state, whose keys, what each attempt was (provider / model / kind / status), and the pause", len(lines) == 1 and "state=transient" in lines[0] and "own=yes" in lines[0]
+          and "groq/openai/gpt-oss-120b:transient-503" in lines[0] and "pause" in lines[0], out)
+    check("... the same line is not repeated inside 30 s", len([l for l in out.splitlines() if l.startswith("[keys] chain failed")]) == 1)
+    check("... and it carries NO key, NO learner id and NOTHING the provider wrote (it can echo the learner's words)", K1 not in out and "gsk_" not in out and "uA-secret-id" not in out and "salary" not in out and "boom" not in out, out)
+    op._fail_logged.clear()
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        await walk({"groq": K1}, World().on("groq", K1, err(404, OPENROUTER_404)))
+    check("a model the provider says does not exist is logged ONCE by name (an owner can fix config.py before anyone asks)", buf.getvalue().count("[keys] model not found: groq/openai/gpt-oss-120b") == 1, buf.getvalue())
+
+
+for t in (t_repass, t_per_model, t_gone_models, t_failure_log):
+    print(f"\n-- {t.__name__}")
+    run(t())
+
 # ============================================================================================ legacy cooldown classes (pinned)
 section("D2. the legacy cooldown classes are unchanged")
 cases = {"Error code: 401 - invalid authentication": 21600, "Error code: 403 - forbidden": 21600, "Error code: 404 - not found": 21600, "Error code: 410 - gone": 21600,
@@ -548,8 +742,60 @@ cyc = RuntimeError("a"); cyc.__cause__ = cyc
 check("... a cause cycle cannot loop forever", M.key_failure(cyc) is None)
 kw = M.kp_kw(pe)
 check("kp_kw adds the field only when there is one", set(kw) == {"kp"} and kw["kp"]["state"] == "all_limited" and M.kp_kw(RuntimeError("x")) == {})
-check("quota_msg: the old text without kp, a new one that names the real path (More -> DuSu keys) with kp - never 'Settings'",
-      M.quota_msg(RuntimeError("429")) == M._OLD_QUOTA_MSG and "Settings" not in M.quota_msg(pe) and "DuSu keys" in M.quota_msg(pe))
+
+# the "AI busy" work: what is quota, what the learner is told, when it is worth asking again
+TR = lambda kind, **k: {"provider": "groq", "kind": kind, **k}
+check("kp.retry_in: a passing failure with no wait from the provider -> the short default (6 s)", ProviderChainError("x", "transient", [TR("transient")]).kp()["retry_in"] == 6)
+check("... a busy shared pool (20 s) and a minute limit use the wait the walker recorded", ProviderChainError("x", "transient", [TR("limited", scope="upstream", retry_s=20.0)]).kp()["retry_in"] == 20
+      and ProviderChainError("x", "transient", [TR("limited", scope="minute", retry_s=42.4)]).kp()["retry_in"] == 42)
+check("... the SOONEST key that can recover wins", ProviderChainError("x", "transient", [TR("limited", scope="minute", retry_s=40), TR("transient"), TR("invalid")]).kp()["retry_in"] == 6)
+check("... never below 3 s, never above 10 minutes", ProviderChainError("x", "transient", [TR("limited", scope="minute", retry_s=1)]).kp()["retry_in"] == 3
+      and ProviderChainError("x", "transient", [TR("limited", scope="minute", retry_s=99999)]).kp()["retry_in"] == 600)
+check("... nothing that cannot recover by itself (rejected, blocked, out of credit, a day limit, a gone model) has one",
+      all("retry_in" not in ProviderChainError("x", "transient", [TR(k, **extra)]).kp() for k, extra in (("invalid", {}), ("forbidden", {}), ("needs_credit", {}), ("limited", {"scope": "day", "retry_s": 1800.0}), ("unavailable", {}))))
+check("... and a state the learner must ACT on (all rejected / limited) carries none", "retry_in" not in ProviderChainError("x", "all_limited", [TR("limited", scope="minute", retry_s=10)]).kp())
+own_false = ProviderChainError("Error code: 429 - secret", "all_invalid", [TR("invalid"), {"provider": "gemini", "kind": "limited", "scope": "day", "reset_at": NOW + 99, "retry_s": 99.0}], own=False).kp(NOW)
+check("DuSu's OWN keys: whatever the real reason, the learner is told 'transient', own false, and given NO key rows (they cannot fix a key they never added)",
+      own_false["state"] == "transient" and own_false["own"] is False and own_false["keys"] == [] and "groq" not in str(own_false) and "secret" not in str(own_false), own_false)
+check("... the learner's own keys keep their rows and say own true", ProviderChainError("x", "all_limited", [TR("limited", scope="day")]).kp()["own"] is True
+      and ProviderChainError("x", "all_limited", [TR("limited", scope="day")]).kp()["keys"][0]["provider"] == "groq")
+def pce(state, own=True, msg="Error code: 429 - rate limit"):
+    return ProviderChainError(msg, state, [TR("limited")], own=own)
+check("_is_quota: 'the AI service did not answer' is NEVER quota - even when its text says 429", M._is_quota(pce("transient")) is False and M._is_quota(pce("transient", own=False)) is False)
+check("_is_quota: the learner's OWN keys rejected / limited / absent IS quota", M._is_quota(pce("all_invalid")) and M._is_quota(pce("all_limited")) and M._is_quota(pce("no_keys")))
+check("_is_quota: ... but never on DuSu's own keys (the learner cannot fix those)", not any(M._is_quota(pce(st, own=False)) for st in ("all_invalid", "all_limited", "no_keys")))
+check("_is_quota: an error the engine never classified keeps the old text guess (429 / quota -> yes, a timeout -> no)", M._is_quota(RuntimeError("Error code: 429 - x")) and M._is_quota(RuntimeError("quota exceeded"))
+      and not M._is_quota(RuntimeError("all providers/models unavailable: timed out")))
+try:
+    try:
+        raise pce("transient")
+    except Exception as inner:
+        raise RuntimeError("wrapped, and its text says 429") from inner
+except Exception as outer:
+    check("_is_quota: sees through a wrapper to the engine's classification (transient stays not-quota)", M._is_quota(outer) is False)
+ke = M.key_error(pce("all_limited", own=False), 502, "gen_failed")
+check("key_error on DuSu's own keys: the site's own status (502), never a 429 'quota'; kp attached and transient", ke.status_code == 502 and ke.detail == "gen_failed" and ke.kp["state"] == "transient" and ke.kp["own"] is False, (ke.status_code, ke.detail))
+ke = M.key_error(pce("transient"), 502, "gen_failed")
+check("key_error: a busy provider whose text says 429 is no longer a 429 'quota' either", ke.status_code == 502 and ke.detail == "gen_failed", (ke.status_code, ke.detail))
+ke = M.key_error(pce("all_limited"), 502, "gen_failed")
+check("key_error: the learner's own keys all limited is still 429 'quota' (unchanged)", ke.status_code == 429 and ke.detail == "quota")
+
+# the provider's own sentence for a refusal (what the OWNER's alert and dashboard show for DuSu's own keys)
+from app.keys import probe as KP                          # noqa: E402
+from world import GEMINI_403_FREE_TIER                    # noqa: E402
+check("probe._why_from_body: Groq's dict, Gemini's LIST and OpenRouter's nested body each give the provider's own sentence",
+      KP._why_from_body(GROQ_401) == "Invalid API Key" and KP._why_from_body(GEMINI_403_FREE_TIER).startswith("The Gemini API free tier is not available for this project.")
+      and KP._why_from_body(OPENROUTER_429_UPSTREAM) == "Provider returned error", (KP._why_from_body(GROQ_401), KP._why_from_body(GEMINI_403_FREE_TIER)[:60]))
+check("... Google's whole sentence fits (it ends in the billing link, which must not be cut in the middle)", KP._why_from_body(GEMINI_403_FREE_TIER).endswith("https://aistudio.google.com/billing"), KP._why_from_body(GEMINI_403_FREE_TIER))
+leaky = {"error": {"message": "Bad keys AIzaSyA1234567890abcdefghijkLMN and gsk_abcdef1234567890 and sk-or-v1-0123456789abcdef and AQ.Ab8RN6IxYz"}}
+why = KP._why_from_body(leaky)
+check("... anything key-shaped is removed", "AIza" not in why and "gsk_" not in why and "sk-or" not in why and "AQ." not in why and why.count("<key>") == 4, why)
+long_body = {"error": {"message": ("word " * 120).strip()}}
+why = KP._why_from_body(long_body)
+check("... bounded to 240 characters and cut at a word, with an ellipsis", len(why) <= KP.WHY_MAX + 1 and why.endswith("…") and "wor…" not in why and why[:-1].endswith("word"), (len(why), why[-20:]))
+check("... a body that is not shaped like an error gives nothing (never raises)", KP._why_from_body(None) == "" and KP._why_from_body([]) == "" and KP._why_from_body("plain text") == "plain text" and KP._why_from_body(12) == "")
+check("quota_msg: the old text without kp, a new one that names the real path (More -> My AI keys) with kp - never 'Settings'",
+      M.quota_msg(RuntimeError("429")) == M._OLD_QUOTA_MSG and "Settings" not in M.quota_msg(pe) and "My AI keys" in M.quota_msg(pe))
 ke = M.key_error(pe, 502, "x")
 check("key_error: a key problem is 429 'quota' with kp", ke.status_code == 429 and ke.detail == "quota" and ke.kp["state"] == "all_limited")
 ke = M.key_error(ProviderChainError("t", "transient", []), 502, "gen_failed")

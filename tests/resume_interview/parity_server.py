@@ -68,7 +68,7 @@ for msg, want in cases.items():
 # life labels: only the new mode was added
 from app import life                                                  # noqa: E402
 old_life = load("life_head_src", "/tests/resume_interview/.head/life_head.py") if False else None
-check("life._MODE_LABELS only gained the new mode", {k: v for k, v in life._MODE_LABELS.items() if k != "resume_interview"} == {"conversation": "Face-to-Face", "daily": "Daily Talk", "interview": "Interview", "presentation": "Presentation", "viva": "Viva", "speech": "Speech", "seminar": "Seminar", "discussion": "Discussion", "custom": "Practice Room"})
+check("life._MODE_LABELS only gained the new mode", {k: v for k, v in life._MODE_LABELS.items() if k != "resume_interview"} == {"conversation": "Face to Face Talk", "daily": "Daily Talk", "interview": "Interview", "presentation": "Presentation", "viva": "Viva", "speech": "Speech", "seminar": "Seminar", "discussion": "Discussion", "custom": "Practice Room"})
 
 # the XP table: every existing mode keeps its bonus
 from app import db                                                    # noqa: E402

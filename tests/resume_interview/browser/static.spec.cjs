@@ -81,7 +81,7 @@ const fs = require('fs');
     await page.waitForSelector('#home.on');
     await page.waitForFunction(() => !document.getElementById('riHomeCard').hidden);
     T.has(await H.txt(page, '#riHomeCard'), 'Job Interview Practice', 'Home card');
-    await page.click('#riHomeCard'); await H.waitView(page, 'hub'); T.ok(true, 'Home card -> hub');
+    await H.toHub(page); T.ok(true, 'Home entry (the banner card, or its tile when Home draws the icon grid) -> hub');
     await page.evaluate(() => show('practice'));
     await page.waitForFunction(() => !document.getElementById('riEntry').hidden);
     const order = await page.evaluate(() => [...document.querySelectorAll('#practice > *')].map(e => e.id || e.className.split(' ')[0]).filter(Boolean));

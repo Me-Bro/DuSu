@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # A locked screen vs the voice chats - "do the tests catch a planted bug?"  Copies the backend, plants ONE deliberate bug, runs the tier that should notice it against the copy and
 # reports whether it FAILED (= the bug was caught). A mutant that survives means a check is too weak. Never touches backend/ itself.
-#   tests/daily_voice/mutants.sh            every mutant (server S1-S19 ~1 min each, client K1-K17 / N1-N34 ~1-3 min each)
+#   tests/daily_voice/mutants.sh            every mutant (server S1-S19 ~1 min each, client K1-K17 / N1-N34 / Y1-Y24 ~1-3 min each)
 #   tests/daily_voice/mutants.sh S2 K5 N7   only these
 # S1-S6 / K1-K17: Daily Talk + Learn (ws_selftest.py / lock.spec.cjs).  S7-S19 / N1-N34: Face-to-Face, Interview, practice, Home (ws_sessions_selftest.py / lock2.spec.cjs).
 set -uo pipefail
@@ -104,6 +104,35 @@ add K17 $H "a long lock while the server is busy declares the socket dead after 
 add S19 $M "a huge elapsed crashes the resume" 'except (TypeError, ValueError, OverflowError):      # a huge JSON integer overflows float()' 'except (TypeError, ValueError):' "" $SS
 add N34 $H "the time the phone was locked counts as practice time" 'Math.round((Date.now() - sessT0 - sessAway) / 1000)' 'Math.round((Date.now() - sessT0) / 1000)' "P3" $L2
 
+# ---- client, "the AI did not answer" (busy.spec.cjs): the pop-up, the countdown, the retry that keeps the SAME words
+BS=busy.spec.cjs
+add Y1  $H "the busy case shows the small top banner again instead of the pop-up" '      openBusy(kp); return true;' '      try{ showNotif(t("busyS")); }catch(_){} return true;' "B1,B3" $BS
+add Y2  $H "the countdown never fires the automatic retry" '    if(busy.left <= 0){ retryNow(); return; }' '    if(busy.left <= 0){ return; }' "B1" $BS
+add Y3  $H "the automatic retry repeats forever (no one-per-failure limit)" 'const spent = !!info.key && autoDoneFor === info.key;' 'const spent = false;' "B2" $BS
+add Y4  $H "'try again' on the session screens sends nothing" '  if(scr === "session") return sessRetry();' '  if(scr === "session") return false;' "B1,C1" $BS
+add Y5  $H "the countdown keeps running while the screen is locked" 're:    if\(document\.hidden\) return;( {3,})// a locked screen does not count down[^\n]*\n' '' "G1" $BS
+add Y6  $H "an older server's busy provider (a quota frame) prints its English sentence in the Home chat again" '    if(m && m.kp && window.KY && KY.covers && KY.covers(m.kp, "quota")){ showRetryChip(); orb("idle", T[lang()].orbIdle, ""); return; }' '' "F3" $BS
+add Y7  $H "Daily writes its own system line for a failure the pop-up already explained" '  if(quiet){ if($("dailyLoader")) $("dailyLoader").hidden = true; dState(msg); }' '  if(false){ }' "D1" $BS
+add Y8  $H "Learn speaks the failure aloud in English again" '      if(!cov) say(lgt("lUnavail"), ENG_NORM());' '      say(lgt("lUnavail"), ENG_NORM());' "D3" $BS
+add Y9  $H "a failed Daily line is forgotten (the retry has nothing to send)" '  thinkHide(); if(dailyPendingMe) dailyFailedMe = dailyPendingMe;' '  thinkHide();' "D1" $BS
+add Y10 $H "a failed Daily OPENER is not retried" '  if(dailyOpenerPending || !(ws && ws.readyState === 1)){ dailyRevive(); return true; }' '  if(false){ dailyRevive(); return true; }' "D2" $BS
+add Y11 $H "the pop-up stays open after the answer arrived" '    if(busy){ const was = isOpen; stopBusyTimer(); busy = null; if(was) closeSheet(); }' '    if(busy){ stopBusyTimer(); busy = null; }' "B1" $BS
+add Y12 $H "a rejected key of their own is hidden behind the busy pop-up" '    if(rows.length) kids.push(h("ul", { class:"ky-pop-list" }, ...rows.map(k => keyRow(k, sk))));' '' "E2" $BS
+add Y13 $H "a tap on DuSu does not retry on the voice screens" '      if(cov){ sessNeedsTap = true; orb("idle", lgt("sRetryT"), lgt("sRetryH")); break; }' '      if(cov){ orb("idle", lgt("sRetryT"), lgt("sRetryH")); break; }' "C2" $BS
+add Y14 $H "the mic restarts under the open pop-up on Home" '      showRetryChip(); orb("idle", T[lang()].orbIdle, ""); return;' '      showRetryChip(); orb("idle", T[lang()].orbIdle, ""); maybeListen(); return;' "B4" $BS
+add Y15 $H "the send-again chip stays after anything is sent" '  function renderActs(list){
+    clearRetryChip();' '  function renderActs(list){' "B1,B3" $BS
+add Y16 $H "an opening that failed is not retried on the voice screens (no 'unanswered line' and no 'nothing on screen yet')" '{ can: !!l || sessLog().length === 0 || !open, key: l || "opener" }' '{ can: !!l || !open, key: l || "opener" }' "C3" $BS
+add Y17 $H "the learner's keys are never listed in the pop-up" '    if(kp.own !== false) kids.push(h("div", { class:"ky-sec", id:"kyKeys" }, ...keysBlockKids(list)));' '    ;' "E2,E3" $BS
+add Y18 $H "the plan card is missing from the pop-up" '    if(!kp.server) kids.push(h("button", { type:"button", class:"ky-plan ky-plan-btn", onclick:toPlans },' '    if(false) kids.push(h("button", { type:"button", class:"ky-plan ky-plan-btn", onclick:toPlans },' "P1,E3,E5" $BS
+add Y19 $H "the plan card is shown to the owner too" 'if(!kp.server) kids.push(h("button"' 'if(true) kids.push(h("button"' "E1" $BS
+add Y20 $H "no check is run when the pop-up opens" '    if(kp.own !== false) busyRecheck();' '    ;' "E2,E3" $BS
+add Y21 $H "Working is claimed on an older check when the providers could not be reached" '(b0.cls === "unk" || ((k.status === "ok") && lastChecked[p] === "unreachable"))' '(b0.cls === "unk")' "B1b" $BS
+add Y22 $H "your keys are working is said without every key being answered ok just now" 'list.every(k => k.status === "ok" && lastChecked[k.provider] === "ok")' 'list.every(k => k.status === "ok")' "B1b" $BS
+add Y23 $H "the owner never sees DuSu's own keys in the alert" '    if(kp.server){ const ob = ownerBlock(kp.server); if(ob) kids.push(ob); }' '    ;' "E1" $BS
+
+add Y24 $H "the keys block never says it is checking while the real check runs (Working chips from an older status, no sign a check is on its way)" 'text:t("cardT") + (recheckBusy ? " · " + t("checking") : "")' 'text:t("cardT")' "E3b" $BS
+
 plant() {   # plant FILE OLD NEW into $OUT/backend  -> 0 ok, 7 does not apply
   python3 - "$OUT/backend/$1" "$2" "$3" <<'PY'
 import re, sys
@@ -123,7 +152,7 @@ PY
 fresh_copy() { rm -rf "$OUT/backend"; mkdir -p "$OUT/backend"; tar -C backend --exclude=.venv --exclude=__pycache__ --exclude='.env*' -cf - . | tar -C "$OUT/backend" -xf -; }
 
 # the newest first (the session chats), then the Daily / Learn set
-ALL=(S7 S8 S9 S10 S11 S12 S13 S14 S15 S16 S17 S18 S19 K9 K17
+ALL=(Y1 Y2 Y3 Y4 Y5 Y6 Y7 Y8 Y9 Y10 Y11 Y12 Y13 Y14 Y15 Y16 Y17 Y18 Y19 Y20 Y21 Y22 Y23 Y24 S7 S8 S9 S10 S11 S12 S13 S14 S15 S16 S17 S18 S19 K9 K17
      N1 N2 N3 N4 N5 N6 N7 N8 N9 N10 N11 N12 N13 N14 N15 N16 N17 N18 N19 N20 N21 N22 N23 N24 N25 N26 N27 N28 N29 N30 N31 N32 N33 N34
      S1 S2 S3 S4 S5 S6 K1 K2 K3 K4 K5 K6 K7 K8 K10 K11 K12 K13 K15 K16)
 WANT=("$@"); [ ${#WANT[@]} -eq 0 ] && WANT=("${ALL[@]}")

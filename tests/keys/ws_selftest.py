@@ -5,7 +5,10 @@ What is proven, for every mode that talks to a model (Face-to-Face, Daily Talk, 
     `home_error` / `practice_error`): no new frame type, the old fields unchanged;
   * with the engine OFF the frames are exactly what they were (the old wording, no `kp`);
   * a healthy session is IDENTICAL with the engine on and off (frame by frame, text by text);
-  * a socket's key chain is fixed at `start`; a learner with no keys is told `keys_required`; the old "Settings" wording is gone from what the engine says.
+  * a socket's key chain is fixed at `start`; a learner with no keys is told `keys_required`; the old "Settings" wording is gone from what the engine says;
+  * "the AI service did not answer" is NEVER a `quota` frame (even when its text says 429): every chat sends the feature's own error frame with kp 'transient'; on
+    DuSu's own keys (`own: false`) the learner is never shown a key row, never told to fix a key, and the free daily turn the failed turn would have used is given back;
+  * a failed Face-to-Face turn takes the unanswered line back, so the learner (or the page) saying it again is not said twice.
 Run via tests/keys/run.sh ws_selftest.py.
 """
 
@@ -136,10 +139,10 @@ async def main():
     for m_ in modes:
         for eng in ("on", "off"):
             who[(m_, eng)] = f"{m_}-{eng}"
-    who["nokeys"], who["fixed"], who["ab-on"], who["ab-off"], who["spy"] = "nokeys", "fixed", "ab-on", "ab-off", "spy"
+    who["nokeys"], who["fixed"], who["ab-on"], who["ab-off"], who["spy"], who["srv"], who["owner"] = "nokeys", "fixed", "ab-on", "ab-off", "spy", "srv", "owner"
     users, tok, keys = {}, {}, {}
     for n in set(who.values()):
-        users[n] = {"sub": f"u-{n}", "email": f"{n}@example.com", "name": "Learner Lee", "picture": ""}
+        users[n] = {"sub": f"u-{n}", "email": ("david123rana@gmail.com" if n == "owner" else f"{n}@example.com"), "name": "Learner Lee", "picture": ""}
         await db.login(users[n])
         await db.save_assessment(users[n]["sub"], {"goal": "job", "comfort": "ok", "practice_time": "10", "level": "B1", "scores": {}, "weak_areas": []})
         tok[n] = auth.make_session(users[n])
@@ -172,7 +175,7 @@ async def main():
                     check(f"[{mode}] {label}: the failure frame ({(fail or {}).get('type')}) carries kp {expect_kp}", fail is not None and kp is not None and kp["state"] == expect_kp
                           and all(k["provider"] in ("groq", "gemini") for k in kp["keys"]) and kp["now"] > 1_700_000_000, (fail, ))
                     if fail and fail["type"] == "quota":
-                        check(f"[{mode}] {label}: the old clients' text now names the real path, not 'Settings'", "Settings" not in fail["msg"] and "DuSu keys" in fail["msg"], fail.get("msg"))
+                        check(f"[{mode}] {label}: the old clients' text now names the real path, not 'Settings'", "Settings" not in fail["msg"] and "My AI keys" in fail["msg"], fail.get("msg"))
                     if fail and fail["type"] == "practice_error":
                         check(f"[{mode}] {label}: practice_error keeps its old msg word ({'quota' if beh == 'limited' else 'unavailable'})", fail["msg"] == ("quota" if beh == "limited" else "unavailable"), fail)
                     if kp:
@@ -197,7 +200,7 @@ async def main():
             except Exception:
                 break
     q = next((f for f in got if f["type"] == "quota"), None)
-    check("a failure at the opening arrives as the usual `quota` frame with kp (the outer handler)", q is not None and q["kp"]["state"] == "all_limited" and "DuSu keys" in q["msg"], got)
+    check("a failure at the opening arrives as the usual `quota` frame with kp (the outer handler)", q is not None and q["kp"]["state"] == "all_limited" and "My AI keys" in q["msg"], got)
     for k in BEHAVE:
         BEHAVE[k] = "invalid"
     async with websockets.connect(f"ws://127.0.0.1:{PORT}/ws/interview") as ws:
@@ -209,8 +212,114 @@ async def main():
                 got.append(json.loads(await asyncio.wait_for(ws.recv(), 10)))
             except Exception:
                 break
-    e = next((f for f in got if f["type"] == "error"), None)
-    check("... rejected keys at the opening: an `error` frame with kp all_invalid (the old text, 'All AI providers are busy', is kept for old clients)", e is not None and e["kp"]["state"] == "all_invalid" and "busy" in e["msg"].lower(), got)
+    e = next((f for f in got if f["type"] in ("quota", "error")), None)
+    check("... rejected keys at the opening: a `quota` frame with kp all_invalid and the accurate words (it used to say 'All AI providers are busy' about REJECTED keys)",
+          e is not None and e["type"] == "quota" and e["kp"]["state"] == "all_invalid" and "rejected" in e["msg"].lower() and "busy" not in e["msg"].lower(), got)
+    for k in BEHAVE:
+        BEHAVE[k] = "down"
+    async with websockets.connect(f"ws://127.0.0.1:{PORT}/ws/interview") as ws:
+        gate.reset_all()
+        await ws.send(json.dumps({"type": "start", "mode": "conversation", "token": tok["spy"], "name": "Ann", "hour": 11}))
+        got = []
+        for _ in range(4):
+            try:
+                got.append(json.loads(await asyncio.wait_for(ws.recv(), 10)))
+            except Exception:
+                break
+    e = next((f for f in got if f["type"] in ("quota", "error")), None)
+    check("... the provider down at the opening: an `error` frame with kp transient (never `quota`), the old text kept for old clients",
+          e is not None and e["type"] == "error" and e["kp"]["state"] == "transient" and e["kp"]["own"] is True and "busy" in e["msg"].lower(), got)
+
+    # ------------------------------------------------------------------------------------------ "the AI did not answer" is never quota; DuSu's own keys
+    section("DuSu's own keys (the owner / the quota phase): never a key row, never `quota`, the free turn is given back")
+    M.settings.groq_api_key, M.settings.gemini_api_key, M.settings.openrouter_api_key = "gsk_SERVER" + "q" * 30, "AIzaSERVER" + "q" * 30, "sk-or-v1-SERVER" + "q" * 30
+    await db.set_setting("access_phase", "quota"); M.invalidate_access_cache()
+    srv_sub = users["srv"]["sub"]
+    day = M._quota_day()
+    OPEN = 1                       # opening a socket is itself charged once (TurnQuota.open -> charge_request); only the TURNS are given back
+    for mode in ("conversation", "daily", "learning", "home"):
+        for beh, label in (("limited", "every server key limited (its text says 429)"), ("invalid", "every server key rejected"), ("down", "the provider is down")):
+            gate.reset_all()
+            u0 = await db.usage_today(srv_sub, day)
+            frames, _first = await drive(tok["srv"], mode, fail_after_start=beh)
+            fail = last(frames, {"quota", "error", "home_error", "translate_error"})
+            kp = (fail or {}).get("kp") or {}
+            check(f"[{mode}] DuSu's keys, {label}: never a `quota` frame ({(fail or {}).get('type')}), kp = transient, own false, NO key rows",
+                  fail is not None and fail["type"] != "quota" and kp.get("state") == "transient" and kp.get("own") is False and kp.get("keys") == [], fail)
+            check(f"[{mode}] ... {label}: no key text and no provider text in what the learner is sent", "SERVER" not in json.dumps(frames) and "RESOURCE" not in json.dumps(fail) and "Rate limit" not in json.dumps(fail))
+            await asyncio.sleep(0.3)
+            check(f"[{mode}] ... {label}: the failed turn's free daily turn is given back (only the session opening was charged: {u0} -> {u0 + OPEN})", await db.usage_today(srv_sub, day) == u0 + OPEN, (u0, await db.usage_today(srv_sub, day)))
+    gate.reset_all()
+    u0 = await db.usage_today(srv_sub, day)
+    await drive(tok["srv"], "conversation", turns=1)
+    await asyncio.sleep(0.4)
+    check("a turn the AI DID answer is charged as before (the opening + one turn)", await db.usage_today(srv_sub, day) == u0 + OPEN + 1, (u0, await db.usage_today(srv_sub, day)))
+    for k in BEHAVE:
+        BEHAVE[k] = "down"
+    async with websockets.connect(f"ws://127.0.0.1:{PORT}/ws/interview") as ws:
+        gate.reset_all()
+        await ws.send(json.dumps({"type": "start", "mode": "conversation", "token": tok["srv"], "name": "Ann", "hour": 11}))
+        got = []
+        for _ in range(4):
+            try:
+                got.append(json.loads(await asyncio.wait_for(ws.recv(), 10)))
+            except Exception:
+                break
+    e = next((f for f in got if f["type"] in ("quota", "error")), None)
+    check("the opening fails on DuSu's keys: an `error` frame, kp transient / own false / no key rows", e is not None and e["type"] == "error" and e["kp"]["state"] == "transient" and e["kp"]["own"] is False and e["kp"]["keys"] == [], got)
+    check("... and kp.retry_in says when it is worth asking again (a passing failure: the short default)", isinstance(e["kp"].get("retry_in"), int) and 3 <= e["kp"]["retry_in"] <= 600, e["kp"])
+
+    # the OWNER, when it is DuSu's own keys that failed, is told which of them is valid or invalid (and the provider's own reason) in the frame itself - nobody else is
+    import time as _t
+    _now = int(_t.time())
+    M.keys_probe._server["keys"] = {"groq": {"status": "invalid", "why": "Invalid API Key", "checked_at": _now},
+                                    "gemini": {"status": "forbidden", "why": "The Gemini API free tier is not available for this project. To use the Gemini API, please set up billing.", "checked_at": _now},
+                                    "openrouter": {"status": "ok", "checked_at": _now}}
+    for mode in ("conversation", "home", "daily"):
+        gate.reset_all()
+        frames, _first = await drive(tok["owner"], mode, fail_after_start="down")
+        fail = last(frames, {"quota", "error", "home_error", "translate_error"})
+        kp = (fail or {}).get("kp") or {}
+        sv = kp.get("server") or {}
+        check(f"[{mode}] the OWNER's frame about DuSu's own keys carries `server`: Groq invalid, Gemini forbidden (with Google's own words), OpenRouter ok",
+              kp.get("own") is False and kp.get("keys") == [] and sv.get("groq", {}).get("status") == "invalid" and sv.get("gemini", {}).get("status") == "forbidden" and sv.get("openrouter", {}).get("status") == "ok"
+              and "free tier is not available" in sv.get("gemini", {}).get("why", ""), kp)
+        check(f"[{mode}] ... no key text in it", "SERVER" not in json.dumps(frames) and "gsk_" not in json.dumps(kp) and "AIza" not in json.dumps(kp))
+        gate.reset_all()
+        frames, _first = await drive(tok["srv"], mode, fail_after_start="down")
+        fail = last(frames, {"quota", "error", "home_error", "translate_error"})
+        kp = (fail or {}).get("kp") or {}
+        check(f"[{mode}] an ordinary learner's frame about the same failure has NO `server` and names no provider", "server" not in kp and not any(n in json.dumps(frames).lower() for n in ("groq", "gemini", "openrouter")), kp)
+    M.keys_probe._server["keys"] = {}
+
+    # a failed Face-to-Face turn takes the unanswered line back
+    for k in BEHAVE:
+        BEHAVE[k] = "ok"
+    gate.reset_all()
+    LINE = "this line is said twice by mistake unless the server takes it back"
+    async with websockets.connect(f"ws://127.0.0.1:{PORT}/ws/interview") as ws:
+        await ws.send(json.dumps({"type": "start", "mode": "conversation", "token": tok["srv"], "name": "Ann", "hour": 11}))
+        while json.loads(await asyncio.wait_for(ws.recv(), 20)).get("type") not in ("ai_text", "error", "quota"):
+            pass
+        for k in BEHAVE:
+            BEHAVE[k] = "down"
+        await ws.send(json.dumps({"type": "user_text", "text": LINE}))
+        while (m := json.loads(await asyncio.wait_for(ws.recv(), 30))).get("type") not in ("error", "ai_text", "quota"):
+            pass
+        failed_type = m["type"]
+        for k in BEHAVE:
+            BEHAVE[k] = "ok"
+        gate.reset_all()
+        await ws.send(json.dumps({"type": "user_text", "text": LINE}))
+        while (m := json.loads(await asyncio.wait_for(ws.recv(), 30))).get("type") not in ("error", "ai_text", "quota"):
+            pass
+        said = [x for x in (WORLD.last_messages or []) if x.get("role") == "user" and x.get("content") == LINE]
+        check("a failed turn is an `error` frame, and saying the SAME line again reaches the model exactly ONCE (the unanswered line was taken back)",
+              failed_type == "error" and m["type"] == "ai_text" and len(said) == 1, (failed_type, m["type"], len(said)))
+    M.settings.groq_api_key = M.settings.gemini_api_key = M.settings.openrouter_api_key = ""
+    await db.set_setting("access_phase", "growth"); M.invalidate_access_cache()
+    for k in BEHAVE:
+        BEHAVE[k] = "ok"
 
     # ------------------------------------------------------------------------------------------ healthy sessions are identical
     section("a healthy session: engine ON == engine OFF, frame by frame")

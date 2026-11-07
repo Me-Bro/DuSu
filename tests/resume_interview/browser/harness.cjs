@@ -187,8 +187,10 @@ async function boot(ctx, env, urlPath = '/') {
 // Home -> hub through the real Home card
 async function toHub(page) {
   await page.waitForSelector('#home.on', { timeout: 8000 });
-  await page.waitForFunction(() => { const e = document.getElementById('riHomeCard'); return e && !e.hidden; }, null, { timeout: 8000 });
-  await page.click('#riHomeCard');
+  // Home draws the feature either as the banner card (#riHomeCard) or - since the audit (P1-1) hid the banners that repeat a tile - as a tile in the icon grid; both open the same hub
+  const find = () => { const c = document.getElementById('riHomeCard'); if (c && !c.hidden && c.offsetParent !== null) return 'card'; return [...document.querySelectorAll('#hmFeats .hm-feat')].some(b => /Job Interview Practice/.test(b.getAttribute('aria-label') || '')) ? 'tile' : ''; };
+  await page.waitForFunction(find, null, { timeout: 8000 });
+  await page.evaluate(() => { const c = document.getElementById('riHomeCard'); if (c && !c.hidden && c.offsetParent !== null) return c.click(); const t = [...document.querySelectorAll('#hmFeats .hm-feat')].find(b => /Job Interview Practice/.test(b.getAttribute('aria-label') || '')); if (t) t.click(); });
   await waitView(page, 'hub');
   await page.waitForSelector('#riNew', { state: 'visible' });
 }

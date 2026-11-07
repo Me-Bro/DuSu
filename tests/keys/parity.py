@@ -9,7 +9,10 @@ and compares, per scenario and over three consecutive calls: the ORDER of (provi
   - legacy must be IDENTICAL to HEAD in every scenario (including the ones where the old behaviour is a bug).
   - v2 must be IDENTICAL to HEAD wherever the old behaviour was right (success, limits with no wait given, 5xx, a retired model, a bad request, an empty answer).
   - v2 must DIFFER, in exactly the documented way, where it is a fix: a rejected key is not retried on every call, a timeout leaves the provider, a limit lasts as long as the
-    provider said.
+    provider said - and (the "AI busy" work) Groq and Gemini limit PER MODEL, so a 429 on one model tries the provider's next model; a model the provider says does not exist
+    (404) is remembered for 30 minutes instead of being asked on every turn.
+  - The SAME scenarios are replayed with those two features switched off (`PER_MODEL_LIMITS` emptied, the model memory a no-op): v2 must then equal HEAD exactly, which proves
+    they are the ONLY difference. Their own behaviour is pinned explicitly in "the documented differences".
 
 Run:  mkdir -p tests/keys/.head && git show 057e58c:backend/app/providers/openrouter_provider.py > tests/keys/.head/provider_head.py && tests/keys/run.sh parity.py
 """
@@ -108,6 +111,17 @@ async def v2(*a, **kw):
     return await op._complete(*a, **kw)
 
 
+async def v2_compat(*a, **kw):
+    """The per-key walker with the two newest features switched off - it must then behave exactly like HEAD wherever HEAD was right."""
+    saved = (op.PER_MODEL_LIMITS, gate.mark_model_gone)
+    op.PER_MODEL_LIMITS = frozenset()
+    gate.mark_model_gone = lambda *x, **y: None
+    try:
+        return await v2(*a, **kw)
+    finally:
+        op.PER_MODEL_LIMITS, gate.mark_model_gone = saved
+
+
 async def legacy(*a, **kw):
     op.set_active_keys(None, uid="owner", engine=False)
     return await op._complete(*a, **kw)
@@ -119,16 +133,16 @@ async def main():
         h = await replay(head_fn, sc)
         l = await replay(legacy, sc)
         check(f"legacy == HEAD: {name}", [(x["attempts"], x["cooldown"], x["result"]) for x in h] == [(x["attempts"], x["cooldown"], x["result"]) for x in l], (h, l))
-    print("\n== the per-key walker == HEAD where HEAD was right")
+    print("\n== the per-key walker == HEAD where HEAD was right (per-model limits and the model memory switched off: they are the ONLY difference)")
     for name, sc in SAME.items():
         h = await replay(head_fn, sc)
-        n = await replay(v2, sc)
+        n = await replay(v2_compat, sc)
         check(f"v2 == HEAD: {name}", [(x["attempts"], x["cooldown"], x["result"]) for x in h] == [(x["attempts"], x["cooldown"], x["result"]) for x in n], (h, n))
     print("\n== ... with prefer_fast / first / cool=False")
     for kw in ({"prefer_fast": True}, {"first": "gemini"}, {"cool": False}, {"prefer_fast": True, "cool": False}):
         for name in ("all healthy", "groq limited, no wait given", "groq limited, then gemini limited", "groq 5xx on both models"):
             h = await replay(head_fn, SAME[name], **kw)
-            n = await replay(v2, SAME[name], **kw)
+            n = await replay(v2_compat, SAME[name], **kw)
             check(f"v2 == HEAD {kw}: {name}", [(x["attempts"], x["cooldown"], x["result"]) for x in h] == [(x["attempts"], x["cooldown"], x["result"]) for x in n], (h, n))
     print("\n== the documented differences")
     h = await replay(head_fn, DIFFERENT["groq REJECTED (401)"])
@@ -149,15 +163,31 @@ async def main():
     hc = h[0]["cooldown"].get("groq", 0) * 5
     check("a limit that names its wait (6m45s): HEAD guessed 30 minutes (the word 'day' in the text); the per-key walker honours the provider's ~7 minutes - in the gate AND in the /health cooldown map",
           hc >= 1700 and abs(n[0]["cooldown"].get("groq", 0) * 5 - 405) <= 10, (h[0]["cooldown"], n[0]["cooldown"]))
+    h = await replay(head_fn, SAME["groq limited, no wait given"])
+    n = await replay(v2, SAME["groq limited, no wait given"])
+    check("Groq limits PER MODEL: HEAD gave up on Groq after one 429; the per-key walker asks its second model too (once), then skips Groq whole - from call 2 the two are the same",
+          [a[1] for a in h[0]["attempts"] if a[0] == "groq"] == ["openai/gpt-oss-120b"] and [a[1] for a in n[0]["attempts"] if a[0] == "groq"] == ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+          and [x["attempts"] for x in h[1:]] == [x["attempts"] for x in n[1:]], (h, n))
+    n = await replay(v2, {"groq": [err(429, GROQ_429_PLAIN), ok()]}, calls=3)
+    check("... and when the second model answers, Groq is NOT gated (only the limited model is skipped next time): call 2 asks Groq's second model straight away",
+          [a for a in n[0]["attempts"]] == [("groq", "openai/gpt-oss-120b"), ("groq", "openai/gpt-oss-20b")] and n[1]["attempts"] == [("groq", "openai/gpt-oss-20b")], n[:2])
+    h = await replay(head_fn, SAME["groq retired model (404), ok on the next"])
+    n = await replay(v2, SAME["groq retired model (404), ok on the next"])
+    check("a retired model (404): HEAD asked it on EVERY call; the per-key walker asks once and then goes straight to the next model",
+          sum(1 for x in h for a in x["attempts"] if a[1] == "openai/gpt-oss-120b") == 3 and sum(1 for x in n for a in x["attempts"] if a[1] == "openai/gpt-oss-120b") == 1
+          and all(a[1] == "openai/gpt-oss-20b" for x in n[1:] for a in x["attempts"]), (h, n))
     h = await replay(head_fn, DIFFERENT["ALL THREE limited"])
     n = await replay(v2, DIFFERENT["ALL THREE limited"])
-    check("EVERY key limited: HEAD sent all three requests again on every call (its 'try them anyway' pass); the per-key walker fails at once with nothing sent after the first call",
-          [len(x["attempts"]) for x in h] == [3, 3, 3] and [len(x["attempts"]) for x in n] == [3, 0, 0], ([len(x["attempts"]) for x in h], [len(x["attempts"]) for x in n]))
+    check("EVERY key limited: HEAD sent all three requests again on every call (its 'try them anyway' pass); the per-key walker fails at once with nothing sent after the first call "
+          "(that first call also asks Groq's second model: 4 requests)",
+          [len(x["attempts"]) for x in h] == [3, 3, 3] and [len(x["attempts"]) for x in n] == [4, 0, 0], ([len(x["attempts"]) for x in h], [len(x["attempts"]) for x in n]))
     check("... both end in the same words (the message text is the contract)", [x["result"] for x in h] == [x["result"] for x in n] and h[0]["result"][0] == "err", (h[0]["result"], n[0]["result"]))
     print("\n== ordering: the chain order is the same")
     h = await replay(head_fn, DIFFERENT["ALL THREE limited"], calls=1)
     n = await replay(v2, DIFFERENT["ALL THREE limited"], calls=1)
-    check("groq -> gemini -> openrouter, both models tried only where no limit was hit", h[0]["attempts"] == n[0]["attempts"] == [("groq", "openai/gpt-oss-120b"), ("gemini", "gemini-flash-lite-latest"), ("openrouter", "google/gemma-4-31b-it:free")], (h, n))
+    check("groq -> gemini -> openrouter in the same order; the per-key walker adds Groq's second model (its limits are per model)",
+          [a[0] for a in h[0]["attempts"]] == ["groq", "gemini", "openrouter"] and [a[0] for a in n[0]["attempts"]] == ["groq", "groq", "gemini", "openrouter"]
+          and [a for a in n[0]["attempts"] if a[0] != "groq" or a[1] == "openai/gpt-oss-120b"] == h[0]["attempts"], (h, n))
     print(f"\n{N - len(FAILS)} / {N} checks passed")
     sys.exit(1 if FAILS else 0)
 

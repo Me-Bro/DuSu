@@ -10,6 +10,7 @@ Speech is browser-side; the model only ever sees and emits text.
 
 import asyncio
 import json
+import random
 import re
 import time
 from contextvars import ContextVar
@@ -323,15 +324,32 @@ async def _complete_legacy(messages: list[dict], max_tokens: int, prefer_fast: b
 # The per-key walker (settings.key_health). Same shape as the legacy walker - chain order, models in order, the same deadline, the same text cleaning - but:
 #   * the gate is keyed (provider, key fingerprint): one learner's limit never makes another learner's key look limited;
 #   * every failure is classified ONCE (keys/classify.py) from the SDK's typed error: a rejected key (401, a Gemini 400 "API key not valid") is remembered
-#     and skipped instead of being retried on every call; a limit is skipped for as long as the provider said (retry-after), else the legacy 90 s / 30 min;
-#   * a timeout / connection error leaves the provider (the next model of the same provider will not do better in time); 5xx / retired model / bad
-#     request still try the next model, exactly like before;
+#     and skipped instead of being retried on every call; a limit is skipped for as long as the provider said (retry-after), else the legacy 90 s / 30 min
+#     (20 s for a busy shared free pool);
+#   * Gemini and Groq publish their free limits PER MODEL (and OpenRouter's busy-upstream 429 is per model too): a 429 on one model tries the provider's next model, and the
+#     KEY is gated only when every model is limited;
+#   * a model the provider says does not exist (404) is remembered for 30 minutes, per key, instead of costing a round trip on every turn;
+#   * a timeout / connection error leaves the provider (the next model of the same provider will not do better in time); 5xx / bad request still try the next model;
+#   * when a failure was a passing one (a timeout, a 5xx, an empty answer, a limit that ends in a few seconds) the walk waits that long and goes round ONCE more -
+#     never for a rejected key, a limit with a long wait, or a background caller (cool=False), and only while the 30 s ceiling leaves room;
 #   * every attempt is counted (keys/ledger.py) when it is dispatched and settled however it ends - including a cancellation;
 #   * when EVERY key is gated it fails at once (no network) with a ProviderChainError that says which key failed how; one early probe a minute may let a
-#     limit that ended early be noticed; a half-open probe is single-flight so concurrent callers cannot hammer a limited key.
+#     limit that ended early be noticed; a half-open probe is single-flight so concurrent callers cannot hammer a limited key;
+#   * a failed walk leaves ONE safe log line (provider / model / kind - never text, never a key) so the next "AI busy" can be explained afterwards.
 # ------------------------------------------------------------------------------------------------------------------------------------------------
+PER_MODEL_LIMITS = frozenset({"gemini", "groq"})
+_REPASS_PAUSE_S = 1.2          # a passing failure: wait this (+ up to 0.6 s of jitter) before the second pass
+_REPASS_MAX_WAIT_S = 5.0       # a limit that ends sooner than this is waited out instead of failing the turn
+_REPASS_MIN_LEFT_S = 6.0       # the second pass needs at least this much of the 30 s ceiling to be left after the wait
+_pause = asyncio.sleep         # tests replace it, so a second pass does not really wait
+_fail_logged: dict[str, float] = {}
+_gone_logged: dict[tuple, float] = {}
+_LOG_EVERY_S = 30.0
+
+
 def _limit_seconds(out, err_text: str) -> float:
-    """How long to skip a limited key: the provider's own retry-after (+1 s), else a daily limit 30 min / a per-minute one 90 s, else the legacy text classes."""
+    """How long to skip a limited key: the provider's own retry-after (+1 s), else a daily limit 30 min / a per-minute one 90 s / a busy shared pool 20 s,
+    else the legacy text classes."""
     return classify.limit_seconds(out, _cooldown_seconds(err_text))
 
 
@@ -339,22 +357,85 @@ def _gated_record(name: str, st) -> dict:
     kind = st.status
     if kind == "limited" and st.scope == "credit":
         kind = "needs_credit"
-    return {"provider": name, "kind": kind, "scope": "" if st.scope == "credit" else st.scope, "reset_at": st.reset_at, "approx": st.approx, "expired": st.expired}
+    rec = {"provider": name, "kind": kind, "scope": "" if st.scope == "credit" else st.scope, "reset_at": st.reset_at, "approx": st.approx, "expired": st.expired}
+    if kind == "limited":
+        rec["retry_s"] = max(0.0, st.until - time.time())
+    return rec
 
 
-def _apply_failure(uid, name: str, fp: str, out, err: Exception, cool: bool, byok: bool, records: dict) -> str:
-    """Record what a failed attempt taught us. Returns 'leave' (skip this provider's other models) or 'next' (try the next model)."""
+def _tag(out) -> str:
+    """'limited-429-minute', 'transient-503', 'model_gone-404', 'transient-noresponse' - what a failed attempt was, for the log line. Never any provider text."""
+    bits = [out.kind]
+    if out.http:
+        bits.append(str(out.http))
+    elif out.kind == "transient":
+        bits.append("noresponse")
+    if out.kind == "limited" and out.scope:
+        bits.append(out.scope)
+    return "-".join(bits)
+
+
+def _log_failure(state: str, byok: bool, attempts: list) -> None:
+    """ONE line per failed walk (the same line at most every 30 s). Provider and model NAMES are our own configuration; a key, a learner's id or anything the
+    provider wrote (it can echo the learner's words) never goes in."""
+    line = f"[keys] chain failed: state={state} own={'yes' if byok else 'no'} tried={', '.join(attempts) or 'nothing'}"
+    now = time.time()
+    if now - _fail_logged.get(line, 0.0) < _LOG_EVERY_S:
+        return
+    if len(_fail_logged) > 200:
+        _fail_logged.clear()
+    _fail_logged[line] = now
+    print(line)
+
+
+def _log_gone(name: str, model: str, http: int) -> None:
+    now = time.time()
+    k = (name, model)
+    if now - _gone_logged.get(k, 0.0) < 1800.0:
+        return
+    _gone_logged[k] = now
+    print(f"[keys] model not found: {name}/{model} (HTTP {http}) - skipped for 30 min; if this is DuSu's own chain, update config.py")
+
+
+class _Walk:
+    """State shared by the passes of one walk."""
+    __slots__ = ("last_err", "wait")
+
+    def __init__(self):
+        self.last_err = None
+        self.wait = None          # seconds to wait before a second pass (None = a second pass would not help)
+
+    def want(self, secs: float) -> None:
+        self.wait = secs if self.wait is None else min(self.wait, secs)
+
+
+def _limit_key(sid, name: str, fp: str, secs: float, out, cool: bool, byok: bool, records: dict) -> None:
+    """The KEY is limited (its provider limits per key, or every one of its models is): gate it, show it to the learner, remember it."""
+    now = time.time()
+    if byok or cool:                                  # cool=False (Grammar Coach) on the server chain must not gate a key everyone's chat needs
+        gate.mark_limited(name, fp, now, secs, scope=out.scope, reset_at=out.reset_at, evidence=out.evidence, approx=out.approx, http=out.http)
+    if cool and not byok:
+        _cooldown[name] = now + secs                  # the legacy display map (/health.cooling, the non-engine callers) says the same as the gate
+    ledger.note_bad(sid, name, fp, "limited", "limited", now, scope=out.scope, http=out.http, reset_at=out.reset_at, evidence=out.evidence, approx=out.approx)
+    records[(name, fp)] = {"provider": name, "kind": "limited", "scope": out.scope, "reset_at": out.reset_at, "approx": out.approx, "retry_s": secs}
+
+
+def _apply_failure(uid, name: str, fp: str, model: str, out, err: Exception, cool: bool, byok: bool, records: dict, lim: list, w: _Walk) -> str:
+    """Record what a failed attempt taught us. Returns 'leave' (skip this provider's other models), 'next' (try the next model), 'limited_model' (this ONE model is
+    limited - try the next, decide about the key after the loop) or 'gone' (the model does not exist - try the next, it never counts against the key)."""
     now = time.time()
     kind = out.kind
     sid = uid if byok else None                      # a status row is the learner's view of THEIR OWN keys; the server chain's keys have none
     if kind == "limited":
         secs = _limit_seconds(out, str(err))
-        if byok or cool:                              # cool=False (Grammar Coach) on the server chain must not gate a key everyone's chat needs
-            gate.mark_limited(name, fp, now, secs, scope=out.scope, reset_at=out.reset_at, evidence=out.evidence, approx=out.approx, http=out.http)
-        if cool and not byok:
-            _cooldown[name] = now + secs              # the legacy display map (/health.cooling, the non-engine callers) says the same as the gate
-        ledger.note_bad(sid, name, fp, "limited", "limited", now, scope=out.scope, http=out.http, reset_at=out.reset_at, evidence=out.evidence, approx=out.approx)
-        records[(name, fp)] = {"provider": name, "kind": "limited", "scope": out.scope, "reset_at": out.reset_at, "approx": out.approx}
+        if secs <= _REPASS_MAX_WAIT_S:
+            w.want(secs + 0.25)                       # a limit that ends in seconds is waited out, not shown to the learner
+        if name in PER_MODEL_LIMITS or out.scope == "upstream":      # a busy UPSTREAM pool (OpenRouter's free models) is per model as well: the next model has its own pool
+            if byok or cool:
+                gate.mark_model_limited(name, fp, model, now, secs, scope=out.scope, reset_at=out.reset_at, evidence=out.evidence, approx=out.approx, http=out.http)
+            lim.append((model, secs, out))
+            return "limited_model"
+        _limit_key(sid, name, fp, secs, out, cool, byok, records)
         return "leave"
     if kind == "invalid":
         gate.mark_invalid(name, fp, now, http=out.http, expired=out.expired)
@@ -371,34 +452,28 @@ def _apply_failure(uid, name: str, fp: str, out, err: Exception, cool: bool, byo
         ledger.note_bad(sid, name, fp, "limited", "needs_credit", now, http=out.http)
         records[(name, fp)] = {"provider": name, "kind": "needs_credit"}
         return "leave"
-    # Not evidence about the key (a timeout, 5xx, a retired model, a bad request, text we cannot read): nothing is gated.
+    if kind == "model_gone":
+        gate.mark_model_gone(name, fp, model, now, http=out.http)     # the provider says this model does not exist: not asked again for 30 minutes (per key)
+        _log_gone(name, model, out.http)
+        records.setdefault((name, fp), {"provider": name, "kind": "unavailable"})
+        return "gone"
+    # Not evidence about the key (a timeout, 5xx, a bad request, text we cannot read): nothing is gated.
     records.setdefault((name, fp), {"provider": name, "kind": "transient"})
-    if kind == "transient" and not out.http:
-        return "leave"                                # a timeout / connection error: do not spend another 20 s on the same provider's next model
+    if kind == "transient":
+        w.want(_REPASS_PAUSE_S + random.random() * 0.6)                # a passing failure: worth one more pass
+        if not out.http:
+            return "leave"                                              # a timeout / connection error: do not spend another 20 s on the same provider's next model
     return "next"
 
 
-async def _complete_v2(messages: list[dict], max_tokens: int, prefer_fast: bool = False,
-                       temperature: float = 0.7, first: str | None = None, cool: bool = True) -> str:
-    ctx = _active_ctx.get()
-    uid = ctx.uid if ctx else None
-    own = _active_chain.get()                        # the learner's own keys, or None = the server's chain
-    byok = own is not None
-    chain = own or settings.providers()
-    if prefer_fast:
-        chain = sorted(chain, key=lambda p: 0 if p["name"] == "groq" else 1)
-    if first:
-        chain = sorted(chain, key=lambda p: 0 if p["name"] == first else 1)
-    entries = [(p, gate.fingerprint(p["name"], p["key"])) for p in chain]
-    if not entries:
-        raise ProviderChainError("no keys configured", "no_keys", [])
-    deadline = time.time() + _CHAIN_DEADLINE_S
-    records: dict[tuple, dict] = {}
-    last_err = None
-    now = time.time()
+async def _v2_pass(entries: list, messages: list, max_tokens: int, temperature: float, uid, byok: bool, cool: bool, deadline: float,
+                   records: dict, attempts: list, w: _Walk, first_pass: bool):
+    """One walk round the chain. Returns the reply text, or None when nothing answered (what was learned is in `records` / `attempts` / `w`)."""
     early = None
-    if all(gate.peek(p["name"], fp, now) == "skip" for p, fp in entries):
-        early = gate.soonest_probe([(p["name"], fp) for p, fp in entries], now)       # every key is gated: one early probe a minute at most
+    if first_pass:
+        now = time.time()
+        if all(gate.peek(p["name"], fp, now) == "skip" for p, fp in entries):
+            early = gate.soonest_probe([(p["name"], fp) for p, fp in entries], now)       # every key is gated: one early probe a minute at most
     for p, fp in entries:
         name = p["name"]
         if time.time() > deadline:
@@ -408,12 +483,31 @@ async def _complete_v2(messages: list[dict], max_tokens: int, prefer_fast: bool 
             st = gate.get(name, fp)
             if st is not None:
                 records[(name, fp)] = _gated_record(name, st)
+                attempts.append(f"{name}:skipped-{st.status}")
             continue
+        if (name, fp) == early:
+            gate.probe_soonest_model(name, fp, p["models"], time.time())     # the early probe must reach a model whose own memory would still skip it
+        lim: list = []                                # this provider's models that are limited right now: (model, seconds, Outcome)
+        n_live = 0                                    # its models that exist (a model the provider says is gone does not count)
+        other = False                                 # some model failed for a reason that is not "limited"
         try:
             client = _client(p)
             for model in p["models"]:
                 if time.time() > deadline:
                     break
+                mv = gate.model_verdict(name, fp, model, time.time())
+                if mv == "skip":                      # remembered: asked again only when its time is up (no request, no wasted second)
+                    ms = gate.model_get(name, fp, model)
+                    if ms is not None and ms.status == "gone":
+                        attempts.append(f"{name}/{model}:skipped-gone")
+                        records.setdefault((name, fp), {"provider": name, "kind": "unavailable"})
+                    elif ms is not None:
+                        n_live += 1
+                        attempts.append(f"{name}/{model}:skipped-limited")
+                        lim.append((model, max(0.0, ms.until - time.time()),
+                                    classify.Outcome("limited", http=ms.http or 429, scope=ms.scope, reset_at=ms.reset_at, evidence=ms.evidence, approx=ms.approx)))
+                    continue
+                n_live += 1
                 tok = ledger.begin(uid, name, fp)
                 done = False
                 try:
@@ -433,6 +527,7 @@ async def _complete_v2(messages: list[dict], max_tokens: int, prefer_fast: bool 
                         ledger.settle(tok, "ok", t_in, t_out)
                         done = True
                         t_now = time.time()
+                        gate.model_ok(name, fp, model)
                         changed = gate.mark_ok(name, fp, t_now)
                         ledger.note_ok(uid if byok else None, name, fp, t_now, classify.parse_ratelimit(name, getattr(raw, "headers", None), t_now), changed)
                         # A "length" finish means the model was CUT OFF mid-thought: trim back to the last complete sentence (same as the legacy walker).
@@ -443,27 +538,73 @@ async def _complete_v2(messages: list[dict], max_tokens: int, prefer_fast: bool 
                         return sanitize_hindi_respect(text)
                     ledger.settle(tok, "other", t_in, t_out)         # an empty answer: it cost a request and told us nothing about the key
                     done = True
+                    attempts.append(f"{name}/{model}:empty")
+                    other = True
+                    w.want(_REPASS_PAUSE_S + random.random() * 0.6)
                     records.setdefault((name, fp), {"provider": name, "kind": "transient"})
                 except asyncio.CancelledError:
                     raise                                             # the `finally` below settles it as 'other'
                 except Exception as e:
-                    last_err = e
+                    w.last_err = e
                     out = classify.classify(name, e)
                     ledger.settle(tok, out.kind if out.kind in ("limited", "invalid") else "other")
                     done = True
-                    if _apply_failure(uid, name, fp, out, e, cool, byok, records) == "leave":
+                    attempts.append(f"{name}/{model}:{_tag(out)}")
+                    act = _apply_failure(uid, name, fp, model, out, e, cool, byok, records, lim, w)
+                    if act == "gone":
+                        n_live -= 1
+                    elif act != "limited_model":
+                        other = True
+                    if act == "leave":
                         break
                 finally:
                     if not done:
                         ledger.settle(tok, "other")
+                    gate.model_release(name, fp, model)               # a half-open probe of this model that ended without a verdict frees its slot
+            if lim and not other and len(lim) == n_live:
+                soonest = min(lim, key=lambda x: x[1])                # every model that exists is limited: now the KEY is limited, until the first of them frees up
+                _limit_key(uid if byok else None, name, fp, soonest[1], soonest[2], cool, byok, records)
         finally:
             gate.release(name, fp)                                    # a half-open probe that ended without a verdict frees its slot
+    return None
+
+
+async def _complete_v2(messages: list[dict], max_tokens: int, prefer_fast: bool = False,
+                       temperature: float = 0.7, first: str | None = None, cool: bool = True) -> str:
+    ctx = _active_ctx.get()
+    uid = ctx.uid if ctx else None
+    own = _active_chain.get()                        # the learner's own keys, or None = the server's chain
+    byok = own is not None
+    chain = own or settings.providers()
+    if prefer_fast:
+        chain = sorted(chain, key=lambda p: 0 if p["name"] == "groq" else 1)
+    if first:
+        chain = sorted(chain, key=lambda p: 0 if p["name"] == first else 1)
+    entries = [(p, gate.fingerprint(p["name"], p["key"])) for p in chain]
+    if not entries:
+        raise ProviderChainError("no keys configured", "no_keys", [], own=byok)
+    deadline = time.time() + _CHAIN_DEADLINE_S
+    records: dict[tuple, dict] = {}
+    attempts: list[str] = []
+    w = _Walk()
+    for pass_no in (0, 1):
+        text = await _v2_pass(entries, messages, max_tokens, temperature, uid, byok, cool, deadline, records, attempts, w, pass_no == 0)
+        if text is not None:
+            return text
+        if pass_no == 0 and cool and w.wait is not None and deadline - time.time() >= w.wait + _REPASS_MIN_LEFT_S:
+            attempts.append("pause")
+            pause, w.wait = w.wait, None
+            await _pause(pause)                      # a passing failure (or a limit that ends in seconds): wait it out, then ONE more pass
+            continue
+        break
     keys = [records.get((p["name"], fp)) or {"provider": p["name"], "kind": "transient"} for p, fp in entries]
     state = chain_state(keys)
+    last_err = w.last_err
     if last_err is None:                                              # failed at once with nothing tried: say why in words the old string checks understand
         last_err = ("429 rate limit - the keys are skipped until they reset" if state == "all_limited" else
                     "401 the keys were rejected" if state == "all_invalid" else "no provider answered")
-    raise ProviderChainError(last_err, state, keys)
+    _log_failure(state, byok, attempts)
+    raise ProviderChainError(last_err, state, keys, own=byok)
 
 
 # Speak-as-it-generates, but in WHOLE SENTENCES — never raw tokens. Browser

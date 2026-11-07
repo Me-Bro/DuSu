@@ -17,7 +17,9 @@ the Web Speech API, so the wire only ever carries text — Claude is the brain.
 """
 
 import asyncio
+import hashlib
 import json
+import mimetypes
 import os
 import re
 import time
@@ -25,7 +27,7 @@ import types
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Header, Request
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -50,8 +52,15 @@ from .grammar import api as gc_api, tracker as gc_tracker, gating as gc_gating
 from .notify import models as _nt_models  # noqa: F401  (registers the nt_* tables on db.Base before init_db runs)
 from .notify import api as notify_api, scheduler as notify_scheduler
 from .keys import models as _ky_models  # noqa: F401  (registers the kh_* tables on db.Base before init_db runs)
-from .keys import api as keys_api, ledger as keys_ledger, probe as keys_probe, service as keys_svc
-from .keys.errors import ProviderChainError
+from .keys import api as keys_api, gate as keys_gate, ledger as keys_ledger, probe as keys_probe, service as keys_svc
+from .keys.errors import ProviderChainError, engine_kp, is_keys_problem
+from .insights import models as _ev_models  # noqa: F401  (registers the ev_* + plan_interest tables on db.Base before init_db runs)
+from .insights import api as insights_api, service as insights
+
+# The slim image has no /etc/mime.types and Starlette answers an unknown extension with text/plain: the self-hosted fonts and the WebP logo were served as text/plain
+# (seen on the live site 2026-10-31). Browsers sniff images and fonts, so nothing broke - but the type was wrong, and a `nosniff` header would have broken both.
+mimetypes.add_type("font/woff2", ".woff2")
+mimetypes.add_type("image/webp", ".webp")
 
 app = FastAPI(title="DuSu")
 app.include_router(planner_api.router)      # My Day: /planner/* (404 while the `planner` switch is off for the account)
@@ -61,6 +70,7 @@ ri_life.register()                           # ... and reads the learner's inter
 app.include_router(gc_api.router)           # Grammar Coach: /gcoach/* (404 while the `grammar_coach` switch is off for the account)
 app.include_router(notify_api.router)       # Notifications: /notify/* (404 while the `notifications` switch is off for the account)
 app.include_router(keys_api.router)         # Keys: /keys/status|save|remove|recheck|export (404 while the `key_health` switch is off for the account)
+app.include_router(insights_api.router)     # Insights: POST /ev (a screen beacon), POST|GET /plans/interest ("Reserve my plan")
 
 
 class KeyProblem(HTTPException):
@@ -216,6 +226,60 @@ async def level_test_on() -> bool:
         return await _cached("level_test", lambda: db.get_setting("level_test", "on")) != "off"
     except Exception:
         return True
+
+
+async def insights_on() -> bool:
+    """Is the first-run funnel counter recording? An owner kill switch (Settings table), ON by default: it stores a milestone name, a time and a learner id and
+    nothing else (insights/service.py, privacy.html). Off = nothing is recorded and POST /ev answers a quiet 204."""
+    try:
+        return await _cached("insights", lambda: db.get_setting("insights", "on")) != "off"
+    except Exception:
+        return True
+
+
+def _ev(uid, name: str) -> None:
+    """Fire-and-forget: this learner reached milestone `name`. A set lookup once it is known; never blocks a request and never raises."""
+    if not uid or (uid, name) in insights.seen():
+        return
+    insights.spawn(_ev_task(uid, name))
+
+
+async def _ev_task(uid, name: str) -> None:
+    try:
+        if await insights_on():
+            await insights.milestone(uid, name)
+    except Exception as e:
+        print(f"[insights] hook failed: {type(e).__name__}")
+
+
+async def _ev_keys(uid, email: str = "") -> None:
+    """After a key was stored: key1_saved when the learner holds one, key2_saved when they hold two (a milestone is written once, whichever save crosses it)."""
+    try:
+        n = len(await keys_svc.stored_keys(uid))
+    except Exception:
+        return
+    if n >= 1:
+        _ev(uid, "key1_saved")
+    if n >= 2:
+        _ev(uid, "key2_saved")
+
+
+def _ev_day(uid) -> None:
+    """The learner opened the app today (India day): one write per learner per day per process, a dict lookup otherwise."""
+    if not uid:
+        return
+    day = _quota_day()
+    if insights.day_seen().get(uid) == day:
+        return
+    insights.spawn(_ev_day_task(uid, day))
+
+
+async def _ev_day_task(uid, day: str) -> None:
+    try:
+        if await insights_on():
+            await insights.touch_day(uid, day)
+    except Exception as e:
+        print(f"[insights] day hook failed: {type(e).__name__}")
 
 
 async def practice_room_mode() -> str:
@@ -591,6 +655,27 @@ class TurnQuota:
         except Exception as e:
             print(f"[quota] background incr failed: {type(e).__name__}: {e}")
 
+    async def refund(self) -> None:
+        """The AI could not answer this turn, so it is not the learner's: give the free turn back (memory now, the durable counter in the background, AFTER the
+        increments that are still in flight have landed - or the refund could run before the count it undoes)."""
+        if self.unlimited or self.limit is None:
+            return
+        if self.left is not None:
+            self.left += 1
+        if self._uid and db.db_enabled:
+            pending = list(self._tasks)
+            t = asyncio.create_task(self._persist_refund(pending))
+            self._tasks.add(t)
+            t.add_done_callback(self._tasks.discard)
+
+    async def _persist_refund(self, pending: list) -> None:
+        try:
+            if pending:
+                await asyncio.gather(*pending, return_exceptions=True)
+            await db.refund_request(self._uid, self._day)
+        except Exception as e:
+            print(f"[quota] background refund failed: {type(e).__name__}")
+
 # Sentence-level streaming of DuSu's spoken reply. Built, tested and working —
 # but OFF by default on measured evidence: after the provider-chain fix a full
 # reply generates in ~0.93s and the first sentence lands at ~0.83s, so streaming
@@ -609,15 +694,21 @@ def _is_quota(e) -> bool:
     (timeouts, 5xx, network blips) regardless of cause. A genuine quota error's
     real signal (429/quota/402/...) is still embedded in {last_err} and still
     matches below — this only removes the always-true false positive."""
+    kp = key_failure(e)
+    if kp is not None:
+        # The per-key engine KNOWS why (the text guess above is only for errors it never classified): only "the learner's OWN keys are rejected / at their limit /
+        # missing" is quota. "The AI service did not answer" (busy, overloaded, a retired model) never is - even when its text happens to contain "429" - and
+        # neither is anything on DuSu's own keys, which the learner can do nothing about.
+        return is_keys_problem(kp)
     s = str(e).lower()
     return any(k in s for k in ("429", "quota", "exhaust", "rate limit", "insufficient", "402"))
 
 
 _OLD_QUOTA_MSG = "Your API keys hit their limit. Add or replace a key in Settings."
 _KP_MSG = {                                   # what the OLD clients show (the notification bar) when the per-key engine knows why - the new client draws its own pop-up
-    "all_invalid": "Your AI keys were rejected. Open More -> DuSu keys and add them again.",
-    "all_limited": "Your AI keys can't be used right now. Open More -> DuSu keys to see why.",
-    "no_keys": "Add your own AI keys in More -> DuSu keys to use DuSu.",
+    "all_invalid": "Your AI keys were rejected. Open More -> My AI keys and add them again.",
+    "all_limited": "Your AI keys can't be used right now. Open More -> My AI keys to see why.",
+    "no_keys": "Add your own AI keys in More -> My AI keys to use DuSu.",
     "transient": "The AI is busy right now - your keys are fine. Please try again in a minute.",
 }
 
@@ -625,15 +716,13 @@ _KP_MSG = {                                   # what the OLD clients show (the n
 def key_failure(e) -> dict | None:
     """The `kp` payload when `e` (or anything it was raised from) is the per-key engine's ProviderChainError - i.e. the KEYS are the reason - else None.
     Wrappers (practice.AnalysisUnavailable ...) keep the original as `__cause__`; this walks it."""
-    cur, seen = e, set()
-    for _ in range(6):
-        if cur is None or id(cur) in seen:
-            break
-        seen.add(id(cur))
-        if isinstance(cur, ProviderChainError):
-            return cur.kp()
-        cur = cur.__cause__ or cur.__context__
-    return None
+    return engine_kp(e)
+
+
+def server_key_view() -> dict:
+    """DuSu's OWN keys, one entry each, for the OWNER's alert: {provider: {status, why, at}} from the last probe (never probes here). `why` is the provider's own bounded,
+    key-free sentence ("Invalid API Key", "The Gemini API free tier is not available for this project ..."). Only the owner's frames ever carry it; /health never does."""
+    return {n: {"status": v.get("status", "unknown"), "why": str(v.get("why", ""))[:keys_probe.WHY_MAX + 1], "at": v.get("checked_at")} for n, v in keys_probe.cached_server_health().items()}
 
 
 def kp_kw(e) -> dict:
@@ -651,7 +740,7 @@ def key_error(e, status: int = 502, detail="Could not complete that - please try
     """The HTTP error a failed model call becomes. A key problem (every key rejected / limited) is 429 'quota' + kp; provider trouble keeps `status` / `detail`
     (kp attached when there is one); `check_quota` keeps the older string test for the sites that always had it. With no kp this is exactly the old behaviour."""
     kp = key_failure(e)
-    if kp and kp["state"] in ("all_invalid", "all_limited", "no_keys"):
+    if is_keys_problem(kp):
         return KeyProblem(429, "quota", kp)
     if check_quota and _is_quota(e):
         return KeyProblem(429, "quota", kp)
@@ -700,7 +789,21 @@ _ACCOUNT_DEL = _BACKEND / "account-deletion.html"
 # Character art (the 8 anime PNG frames) lives here; served at /assets/...
 _ASSETS = _BACKEND / "assets"
 _ASSETS.mkdir(parents=True, exist_ok=True)
-app.mount("/assets", StaticFiles(directory=str(_ASSETS)), name="assets")
+_VERSIONED = re.compile(r"-v\d+\.[A-Za-z0-9]+$")
+
+
+class _VersionedAssets(StaticFiles):
+    """/assets. A file whose name ends in -v<N>.<ext> never changes (a changed icon or font gets a NEW name - the rule the icons already follow), so the browser and
+    Cloudflare may keep it for a year. Anything else (the anime frames) keeps StaticFiles' default ETag / Last-Modified revalidation."""
+
+    async def get_response(self, path, scope):
+        resp = await super().get_response(path, scope)
+        if resp.status_code == 200 and _VERSIONED.search(path):
+            resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return resp
+
+
+app.mount("/assets", _VersionedAssets(directory=str(_ASSETS)), name="assets")
 
 
 @app.get("/logo.png")
@@ -806,9 +909,12 @@ async def health():
     providers = [p["name"] for p in settings.providers()]
     cooling = cooling_down()
     sk = {n: v.get("status", "unknown") for n, v in keys_probe.cached_server_health().items()}      # the last zero-quota probe of OUR keys (never probes here)
+    gone = [f"{n}/{m}" for n, m in keys_gate.gone_models({keys_gate.fingerprint(p["name"], p["key"]) for p in settings.providers()}, time.time())]   # models OUR keys were told do not exist (skipped 30 min each)
     return {"ok": True, "has_key": bool(providers), "providers": providers,
             "cooling": cooling, "available": [p for p in providers if p not in cooling],
-            "server_keys": sk, "usable": [p for p in providers if p not in cooling and sk.get(p) not in ("invalid", "forbidden")]}
+            "server_keys": sk, "usable": [p for p in providers if p not in cooling and sk.get(p) not in ("invalid", "forbidden")],
+            "models_gone": gone,
+            "models_missing": {n: v["models_missing"] for n, v in keys_probe.cached_server_health().items() if v.get("models_missing")}}   # configured model ids the provider no longer lists (advisory)
 
 
 class GoogleIn(BaseModel):
@@ -894,6 +1000,7 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
         raise HTTPException(401, "Not signed in")
     email = claims.get("email", "")
     uid = claims.get("sub")
+    _ev_day(uid)                              # insights: this learner opened the app today (Day-1 / Day-7 return is a join on it)
     _role = role_for(email)
     # BYOK + Keys visibility: office-approved allowlist, OR everyone (except owner/
     # unlimited) during the growth phase — see access_phase().
@@ -1069,7 +1176,7 @@ async def leaderboard(request: Request, token: str = "", authorization: str | No
     claims = auth.read_session(_bearer(authorization, token))
     if not claims:
         if _wants_html(request):
-            return await index()
+            return _page(request)
         raise HTTPException(401, "Not signed in")
     if not db.db_enabled:
         return {"top": [], "you": None}
@@ -1087,7 +1194,7 @@ async def league(request: Request, token: str = "", by_level: bool = False, auth
     claims = auth.read_session(_bearer(authorization, token))
     if not claims:
         if _wants_html(request):
-            return await index()
+            return _page(request)
         raise HTTPException(401, "Not signed in")
     if not db.db_enabled:
         return {"top": [], "you": None, "week_start": ""}
@@ -1241,6 +1348,7 @@ async def keys_verify(inp: KeysIn, authorization: str | None = Header(None)):
                 saved = len(await keys_svc.stored_keys(claims["sub"])) >= MIN_VERIFIED_KEYS
             else:
                 await db.save_user_keys(claims["sub"], inp.keys, verified=saved)
+            await _ev_keys(claims["sub"])        # insights: first / second key saved
         except Exception as e:
             print(f"[keys] save failed: {type(e).__name__}: {e}")
     return {"results": out, "saved": saved}
@@ -1441,7 +1549,7 @@ async def admin_overview(token: str = "", authorization: str | None = Header(Non
            "home_ai": await home_ai_mode(), "planner": await planner_mode(), "resume_interview": await resume_interview_mode(),
            "grammar_coach": await grammar_coach_mode(), "notifications": await notifications_mode(),
            "key_health": await key_health_mode(), "keys_ui": await keys_ui_mode(), "install_mode": await install_app_mode(),
-           "whatsapp_group": await whatsapp_link()}
+           "whatsapp_group": await whatsapp_link(), "insights": "on" if await insights_on() else "off"}
     out["server_keys"] = keys_probe.cached_server_health()          # DuSu's OWN keys, from the last zero-quota probe (a dead one is flagged on the dashboard)
     out["keys_health"] = keys_ledger.snapshot()
     if db.db_enabled:
@@ -1507,6 +1615,7 @@ class SettingsIn(BaseModel):
     keys_ui: str | None = None            # off | owner | on  (the key screens: Keys page from the server, Home key card, key-problem pop-up)
     install_mode: str | None = None       # off | owner | on  (the Install-app button + the WhatsApp-group join)
     whatsapp_group: str | None = None     # the owner's WhatsApp group / Channel invite ('' clears it); validated, tracking parameters stripped
+    insights: str | None = None           # on | off  (the first-run funnel counters; a kill switch, ON by default - insights/service.py)
 
 
 @app.post("/admin/settings")
@@ -1543,6 +1652,8 @@ async def admin_settings(inp: SettingsIn, authorization: str | None = Header(Non
         await db.set_setting("keys_ui", inp.keys_ui if inp.keys_ui in ("off", "owner", "on") else "off")
     if inp.install_mode is not None:
         await db.set_setting("install_mode", inp.install_mode if inp.install_mode in ("off", "owner", "on") else "off")
+    if inp.insights is not None:
+        await db.set_setting("insights", "off" if inp.insights == "off" else "on")
     if inp.whatsapp_group is not None:
         wa = clean_whatsapp(inp.whatsapp_group)
         if inp.whatsapp_group.strip() and not wa:
@@ -1555,7 +1666,20 @@ async def admin_settings(inp: SettingsIn, authorization: str | None = Header(Non
             "home_ai": await home_ai_mode(), "planner": await planner_mode(), "resume_interview": await resume_interview_mode(),
             "grammar_coach": await grammar_coach_mode(), "notifications": await notifications_mode(),
             "key_health": await key_health_mode(), "keys_ui": await keys_ui_mode(), "install_mode": await install_app_mode(),
-            "whatsapp_group": await whatsapp_link()}
+            "whatsapp_group": await whatsapp_link(), "insights": "on" if await insights_on() else "off"}
+
+
+@app.get("/admin/funnel")
+async def admin_funnel(token: str = "", days: int = 30, authorization: str | None = Header(None)):
+    """Owner-only: the first-run funnel (insights/service.py) - how many learners reached each step, Day-1 / Day-7 return, plan interest. Counts only."""
+    _require_owner(token, authorization)
+    if not db.db_enabled:
+        raise HTTPException(400, "Database required")
+    try:
+        return await insights.funnel(days)
+    except Exception as e:
+        print(f"[admin] funnel failed: {type(e).__name__}")
+        raise HTTPException(500, "Could not read the funnel")
 
 
 class WipeIn(BaseModel):
@@ -2872,16 +2996,55 @@ async def practice_transcribe(request: Request, lang: str = "en", authorization:
     return JSONResponse(await _gemini_transcribe(data, mime, lang, mkey))
 
 
-@app.get("/")
-async def index():
+_INDEX: dict = {"key": None, "html": "", "etag": ""}
+
+
+def _index_page() -> tuple[str, str]:
+    """The client page with its config injected, and its ETag. Built ONCE per file version: the three placeholders are constant for the life of the process, and the
+    old code re-read and re-built 1.1 MB on every single open. The key includes everything the page is built from, so editing the file (or a test changing a setting)
+    is picked up on the next request."""
+    st = _CLIENT_HTML.stat()
+    key = (st.st_mtime_ns, st.st_size, settings.google_client_id, bool(auth.auth_enabled), settings.max_sessions_per_day)
+    if _INDEX["key"] != key:
+        html = _CLIENT_HTML.read_text(encoding="utf-8")
+        # Inject config the client needs (Google client id + whether auth is on).
+        html = html.replace("__GOOGLE_CLIENT_ID__", settings.google_client_id)
+        html = html.replace("__AUTH_ENABLED__", "true" if auth.auth_enabled else "false")
+        html = html.replace("__MAX_SESSIONS__", str(settings.max_sessions_per_day))
+        # WEAK on purpose: Cloudflare re-encodes the page (Brotli) and drops a STRONG ETag when it does - measured on the live site 2026-10-31, the origin sent one and no browser ever
+        # received it, so no repeat open could be a 304 and every open re-downloaded the page. "Same page, whatever the encoding" is exactly what a weak validator means.
+        _INDEX.update(key=key, html=html, etag='W/"' + hashlib.sha256(html.encode("utf-8")).hexdigest()[:24] + '"')
+    return _INDEX["html"], _INDEX["etag"]
+
+
+def _etag_matches(header: str, etag: str) -> bool:
+    """If-None-Match: a list of tags, `*`, strong or weak (`W/"..."`). A weak comparison is the right one for a GET, so the `W/` prefix is ignored on BOTH sides - the page's own
+    tag is weak (see `_index_page`), and a copy a proxy or an older client sends back may be either."""
+    h = (header or "").strip()
+    if not h:
+        return False
+    if h == "*":
+        return True
+    want = (etag or "").strip().removeprefix("W/")
+    return bool(want) and any(t.strip().removeprefix("W/") == want for t in h.split(","))
+
+
+def _page(request: Request | None) -> Response:
+    """The app shell, with its validators. Every route that serves the shell (the front door, the SPA fallback for deep links, a signed-out visit to /leaderboard or /league)
+    comes through here, so a deep link is as cheap to re-open as the home page."""
     if not _CLIENT_HTML.exists():
         return HTMLResponse("<h1>DuSu</h1><p>test_client.html missing</p>")
-    html = _CLIENT_HTML.read_text(encoding="utf-8")
-    # Inject config the client needs (Google client id + whether auth is on).
-    html = html.replace("__GOOGLE_CLIENT_ID__", settings.google_client_id)
-    html = html.replace("__AUTH_ENABLED__", "true" if auth.auth_enabled else "false")
-    html = html.replace("__MAX_SESSIONS__", str(settings.max_sessions_per_day))
-    return HTMLResponse(html)
+    html, etag = _index_page()
+    # `no-cache` = "keep a copy, but ask me first": a deploy still shows on the very next open, and an unchanged page costs a 304 with no body instead of ~300 KB.
+    headers = {"ETag": etag, "Cache-Control": "no-cache"}
+    if request is not None and _etag_matches(request.headers.get("if-none-match", ""), etag):
+        return Response(status_code=304, headers=headers)
+    return HTMLResponse(html, headers=headers)
+
+
+@app.get("/")
+async def index(request: Request):
+    return _page(request)
 
 
 async def _send(ws: WebSocket, **payload) -> None:
@@ -2998,6 +3161,26 @@ async def interview_ws(ws: WebSocket):
     _gref = ""                 # Grammar Coach: the client's random id for this session (idempotency key ws:<gref>)
     _gc_on = False             # Grammar Coach runs for THIS session (switch on + an English surface + a valid gref)
 
+    def _with_server_view(kw: dict) -> dict:
+        """The OWNER, when it is DuSu's own keys that failed, is told which of them is valid or invalid (and why) in the alert itself - nobody else is."""
+        kp = kw.get("kp")
+        if kp and kp.get("own") is False and role_for(_email) == "owner":
+            kp["server"] = server_key_view()
+        return kw
+
+    async def _turn_failed(e, err_type: str = "error", **extra):
+        """A turn the AI could not answer. Tell the learner what really happened - a problem with THEIR keys is `quota`, anything else is the feature's own error frame
+        (carrying `kp`, so the page can explain it and offer a retry) - and give back the free daily turn it would have used: the AI failed, not them."""
+        try:
+            await turn_quota.refund()
+        except Exception as ex:
+            print(f"[quota] refund failed: {type(ex).__name__}")
+        kw = _with_server_view(kp_kw(e))
+        if _is_quota(e):
+            await _send(ws, type="quota", msg=quota_msg(e), **kw)
+        else:
+            await _send(ws, type=err_type, **extra, **kw)
+
     async def _persist_session():
         """One combined LLM pass at session end → memory + courage badges."""
         nonlocal persisted
@@ -3009,6 +3192,7 @@ async def interview_ws(ws: WebSocket):
         # No real turns = nothing to remember/reward (prevents 0-turn XP/streak farming).
         if session.turns <= 0:
             return
+        _ev(uid, "first_session")               # insights: the learner finished a first real session
         if _gc_on and session.mode in ("conversation", "interview"):
             # Grammar Coach (plan D5): analyse the server's own transcript in a detached task - it never delays or alters anything below.
             gc_tracker.schedule_ws(uid, _email, _gref, _gc_view(session), secs=int(time.monotonic() - started_at))
@@ -3383,6 +3567,7 @@ async def interview_ws(ws: WebSocket):
                 text = (data.get("text") or "").strip()
                 if not text:
                     continue
+                _ev(uid, "first_sentence")          # insights: the learner said their first sentence (a set lookup after the first time)
                 # FREE-tier request quota. Resolved ONCE per connection (see TurnQuota)
                 # — this used to be ~3.5s of sequential round-trips to a remote database
                 # before every single reply. Now it's an in-memory decision with a
@@ -3404,8 +3589,7 @@ async def interview_ws(ws: WebSocket):
                     try:
                         r = await session.home_turn(text[:600])
                     except Exception as e:
-                        if _is_quota(e): await _send(ws, type="quota", msg=quota_msg(e), **kp_kw(e))
-                        else: await _send(ws, type="home_error", **kp_kw(e))
+                        await _turn_failed(e, "home_error")
                         continue
                     await _send(ws, type="home_turn", text=r["text"], lang=session.lang, intent=r["intent"],
                                 actions=r["actions"])
@@ -3415,8 +3599,7 @@ async def interview_ws(ws: WebSocket):
                     try:
                         english = await session.translate(text)
                     except Exception as e:
-                        if _is_quota(e): await _send(ws, type="quota", msg=quota_msg(e), **kp_kw(e))
-                        else: await _send(ws, type="translate_error", **kp_kw(e))
+                        await _turn_failed(e, "translate_error")
                         continue
                     # hindi = what the learner said, text = the translation (the keys keep their old names);
                     # dir says which way it went so the client picks the right voice and labels.
@@ -3428,8 +3611,7 @@ async def interview_ws(ws: WebSocket):
                     try:
                         d = await session.daily_turn(text)
                     except Exception as e:
-                        if _is_quota(e): await _send(ws, type="quota", msg=quota_msg(e), **kp_kw(e))
-                        else: await _send(ws, type="translate_error", **kp_kw(e))
+                        await _turn_failed(e, "translate_error")
                         continue
                     await _send(ws, type="daily_turn", hindi=text,
                                 english=d.get("english", ""), reply=d.get("reply_hindi", ""),
@@ -3443,6 +3625,7 @@ async def interview_ws(ws: WebSocket):
                         except Exception as e:
                             print(f"[daily] ctx save failed: {type(e).__name__}: {e}")
                     continue
+                n_before, turns_before = len(session.transcript), session.turns
                 session.add_user(text)
                 await _send(ws, type="status", msg="thinking")
                 try:
@@ -3466,8 +3649,9 @@ async def interview_ws(ws: WebSocket):
                     # here must not be misreported as "your keys hit their limit" and
                     # must not kill the socket (a real quota failure DOES fall through
                     # here too, correctly, via _is_quota).
-                    if _is_quota(e): await _send(ws, type="quota", msg=quota_msg(e), **kp_kw(e))
-                    else: await _send(ws, type="error", msg="Could not get a reply — please try again.", **kp_kw(e))
+                    del session.transcript[n_before:]      # the line DuSu could not answer is taken back, so the learner saying it again (or the page re-sending it) is not said twice
+                    session.turns = turns_before
+                    await _turn_failed(e, "error", msg="Could not get a reply — please try again.")
                     continue
                 await _send(ws, type="ai_text", text=line, streamed=spoke_any, lang=session.lang)
                 if session.done and session.mode == "practice":
@@ -3531,13 +3715,13 @@ async def interview_ws(ws: WebSocket):
     except Exception as e:  # keep the socket honest about failures
         try:
             if _is_quota(e):
-                await _send(ws, type="quota", msg=quota_msg(e), **kp_kw(e))
+                await _send(ws, type="quota", msg=quota_msg(e), **_with_server_view(kp_kw(e)))
             elif "all providers" in str(e).lower():
                 # Whole chain down/rate-limited. str(e) here is a stack of raw provider
                 # errors ("Error code: 410 - github_models_retirement_brownout…") which
                 # tells the user nothing they can act on.
                 await _send(ws, type="error",
-                            msg="All AI providers are busy right now. Please try again in a minute.", **kp_kw(e))
+                            msg="All AI providers are busy right now. Please try again in a minute.", **_with_server_view(kp_kw(e)))
             else:
                 await _send(ws, type="error", msg=str(e))
         except Exception:
@@ -3551,7 +3735,7 @@ async def interview_ws(ws: WebSocket):
 # so deep-links and page refreshes work. Specific API/asset routes above are matched first;
 # paths that look like a file (contain a dot) get a real 404 instead of the HTML shell.
 @app.get("/{full_path:path}", include_in_schema=False)
-async def spa_fallback(full_path: str):
+async def spa_fallback(full_path: str, request: Request):
     if "." in full_path.rsplit("/", 1)[-1]:
         raise HTTPException(404, "Not found")
-    return await index()
+    return _page(request)

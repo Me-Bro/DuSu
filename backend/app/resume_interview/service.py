@@ -87,7 +87,13 @@ def _day_start() -> dt.datetime:
 
 
 def quotaish(e) -> bool:
-    """Same test as main._is_quota (the service cannot import main): does this error mean 'the keys hit their limit'?"""
+    """Same test as main._is_quota (the service cannot import main): does this error mean 'the keys hit their limit'? When the per-key engine classified the failure ITS word wins:
+    only the learner's own keys being rejected / limited / missing is quota - a busy or unreachable AI service never is (the text below says "unavailable" on EVERY total
+    failure, so it used to turn any outage into "your keys are at their limit")."""
+    from ..keys.errors import engine_kp, is_keys_problem
+    kp = engine_kp(e)
+    if kp is not None:
+        return is_keys_problem(kp)
     s = str(e).lower()
     return any(k in s for k in ("429", "quota", "exhaust", "rate limit", "unavailable", "insufficient", "402"))
 

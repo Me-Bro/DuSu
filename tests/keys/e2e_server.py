@@ -20,7 +20,7 @@ from fastapi import Request                                         # noqa: E402
 from sqlalchemy import update                                       # noqa: E402
 
 from world import (World, install, ok, err, R, completion, GROQ_401, GROQ_429_TPD, GROQ_429_TPM, GEMINI_400_KEY, GEMINI_400_EXPIRED, GEMINI_429_DAY, GEMINI_429_MIN,      # noqa: E402
-                   GEMINI_503, OPENROUTER_401, OPENROUTER_429_DAY, OPENROUTER_429_UPSTREAM, conn)
+                   GEMINI_503, GEMINI_403_FREE_TIER, OPENROUTER_401, OPENROUTER_429_DAY, OPENROUTER_429_UPSTREAM, conn)
 import httpx                                                        # noqa: E402
 
 from app import auth, db, main as M                                 # noqa: E402
@@ -40,6 +40,8 @@ CHAT_ERR = {
     "invalid": {"groq": (401, GROQ_401), "gemini": (400, GEMINI_400_KEY), "openrouter": (401, OPENROUTER_401)},
     "expired": {"groq": (401, {"error": {"message": "API key expired", "code": "invalid_api_key"}}), "gemini": (400, GEMINI_400_EXPIRED), "openrouter": (401, OPENROUTER_401)},
     "down": {"groq": (503, {"error": {"message": "boom"}}), "gemini": (503, GEMINI_503), "openrouter": (503, {"error": {"message": "boom"}})},
+    "chat_down": {"groq": (503, {"error": {"message": "boom"}}), "gemini": (503, GEMINI_503), "openrouter": (503, {"error": {"message": "boom"}})},      # like `down`, but the zero-quota checks still answer ok: the KEY is fine, the AI is not
+    "forbidden": {"groq": (403, {"error": {"message": "Forbidden"}}), "gemini": (403, GEMINI_403_FREE_TIER), "openrouter": (403, {"error": {"message": "Forbidden"}})},   # chat refused (Google: free tier not available for this project), the list still answers ok
 }
 
 
@@ -83,7 +85,7 @@ class Control(World):
         if table is None:
             return httpx.Response(200, json=completion("OK"), request=req)
         status, body = table[provider]
-        if kind != "chat" and mode in ("limited", "limited_min", "upstream"):          # a limit does not stop the zero-quota probe: the key is real
+        if kind != "chat" and mode in ("limited", "limited_min", "upstream", "chat_down", "forbidden"):          # a limit (or a chat-only refusal) does not stop the zero-quota probe: the key is real
             return httpx.Response(200, json={"data": []} if kind == "models" else {"data": {"is_free_tier": True}}, request=req)
         return httpx.Response(status, json=body, request=req)
 
@@ -143,6 +145,23 @@ async def world_behave(request: Request):
     if b.get("clear_gate"):
         gate.reset_all()
     return {"ok": True, "behave": {f"{k[0]}|{k[1][:12]}": v for k, v in WORLD.behave.items()}}
+
+
+@M.app.post("/__world/serverkeys")                                   # test process only: give DuSu's OWN chain (the owner / the quota phase) fake keys, or take them away again
+async def world_serverkeys(request: Request):
+    on = bool((await request.json()).get("on"))
+    M.settings.groq_api_key = "gsk_SERVER" + "q" * 30 if on else ""
+    M.settings.gemini_api_key = "AIzaSERVER" + "q" * 30 if on else ""
+    M.settings.openrouter_api_key = "sk-or-v1-SERVER" + "q" * 30 if on else ""
+    gate.reset_all()
+    return {"ok": True, "on": on}
+
+
+@M.app.post("/__world/serverhealth")                                 # test process only: look at DuSu's OWN keys now (the real loop does it every 10 minutes)
+async def world_serverhealth():
+    from app.keys import probe as _probe
+    _probe.reset_server_health()
+    return {"ok": True, "health": {k: {"status": v.get("status"), "why": bool(v.get("why"))} for k, v in (await _probe.refresh_server_health()).items()}}
 
 
 @M.app.post("/__world/chatdone")                                     # test process only: the next plain chat replies are the interviewer's closing line (INTERVIEW_COMPLETE:)

@@ -8,7 +8,7 @@
  *   C  saving one key: success, a rejected key, an unreachable provider, an empty box, Enter; a box left empty never erases; the "taking you in" path of a new learner
  *   D  Change / Test / Remove / Check all keys
  *   E  every state on the screen and on the Home card: working, limit hit (+ when it resets), rejected, expired, mixed, none
- *   F  the pop-up: from a WebSocket frame and from an HTTP error body, dedupe, "Later", "Fix my keys", "See plans", transient = a notice not a pop-up, on Home load
+ *   F  the pop-up: from a WebSocket frame and from an HTTP error body, dedupe, "Later", "Fix my keys", "See plans", transient = the calm "AI did not answer" pop-up (never a banner), on Home load
  *   G  the Daily / Learn mic and the Home chat are handed back after a `quota` frame
  *   H  Hindi / English; accessibility (dialog, focus, Escape, Tab trap, names, targets); layout at 360 / 390 / 1280
  *   I  the owner's dashboard: the three switches and the WhatsApp link, and no OTHER switch changes
@@ -65,7 +65,8 @@ async function fresh(browser, who, o = {}) {
     await o1.c.close();
     const o2 = await fresh(browser, 'tester', { device: 'new' }); await sleep(1200);
     T.eq(await o2.p.evaluate(() => [userState.key_health, userState.keys_ui]), [true, true], "... an invited early-access tester has both");
-    T.ok(await vis(o2.p, '#kyCard'), '... and sees the Home card');
+    T.ok(await o2.p.evaluate(() => !!userState.keys && userState.keys.stored > 0), '... and /me carries the tester\'s key counts');
+    T.ok(!(await vis(o2.p, '#kyCard')), '... but with healthy keys the Home card stays hidden: since the audit (P1-1) it appears only when something needs attention (every state that does is in section E)');
     await o2.c.close();
     const o3 = await fresh(browser, 'owner', { device: 'new' }); await sleep(1200);
     T.eq(await o3.p.evaluate(() => [userState.key_health, userState.keys_ui, !!userState.keys]), [true, true, false], '... the owner has both, but no key card (the owner rides the server keys: nothing of theirs to show)');
@@ -175,18 +176,20 @@ async function fresh(browser, who, o = {}) {
     await shot(p, 'keys-two-after-save');
     await c.close();
 
-    // the "taking you in" path of a learner with no keys at all
+    // the "taking you in" path of a learner with no keys at all: since the audit (P0-1) a brand-new learner is shown the first-run WIZARD - one Get-free-key button, ONE paste box that
+    // recognises the service from the key's prefix, "Key 1 of 2" - not the three-box manage screen (which a learner with keys still gets: the sections above).
     const n = await fresh(browser, 'new', { device: 'new', lang: 'en' });
     T.eq(await screen(n.p), 'keys', 'a learner with no keys is sent to the Keys screen');
-    await until(() => n.p.evaluate(() => !!document.getElementById('kySum')));
-    T.ok(await vis(n.p, '#kGroq') && await vis(n.p, '#kGemini') && await vis(n.p, '#kOpenrouter'), 'all three entry boxes are open');
-    T.has(await txt(n.p, '#kySum'), 'Add two free keys', 'the summary says what is needed');
+    await until(() => n.p.evaluate(() => !!document.getElementById('ksWiz')));
+    T.ok(await vis(n.p, '#ksGet') && await vis(n.p, '#ksPaste'), 'the first-run wizard is shown: the Get-free-key button and ONE paste box');
+    T.ok(!(await vis(n.p, '#kGroq')) && !(await vis(n.p, '#kGemini')) && !(await vis(n.p, '#kOpenrouter')), 'the three entry boxes are not shown to a first-run learner');
+    T.has(await txt(n.p, '#ksStep'), 'Key 1 of 2', 'progress says "Key 1 of 2"');
     const k1 = 'gsk_NEWBIE' + 'A'.repeat(30) + 'q1w2', k2 = 'AIzaNEWBIE' + 'B'.repeat(30) + 'e3r4';
-    await n.p.fill('#kGroq', k1); await n.p.click('#kySave_groq');
-    await until(() => n.p.evaluate(() => /works and is saved/.test(document.getElementById('kym_groq').textContent)), 12000);
-    T.ok(await until(() => n.p.evaluate(() => /1 of the 2 working keys/.test(document.getElementById('kySum').textContent))), 'one key: "1 of the 2 working keys you need to start. Add 1 more."');
+    await n.p.fill('#ksPaste', k1); await n.p.click('#ksSave');
+    await until(() => n.p.evaluate(() => /works and is saved/.test(document.getElementById('ksDet').textContent)), 12000);
+    T.ok(await until(() => n.p.evaluate(() => /Key 2 of 2/.test(document.getElementById('ksStep').textContent))), 'one key: the wizard moves on to "Key 2 of 2"');
     T.eq(await screen(n.p), 'keys', 'one key is not enough: still on the Keys screen');
-    await n.p.fill('#kGemini', k2); await n.p.click('#kySave_gemini');
+    await n.p.fill('#ksPaste', k2); await n.p.click('#ksSave');
     T.ok(await until(async () => (await screen(n.p)) !== 'keys', 15000), 'the second key takes the learner in');
     T.ok((await server('new', '/me')).body.has_keys === true, 'the server says the learner is set up (has_keys)');
     await n.c.close();
@@ -228,7 +231,9 @@ async function fresh(browser, who, o = {}) {
     await p2.click('#kyb_gemini button:has-text("Remove")');
     T.ok(await until(async () => (await status('plain')).stored === 1, 12000), 'Remove asks, then removes: the server holds one key now');
     T.ok(p2.__dialogs.some(d => /Remove your Gemini key/.test(d)), '(it asked first)');
-    T.ok(await until(() => vis(p2, '#kGemini'), 6000), 'the Gemini box is open for a new key');
+    T.ok(await until(() => vis(p2, '#ksPaste'), 6000), 'one key left (the learner is below the two they need): the screen is the first-run wizard again, with its paste box open');
+    T.has(await txt(p2, '#ksStep'), 'Key 2 of 2', '... saying "Key 2 of 2"');
+    T.ok(/aistudio\.google\.com/.test(await p2.evaluate(() => document.getElementById('ksGet').href)), '... and suggesting the service whose key was just removed (Gemini)');
     T.ok(await waitSum(p2, /1 of the 2 working keys/), 'the summary says one more is needed');
     await rm.c.close();
     // Answers can come back OUT OF ORDER: a slow "Check all keys" must not bring back a key the learner removed while it was still running (mutant C3)
@@ -249,7 +254,7 @@ async function fresh(browser, who, o = {}) {
     await sleep(500);
     T.ok(await waitSum(p3, /1 of the 2 working keys/), 'the OLDER answer does not overwrite the newer one: the summary still says one key is missing');
     T.eq(await txt(p3, '#kySum'), sumBefore, '... and the summary is exactly what it was before the late answer arrived (the removed key is not back)');
-    T.ok(!(await vis(p3, '#kyb_gemini')) && await vis(p3, '#kGemini'), '... and the removed Gemini key is not shown as a saved key (its box is open for a new one)');
+    T.ok(!(await vis(p3, '#kyb_gemini')) && await vis(p3, '#ksPaste') && /Key 2 of 2/.test(await txt(p3, '#ksStep')), '... and the removed Gemini key is not shown as saved: the wizard asks for the missing second key ("Key 2 of 2")');
     await oo.c.close();
   }
 
@@ -365,12 +370,13 @@ async function fresh(browser, who, o = {}) {
     await reset();
     const { c, p } = await fresh(browser, 'pr', { lang: 'en' });
     await sleep(600);
-    // provider trouble is a notice, never a pop-up
+    // provider trouble: the calm "the AI did not answer" pop-up (the server walks the chain, pauses ~1.5 s and walks it once more before it gives up) - never the small top banner
     await behave('groq', 'down'); await behave('gemini', 'down');
     await openWs(p);
-    await sleep(2500);
-    T.ok(!(await sheetOn(p)), 'provider trouble (transient): no pop-up');
-    T.ok(/AI is busy right now/.test(await notif(p)), '... a plain notice: the AI is busy, your keys are fine');
+    T.ok(await until(() => sheetOn(p), 12000), 'provider trouble (transient): the "AI did not answer" pop-up opens');
+    T.ok(/taking longer than usual/.test(await p.evaluate(() => document.getElementById('kyTitle').textContent)), '... it says the reply is late - not "the AI is busy, your keys are fine"');
+    T.ok(!/AI is busy|keys are fine/.test(await notif(p)) && !(await p.evaluate(() => { const b = document.getElementById('notifBar'); return !!b && !b.hidden && getComputedStyle(b).display !== 'none'; })), '... and the small top banner says nothing');
+    await p.click('#kySheet .ky-pop-acts .btn:last-child'); await sleep(300);
     // Escape, focus and the Tab trap
     await p.evaluate(kp => KY.problem(kp), KP_LIMITED());
     await sleep(500);
@@ -543,12 +549,12 @@ async function fresh(browser, who, o = {}) {
       const sh = document.getElementById('kySheet'), b = sh.getBoundingClientRect();
       const ctl = [...sh.querySelectorAll('button')];
       return { overflow: document.documentElement.scrollWidth > window.innerWidth + 1, inside: b.left >= -1 && b.right <= window.innerWidth + 1 && b.top >= -1 && b.bottom <= window.innerHeight + 1,
-               small: ctl.filter(x => { const q = x.getBoundingClientRect(); return q.width < 40 || q.height < 40; }).map(x => x.textContent), noname: ctl.filter(x => !(x.getAttribute('aria-label') || x.textContent || '').trim()).length,
+               small: ctl.filter(x => { const q = x.getBoundingClientRect(); return q.width < 44 || q.height < 44; }).map(x => x.textContent), noname: ctl.filter(x => !(x.getAttribute('aria-label') || x.textContent || '').trim()).length,
                role: sh.getAttribute('role'), labelled: !!document.getElementById(sh.getAttribute('aria-labelledby')) };
     });
     T.ok(!r.overflow, `${label}: no horizontal overflow with the pop-up open`);
     T.ok(r.inside, `${label}: the pop-up fits inside the screen`);
-    T.eq(r.small, [], `${label}: every pop-up control is at least 40 x 40`);
+    T.eq(r.small, [], `${label}: every pop-up control is at least 44 x 44`);
     T.eq([r.noname, r.role, r.labelled], [0, 'dialog', true], `${label}: dialog semantics and every control named`);
     await shot(p, `popup-${label}`);
     await p.keyboard.press('Escape'); await sleep(300);
@@ -558,9 +564,9 @@ async function fresh(browser, who, o = {}) {
     const el = await p.$('#kyCard'); if (el) { await el.scrollIntoViewIfNeeded(); await shot(p, `card-${label}`); }
     await openKeys(p);
     const kf = await p.evaluate(() => ({ overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
-      small: [...document.querySelectorAll('#keysForm button')].filter(x => x.offsetParent !== null).filter(x => { const q = x.getBoundingClientRect(); return q.height < 40; }).map(x => x.textContent) }));
+      small: [...document.querySelectorAll('#keysForm button')].filter(x => x.offsetParent !== null).filter(x => { const q = x.getBoundingClientRect(); return q.height < 44; }).map(x => x.textContent) }));
     T.ok(!kf.overflow, `${label}: the Keys screen does not overflow`);
-    T.eq(kf.small, [], `${label}: every visible Keys-screen button is at least 40 high`);
+    T.eq(kf.small, [], `${label}: every visible Keys-screen button is at least 44 high`);
     const f2 = await p.$('#keysForm'); if (f2) { await f2.scrollIntoViewIfNeeded(); await shot(p, `keysform-${label}`); }
     await c.close();
   }
