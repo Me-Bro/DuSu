@@ -259,7 +259,18 @@ Today: **25** invited-never-signed-in · **5** signed in but stuck before access
 
 **A6 · Day 14** — "Thank you [name] — you helped get DuSu to Play. Here's what your feedback changed: [3 bullets]. Please stay in the testing program until I confirm — it matters. 🙏"
 
-## Appendix B — Daily report (read-only SQL, run via SSH)
+## Appendix B — Daily report (read-only, run via SSH)
+
+> **⚠️ 2026-11-16 — DuSu's data moved to MongoDB (CLAUDE.md section 25). `dusu-db-1` (Postgres) is now a FROZEN copy: the SQL below would show the numbers of 16 Nov and nothing newer - do NOT run it.** The same five queries now run as a read-only script, `backend/scripts/playstore_report.py` (tested on a scratch database and read-only on the live one; counts and minutes only):
+>
+> ```bash
+> TESTERS=$(grep '@' playstore-testers.csv | tr -d '\r' | paste -sd, -)
+> ssh rooted-ssh "docker exec -i -e TESTERS='$TESTERS' dusu-backend-1 python - --start 2026-10-10" < backend/scripts/playstore_report.py
+> ```
+>
+> `--start` = the first day counted, `--only q1,q3` runs just those queries. Output is `|`-separated (paste it into a sheet): Q1 status ladder, Q2 per tester, Q3 cohort roll-up (owner excluded), Q4 sessions by mode, Q5 feedback (no emails). Once an image that contains the script is deployed it is also `docker exec -e TESTERS=... dusu-backend-1 python /app/scripts/playstore_report.py --start ...`.
+
+*(The Postgres version, kept for reference only - valid until 2026-11-16:)*
 
 Save the SQL block below as `report.sql`, then (from the repo root; the testers file is git-ignored). The SQL was extracted from this document and run read-only on 2026-10-06:
 
