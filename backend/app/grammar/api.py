@@ -226,7 +226,7 @@ async def _analyze_ri(uid: str, email: str, key: str) -> dict:
         sid = int(key.split(":", 1)[1])
     except (ValueError, OverflowError):
         raise HTTPException(404, "Not found")
-    from sqlalchemy import select
+    from ..store import select
     from ..resume_interview.models import RiSession, RiTurn
     async with db._Session() as s:
         sess = await s.get(RiSession, sid)

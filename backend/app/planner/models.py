@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, text
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from ..store import Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text
+from ..store import JSONB
+from ..store import Mapped, mapped_column
 
 from ..db import Base, _now
 
@@ -40,7 +40,7 @@ class PlPrefs(Base):
 class PlGoal(Base):
     __tablename__ = "pl_goals"
     __table_args__ = (
-        Index("uq_pl_goals_client", "user_id", "client_key", unique=True, postgresql_where=text("client_key IS NOT NULL")),
+        Index("uq_pl_goals_client", "user_id", "client_key", unique=True, where={"client_key": {"$type": "string"}}),
         Index("ix_pl_goals_user_status", "user_id", "status"),
     )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -78,9 +78,10 @@ class PlMilestone(Base):
 class PlTask(Base):
     __tablename__ = "pl_tasks"
     __table_args__ = (
-        Index("uq_pl_tasks_occ", "parent_id", "occ_date", unique=True, postgresql_where=text("parent_id IS NOT NULL")),
-        Index("uq_pl_tasks_client", "user_id", "client_key", unique=True, postgresql_where=text("client_key IS NOT NULL")),
+        Index("uq_pl_tasks_occ", "parent_id", "occ_date", unique=True, where={"parent_id": {"$type": "number"}}),
+        Index("uq_pl_tasks_client", "user_id", "client_key", unique=True, where={"client_key": {"$type": "string"}}),
         Index("ix_pl_tasks_user_status_due", "user_id", "status", "due_at"),
+        Index("ix_pl_tasks_series", "is_series", "user_id", where={"is_series": True}),         # the materializer's "which learners have a repeating task" pass
     )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
@@ -116,7 +117,7 @@ class PlTask(Base):
 class PlHabit(Base):
     __tablename__ = "pl_habits"
     __table_args__ = (
-        Index("uq_pl_habits_client", "user_id", "client_key", unique=True, postgresql_where=text("client_key IS NOT NULL")),
+        Index("uq_pl_habits_client", "user_id", "client_key", unique=True, where={"client_key": {"$type": "string"}}),
         Index("ix_pl_habits_user_status", "user_id", "status"),
     )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -153,8 +154,13 @@ class PlReminder(Base):
     __tablename__ = "pl_reminders"
     __table_args__ = (
         Index("uq_pl_rem_key", "occurrence_key", unique=True),
-        Index("ix_pl_rem_due", "fire_at", postgresql_where=text("status = 'scheduled'")),
+        Index("ix_pl_rem_due", "fire_at", where={"status": "scheduled"}),
         Index("ix_pl_rem_user_status", "user_id", "status"),
+        # the two scans the reminder loop makes on EVERY tick (every 15 s): a delivery that died mid-flight (`sending` for too long) and the sent rows waiting for a
+        # follow-up / expiry. Tiny partial indexes - only rows in those states are in them. (Postgres read the whole table for both.) MongoDB considers an index only
+        # when the query names its FIRST key, so each one leads with the field the loop's filter really uses.
+        Index("ix_pl_rem_sending", "claimed_at", where={"status": "sending"}),
+        Index("ix_pl_rem_sent", "status", "sent_at", where={"status": "sent"}),
     )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
@@ -187,7 +193,7 @@ class PlReminderRule(Base):
     A brand-new table: `create_all` adds it, no existing table is altered."""
     __tablename__ = "pl_reminder_rules"
     __table_args__ = (
-        Index("uq_pl_rrules_client", "user_id", "client_key", unique=True, postgresql_where=text("client_key IS NOT NULL")),
+        Index("uq_pl_rrules_client", "user_id", "client_key", unique=True, where={"client_key": {"$type": "string"}}),
         Index("ix_pl_rrules_user_status", "user_id", "status"),
     )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

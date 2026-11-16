@@ -20,9 +20,8 @@ import sys
 sys.path.insert(0, "/app")
 
 import httpx                                                        # noqa: E402
-from sqlalchemy import func, select, text as sa_text, update        # noqa: E402
-
-from app import auth, db, main as M                                 # noqa: E402
+from app import auth, db, main as M, store                          # noqa: E402
+from app.store import func, select, update                          # noqa: E402
 from app.notify import models as NM, rules as R, scheduler as sch, service as svc, tokens as TK    # noqa: E402
 from app.planner import models as PM, push as PP, service as plsvc, timeutil as tu                # noqa: E402
 
@@ -156,36 +155,31 @@ async def main():
         "refusing to run: provider keys are configured - run through run.sh, which blanks them"
     PP.send = SENDER                                                # the engine's own default sender (loop test) must never touch the network
 
-    # ------------------------------------------------------------------ OLD -> NEW schema rehearsal
-    section("schema rehearsal: production has every table EXCEPT the two new nt_* ones")
-    for _ in range(20):                                              # a freshly started postgres restarts once after initdb
-        try:
-            async with db._engine.begin() as conn:
-                await conn.run_sync(lambda sc: db.Base.metadata.create_all(sc, tables=[t for t in db.Base.metadata.sorted_tables if not t.name.startswith("nt_")]))
-            break
-        except Exception:
-            await asyncio.sleep(1)
+    # ------------------------------------------------------------------ OLD -> NEW rehearsal
+    section("rehearsal: production has every collection EXCEPT the two new nt_* ones")
+    await store.init([m for m in db.Base.models() if not m.__tablename__.startswith("nt_")])
+    dbh = store.core.database()
 
     async def nt_tables():
-        async with db._engine.connect() as conn:
-            return {r[0] for r in (await conn.execute(sa_text("select table_name from information_schema.tables where table_schema='public' and table_name like 'nt\\_%'"))).all()}
+        return {n for n in await dbh.list_collection_names() if n.startswith("nt_")}
 
     pre = await nt_tables()
     old = {"sub": "u-old", "email": "old@example.com", "name": "Old", "picture": ""}
     await db.login(old)
     await plsvc.subscribe_push("u-old", {"endpoint": "https://fcm.googleapis.com/fcm/send/old", "p256dh": "p" * 87, "auth": "a" * 22}, "t")
-    check("the old schema has no nt_* table", pre == set() and await count(PM.PlPushSub, PM.PlPushSub.user_id == "u-old") == 1, pre)
+    check("the old database has no nt_* collection", pre == set() and await count(PM.PlPushSub, PM.PlPushSub.user_id == "u-old") == 1, pre)
     await db.init_db()
     await db.init_db()
     post = await nt_tables()
-    async with db._engine.connect() as conn:
-        idx = {r[0] for r in (await conn.execute(sa_text("select indexname from pg_indexes where tablename in ('nt_outbox', 'nt_prefs')"))).all()}
-        cols = {r[0]: (r[1], r[2]) for r in (await conn.execute(sa_text(
-            "select column_name, data_type, character_maximum_length from information_schema.columns where table_name = 'nt_outbox'"))).all()}
-    check("init_db() adds exactly the two new tables, twice in a row, next to the old data", post == {"nt_outbox", "nt_prefs"}, post)
+    idx = set()
+    for n in ("nt_outbox", "nt_prefs"):
+        idx |= set(await dbh[n].index_information())
+    cols = set(NM.NtOutbox.__columns__)
+    check("init_db() adds exactly the two new collections, twice in a row, next to the old data", post == {"nt_outbox", "nt_prefs"}, post)
     check("the unique dedupe index and the partial 'due' index exist", {"uq_nt_out_dedupe", "ix_nt_out_due", "ix_nt_out_user_created"} <= idx, idx)
+    check("the partial 'due' index only covers scheduled rows", (await dbh["nt_outbox"].index_information())["ix_nt_out_due"].get("partialFilterExpression") == {"status": "scheduled"})
     check("the columns are what the code writes", {"id", "user_id", "kind", "dedupe_key", "fire_at", "title", "body", "url", "status", "why", "push_state", "attempts",
-                                                    "claimed_at", "sent_at", "received_at", "opened_at", "meta", "created_at"} <= set(cols) and cols["meta"][0] == "jsonb", cols)
+                                                    "claimed_at", "sent_at", "received_at", "opened_at", "meta", "created_at"} <= cols and NM.NtOutbox.__table__.c.meta.type.json, cols)
     check("the existing learner's push device is untouched", await count(PM.PlPushSub, PM.PlPushSub.user_id == "u-old") == 1)
 
     # ------------------------------------------------------------------ users + client

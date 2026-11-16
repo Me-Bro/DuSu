@@ -28,13 +28,11 @@ class Settings(BaseSettings):
     google_client_id: str = ""
     session_secret: str = "dev-change-me"
 
-    # --- Database (Postgres). Empty = no DB (app runs stateless as before). ---
-    # Under docker compose this is injected from the stack's own `db` service and
-    # is never an external host — see docker-compose.yml.
-    database_url: str = ""
-    # This stack's Postgres serves no TLS cert, so compose sets DATABASE_SSL=false.
-    # The default stays True for any host that does demand TLS.
-    database_ssl: bool = True
+    # --- Database (MongoDB). Empty = no DB (app runs stateless as before). ---
+    # The shared `rooted-mongo` (replica set rs0, reached over the external docker network `rooted-shared-net`), database `dusu`, a user scoped to it:
+    #   mongodb://dusu_prod_app:<password>@rooted-mongo:27017/dusu?replicaSet=rs0&authSource=dusu
+    # Under docker compose it is built in docker-compose.yml from DUSU_MONGO_PASSWORD in the root .env. A `postgres://` value is refused (store.configure).
+    mongodb_uri: str = ""
 
     # --- Usage limits (protect the shared free quota) ---
     max_sessions_per_day: int = 20      # per user; resets daily

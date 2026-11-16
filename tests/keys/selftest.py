@@ -23,8 +23,13 @@ sys.path.insert(0, "/app")
 sys.path.insert(0, "/tests/keys")
 
 import httpx                                                        # noqa: E402
-from sqlalchemy import func, select, text as sa_text                # noqa: E402
-from sqlalchemy.exc import OperationalError                         # noqa: E402
+from app import store                                               # noqa: E402
+from app.store import func, select, DBAPIError                      # noqa: E402
+
+
+class OperationalError(DBAPIError):                                 # the database 'hiccup' the ledger tests inject
+    def __init__(self, *a):
+        super().__init__('connection lost')
 
 from world import (World, install, ok, err, timeout, conn, completion, R, GROQ_401, GROQ_429_TPD, GROQ_429_PLAIN, GEMINI_400_KEY, GEMINI_400_AUTH_KEY, GEMINI_429_DAY, GEMINI_503,   # noqa: E402
                    OPENROUTER_401, OPENROUTER_429_DAY)
@@ -126,36 +131,30 @@ async def main():
     assert not (M.settings.groq_api_key or M.settings.gemini_api_key or M.settings.openrouter_api_key or M.settings.github_token), \
         "refusing to run: provider keys are configured - run through run.sh, which blanks them"
 
-    # ------------------------------------------------------------------ OLD -> NEW schema rehearsal
-    section("schema rehearsal: production has every table EXCEPT the two new kh_* ones")
-    for _ in range(20):
-        try:
-            async with db._engine.begin() as cx:
-                await cx.run_sync(lambda sc: db.Base.metadata.create_all(sc, tables=[t for t in db.Base.metadata.sorted_tables if not t.name.startswith("kh_")]))
-            break
-        except Exception:
-            await asyncio.sleep(1)
+    # ------------------------------------------------------------------ OLD -> NEW rehearsal
+    section("rehearsal: production has every collection EXCEPT the two new kh_* ones")
+    await store.init([m for m in db.Base.models() if not m.__tablename__.startswith("kh_")])
+    dbh = store.core.database()
 
     async def kh_tables():
-        async with db._engine.connect() as cx:
-            return {r[0] for r in (await cx.execute(sa_text("select table_name from information_schema.tables where table_schema='public' and table_name like 'kh\\_%'"))).all()}
+        return {n for n in await dbh.list_collection_names() if n.startswith("kh_")}
 
     pre = await kh_tables()
     old = {"sub": "u-old", "email": "old@example.com", "name": "Old", "picture": ""}
     await db.login(old)
     OLD_G, OLD_H = GK("old"), "ghp_" + "H" * 36
     await db.save_user_keys("u-old", {"groq": OLD_G, "github": OLD_H}, verified=True)
-    check("the old schema has no kh_* table and the learner's legacy keys are stored", pre == set() and (await db.get_user_keys("u-old")).get("groq") == OLD_G, pre)
+    check("the old database has no kh_* collection and the learner's legacy keys are stored", pre == set() and (await db.get_user_keys("u-old")).get("groq") == OLD_G, pre)
     await db.init_db()
     await db.init_db()
     post = await kh_tables()
-    async with db._engine.connect() as cx:
-        cols = {(r[0], r[1]): (r[2], r[3]) for r in (await cx.execute(sa_text(
-            "select table_name, column_name, data_type, character_maximum_length from information_schema.columns where table_name in ('kh_status','kh_usage')"))).all()}
-        idx = {r[0] for r in (await cx.execute(sa_text("select indexname from pg_indexes where tablename in ('kh_status','kh_usage')"))).all()}
-    check("init_db() adds exactly the two new tables, twice in a row, next to the old data", post == {"kh_status", "kh_usage"}, post)
-    check("the columns are what the code writes", cols[("kh_status", "meta")][0] == "jsonb" and cols[("kh_status", "fp")][1] == 16 and cols[("kh_usage", "day")][1] == 10
-          and ("kh_usage", "tokens_out") in cols and ("kh_status", "rl_remaining") in cols, cols)
+    from app.keys.models import KhStatus as _KS, KhUsage as _KU
+    idx = set()
+    for n in ("kh_status", "kh_usage"):
+        idx |= set(await dbh[n].index_information())
+    check("init_db() adds exactly the two new collections, twice in a row, next to the old data", post == {"kh_status", "kh_usage"}, post)
+    check("the columns are what the code writes", _KS.__table__.c.meta.type.json and _KS.__table__.c.fp.type.length == 16 and _KU.__table__.c.day.type.length == 10
+          and "tokens_out" in _KU.__table__.c and "rl_remaining" in _KS.__table__.c)
     check("the day index exists", "ix_kh_usage_day" in idx, idx)
     check("the existing learner's keys are untouched", (await db.get_user_keys("u-old")).get("groq") == OLD_G)
 
@@ -575,7 +574,7 @@ async def main():
             def __call__(self, *a, **k):
                 state_["n"] += 1
                 if state_["n"] == 1:
-                    raise OperationalError("insert", {}, Exception("connection lost"))
+                    raise OperationalError()
                 return real_session(*a, **k)
 
         db._Session = Flaky()
@@ -791,7 +790,7 @@ async def main():
                  ("received", dict(received_at=_dt.datetime.now(_dt.timezone.utc)), "received"), ("opened", dict(opened_at=_dt.datetime.now(_dt.timezone.utc)), "opened")]
         for label, cols, want in steps:
             async with db._Session() as s_:
-                from sqlalchemy import update as _upd
+                from app.store import update as _upd
                 await s_.execute(_upd(NMo.NtOutbox).where(NMo.NtOutbox.id == tid).values(**cols)); await s_.commit()
             r = await req("fay", "GET", f"/notify/test/{tid}")
             check(f"... then '{want}'", r.json()["state"] == want, r.text)

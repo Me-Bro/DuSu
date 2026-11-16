@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, text
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from ..store import Boolean, DateTime, ForeignKey, Index, Integer, String
+from ..store import JSONB
+from ..store import Mapped, mapped_column
 
 from ..db import Base, _now
 
@@ -32,7 +32,8 @@ class NtOutbox(Base):
     __tablename__ = "nt_outbox"
     __table_args__ = (
         Index("uq_nt_out_dedupe", "user_id", "dedupe_key", unique=True),
-        Index("ix_nt_out_due", "fire_at", postgresql_where=text("status = 'scheduled'")),
+        Index("ix_nt_out_due", "fire_at", where={"status": "scheduled"}),
+        Index("ix_nt_out_sending", "claimed_at", where={"status": "sending"}),                  # the reclaim of a delivery that died mid-flight (every tick)
         Index("ix_nt_out_user_created", "user_id", "created_at"),
     )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

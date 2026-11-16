@@ -1,0 +1,94 @@
+restored: 22 user(s), 40 table(s)
+== 1. the ETL (on the PRISTINE restore: a GET can write, so the copy is taken before anyone reads): restored Postgres -> scratch Mongo (and its verifier)
+indexes ready on 40 collection(s); copying ...
+  early_access_emails       1 row(s)
+  office_emails             0 row(s)
+  settings                 11 row(s)
+  users                    22 row(s)
+  conversations            82 row(s)
+  ev_days                  14 row(s)
+  ev_milestones            17 row(s)
+  feedback                  1 row(s)
+  gc_drills                 5 row(s)
+  gc_marks                 16 row(s)
+  gc_sentences             15 row(s)
+  gc_sessions               5 row(s)  (json keys with '.' or '$': 200)
+  kh_status                10 row(s)
+  kh_usage                 28 row(s)
+  memory                   22 row(s)
+  nt_outbox                 0 row(s)
+  nt_prefs                  0 row(s)
+  pl_events                35 row(s)
+  pl_goals                  3 row(s)
+  pl_habits                 3 row(s)
+  pl_prefs                  9 row(s)
+  pl_push_subs              0 row(s)
+  pl_reminder_rules         0 row(s)
+  pl_reminders             10 row(s)
+  pl_tasks                  0 row(s)
+  plan_interest             0 row(s)
+  practice_attempts         8 row(s)
+  profiles                 22 row(s)
+  progress                 22 row(s)
+  ri_analyses               1 row(s)
+  ri_documents              3 row(s)
+  ri_sessions               1 row(s)
+  ri_turns                 14 row(s)
+  season_awards             0 row(s)
+  session_scores           63 row(s)
+  usage_daily               0 row(s)
+  user_keys                18 row(s)
+  weekly_stats             17 row(s)
+  pl_habit_logs             3 row(s)
+  pl_milestones            10 row(s)
+copied 491 row(s) in 2.7s
+verifying every row ...
+  early_access_emails  postgres      1  mongo      1  missing 0  differ 0  counter ok  -> OK
+  office_emails        postgres      0  mongo      0  missing 0  differ 0  counter ok  -> OK
+  settings             postgres     11  mongo     11  missing 0  differ 0  counter ok  -> OK
+  users                postgres     22  mongo     22  missing 0  differ 0  counter ok  -> OK
+  conversations        postgres     82  mongo     82  missing 0  differ 0  counter ok  -> OK
+  ev_days              postgres     14  mongo     14  missing 0  differ 0  counter ok  -> OK
+  ev_milestones        postgres     17  mongo     17  missing 0  differ 0  counter ok  -> OK
+  feedback             postgres      1  mongo      1  missing 0  differ 0  counter ok  -> OK
+  gc_drills            postgres      5  mongo      5  missing 0  differ 0  counter ok  -> OK
+  gc_marks             postgres     16  mongo     16  missing 0  differ 0  counter ok  -> OK
+  gc_sentences         postgres     15  mongo     15  missing 0  differ 0  counter ok  -> OK
+  gc_sessions          postgres      5  mongo      5  missing 0  differ 0  counter ok  -> OK
+  kh_status            postgres     10  mongo     10  missing 0  differ 0  counter ok  -> OK
+  kh_usage             postgres     28  mongo     28  missing 0  differ 0  counter ok  -> OK
+  memory               postgres     22  mongo     22  missing 0  differ 0  counter ok  -> OK
+  nt_outbox            postgres      0  mongo      0  missing 0  differ 0  counter ok  -> OK
+  nt_prefs             postgres      0  mongo      0  missing 0  differ 0  counter ok  -> OK
+  pl_events            postgres     35  mongo     35  missing 0  differ 0  counter ok  -> OK
+  pl_goals             postgres      3  mongo      3  missing 0  differ 0  counter ok  -> OK
+  pl_habits            postgres      3  mongo      3  missing 0  differ 0  counter ok  -> OK
+  pl_prefs             postgres      9  mongo      9  missing 0  differ 0  counter ok  -> OK
+  pl_push_subs         postgres      0  mongo      0  missing 0  differ 0  counter ok  -> OK
+  pl_reminder_rules    postgres      0  mongo      0  missing 0  differ 0  counter ok  -> OK
+  pl_reminders         postgres     10  mongo     10  missing 0  differ 0  counter ok  -> OK
+  pl_tasks             postgres      0  mongo      0  missing 0  differ 0  counter ok  -> OK
+  plan_interest        postgres      0  mongo      0  missing 0  differ 0  counter ok  -> OK
+  practice_attempts    postgres      8  mongo      8  missing 0  differ 0  counter ok  -> OK
+  profiles             postgres     22  mongo     22  missing 0  differ 0  counter ok  -> OK
+  progress             postgres     22  mongo     22  missing 0  differ 0  counter ok  -> OK
+  ri_analyses          postgres      1  mongo      1  missing 0  differ 0  counter ok  -> OK
+  ri_documents         postgres      3  mongo      3  missing 0  differ 0  counter ok  -> OK
+  ri_sessions          postgres      1  mongo      1  missing 0  differ 0  counter ok  -> OK
+  ri_turns             postgres     14  mongo     14  missing 0  differ 0  counter ok  -> OK
+  season_awards        postgres      0  mongo      0  missing 0  differ 0  counter ok  -> OK
+  session_scores       postgres     63  mongo     63  missing 0  differ 0  counter ok  -> OK
+  usage_daily          postgres      0  mongo      0  missing 0  differ 0  counter ok  -> OK
+  user_keys            postgres     18  mongo     18  missing 0  differ 0  counter ok  -> OK
+  weekly_stats         postgres     17  mongo     17  missing 0  differ 0  counter ok  -> OK
+  pl_habit_logs        postgres      3  mongo      3  missing 0  differ 0  counter ok  -> OK
+  pl_milestones        postgres     10  mongo     10  missing 0  differ 0  counter ok  -> OK
+VERIFIED: every row is in Mongo exactly as the app would have written it
+== 2. shadow answers: the OLD tree on the restored Postgres
+22 learner(s), 684 answers, status codes {200: 662, 404: 22}
+== 3. shadow answers: the NEW tree on the migrated Mongo
+22 learner(s), 684 answers, status codes {200: 662, 404: 22}
+== 4. diff
+
+684 answers for 22 learner(s) compared: IDENTICAL
+exit 0

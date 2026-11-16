@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, SmallInteger, String, Text, text
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from ..store import Boolean, DateTime, Float, ForeignKey, Index, Integer, SmallInteger, String, Text
+from ..store import JSONB
+from ..store import Mapped, mapped_column
 
 from ..db import Base, _now
 
@@ -27,7 +27,7 @@ class RiDocument(Base):
     __tablename__ = "ri_documents"
     __table_args__ = (
         Index("uq_ri_doc_sha", "user_id", "kind", "text_sha", unique=True),
-        Index("uq_ri_doc_client", "user_id", "client_key", unique=True, postgresql_where=text("client_key IS NOT NULL")),
+        Index("uq_ri_doc_client", "user_id", "client_key", unique=True, where={"client_key": {"$type": "string"}}),
         Index("ix_ri_doc_user_kind", "user_id", "kind", "created_at"),
     )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -50,7 +50,7 @@ class RiDocument(Base):
 class RiAnalysis(Base):
     """The match of ONE resume version against ONE job. Cached: an identical pair + rules_version is never analysed twice."""
     __tablename__ = "ri_analyses"
-    __table_args__ = (Index("uq_ri_analysis_pair", "user_id", "resume_id", "jd_id", unique=True),)
+    __table_args__ = (Index("uq_ri_analysis_pair", "user_id", "resume_id", "jd_id", unique=True, where={"resume_id": {"$type": "number"}, "jd_id": {"$type": "number"}}),)   # Postgres let rows with a NULL part repeat; Mongo would not
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     resume_id: Mapped[int] = mapped_column(Integer, index=True)
@@ -71,7 +71,7 @@ class RiSession(Base):
     """One mock interview. No stored counters: asked / answered / real are GROUP BYs over ri_turns under the session lock, so they cannot drift."""
     __tablename__ = "ri_sessions"
     __table_args__ = (
-        Index("uq_ri_session_client", "user_id", "client_key", unique=True, postgresql_where=text("client_key IS NOT NULL")),
+        Index("uq_ri_session_client", "user_id", "client_key", unique=True, where={"client_key": {"$type": "string"}}),
         Index("ix_ri_session_user_created", "user_id", "created_at"),
     )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -100,8 +100,8 @@ class RiTurn(Base):
     """One question. The plan is ROWS (status 'queued', idx NULL): the first non-terminal turn is the pointer, idx is assigned when it is asked."""
     __tablename__ = "ri_turns"
     __table_args__ = (
-        Index("uq_ri_turn_idx", "session_id", "idx", unique=True, postgresql_where=text("idx IS NOT NULL")),
-        Index("uq_ri_turn_pos", "session_id", "plan_pos", unique=True, postgresql_where=text("plan_pos IS NOT NULL")),
+        Index("uq_ri_turn_idx", "session_id", "idx", unique=True, where={"idx": {"$type": "number"}}),
+        Index("uq_ri_turn_pos", "session_id", "plan_pos", unique=True, where={"plan_pos": {"$type": "number"}}),
     )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[int] = mapped_column(Integer, index=True)

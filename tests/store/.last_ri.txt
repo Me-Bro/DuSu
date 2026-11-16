@@ -1,0 +1,269 @@
+  PASS  rehearsal: the old database has no ri_* collections
+  PASS  rehearsal: init_db() adds exactly the four ri_* collections next to the existing data, twice in a row
+  PASS  rehearsal: the partial unique indexes (idempotency keys, one analysis per pair) exist
+
+== switch off / auth / gates
+  PASS  switch OFF: state is 404
+  PASS  switch OFF: upload is 404
+  PASS  switch OFF: export still works (data is never trapped)
+  PASS  switch OFF: delete-all still works
+  PASS  no token -> 401
+  PASS  junk token -> 401
+  PASS  /me carries the new flags (False while off)
+  PASS  switch OWNER: a normal learner still gets 404
+  PASS  switch OWNER: the owner is in
+  PASS  switch OWNER: an early-access tester is in (visibility only)
+  PASS  /me for the tester: flag true, not an admin
+  PASS  the tester has no admin rights
+  PASS  switch ON: everyone is in
+  PASS  /admin/overview reports the switch and a health block
+  PASS  /admin/settings flips it
+  PASS  /admin/settings with the field absent leaves it alone
+  PASS  a blocked account is 403
+
+== documents
+  PASS  upload PDF -> 200, redacted preview, counts
+  PASS  the document row has no filename column and a safe default title
+  PASS  the same text again -> duplicate, same id
+  PASS  paste a JD -> 200
+  PASS  a repeated client_key replays the first document
+  PASS  too short -> 422 doc_too_short
+  PASS  bad kind -> 422
+  PASS  legacy .doc -> 415 hint doc
+  PASS  binary junk -> 415 hint other
+  PASS  image-only PDF -> 422 no_text
+  PASS  password-protected PDF -> 422 encrypted
+  PASS  DOCX works
+  PASS  Content-Length above the cap -> 413 before reading
+  PASS  a streamed body above the cap -> 413
+  PASS  an oversized JSON body -> 413
+  PASS  malformed JSON -> 422
+  PASS  NUL / surrogates are stripped before storing
+  PASS  GET document returns the redacted text
+
+== sessions + analysis (stub model call counts)
+  PASS  create session
+  PASS  create is idempotent by client_key
+[rinterview] analyze 879ms ok
+  PASS  two simultaneous analyzes -> ONE model run per stage (claim pattern)
+  PASS  ...and one of them got the result, the other 202 pending or the same result
+  PASS  analyze again -> cached, no new model call
+  PASS  analysis: statuses, evidence snapped to real resume lines, score, band
+  PASS  analysis: edits flagged only-if-true; verdict; role
+  PASS  the session title becomes the real job once it is known
+  PASS  analysis: a computed note about the personal-details section the redactor removed
+  PASS  the job's requirements are stored with the JD (stable ids), title taken from the role
+  PASS  picks: valid ids kept once, unknown dropped
+  PASS  GET session: shape + picked flag + counts + can_finish
+  PASS  an LLM endpoint without keys -> 402 keys_required (non-owner)
+[rinterview] analyze 16ms Unavailable
+[rinterview] analyze: model unavailable (Unavailable, parse_failed=False)
+  PASS  a quota failure -> 429 quota (and the claim is released)
+[rinterview] analyze 5ms Unavailable
+[rinterview] analyze: model unavailable (Unavailable, parse_failed=False)
+  PASS  another failure -> 502 analysis_unavailable
+[rinterview] analyze 11ms ok
+  PASS  ...and a retry works (state 'failed' is re-claimable)
+
+== swap-resume (re-upload)
+  PASS  a new version links to its parent
+[rinterview] analyze 14ms ok
+  PASS  swap: only call B ran (the job's requirements are reused)
+  PASS  swap: the change is reported (prev score / band / changed requirements)
+  PASS  swap: the score went up
+  PASS  swap: earlier suggestions that now look done are carried over as addressed
+  PASS  the session now points at the new resume
+  PASS  swap with an unknown resume -> 404
+
+== start + the plan
+[rinterview] plan 503ms ok
+  PASS  two simultaneous starts -> ONE plan call
+  PASS  start again -> the already-open first question, no new call
+  PASS  the plan is queued rows (>= 8) and the counts add up
+  PASS  swap after Start -> 409 wrong_state
+  PASS  GET session: open turn + brief role; queued questions are NOT sent
+
+== answers
+  PASS  too short -> too_short, no model call, nothing stored
+  PASS  a silence hallucination -> too_short reason no_speech
+  PASS  ...and the question is still open
+[rinterview] feedback 431ms ok
+  PASS  the same answer sent twice at once -> ONE model call
+  PASS  replaying the same key returns the stored feedback (no new call)
+  PASS  feedback has the contract's shape (bands, scores, delivery, worked...)
+  PASS  the transcript is stored (redacted lightly) and the audio device recorded
+  PASS  a different key on an answered turn -> 409 already_answered + the stored turn
+  PASS  double-tapping Next -> the same single open question
+  PASS  the second question is the next planned one (strong answer: no follow-up)
+[rinterview] feedback 16ms ok
+  PASS  a weak answer scores in a lower band
+  PASS  a weak answer gets ONE follow-up (from its feedback)
+  PASS  skip marks the turn skipped, not counted
+  PASS  after a follow-up the plan continues (never two follow-ups in a row)
+  PASS  Finish with 2 real answers -> 409 need_more (need 1)
+[rinterview] feedback 12ms Unavailable
+  PASS  model down -> 502 feedback_unavailable with saved:true and the stored turn
+  PASS  ...the turn is 'failed' with delivery-only feedback; it still counts as a real answer
+[rinterview] feedback 13ms Unavailable
+  PASS  retry while the quota is out -> 429 quota (transcript still saved)
+[rinterview] feedback 22ms ok
+  PASS  retry feedback -> done
+  PASS  retry again on a finished feedback -> stored, no new call
+  PASS  now 3 real answers -> can_finish
+  PASS  two simultaneous Finishes both succeed with the same report
+  PASS  XP is paid exactly ONCE (one Finish has progress, the other none)
+  PASS  exactly one session_scores row in mode resume_interview
+  PASS  the report: overall, 5 categories, coverage, per-question, no model was called
+  PASS  the session is finished and the open question was dropped
+  PASS  finish again -> the stored report, no new XP
+  PASS  next after finish -> 409 finished
+  PASS  answering after finish -> 409
+  PASS  DuSu's life lines: the last interview's role + score, no resume or job text
+  PASS  ...and no lines at all while the switch is off for that learner
+  PASS  hub state: the finished interview with its counts and score
+  PASS  hub state: the newest unfinished session is the active one
+  PASS  hub state: limits + today caps
+
+== a long interview: plan -> bank, no repeats
+[rinterview] plan 50ms ok
+  PASS  a second interview for the same job asks the model not to repeat earlier questions (the plan call got them)
+  PASS  24 questions in a row: plan then the bank, never a repeat
+  PASS  ...every one is valid and none is a protected topic
+  PASS  ...some came from the bank
+
+== two learners: every endpoint 404s on someone else's ids
+  PASS  Bob gets 404 on all 14 of Ann's ids
+[rinterview] 422 create_session: no_resume
+  PASS  Bob cannot create a session from Ann's documents
+  PASS  Bob's hub is empty
+  PASS  a foreign parent_id is ignored, not linked
+  PASS  Bob's export holds only Bob's rows
+
+== limits
+[rinterview] 409 paste.<locals>.go: limit_documents
+  PASS  the per-learner resume cap -> 409 limit_documents
+  PASS  sessions per day -> 429 daily_limit
+
+== transcribe
+  PASS  no Groq / Gemini key anywhere -> 400 no_groq_key
+  PASS  Gemini fallback -> the Groq-shaped JSON with engine
+  PASS  empty audio -> 400
+  PASS  every proxied transcription counts against the day (not just saved answers): the 3rd of a cap of 2 -> 429 daily_limit
+  PASS  audio above the cap -> 413
+  PASS  /me: ri_server_stt is computed only when the feature is on for the learner
+
+== home registry (the old behaviour is untouched when the switch is off)
+  PASS  a tile only when the switch is on
+  PASS  Know About page lists it only for learners who have it (both languages)
+  PASS  its Know About card says what is different from the HR mock
+  PASS  the model's catalogue names it only when on
+  PASS  the keyword fallback is untouched ('resume' is not an interview keyword)
+
+== review: ids, deep JSON, one parse at a time, claims, awards, outages
+  PASS  an out-of-range id is a 404, not a 500: /documents/99999999999
+  PASS  an out-of-range id is a 404, not a 500: /sessions/99999999999
+  PASS  an out-of-range id is a 404, not a 500: /sessions/99999999999/turns/1
+  PASS  an out-of-range id is a 404, not a 500: /sessions/1/turns/99999999999
+  PASS  an out-of-range keyset cursor is harmless
+[rinterview] 422 create_session: no_resume
+  PASS  create_session with odd id types {'resume_id': 'x', 'jd_id': 1.5} -> 422, not a 500
+[rinterview] 422 create_session: no_resume
+  PASS  create_session with odd id types {'resume_id': True, 'jd_id': 99999999999} -> 422, not a 500
+[rinterview] 422 create_session: no_resume
+  PASS  create_session with odd id types {'resume_id': [1], 'jd_id': {'a': 1}} -> 422, not a 500
+  PASS  deeply nested JSON (b'[[[[[['...) -> 422 bad_input, not a 500
+  PASS  deeply nested JSON (b'{"a":{'...) -> 422 bad_input, not a 500
+  PASS  a second upload while one is being parsed -> 429 rate
+  PASS  ...and the learner's slot is released afterwards (a normal upload works, nothing left in flight)
+  PASS  both parse slots busy -> 429 rate within a second (no unbounded queue)
+  PASS  ...and the slots work again afterwards
+[rinterview] analyze 32ms ok
+  PASS  analyze with force:true is just analyze: cached, no model call, still 'done'
+  PASS  a FRESH claim held by someone else -> 202 pending, no model call
+  PASS  a claim 100 s old is STILL pending (the TTL covers the slowest honest run: 150 s)
+  PASS  the payload reads a claim as 'pending' inside the TTL and 'failed' past it
+[rinterview] analyze 31ms ok
+  PASS  a claim past the TTL is stale: the work is re-taken and finishes
+[rinterview] analyze 642ms ok
+  PASS  two sessions with the same resume + job analysed together: no 500, one model run
+  PASS  a blocked account: 403 on use, but export and a delete still answer (data rights are not denied)
+[rinterview] analyze 28ms ok
+[rinterview] plan 78ms ok
+  PASS  30 fake word rows + 3 spoken words -> too_short, no model call, nothing counted
+[rinterview] plan 49ms ok
+[rinterview] feedback 6ms Unavailable
+[rinterview] feedback 7ms Unavailable
+[rinterview] feedback 7ms Unavailable
+  PASS  three answers while the model is down: each is saved (502 feedback_unavailable, saved:true)
+  PASS  ...and they all count as real answers, so Finish unlocks
+  PASS  Finish works with no feedback at all: overall None / band 'unknown' (no made-up 0 or delivery-only score)
+  PASS  ...the delivery category is still reported (measured at answer time); the judged ones are 'not measured'
+  PASS  ...per-question rows carry no invented band
+  PASS  ...the hub lists it without a score
+  PASS  XP was paid once with the unmeasured components UNSCORED (vocabulary / grammar NULL, not 0)
+  PASS  the memory line says the feedback was unavailable (never 'scored 0')
+  PASS  the learner's spoken words reached the shared vocabulary counter (the post-finish steps ran)
+  PASS  DuSu's life line for it says 'not scored' (never 0/100)
+[rinterview] plan 81ms ok
+[rinterview] feedback 16ms ok
+[rinterview] feedback 10ms ok
+[rinterview] feedback 10ms ok
+[rinterview] award failed: RuntimeError
+  PASS  a failure after the XP row was committed: Finish still answers, and a replayed Finish does NOT pay a second time
+[rinterview] plan 61ms ok
+[rinterview] feedback 15ms ok
+[rinterview] feedback 18ms ok
+[rinterview] feedback 22ms ok
+[rinterview] award failed: RuntimeError
+  PASS  a failure BEFORE any XP row: Finish still answers with the report
+  PASS  ...and the replayed Finish pays it (the flag was released because nothing had been paid)
+  PASS  the hub's active interview is found even when 30 newer (finished) ones fill the page
+  PASS  has_more is true when an older page exists (32 sessions: 30 listed) and false for a learner with a few
+  PASS  ...and the older page is reachable (the keyset cursor)
+  PASS  delete-all also removes DuSu's one-line notes about the interviews; XP (shared with the other modes) stays
+
+== coach: weaknesses in detail, focus points saved, the next interview checks them, old reports are upgraded
+[rinterview] analyze 31ms ok
+[rinterview] plan 88ms ok
+[rinterview] feedback 18ms ok
+[rinterview] feedback 22ms ok
+[rinterview] feedback 18ms ok
+  PASS  a finished interview carries the coaching fields (v2): habits, ranked weaknesses, at most 3 focus points
+  PASS  each weakness explains itself: what was seen, why it matters, three steps, a drill, a goal, the questions it happened in
+  PASS  the FIRST interview has nothing to compare with (progress is null, not invented)
+  PASS  opening the finished interview later returns the same report + every answer with its full feedback (so nothing is lost)
+  PASS  the hub's 'focus for next time' = the points of the latest finished interview
+[rinterview] plan 83ms ok
+  PASS  an interview in progress is handed the previous interview's focus points (before the first question, and for the per-answer check)
+  PASS  ... a finished interview does not carry focus_prev (its report holds the comparison)
+[rinterview] feedback 20ms ok
+[rinterview] feedback 17ms ok
+[rinterview] feedback 20ms ok
+  PASS  the NEXT interview's report judges each tracked focus point of the previous one, with real numbers
+  PASS  ... strong answers after weak ones: at least one point improved and none got worse
+  PASS  ... and the comparison is saved with the interview (reopening shows the same)
+  PASS  DuSu's life line carries the improvement points (titles only)
+  PASS  an old-format report is upgraded on read: v2 fields appear, the v1 fields are untouched, no model call, and it is SAVED
+  PASS  ... the upgrade is idempotent (same focus points, same weaknesses on the next read)
+  PASS  /state upgrades the latest old-format report too (the hub's focus card works for interviews finished before this feature)
+
+== export, delete, wipe, account deletion
+  PASS  export holds every table, text included, and NO audio column
+  PASS  delete-all needs confirm:true
+  PASS  deleting a document detaches its sessions (the report stays) and removes its analyses
+  PASS  deleting a session removes its turns
+  PASS  an IntegrityError's text carries no bound values (hide_parameters)
+  PASS  Ann still has rows before deletion
+  PASS  account deletion removes every ri_* row
+  PASS  the owner has a document to keep through the wipe
+  PASS  the owner's wipe removes the other learners' ri_* rows and keeps the owner's
+
+== introspection
+  PASS  every ri_* table is in RI_TABLES (so export / delete-rows cover it)
+  PASS  delete_rows deletes every table that has a user_id
+  PASS  db.delete_user and db.admin_wipe_users both call the Resume Interview hook
+  PASS  every enumerated value fits its column width
+   (info) other tables with user_id: 32 - not part of this feature
+
+188 / 188 checks passed
+exit 0

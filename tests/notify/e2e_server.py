@@ -13,7 +13,7 @@ import sys
 sys.path.insert(0, "/app")
 
 import uvicorn                                                      # noqa: E402
-from sqlalchemy import update                                       # noqa: E402
+from app.store import update                                        # noqa: E402
 
 from app import auth, db, main as M                                 # noqa: E402
 from app.notify import models as NM                                 # noqa: E402
@@ -58,7 +58,7 @@ async def seed():
     out = {k: {"token": auth.make_session(u), "user": u} for k, u in users.items()}
     out["_rows"] = {"fay": fay_row}
     json.dump(out, open("/tests/notify/.e2e/tokens.json", "w"))
-    await db._engine.dispose()                                       # connections made in THIS event loop must not be reused by uvicorn's own loop
+    await __import__('app.store', fromlist=['close']).close()        # the client made in THIS event loop must not be reused by uvicorn's own loop (a new loop gets a new client)
 
 
 asyncio.run(seed())

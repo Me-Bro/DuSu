@@ -17,7 +17,7 @@ import datetime as dt
 import inspect
 import time
 
-from sqlalchemy import delete, func, select, text, update
+from ..store import claim_one, delete, func, select, update
 
 from .. import db
 from . import push, rules, service as svc, timeutil as tu
@@ -101,15 +101,16 @@ async def reclaim(now: dt.datetime) -> int:
 
 
 async def claim(now: dt.datetime, limit: int = CLAIM_BATCH) -> list[int]:
-    """Take up to `limit` due reminders. SKIP LOCKED + the unique occurrence key mean two loops (ever) cannot send the same reminder twice."""
-    async with _S() as s:
-        rows = await s.execute(text(
-            "WITH c AS (SELECT id FROM pl_reminders WHERE status = 'scheduled' AND fire_at <= :now ORDER BY fire_at LIMIT :n FOR UPDATE SKIP LOCKED) "
-            "UPDATE pl_reminders r SET status = 'sending', claimed_at = :now, attempts = r.attempts + 1 FROM c WHERE r.id = c.id RETURNING r.id"),
-            {"now": now, "n": limit})
-        ids = [x[0] for x in rows.all()]
-        await s.commit()
-        return sorted(ids)
+    """Take up to `limit` due reminders, earliest first. Each is taken by ONE atomic find-and-update (it was FOR UPDATE SKIP LOCKED) - and the occurrence key is unique -
+    so two loops, in this process or another, can never send the same reminder twice."""
+    ids: list[int] = []
+    for _ in range(limit):
+        r = await claim_one(PlReminder, [PlReminder.status == "scheduled", PlReminder.fire_at <= now],
+                            {"status": "sending", "claimed_at": now, "attempts": PlReminder.attempts + 1}, sort=[("fire_at", 1)])
+        if r is None:
+            break
+        ids.append(r.id)
+    return sorted(ids)
 
 
 async def _fail_row(rid: int, why: str) -> None:
@@ -273,23 +274,39 @@ async def deliver(rid: int, enabled_fn, now: dt.datetime, sender=None) -> str:
 async def followups(now: dt.datetime) -> tuple[int, int]:
     """After a reminder was SENT and nobody acted: up to the learner's `followups` more, `gap` minutes apart (the same row, fired again);
     then it expires and the task simply shows as overdue - there is no endless pushing. Habits get no follow-ups; a stale (in-app only)
-    reminder just expires after a day."""
+    reminder just expires after a day.
+    (Two `UPDATE ... FROM (subquery joined to pl_prefs)` statements with interval arithmetic in Postgres; here the sent rows are read under their row locks, the same
+    conditions are decided in Python, and both outcomes are committed together.)"""
     async with _S() as s:
-        up = await s.execute(text(
-            "UPDATE pl_reminders r SET status = 'scheduled', fire_at = :now, followups_sent = r.followups_sent + 1, attempts = 0, claimed_at = NULL, push_state = 'none' "
-            "FROM (SELECT r2.id FROM pl_reminders r2 LEFT JOIN pl_prefs p ON p.user_id = r2.user_id "
-            "      WHERE r2.status = 'sent' AND r2.entity_type IN ('task', 'custom') AND r2.kind <> 'test' AND r2.push_state <> 'stale' "
-            "        AND r2.sent_at + make_interval(mins => COALESCE(p.followup_gap_min, 30)) <= :now "
-            "        AND r2.followups_sent < COALESCE(p.followups, 1)) c WHERE r.id = c.id RETURNING r.id"), {"now": now})
-        n_follow = len(up.all())
-        ex = await s.execute(text(
-            "UPDATE pl_reminders r SET status = 'expired' "
-            "FROM (SELECT r2.id FROM pl_reminders r2 LEFT JOIN pl_prefs p ON p.user_id = r2.user_id WHERE r2.status = 'sent' AND ("
-            "      (r2.push_state = 'stale' AND r2.sent_at + make_interval(hours => :sh) <= :now) "
-            "   OR (r2.push_state <> 'stale' AND r2.sent_at + make_interval(mins => COALESCE(p.followup_gap_min, 30)) <= :now "
-            "        AND (r2.entity_type = 'habit' OR r2.kind = 'test' OR r2.followups_sent >= COALESCE(p.followups, 1))))) c WHERE r.id = c.id RETURNING r.id"),
-            {"now": now, "sh": STALE_EXPIRE_H})
-        n_exp = len(ex.all())
+        sent = (await s.execute(select(PlReminder).where(PlReminder.status == "sent").with_for_update())).scalars().all()
+        uids = {r.user_id for r in sent}
+        prefs = {p.user_id: p for p in (await s.execute(select(PlPrefs).where(PlPrefs.user_id.in_(list(uids))))).scalars().all()} if uids else {}
+
+        def gap(r) -> dt.timedelta:                                     # COALESCE(p.followup_gap_min, 30)
+            p = prefs.get(r.user_id)
+            return dt.timedelta(minutes=p.followup_gap_min if p is not None and p.followup_gap_min is not None else 30)
+
+        def allowed(r) -> int:                                          # COALESCE(p.followups, 1)
+            p = prefs.get(r.user_id)
+            return p.followups if p is not None and p.followups is not None else 1
+
+        n_follow = 0
+        for r in sent:
+            if (r.entity_type in ("task", "custom") and r.kind != "test" and r.push_state != "stale" and r.sent_at is not None
+                    and r.sent_at + gap(r) <= now and r.followups_sent < allowed(r)):
+                r.status, r.fire_at, r.followups_sent, r.attempts, r.claimed_at, r.push_state = "scheduled", now, r.followups_sent + 1, 0, None, "none"
+                n_follow += 1
+        n_exp = 0
+        for r in sent:
+            if r.status != "sent" or r.sent_at is None:                 # rescheduled just above / a NULL time never compares true
+                continue
+            if r.push_state == "stale":
+                if r.sent_at + dt.timedelta(hours=STALE_EXPIRE_H) <= now:
+                    r.status = "expired"
+                    n_exp += 1
+            elif r.sent_at + gap(r) <= now and (r.entity_type == "habit" or r.kind == "test" or r.followups_sent >= allowed(r)):
+                r.status = "expired"
+                n_exp += 1
         await s.commit()
         return n_follow, n_exp
 

@@ -1,28 +1,28 @@
 #!/usr/bin/env bash
-# Grammar Coach - the browser tier against the REAL app: uvicorn + a SCRATCH Postgres (tests/grammar/e2e_server.py, stub models), a real Chromium in the
+# Grammar Coach - the browser tier against the REAL app: uvicorn + a SCRATCH MongoDB (a one-member replica set) (tests/grammar/e2e_server.py, stub models), a real Chromium in the
 # Playwright image. Everything is removed afterwards; no host port is bound; never the app's own database.
 #   tests/grammar/browser/run_real.sh [real.spec.cjs]
-# Needs the Playwright modules once (see ../../my_day/README.md) and the test image `dusu-ri-test`.
+# Needs the Playwright modules once (see ../../my_day/README.md) and the test image `dusu-mongo-test`.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../../.." && pwd)"
-IMG="${GC_TEST_IMAGE:-dusu-ri-test}"
+. "$REPO/tests/lib/scratch_mongo.sh"
+IMG="${GC_TEST_IMAGE:-dusu-mongo-test}"
 BACKEND="${GC_BACKEND:-$REPO/backend}"      # "baked" = test the code INSIDE the image (a built / deployed image)
 MOUNT=(-v "$BACKEND":/app); [ "$BACKEND" = baked ] && MOUNT=()
 PW="${PW_MODULES:-$HOME/.cache/dusu-ri-pwrun/node_modules}"
 OUT="${OUT_DIR:-$HOME/.cache/dusu-gc-shots}"
 SPEC="${1:-real.spec.cjs}"
 mkdir -p "$OUT"
-NET="gc-e2e-net-$$"; PG="gc-e2e-pg-$$"; SRV="gc-e2e-srv-$$"
-cleanup() { docker rm -f "$SRV" "$PG" >/dev/null 2>&1 || true; docker network rm "$NET" >/dev/null 2>&1 || true; }
+NET="gc-e2e-net-$$"; MG="gc-scratch-mongo-$$"; SRV="gc-e2e-srv-$$"
+cleanup() { docker rm -f "$SRV" "$MG" >/dev/null 2>&1 || true; docker network rm "$NET" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 docker network create "$NET" >/dev/null
-docker run -d --name "$PG" --network "$NET" -e POSTGRES_USER=gc -e POSTGRES_PASSWORD=gc -e POSTGRES_DB=gc postgres:18-alpine >/dev/null
-for _ in $(seq 1 60); do docker exec "$PG" pg_isready -U gc -d gc >/dev/null 2>&1 && break; sleep 1; done
+scratch_mongo_up "$NET" "$MG"
 sleep 2
 rm -rf "$REPO/tests/grammar/.e2e"
 docker run -d --name "$SRV" --network "$NET" \
-  -e DATABASE_URL="postgresql://gc:gc@$PG:5432/gc" -e DATABASE_SSL=false -e SESSION_SECRET=gc-e2e-secret -e GOOGLE_CLIENT_ID=e2e-client \
+  -e MONGODB_URI="$(scratch_mongo_uri "$MG" gc)" -e DUSU_SCRATCH_ONLY=1 -e SESSION_SECRET=gc-e2e-secret -e GOOGLE_CLIENT_ID=e2e-client \
   -e GROQ_API_KEY= -e GEMINI_API_KEY= -e OPENROUTER_API_KEY= -e GITHUB_TOKEN= \
   "${MOUNT[@]}" -v "$REPO/tests":/tests "$IMG" python /tests/grammar/e2e_server.py >/dev/null
 for _ in $(seq 1 90); do

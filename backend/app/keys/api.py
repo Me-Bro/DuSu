@@ -12,7 +12,7 @@ from __future__ import annotations
 import time
 
 from fastapi import APIRouter, Body, Header, HTTPException
-from sqlalchemy.exc import DBAPIError
+from ..store import DBAPIError
 
 from .. import auth, db
 from . import classify, gate, ledger, service as svc

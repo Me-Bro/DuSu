@@ -51,7 +51,7 @@ async def seed():
         await tracker.run("e2e-ann", "ann@example.com", source="talk", kind="", key=f"ws:seedann{i:06d}", turns=[{"turn": k + 1, "text": t, "conf": None} for k, t in enumerate(TALK)], engine_src="chrome")
     os.makedirs("/tests/grammar/.e2e", exist_ok=True)
     json.dump({k: {"token": auth.make_session(u), "user": u} for k, u in users.items()}, open("/tests/grammar/.e2e/tokens.json", "w"))
-    await db._engine.dispose()                                       # connections made in THIS event loop must not be reused by uvicorn's own loop
+    await __import__('app.store', fromlist=['close']).close()        # the client made in THIS event loop must not be reused by uvicorn's own loop (a new loop gets a new client)
 
 
 @M.app.get("/__e2e/stats")

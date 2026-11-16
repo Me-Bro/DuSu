@@ -393,7 +393,10 @@ async function checkSheet(page, label, o = {}) {
 
     await scenario(browser, 'F3 an older server that still sends a busy provider as `quota` (a rollback): the same pop-up and chip, no English line', 'lk16', async ({ page, P }) => {
       await L.openHome(page, { typed: 'Hh', noWait: true });
-      T.ok(await until(() => L.aiN(page).then(n => n >= 1), 15000), 'F3: Home answered the first line');
+      // The first AI bubble is the client's own greeting; a typed line is only SENT once the server says `home_ready`. Wait for the real round trip (the typed line on screen AND
+      // DuSu's answer after it), or the injected frame below races a late `home_ready` that submits the typed line and clears the chip - a faster server (the MongoDB one opens a
+      // Home chat in ~30 ms instead of ~180 ms) lost that race every time.
+      T.ok(await until(async () => (await L.userN(page)) >= 1 && (await L.aiN(page)) >= 2, 15000), 'F3: Home answered the first line');
       await page.evaluate(() => { document.getElementById('feed').insertAdjacentHTML('beforeend', '<div class="msg user"><div class="av">🙂</div><div class="bubble">second line</div></div>'); });
       await page.evaluate(() => onMessage({ data: JSON.stringify({ type: 'quota', msg: 'The AI is busy right now - your keys are fine. Please try again in a minute.', kp: { state: 'transient', own: true, keys: [], now: Math.floor(Date.now() / 1000), retry_in: 6 } }) }));
       T.ok(await until(() => sheetOn(page), 4000), 'F3: the pop-up opens');

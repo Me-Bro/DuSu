@@ -13,9 +13,9 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
-from sqlalchemy import and_, delete, func, or_, select, text, update
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.exc import IntegrityError
+from ..store import and_, delete, func, or_, select, text, update
+from ..store import pg_insert
+from ..store import IntegrityError
 
 from .. import db
 from . import rules, timeutil as tu
@@ -161,11 +161,7 @@ async def _upsert_reminder(s, uid: str, *, entity_type: str, entity_id: int | No
         return r
     r = PlReminder(user_id=uid, entity_type=entity_type, entity_id=entity_id, kind=kind, title=title[:160], body=body[:300], occurrence_key=key,
                    fire_at=fire_at, tz=tz, status=status, meta=meta or {})
-    try:
-        async with s.begin_nested():                       # a savepoint: a concurrent insert of the same moment must not poison the whole request
-            s.add(r)
-            await s.flush()
-    except IntegrityError:
+    if not await s.insert_if_absent(r, ["occurrence_key"]):          # (was a savepoint) a concurrent insert of the same moment must not poison the whole request: take the winner's row
         r = (await s.execute(select(PlReminder).where(PlReminder.occurrence_key == key))).scalars().first()
         if r is None or r.user_id != uid:
             raise Invalid("reminder")
@@ -655,11 +651,7 @@ async def _materialize_series(s, tpl: PlTask, p: PlPrefs, days: int = 2) -> int:
         child = PlTask(user_id=tpl.user_id, goal_id=tpl.goal_id, milestone_id=tpl.milestone_id, parent_id=tpl.id, occ_date=d, title=tpl.title,
                        notes=tpl.notes, priority=tpl.priority, minutes=tpl.minutes, due_date=d, due_has_time=bool(t_of_day), due_at=due_at,
                        orig_due_at=due_at, status="open", remind=tpl.remind if tpl.remind != "custom" else "at_due", reschedules=[], tz=p.tz)
-        try:
-            async with s.begin_nested():
-                s.add(child)
-                await s.flush()
-        except IntegrityError:
+        if not await s.insert_if_absent(child, ["parent_id", "occ_date"]):      # (was a savepoint)
             continue                                                            # another loop made it first
         await _plan_task_reminders(s, child, p)
         made += 1
@@ -1056,12 +1048,10 @@ async def log_habit(uid: str, hid: int, body: dict) -> dict:
         state = "skipped" if skipped else "logged"
         if row is None:
             if skipped or count > 0:
-                try:
-                    async with s.begin_nested():               # two quick taps on the first glass of the day: the second must update, not crash
-                        s.add(PlHabitLog(habit_id=h.id, user_id=uid, day=day, count=count, state=state, note=rules.clean_str(body.get("note"), 200)))
-                        await s.flush()
+                log = PlHabitLog(habit_id=h.id, user_id=uid, day=day, count=count, state=state, note=rules.clean_str(body.get("note"), 200))
+                if await s.insert_if_absent(log, ["habit_id", "day"]):       # (was a savepoint) two quick taps on the first glass of the day: the second must update, not crash
                     _ev(s, uid, "habit", h.id, "logged", {"count": count, "skipped": skipped})
-                except IntegrityError:
+                else:
                     row = (await s.execute(select(PlHabitLog).where(PlHabitLog.habit_id == h.id, PlHabitLog.day == day).with_for_update())).scalars().first()
                     if row is not None:
                         row.count, row.state, row.updated_at = count, state, _utc()
@@ -1451,7 +1441,7 @@ async def create_reminder_rule(uid: str, body: dict) -> dict:
         now = _utc()
         # one create at a time per learner (released at commit): the duplicate check and the limit below are check-then-insert, and two taps that
         # arrive together would both pass them
-        await s.execute(text("SELECT pg_advisory_xact_lock(hashtext(:k))"), {"k": "plrr:" + uid})
+        await s.advisory_lock("plrr:" + uid)
         key = rules.clean_str(body.get("client_key"), 64) or None
         mine = (await s.execute(select(PlReminderRule).where(PlReminderRule.user_id == uid).order_by(PlReminderRule.id))).scalars().all()
         ex = next((r for r in mine if key and r.client_key == key), None) or next(
@@ -1464,14 +1454,16 @@ async def create_reminder_rule(uid: str, body: dict) -> dict:
         if len(mine) >= rules.LIMITS["reminder_rules"] or await _count_creates(s, uid) >= rules.LIMITS["creates_per_day"]:
             raise LimitReached("repeating")
         rule = PlReminderRule(user_id=uid, client_key=key, title=title, time=hhmm, days=days, status="active", tz=p.tz)
-        try:
-            async with s.begin_nested():                       # a concurrent create with the same client_key loses here, and takes the winner's rule
-                s.add(rule)
-                await s.flush()
-        except IntegrityError:
-            ex = (await s.execute(select(PlReminderRule).where(PlReminderRule.user_id == uid, PlReminderRule.client_key == key))).scalars().first() if key else None
+        if key:
+            made = await s.insert_if_absent(rule, ["user_id", "client_key"])  # (was a savepoint) a concurrent create with the same client_key loses here, and takes the winner's rule
+        else:
+            s.add(rule)
+            await s.flush()
+            made = True
+        if not made:
+            ex = (await s.execute(select(PlReminderRule).where(PlReminderRule.user_id == uid, PlReminderRule.client_key == key))).scalars().first()
             if ex is None:
-                raise
+                raise IntegrityError("the repeating reminder could not be created")
             await s.commit()
             out = rule_json(ex, now, p.tz)
             out["duplicate"] = True

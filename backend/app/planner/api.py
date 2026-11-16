@@ -11,7 +11,7 @@ from __future__ import annotations
 import time
 
 from fastapi import APIRouter, Body, Header, HTTPException, Request
-from sqlalchemy.exc import DBAPIError
+from ..store import DBAPIError
 
 from .. import auth, db
 from . import push, service as svc, timeutil as tu

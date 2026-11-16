@@ -18,8 +18,8 @@ import json
 import random
 import time
 
-from sqlalchemy import delete, select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+from ..store import delete, select
+from ..store import pg_insert
 
 from .. import db
 from . import classify, gate, ledger, probe

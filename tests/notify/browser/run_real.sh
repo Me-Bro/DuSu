@@ -1,29 +1,29 @@
 #!/usr/bin/env bash
-# Notifications - the browser tier against the REAL app: uvicorn + a SCRATCH Postgres (tests/notify/e2e_server.py, the real reminder loop running), a real Chromium
+# Notifications - the browser tier against the REAL app: uvicorn + a SCRATCH MongoDB (a one-member replica set) (tests/notify/e2e_server.py, the real reminder loop running), a real Chromium
 # in the Playwright image. Everything is removed afterwards; no host port is bound; never the app's own database.
 #   tests/notify/browser/run_real.sh [real.spec.cjs]
-# Needs the Playwright modules once (see ../README.md) and the test image `dusu-ri-test`.
+# Needs the Playwright modules once (see ../README.md) and the test image `dusu-mongo-test`.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../../.." && pwd)"
-IMG="${NT_TEST_IMAGE:-dusu-ri-test}"
+. "$REPO/tests/lib/scratch_mongo.sh"
+IMG="${NT_TEST_IMAGE:-dusu-mongo-test}"
 BACKEND="${NT_BACKEND:-$REPO/backend}"      # "baked" = test the code INSIDE the image (a built / deployed image) instead of a bind mount
 MOUNT=(-v "$BACKEND":/app); [ "$BACKEND" = baked ] && MOUNT=()
 PW="${PW_MODULES:-$HOME/.cache/dusu-ri-pwrun/node_modules}"
 OUT="${OUT_DIR:-$HOME/.cache/dusu-nt-shots}"
 SPEC="${1:-real.spec.cjs}"
 mkdir -p "$OUT"
-NET="nt-e2e-net-$$"; PG="nt-e2e-pg-$$"; SRV="nt-e2e-srv-$$"
-cleanup() { docker rm -f "$SRV" "$PG" >/dev/null 2>&1 || true; docker network rm "$NET" >/dev/null 2>&1 || true; }
+NET="nt-e2e-net-$$"; MG="nt-scratch-mongo-$$"; SRV="nt-e2e-srv-$$"
+cleanup() { docker rm -f "$SRV" "$MG" >/dev/null 2>&1 || true; docker network rm "$NET" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 docker network create "$NET" >/dev/null
-docker run -d --name "$PG" --network "$NET" -e POSTGRES_USER=nt -e POSTGRES_PASSWORD=nt -e POSTGRES_DB=nt postgres:18-alpine >/dev/null
-for _ in $(seq 1 60); do docker exec "$PG" pg_isready -U nt -d nt >/dev/null 2>&1 && break; sleep 1; done
+scratch_mongo_up "$NET" "$MG"
 sleep 2
 rm -rf "$REPO/tests/notify/.e2e"
 # provider keys blanked: the bind-mounted backend/ holds the real .env
 docker run -d --name "$SRV" --network "$NET" \
-  -e DATABASE_URL="postgresql://nt:nt@$PG:5432/nt" -e DATABASE_SSL=false -e SESSION_SECRET=nt-e2e-secret -e GOOGLE_CLIENT_ID=e2e-client \
+  -e MONGODB_URI="$(scratch_mongo_uri "$MG" nt)" -e DUSU_SCRATCH_ONLY=1 -e SESSION_SECRET=nt-e2e-secret -e GOOGLE_CLIENT_ID=e2e-client \
   -e GROQ_API_KEY= -e GEMINI_API_KEY= -e OPENROUTER_API_KEY= -e GITHUB_TOKEN= \
   "${MOUNT[@]}" -v "$REPO/tests":/tests "$IMG" python /tests/notify/e2e_server.py >/dev/null
 for _ in $(seq 1 90); do

@@ -9,6 +9,9 @@
 #   docker compose up -d --build                              # PRODUCTION (default)
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d   # dev
 #
+# CAUTION: the dev overlay talks to the SAME database as production (the shared MongoDB, database `dusu`) - it only changes the code and adds reload.
+# To try something that writes data, run the backend against a scratch MongoDB instead (tests/lib/scratch_mongo.sh starts a throwaway one).
+#
 services:
   backend:
     volumes:

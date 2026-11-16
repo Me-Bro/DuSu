@@ -17,9 +17,9 @@ sys.path.insert(0, "/app")
 sys.path.insert(0, "/tests/my_day")
 
 import httpx                                                        # noqa: E402
-from sqlalchemy import func, select, text as sa_text                # noqa: E402
+from app.store import func, select, update as sa_update            # noqa: E402
 
-from app import auth, db, main as M                                 # noqa: E402
+from app import auth, db, main as M, store                          # noqa: E402
 from app.planner import life_lines, models as PM, push, rules, scheduler as sch, service as svc, timeutil as tu    # noqa: E402
 
 UTC = dt.timezone.utc
@@ -117,19 +117,13 @@ async def main():
     assert not (M.settings.groq_api_key or M.settings.gemini_api_key or M.settings.openrouter_api_key or M.settings.github_token), \
         "refusing to run: provider keys are configured - run through run.sh, which blanks them"
 
-    # ------------------------------------------------------------------ OLD -> NEW schema rehearsal
-    section("schema rehearsal: production has every pl_* table EXCEPT pl_reminder_rules")
-    for _ in range(20):                                              # a freshly started postgres restarts once after initdb
-        try:
-            async with db._engine.begin() as conn:
-                await conn.run_sync(lambda sc: db.Base.metadata.create_all(sc, tables=[t for t in db.Base.metadata.sorted_tables if t.name != "pl_reminder_rules"]))
-            break
-        except Exception:
-            await asyncio.sleep(1)
+    # ------------------------------------------------------------------ OLD -> NEW rehearsal
+    section("rehearsal: production has every pl_* collection EXCEPT pl_reminder_rules")
+    await store.init([m for m in db.Base.models() if m.__tablename__ != "pl_reminder_rules"])
+    dbh = store.core.database()
 
     async def tables():
-        async with db._engine.connect() as conn:
-            return {r[0] for r in (await conn.execute(sa_text("select table_name from information_schema.tables where table_schema='public' and table_name like 'pl\\_%'"))).all()}
+        return {n for n in await dbh.list_collection_names() if n.startswith("pl_")}
 
     pre = await tables()
     old = {"sub": "u-old", "email": "old@example.com", "name": "Old", "picture": ""}
@@ -137,18 +131,16 @@ async def main():
     await db.set_setting("planner", "on")
     M.invalidate_access_cache()
     old_rem = await svc.create_custom_reminder("u-old", {"title": "Old reminder", "time": "20:00", "client_key": "old1"})
-    check("the old schema has no pl_reminder_rules", "pl_reminder_rules" not in pre and "pl_reminders" in pre, pre)
+    check("the old database has no pl_reminder_rules", "pl_reminder_rules" not in pre and "pl_reminders" in pre, pre)
     await db.init_db()
     await db.init_db()
     post = await tables()
-    async with db._engine.connect() as conn:
-        idx = {r[0] for r in (await conn.execute(sa_text("select indexname from pg_indexes where tablename = 'pl_reminder_rules'"))).all()}
-        cols = {r[0]: (r[1], r[2]) for r in (await conn.execute(sa_text(
-            "select column_name, data_type, character_maximum_length from information_schema.columns where table_name = 'pl_reminder_rules'"))).all()}
-    check("init_db() adds exactly the one new table, twice in a row, next to the old data", "pl_reminder_rules" in post and post - pre == {"pl_reminder_rules"}, (pre, post))
+    idx = set(await dbh["pl_reminder_rules"].index_information())
+    R_ = PM.PlReminderRule.__table__.c
+    check("init_db() adds exactly the one new collection, twice in a row, next to the old data", "pl_reminder_rules" in post and post - pre == {"pl_reminder_rules"}, (pre, post))
     check("the partial unique index (idempotent create) exists", "uq_pl_rrules_client" in idx, idx)
-    check("the columns are what the code writes", {"id", "user_id", "client_key", "title", "time", "days", "status", "tz", "created_at", "updated_at"} <= set(cols)
-          and cols["days"][0] == "jsonb" and cols["time"][1] == 5, cols)
+    check("the columns are what the code writes", {"id", "user_id", "client_key", "title", "time", "days", "status", "tz", "created_at", "updated_at"} <= set(PM.PlReminderRule.__columns__)
+          and R_.days.type.json and R_.time.type.length == 5)
     check("the existing learner's reminder is untouched", (await count(PM.PlReminder, PM.PlReminder.user_id == "u-old")) == 1 and old_rem["id"] > 0)
 
     # ------------------------------------------------------------------ users + client
@@ -438,7 +430,7 @@ async def main():
         stale = (await rings(uid("fay"), e2["id"]))[0]                                       # today's 21:00 ring (15:30Z)
         await api("fay", "PATCH", f"/reminder-rules/{e2['id']}", {"time": "22:00"})
         async with db._Session() as s:                                                       # simulate the race: the scheduler had already claimed it
-            await s.execute(sa_text("update pl_reminders set status='sending', claimed_at=:n where id=:i"), {"n": CLOCK[0], "i": stale.id})
+            await s.execute(sa_update(PM.PlReminder).where(PM.PlReminder.id == stale.id).values(status="sending", claimed_at=CLOCK[0]))
             await s.commit()
         SENT.clear()
         setclock(at(2026, 10, 14, 15, 30, 5))
@@ -451,7 +443,7 @@ async def main():
         e3 = await mk("fay", "Pause race", "21:30", "daily")
         claimed = (await rings(uid("fay"), e3["id"]))[0]                                        # today's 21:30 ring (16:00Z)
         async with db._Session() as s:
-            await s.execute(sa_text("update pl_reminders set status='sending', claimed_at=:n where id=:i"), {"n": CLOCK[0], "i": claimed.id})
+            await s.execute(sa_update(PM.PlReminder).where(PM.PlReminder.id == claimed.id).values(status="sending", claimed_at=CLOCK[0]))
             await s.commit()
         await api("fay", "PATCH", f"/reminder-rules/{e3['id']}", {"action": "pause"})
         check("a ring already being sent is not touched by the pause itself (only waiting ones are withdrawn)", (await rows(PM.PlReminder, PM.PlReminder.id == claimed.id))[0].status == "sending")

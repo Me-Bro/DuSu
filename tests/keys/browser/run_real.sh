@@ -1,29 +1,29 @@
 #!/usr/bin/env bash
-# Keys - the browser tier against the REAL app: uvicorn + a SCRATCH Postgres (tests/keys/e2e_server.py: the real key engine and flush loop, scripted fake providers), a real
+# Keys - the browser tier against the REAL app: uvicorn + a SCRATCH MongoDB (a one-member replica set) (tests/keys/e2e_server.py: the real key engine and flush loop, scripted fake providers), a real
 # Chromium in the Playwright image. Everything is removed afterwards; no host port is bound; the network is INTERNAL (no route out); never the app's own database.
 #   tests/keys/browser/run_real.sh [keys.spec.cjs|install.spec.cjs|static.spec.cjs]
-# Needs the Playwright modules once (see tests/notify/README.md) and the test image `dusu-ri-test`.
+# Needs the Playwright modules once (see tests/notify/README.md) and the test image `dusu-mongo-test`.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../../.." && pwd)"
-IMG="${KY_TEST_IMAGE:-dusu-ri-test}"
+. "$REPO/tests/lib/scratch_mongo.sh"
+IMG="${KY_TEST_IMAGE:-dusu-mongo-test}"
 BACKEND="${KY_BACKEND:-$REPO/backend}"      # "baked" = test the code INSIDE the image (a built / deployed image) instead of a bind mount
 MOUNT=(-v "$BACKEND":/app); [ "$BACKEND" = baked ] && MOUNT=()
 PW="${PW_MODULES:-$HOME/.cache/dusu-ri-pwrun/node_modules}"
 OUT="${OUT_DIR:-$HOME/.cache/dusu-ky-shots}"
 SPEC="${1:-keys.spec.cjs}"
 mkdir -p "$OUT"
-NET="ky-e2e-net-$$"; PG="ky-e2e-pg-$$"; SRV="ky-e2e-srv-$$"
-cleanup() { docker rm -f "$SRV" "$PG" >/dev/null 2>&1 || true; docker network rm "$NET" >/dev/null 2>&1 || true; }
+NET="ky-e2e-net-$$"; MG="ky-scratch-mongo-$$"; SRV="ky-e2e-srv-$$"
+cleanup() { docker rm -f "$SRV" "$MG" >/dev/null 2>&1 || true; docker network rm "$NET" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 docker network create --internal "$NET" >/dev/null
-docker run -d --name "$PG" --network "$NET" -e POSTGRES_USER=ky -e POSTGRES_PASSWORD=ky -e POSTGRES_DB=ky postgres:18-alpine >/dev/null
-for _ in $(seq 1 60); do docker exec "$PG" pg_isready -U ky -d ky >/dev/null 2>&1 && break; sleep 1; done
+scratch_mongo_up "$NET" "$MG"
 sleep 2
 rm -rf "$REPO/tests/keys/.e2e"
 # provider keys blanked: the bind-mounted backend/ holds the real .env
 docker run -d --name "$SRV" --network "$NET" \
-  -e DATABASE_URL="postgresql://ky:ky@$PG:5432/ky" -e DATABASE_SSL=false -e SESSION_SECRET=ky-e2e-secret -e GOOGLE_CLIENT_ID=e2e-client \
+  -e MONGODB_URI="$(scratch_mongo_uri "$MG" ky)" -e DUSU_SCRATCH_ONLY=1 -e SESSION_SECRET=ky-e2e-secret -e GOOGLE_CLIENT_ID=e2e-client \
   -e GROQ_API_KEY= -e GEMINI_API_KEY= -e OPENROUTER_API_KEY= -e GITHUB_TOKEN= \
   "${MOUNT[@]}" -v "$REPO/tests":/tests "$IMG" python /tests/keys/e2e_server.py >/dev/null
 for _ in $(seq 1 90); do

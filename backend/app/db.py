@@ -1,9 +1,9 @@
-"""Database layer — Postgres via SQLAlchemy 2.0 async.
+"""Database layer — MongoDB (the shared `rooted-mongo`, database `dusu`) through app.store.
 
-The database is self-hosted: the `db` service in docker-compose.yml, on the
-compose network, is the only store. There is no managed/external provider.
+app.store gives the models and queries below a SQLAlchemy-2.0 shape (`select`, `func`, `Session.get/add/commit` ...) on top of MongoDB, so this file's business
+logic reads as it always did; what changed is only the engine underneath (DUSU_MONGO_MIGRATION_PLAN.md). A table is a collection of the same name.
 
-Graceful: if DATABASE_URL is empty the app still runs fully (stateless, as
+Graceful: if MONGODB_URI is empty the app still runs fully (stateless, as
 before) — `db_enabled` is False and callers fall back to no-persistence.
 
 Tables (v1):
@@ -21,11 +21,10 @@ import json
 import os
 
 from cryptography.fernet import Fernet, InvalidToken
-from sqlalchemy import String, Integer, Boolean, DateTime, Date, Text, ForeignKey, select, desc, func, delete, update
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy.orm.attributes import flag_modified
+
+from . import store
+from .store import (Base, Boolean, Date, DateTime, ForeignKey, Index, Integer, JSONB, Mapped, String, Text, delete, desc,   # noqa: F401  (Base is re-exported: the feature modules import it from here)
+                    flag_modified, func, mapped_column, select, update)
 
 from .config import settings
 
@@ -86,46 +85,20 @@ def _daily_goal(practice_time: str) -> int:
     return 2  # 5 min/day or unknown
 
 
-def _normalize_url(url: str) -> str:
-    """asyncpg needs the `+asyncpg` driver, and rejects libpq query params such as
-    `?sslmode=require&channel_binding=...` (TLS is passed via connect_args
-    instead), so strip everything after `?`. Kept because a hand-pasted URL — or
-    one copied from an old managed-provider console — still arrives in that shape."""
-    if url.startswith("postgres://"):
-        url = "postgresql://" + url[len("postgres://"):]
-    if url.startswith("postgresql://"):
-        url = "postgresql+asyncpg://" + url[len("postgresql://"):]
-    if "?" in url:
-        url = url.split("?", 1)[0]
-    return url
-
-
-db_enabled = bool(settings.database_url)
-_engine = None
-_Session: async_sessionmaker[AsyncSession] | None = None
-
-if db_enabled:
-    _engine = create_async_engine(
-        _normalize_url(settings.database_url),
-        pool_pre_ping=True,
-        hide_parameters=True,      # an exception's text must never carry the bound values (a resume, an answer): error TEXT only, no behaviour change
-        connect_args={"ssl": True} if settings.database_ssl else {},
-    )
-    _Session = async_sessionmaker(_engine, expire_on_commit=False)
+db_enabled = store.configure(settings.mongodb_uri)
+_Session = store.SessionFactory() if db_enabled else None
 
 
 def _now() -> dt.datetime:
-    return dt.datetime.now(dt.timezone.utc)
+    """The app's clock: UTC, aware, MILLISECOND resolution - what MongoDB stores. Several modules use a timestamp as a claim token (`claimed_at == stamp`), which
+    only works if the value in hand is exactly what the database will hand back."""
+    return store.trunc_ms(dt.datetime.now(dt.timezone.utc))
 
 
 _IST_TZ = dt.timezone(dt.timedelta(hours=5, minutes=30))
 def _ist_day() -> str:
     """Server-authoritative quota day in fixed IST (matches main._quota_day)."""
     return dt.datetime.now(_IST_TZ).date().isoformat()
-
-
-class Base(DeclarativeBase):
-    pass
 
 
 class User(Base):
@@ -203,6 +176,7 @@ class UserKey(Base):
 class Feedback(Base):
     """User-submitted feedback / help request from the Help screen."""
     __tablename__ = "feedback"
+    __table_args__ = (Index("ix_feedback_created", "-created_at"),)
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     email: Mapped[str] = mapped_column(String(255), default="")
@@ -215,6 +189,7 @@ class Conversation(Base):
     """One row per finished conversation/interview/free-practice session — a
     short LLM summary DuSu can recall later ('last time we talked about...')."""
     __tablename__ = "conversations"
+    __table_args__ = (Index("ix_conversations_user_created", "user_id", "-created_at"),)       # recent_summaries(): newest first for one learner
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     mode: Mapped[str] = mapped_column(String(32), default="")
@@ -229,6 +204,7 @@ class SeasonAward(Base):
     # PK is (season_id, award_key) — one winner per category per season — NOT
     # (user_id, season_id), since a single user can lead more than one category.
     __tablename__ = "season_awards"
+    __table_args__ = (Index("ix_season_awards_user", "user_id"),)                                # get_my_season_awards()
     season_id: Mapped[str] = mapped_column(String(16), primary_key=True)   # e.g. "2026-H1"
     award_key: Mapped[str] = mapped_column(String(48), primary_key=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
@@ -241,6 +217,8 @@ class SessionScore(Base):
     per finished session, every derived thing (Before-vs-Now, Confidence Check deltas,
     trends) reads from here via a plain indexed date-range query."""
     __tablename__ = "session_scores"
+    __table_args__ = (Index("ix_session_scores_user_created", "user_id", "-created_at"),
+                      Index("ix_session_scores_user_mode_created", "user_id", "mode", "-created_at"))
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     mode: Mapped[str] = mapped_column(String(32))   # daily | conversation | interview — matches the real WS `mode` value (§6)
@@ -267,6 +245,7 @@ class PracticeAttempt(Base):
     report keeps at most three quoted sentences (the grammar fixes). A brand-new table, so
     create_all makes it; no ALTER needed."""
     __tablename__ = "practice_attempts"
+    __table_args__ = (Index("ix_practice_attempts_user_created", "user_id", "-created_at"),)
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     kind: Mapped[str] = mapped_column(String(16), default="presentation")     # presentation | viva | speech | seminar | discussion | custom
@@ -294,6 +273,8 @@ class WeeklyStat(Base):
     """Weekly League rollup (§6) — never scan SessionScore live for a leaderboard.
     Composite PK: one row per user per week. Week boundary is a fixed IST week (§8)."""
     __tablename__ = "weekly_stats"
+    __table_args__ = (Index("ix_weekly_stats_week_xp", "week_start", "-xp_earned"),
+                      Index("ix_weekly_stats_week_level_xp", "week_start", "journey_level", "-xp_earned"))
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
     week_start: Mapped[dt.date] = mapped_column(Date, primary_key=True)
     minutes_spoken: Mapped[float] = mapped_column(default=0.0)
@@ -305,34 +286,11 @@ class WeeklyStat(Base):
 
 
 async def init_db() -> None:
+    """Create every collection and index the registered models declare (idempotent). A new column needs nothing: a document without it reads the column's default.
+    The feature modules (planner, resume_interview, grammar, notify, keys, insights) register their models on import - main.py imports them before this runs."""
     if not db_enabled:
         return
-    from sqlalchemy import text as _text
-    async with _engine.begin() as conn:      # type: ignore[union-attr]
-        await conn.run_sync(Base.metadata.create_all)
-        # create_all won't add an index to an already-existing table → do it explicitly
-        await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_progress_xp ON progress (xp DESC)"))
-        # add new columns to an already-existing users table (create_all won't ALTER)
-        await conn.execute(_text("ALTER TABLE users ADD COLUMN IF NOT EXISTS status varchar(16) DEFAULT 'active'"))
-        await conn.execute(_text("ALTER TABLE users ADD COLUMN IF NOT EXISTS mode varchar(16) DEFAULT 'personal'"))
-        await conn.execute(_text("ALTER TABLE users ADD COLUMN IF NOT EXISTS plan varchar(16) DEFAULT 'free'"))
-        await conn.execute(_text("ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_since date"))
-        # Speaker Progression columns on the already-existing progress table (create_all won't ALTER)
-        await conn.execute(_text("ALTER TABLE progress ADD COLUMN IF NOT EXISTS speaker_xp integer DEFAULT 0"))
-        await conn.execute(_text("ALTER TABLE progress ADD COLUMN IF NOT EXISTS speaker_rank varchar(24) DEFAULT 'starter'"))
-        await conn.execute(_text("ALTER TABLE progress ADD COLUMN IF NOT EXISTS longest_streak_days integer DEFAULT 0"))
-        await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_progress_speaker_xp ON progress (speaker_xp DESC)"))
-        # Composite indexes create_all can't add to per-column `index=True` alone (§6)
-        await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_session_scores_user_created ON session_scores (user_id, created_at DESC)"))
-        await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_session_scores_user_mode_created ON session_scores (user_id, mode, created_at DESC)"))
-        await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_weekly_stats_week_xp ON weekly_stats (week_start, xp_earned DESC)"))
-        await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_weekly_stats_week_level_xp ON weekly_stats (week_start, journey_level, xp_earned DESC)"))
-        # Practice Room: a Hindi/Hinglish attempt has no vocabulary/grammar signal, which must
-        # be stored as NULL (not 0). create_all never relaxes an existing column → explicit,
-        # idempotent. (practice_attempts itself is a new table, so create_all covers it.)
-        await conn.execute(_text("ALTER TABLE session_scores ALTER COLUMN vocabulary DROP NOT NULL"))
-        await conn.execute(_text("ALTER TABLE session_scores ALTER COLUMN grammar_trend DROP NOT NULL"))
-        await conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_practice_attempts_user_created ON practice_attempts (user_id, created_at DESC)"))
+    await store.init()
 
 
 def _live_counters(prog: "Progress | None") -> tuple[int, int]:
@@ -621,8 +579,7 @@ async def leaderboard(me_id: str, limit: int = 20) -> dict:
     """Top-N users by all-time XP (private aliases) + the caller's own rank."""
     async with _Session() as s:               # type: ignore[misc]
         rows = (await s.execute(
-            select(User.id, Progress.xp, Progress.streak_days, Progress.journey)
-            .join(Progress, Progress.user_id == User.id)
+            select(Progress.user_id, Progress.xp, Progress.streak_days, Progress.journey)       # was a join with users on the same primary key: a progress row only exists with its user
             .where(Progress.xp > 0)                           # a board of people who have earned something (audit UI-12): accounts with no XP are not "ranked"
             .order_by(desc(Progress.xp)).limit(limit)
         )).all()
@@ -631,11 +588,11 @@ async def leaderboard(me_id: str, limit: int = 20) -> dict:
             j = r.journey or {}
             top.append({
                 "rank": i + 1,
-                "alias": _alias(r.id),
+                "alias": _alias(r.user_id),
                 "xp": r.xp or 0,
                 "streak": r.streak_days or 0,
                 "level": (j.get("current_level") if isinstance(j, dict) else None) or 1,
-                "is_me": r.id == me_id,
+                "is_me": r.user_id == me_id,
             })
         # caller's own row + rank (even if outside the top-N)
         me_prog = await s.get(Progress, me_id)
@@ -1082,7 +1039,7 @@ async def weekly_league(me_id: str, by_level: bool = False, limit: int = 20) -> 
                 "is_me": r.user_id == me_id} for i, r in enumerate(rows)]
         you = None
         if me_wk is not None:
-            base = select(WeeklyStat).where(WeeklyStat.week_start == week_start)
+            base = select(func.count()).select_from(WeeklyStat).where(WeeklyStat.week_start == week_start)
             if by_level:
                 base = base.where(WeeklyStat.journey_level == me_wk.journey_level)
             higher = (await s.execute(
@@ -1093,7 +1050,7 @@ async def weekly_league(me_id: str, by_level: bool = False, limit: int = 20) -> 
                      & (WeeklyStat.sessions > me_wk.sessions)) |
                     ((WeeklyStat.xp_earned == me_wk.xp_earned) & (WeeklyStat.minutes_spoken == me_wk.minutes_spoken)
                      & (WeeklyStat.sessions == me_wk.sessions) & (WeeklyStat.xp_reached_at < me_wk.xp_reached_at))
-                ).with_only_columns(func.count())
+                )
             )).scalar() or 0
             you = {"rank": higher + 1, "xp": me_wk.xp_earned, "minutes": round(me_wk.minutes_spoken),
                    "sessions": me_wk.sessions}

@@ -1,20 +1,34 @@
-# DuSu runs fully self-hosted: the app AND its database live in this stack.
-# There is no external/managed Postgres — the `db` service below IS the database.
+# DuSu: the app is this stack; its DATA lives in the shared MongoDB (container `rooted-mongo`, replica set rs0) that RootEd and Yahin also use.
+# One database `dusu`, one user scoped to it (shared-services/scripts/create-app-db.sh dusu prod --no-bucket). Nightly dumps + the offsite copy are done by
+# shared-services (mongo-backup 21:30 UTC, r2-sync). The old Postgres below is kept ONLY for the rollback window, behind a profile: `docker compose up` does not start it.
 
 services:
-  # The database. Not a dev convenience, not a profile — the app's only store.
+  backend:
+    build: ./backend
+    image: dusu-backend
+    env_file:
+      - ./backend/.env
+    environment:
+      # Built from DUSU_MONGO_PASSWORD in the root .env (letters and digits only, so it needs no escaping). `environment` wins over `env_file`, so a stale
+      # MONGODB_URI left in backend/.env cannot send the app anywhere else. The app signs in as its own user: readWrite on `dusu` and nothing else.
+      MONGODB_URI: mongodb://dusu_prod_app:${DUSU_MONGO_PASSWORD}@rooted-mongo:27017/dusu?replicaSet=rs0&authSource=dusu
+    networks: [default, shared]            # default: the published port below; shared: the shared MongoDB
+    ports:
+      # Host BACKEND_PORT (default 3878) -> the container's fixed internal 8000.
+      - "${BACKEND_PORT:-3878}:8000"
+    restart: unless-stopped
+
+  # ROLLBACK ONLY (until the migration has run clean for a week, then delete this service and the pgdata volume). Not started by `docker compose up`;
+  # `docker compose --profile legacy-postgres up -d db` brings it back. Nothing in the app reads it any more.
   db:
+    profiles: ["legacy-postgres"]
     image: postgres:18-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-dusu}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dusu}
       POSTGRES_DB: ${POSTGRES_DB:-dusu}
     volumes:
-      # Named volume = the data survives `docker compose down` / rebuilds.
-      # `down -v` DELETES it. There is no managed provider holding a copy.
-      # Mount point is /var/lib/postgresql (NOT .../data): Postgres 18+ images
-      # store the cluster in a major-version subdirectory under it, and refuse to
-      # start if the volume is pinned at the old .../data path.
+      # Mount point is /var/lib/postgresql (NOT .../data): Postgres 18+ images keep the cluster in a major-version subdirectory under it.
       - pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dusu} -d ${POSTGRES_DB:-dusu}"]
@@ -22,36 +36,14 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
-    # Deliberately NOT published to the host — only the backend, on this compose
-    # network, ever needs it. For a psql shell:
-    #   docker compose exec db psql -U dusu -d dusu
 
-  backend:
-    build: ./backend
-    image: dusu-backend
-    env_file:
-      - ./backend/.env
-    environment:
-      # Built from the POSTGRES_* vars in the root .env, so credentials have ONE
-      # source of truth. `environment` wins over `env_file`, so a stale external
-      # DATABASE_URL left in backend/.env cannot send the app off this stack.
-      DATABASE_URL: postgresql://${POSTGRES_USER:-dusu}:${POSTGRES_PASSWORD:-dusu}@db:5432/${POSTGRES_DB:-dusu}
-      DATABASE_SSL: "false"   # in-network Postgres serves no TLS cert
-    depends_on:
-      db:
-        # Wait for real readiness, not just "container started" — app startup
-        # runs init_db() immediately and would fail against a booting Postgres.
-        condition: service_healthy
-    ports:
-      # Host BACKEND_PORT (default 3878) -> the container's fixed internal 8000.
-      - "${BACKEND_PORT:-3878}:8000"
-    restart: unless-stopped
+# dusu.ranabrothers.online (and the legacy dusu.ruralrootcloud.com) are served by the host's own cloudflared (a systemd service, same as this box's other
+# tunnels) routing straight to http://localhost:${BACKEND_PORT:-3878} - not a container in this compose file. See cloudflare/TUNNEL.md.
 
-# dusu.ranabrothers.online (and the legacy dusu.ruralrootcloud.com) are served by the
-# host's own cloudflared (a systemd
-# service, same as this box's other tunnels) routing straight to
-# http://localhost:${BACKEND_PORT:-3878} — not a container in this compose
-# file. See cloudflare/TUNNEL.md for the one-time dashboard route setup.
+networks:
+  shared:
+    external: true
+    name: rooted-shared-net
 
 volumes:
   pgdata:

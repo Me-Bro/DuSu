@@ -1,28 +1,30 @@
 #!/usr/bin/env bash
-# Resume Interview - the browser tier against the REAL app: uvicorn + a SCRATCH Postgres + the stub model (tests/resume_interview/e2e_server.py), a real
+# Resume Interview - the browser tier against the REAL app: uvicorn + a SCRATCH MongoDB (a one-member replica set) + the stub model (tests/resume_interview/e2e_server.py), a real
 # Chromium with a fake microphone in the Playwright image. Everything is removed afterwards; no host port is bound; never the app's own database.
 #   tests/resume_interview/browser/run_real.sh [real.spec.cjs]
-# Needs the Playwright modules once (see run.sh) and the test image `dusu-ri-test` (see ../README.md).
+# Needs the Playwright modules once (see run.sh) and the test image `dusu-mongo-test` (see ../README.md).
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../../.." && pwd)"
-IMG="${RI_TEST_IMAGE:-dusu-ri-test}"
+. "$REPO/tests/lib/scratch_mongo.sh"
+IMG="${RI_TEST_IMAGE:-dusu-mongo-test}"
+BACKEND="${RI_BACKEND:-$REPO/backend}"      # "baked" = test the code INSIDE the image (a built / deployed image) instead of a bind mount
+MOUNT=(-v "$BACKEND":/app); [ "$BACKEND" = baked ] && MOUNT=()
 PW="${PW_MODULES:-$HOME/.cache/dusu-ri-pwrun/node_modules}"
 OUT="${OUT_DIR:-$HOME/.cache/dusu-ri-shots}"
 SPEC="${1:-real.spec.cjs}"
 mkdir -p "$OUT"
-NET="ri-e2e-net-$$"; PG="ri-e2e-pg-$$"; SRV="ri-e2e-srv-$$"
-cleanup() { docker rm -f "$SRV" "$PG" >/dev/null 2>&1 || true; docker network rm "$NET" >/dev/null 2>&1 || true; }
+NET="ri-e2e-net-$$"; MG="ri-scratch-mongo-$$"; SRV="ri-e2e-srv-$$"
+cleanup() { docker rm -f "$SRV" "$MG" >/dev/null 2>&1 || true; docker network rm "$NET" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 docker network create "$NET" >/dev/null
-docker run -d --name "$PG" --network "$NET" -e POSTGRES_USER=ri -e POSTGRES_PASSWORD=ri -e POSTGRES_DB=ri postgres:18-alpine >/dev/null
-for _ in $(seq 1 60); do docker exec "$PG" pg_isready -U ri -d ri >/dev/null 2>&1 && break; sleep 1; done
+scratch_mongo_up "$NET" "$MG"
 sleep 2
 rm -rf "$REPO/tests/resume_interview/.e2e"
 docker run -d --name "$SRV" --network "$NET" \
-  -e DATABASE_URL="postgresql://ri:ri@$PG:5432/ri" -e DATABASE_SSL=false -e SESSION_SECRET=ri-e2e-secret -e GOOGLE_CLIENT_ID=e2e-client \
+  -e MONGODB_URI="$(scratch_mongo_uri "$MG" ri)" -e DUSU_SCRATCH_ONLY=1 -e SESSION_SECRET=ri-e2e-secret -e GOOGLE_CLIENT_ID=e2e-client \
   -e GROQ_API_KEY= -e GEMINI_API_KEY= -e OPENROUTER_API_KEY= -e GITHUB_TOKEN= \
-  -v "$REPO/backend":/app -v "$REPO/tests":/tests "$IMG" python /tests/resume_interview/e2e_server.py >/dev/null
+  "${MOUNT[@]}" -v "$REPO/tests":/tests "$IMG" python /tests/resume_interview/e2e_server.py >/dev/null
 for _ in $(seq 1 90); do
   docker exec "$SRV" python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)" >/dev/null 2>&1 && break
   sleep 1

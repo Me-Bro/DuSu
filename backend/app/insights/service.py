@@ -5,7 +5,7 @@ Design rules (they are the privacy story, so they are tested):
   * a milestone is written ONCE per learner (the first time) and never again, so the table is bounded by (learners x ~10);
   * one row per learner per active day - bounded by (learners x days);
   * the hot path costs a set lookup: once a (learner, milestone) pair is known in memory nothing touches the database again in this process;
-  * nothing here can fail a request: every write swallows its error and logs the CLASS NAME only (SQLAlchemy messages carry bound parameters);
+  * nothing here can fail a request: every write swallows its error and logs the CLASS NAME only (a database error's text can carry the values written);
   * no text, no key, no transcript, no IP - a name, a time and a learner id, deleted with the account.
 """
 
@@ -14,10 +14,8 @@ from __future__ import annotations
 import asyncio
 import datetime as dt
 
-from sqlalchemy import delete, func, select, text
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-
 from .. import db
+from ..store import delete, func, pg_insert, select
 from .models import EvDay, EvMilestone, PlanInterest
 
 PLANS = ("starter", "plus", "pro")
@@ -156,42 +154,49 @@ def _pct(n: int, d: int) -> float | None:
     return round(100.0 * n / d, 1) if d else None
 
 
+_IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
+
+
 async def funnel(days: int = 30) -> dict:
     """The owner's funnel for learners who signed up in the last `days` days AND after tracking began (so a ratio never divides by people we could not have seen)."""
     days = max(1, min(int(days), 365))
     now = db._now()
     window_start = now - dt.timedelta(days=days)
+    ist_today = now.astimezone(_IST).date()
     async with db._Session() as s:                          # type: ignore[misc]
         first_ms = (await s.execute(select(func.min(EvMilestone.first_at)))).scalar()
         first_day = (await s.execute(select(func.min(EvDay.day)))).scalar()
         starts = [x for x in (first_ms,) if x]
         if first_day:
-            starts.append(dt.datetime.fromisoformat(first_day).replace(tzinfo=dt.timezone(dt.timedelta(hours=5, minutes=30))))
+            starts.append(dt.datetime.fromisoformat(first_day).replace(tzinfo=_IST))
         tracking_since = min(starts) if starts else None
         cohort_from = max(window_start, tracking_since) if tracking_since else window_start
         signups_all = (await s.execute(select(func.count()).select_from(db.User).where(db.User.created_at >= window_start))).scalar_one()
-        cohort = (await s.execute(select(func.count()).select_from(db.User).where(db.User.created_at >= cohort_from))).scalar_one()
-        rows = (await s.execute(
-            select(EvMilestone.name, func.count()).join(db.User, db.User.id == EvMilestone.user_id)
-            .where(db.User.created_at >= cohort_from).group_by(EvMilestone.name))).all()
-        reached = {n: int(c) for n, c in rows}
+        cohort_rows = (await s.execute(select(db.User.id, db.User.created_at).where(db.User.created_at >= cohort_from))).all()
+        cohort = len(cohort_rows)
+        cohort_ids = [r.id for r in cohort_rows]
+
+        reached: dict[str, int] = {}                        # learners of the cohort who reached each milestone (the table's key is (learner, name): one row each)
+        have: set = set()                                   # (learner, day) the cohort opened the app
+        if cohort_ids:
+            for name in (await s.execute(select(EvMilestone.name).where(EvMilestone.user_id.in_(cohort_ids)))).scalars().all():
+                reached[name] = reached.get(name, 0) + 1
+            have = {(r.user_id, r.day) for r in (await s.execute(select(EvDay.user_id, EvDay.day).where(EvDay.user_id.in_(cohort_ids)))).all()}
         out_ms = [{"name": n, "label": LABELS.get(n, n), "learners": reached.get(n, 0), "pct": _pct(reached.get(n, 0), cohort)} for n in FUNNEL_ORDER]
 
         ret = {}
-        for n in (1, 7):
-            q = text("""
-                SELECT count(*) AS eligible,
-                       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM ev_days d WHERE d.user_id = u.id
-                            AND d.day = to_char((u.created_at AT TIME ZONE 'Asia/Kolkata')::date + CAST(:n AS integer), 'YYYY-MM-DD'))) AS returned
-                FROM users u
-                WHERE u.created_at >= :start
-                  AND (u.created_at AT TIME ZONE 'Asia/Kolkata')::date + CAST(:n AS integer) < (now() AT TIME ZONE 'Asia/Kolkata')::date""")
-            r = (await s.execute(q, {"n": n, "start": cohort_from})).one()
-            ret[f"d{n}"] = {"eligible": int(r.eligible), "returned": int(r.returned), "pct": _pct(int(r.returned), int(r.eligible))}
+        for n in (1, 7):                                    # eligible = the day they should have come back has already ended (India time); returned = they opened the app that day
+            eligible = returned = 0
+            for r in cohort_rows:
+                due = r.created_at.astimezone(_IST).date() + dt.timedelta(days=n)
+                if due < ist_today:
+                    eligible += 1
+                    if (r.id, due.isoformat()) in have:
+                        returned += 1
+            ret[f"d{n}"] = {"eligible": eligible, "returned": returned, "pct": _pct(returned, eligible)}
 
-        ist_today = (await s.execute(text("SELECT to_char((now() AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD')"))).scalar_one()
-        dau = (await s.execute(select(func.count()).select_from(EvDay).where(EvDay.day == ist_today))).scalar_one()
-        wau = (await s.execute(text("SELECT count(DISTINCT user_id) FROM ev_days WHERE day >= to_char((now() AT TIME ZONE 'Asia/Kolkata')::date - 6, 'YYYY-MM-DD')"))).scalar_one()
+        dau = (await s.execute(select(func.count()).select_from(EvDay).where(EvDay.day == ist_today.isoformat()))).scalar_one()
+        wau = (await s.execute(select(func.count(func.distinct(EvDay.user_id))).where(EvDay.day >= (ist_today - dt.timedelta(days=6)).isoformat()))).scalar_one()
 
         prows = (await s.execute(select(PlanInterest.plan, PlanInterest.price_feel, func.count()).group_by(PlanInterest.plan, PlanInterest.price_feel))).all()
         plans = {p: {"learners": 0, "too_high": 0, "fair": 0, "great": 0} for p in PLANS}

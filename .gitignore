@@ -47,3 +47,10 @@ tests/keys/.orig.html
 # Daily voice (locked screen) test scratch (mutant copies of the backend)
 tests/daily_voice/.mutants/
 tests/daily_voice/.old/
+
+# MongoDB migration test scratch (tests/store): the OLD backend copy for the golden-master / shadow runs, mutants, outputs
+tests/store/.old/
+tests/store/.mutants/
+tests/store/.e2e/
+tests/store/.out/
+tests/store/.last_run.txt

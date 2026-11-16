@@ -1,4 +1,4 @@
-"""Insights - the `ev_*` tables and `plan_interest`. All three are NEW: `create_all` adds them, no existing table is altered (CLAUDE.md schema rule).
+"""Insights - the `ev_*` collections and `plan_interest` (MongoDB, app.store). init_db() creates what is missing and never touches what exists.
 
     ev_milestones  one row per learner x milestone: the FIRST time that learner reached it ("saved a first key", "said a first sentence" ...). Written once, never
                    updated - which is what makes it a funnel. No text, no key, no IP, no device: just a name and a time.
@@ -6,17 +6,15 @@
     plan_interest  one row per learner x plan they reserved ("tell me when payment opens"), plus an optional one-tap "does the price feel high / fair / great".
                    No payment data of any kind lives here - there is no payment yet.
 
-Column widths are checked against every value the code writes (tests/insights/unit.py): a too-narrow String(n) is only caught by a real database otherwise.
+Column widths are not enforced by MongoDB; tests/insights/unit.py still checks them against every value the code writes, so a value that would not have fitted the old tables is still caught.
 """
 
 from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import DateTime, ForeignKey, Index, String
-from sqlalchemy.orm import Mapped, mapped_column
-
 from ..db import Base, _now
+from ..store import DateTime, ForeignKey, Index, Mapped, String, mapped_column
 
 TS = DateTime(timezone=True)
 

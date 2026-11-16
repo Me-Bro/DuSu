@@ -21,7 +21,7 @@ sys.path.insert(0, "/tests/keys")
 
 import uvicorn                                                       # noqa: E402
 import websockets                                                    # noqa: E402
-from sqlalchemy import func, select                                  # noqa: E402
+from app.store import func, select                                  # noqa: E402
 
 from world import World, install, ok                                 # noqa: E402
 

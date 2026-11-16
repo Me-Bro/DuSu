@@ -11,9 +11,8 @@ sys.path.insert(0, "/app")
 sys.path.insert(0, "/tests/grammar")
 
 import httpx                                                        # noqa: E402
-from sqlalchemy import func, select, text as sa_text                # noqa: E402
-
-from app import auth, db, main as M                                 # noqa: E402
+from app import auth, db, main as M, store                          # noqa: E402
+from app.store import func, select                                  # noqa: E402
 from app.grammar import budget as B, service as svc, tracker        # noqa: E402
 from app.grammar.models import GC_TABLES, GcDrill, GcMark, GcSentence, GcSession   # noqa: E402
 from stub_llm import StubLLM                                        # noqa: E402
@@ -60,25 +59,20 @@ async def count(model, uid, **where):
 
 async def main():
     assert not (M.settings.groq_api_key or M.settings.gemini_api_key or M.settings.openrouter_api_key or M.settings.github_token), "provider keys configured: run through run.sh"
-    # OLD -> NEW rehearsal: production has every table EXCEPT gc_*; init_db() must add them next to existing data, twice in a row
-    for _ in range(20):
-        try:
-            async with db._engine.begin() as conn:
-                await conn.run_sync(lambda sc: db.Base.metadata.create_all(sc, tables=[t for t in db.Base.metadata.sorted_tables if not t.name.startswith("gc_")]))
-            break
-        except Exception:
-            await asyncio.sleep(1)
+    # OLD -> NEW rehearsal: production has every collection EXCEPT gc_*; init_db() must add them next to existing data, twice in a row
+    await store.init([m for m in db.Base.models() if not m.__tablename__.startswith("gc_")])
+    dbh = store.core.database()
     await db.login({"sub": "u-old", "email": "old@example.com", "name": "Old", "picture": ""})
-    async with db._engine.connect() as conn:
-        pre = {r[0] for r in (await conn.execute(sa_text("select table_name from information_schema.tables where table_schema='public' and table_name like 'gc\\_%'"))).all()}
-    check("rehearsal: the old schema has no gc_* tables", pre == set(), pre)
+    pre = {n for n in await dbh.list_collection_names() if n.startswith("gc_")}
+    check("rehearsal: the old database has no gc_* collections", pre == set(), pre)
     await db.init_db()
     await db.init_db()
-    async with db._engine.connect() as conn:
-        post = {r[0] for r in (await conn.execute(sa_text("select table_name from information_schema.tables where table_schema='public' and table_name like 'gc\\_%'"))).all()}
-        idx = {r[0] for r in (await conn.execute(sa_text("select indexname from pg_indexes where tablename like 'gc\\_%'"))).all()}
-        old_user = (await conn.execute(sa_text("select count(*) from users where id='u-old'"))).scalar()
-    check("rehearsal: init_db() adds exactly the four gc_* tables next to the existing data, twice in a row", post == {"gc_sessions", "gc_sentences", "gc_marks", "gc_drills"} and old_user == 1, (post, old_user))
+    post = {n for n in await dbh.list_collection_names() if n.startswith("gc_")}
+    idx = set()
+    for n in post:
+        idx |= set(await dbh[n].index_information())
+    old_user = await dbh["users"].count_documents({"_id": "u-old"})
+    check("rehearsal: init_db() adds exactly the four gc_* collections next to the existing data, twice in a row", post == {"gc_sessions", "gc_sentences", "gc_marks", "gc_drills"} and old_user == 1, (post, old_user))
     check("rehearsal: the idempotency index exists", "uq_gc_session_client" in idx, idx)
 
     people = {k: {"sub": f"u-{k}", "email": f"{k}@example.com", "name": k.title(), "picture": ""} for k in ("owner", "ann", "bob", "cat", "dan")}

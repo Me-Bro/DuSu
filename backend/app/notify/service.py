@@ -9,8 +9,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
-from sqlalchemy import delete, exists, func, select, text, update
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+from ..store import claim_one, delete, func, pg_insert, select, update
 
 from .. import db
 from ..planner import push, service as plsvc, timeutil as tu
@@ -191,12 +190,19 @@ async def materialize_all(enabled_fn, now: dt.datetime | None = None) -> dict:
     ones whose clock is near a send slot; step 2 loads the facts for just those and asks `rules.plan_today`. Idempotent (unique dedupe key)."""
     now = now or _utc()
     stats = {"considered": 0, "near_slot": 0, "created": 0}
+    # READ phase in a session of its own. A session that has loaded hundreds of objects re-checks every one of them on each later statement (the store compares snapshots), so
+    # reading the facts of 300 learners and THEN inserting 300 outbox rows in the same session was quadratic (9 s of CPU on the event loop per pass at 300 learners; measured).
     async with _S() as s:
-        rows = (await s.execute(
-            select(db.User.id, db.User.email, db.User.status, PlPrefs.tz, PlPrefs.quiet_on, PlPrefs.quiet_start, PlPrefs.quiet_end,
-                   NtPrefs.enabled, NtPrefs.nudge_time)
-            .join(PlPrefs, PlPrefs.user_id == db.User.id).outerjoin(NtPrefs, NtPrefs.user_id == db.User.id)
-            .where(PlPrefs.push_on.is_(True), exists().where(PlPushSub.user_id == db.User.id)))).all()
+        # who opted in to push (My Day's switch) AND has a device, with the cheap per-learner settings of each. Was one join (users x pl_prefs, outer nt_prefs, EXISTS on devices);
+        # the store has no joins, so: the opted-in learners, the ones among them with a device, then their users and notification settings in bulk, merged here.
+        pl_rows = (await s.execute(select(PlPrefs).where(PlPrefs.push_on.is_(True)))).scalars().all()
+        with_device = set((await s.execute(select(PlPushSub.user_id).where(PlPushSub.user_id.in_([p.user_id for p in pl_rows])))).scalars().all()) if pl_rows else set()
+        pl_rows = [p for p in pl_rows if p.user_id in with_device]
+        ids = [p.user_id for p in pl_rows]
+        users = {u.id: u for u in (await s.execute(select(db.User).where(db.User.id.in_(ids)))).scalars().all()} if ids else {}
+        nts = {n.user_id: n for n in (await s.execute(select(NtPrefs).where(NtPrefs.user_id.in_(ids)))).scalars().all()} if ids else {}
+        rows = sorted(((u.id, u.email, u.status, p.tz, p.quiet_on, p.quiet_start, p.quiet_end, (nts[u.id].enabled if u.id in nts else None), (nts[u.id].nudge_time if u.id in nts else None))
+                       for p in pl_rows for u in [users.get(p.user_id)] if u is not None), key=lambda r: r[0])
         near: list[str] = []
         for uid, email, status, tz, qon, qs, qe, enabled, nudge in rows:
             stats["considered"] += 1
@@ -208,14 +214,17 @@ async def materialize_all(enabled_fn, now: dt.datetime | None = None) -> dict:
                 continue
             near.append(uid)
         stats["near_slot"] = len(near)
-        for uid, snap in (await _snaps(s, near)).items():
+        snaps = await _snaps(s, near)
+    # WRITE phase: a fresh session that holds nothing but the rows it inserts
+    async with _S() as w:
+        for uid, snap in snaps.items():
             for c in rules.plan_today(snap, now):
-                r = await s.execute(pg_insert(NtOutbox).values(user_id=uid, kind=c["kind"], dedupe_key=c["dedupe_key"], fire_at=c["fire_at"],
+                r = await w.execute(pg_insert(NtOutbox).values(user_id=uid, kind=c["kind"], dedupe_key=c["dedupe_key"], fire_at=c["fire_at"],
                                                                url=rules.safe_url(c["url"]), status="scheduled", created_at=now)
                                     .on_conflict_do_nothing(index_elements=["user_id", "dedupe_key"]).returning(NtOutbox.id))
                 if r.first() is not None:
                     stats["created"] += 1
-        await s.commit()
+        await w.commit()
     return stats
 
 
@@ -237,15 +246,16 @@ async def reclaim(now: dt.datetime) -> int:
 
 
 async def claim(now: dt.datetime, limit: int = CLAIM_BATCH) -> list[int]:
-    """Take up to `limit` due rows. SKIP LOCKED means two loops (ever) cannot send the same row twice."""
-    async with _S() as s:
-        rows = await s.execute(text(
-            "WITH c AS (SELECT id FROM nt_outbox WHERE status = 'scheduled' AND fire_at <= :now ORDER BY fire_at LIMIT :n FOR UPDATE SKIP LOCKED) "
-            "UPDATE nt_outbox r SET status = 'sending', claimed_at = :now, attempts = r.attempts + 1 FROM c WHERE r.id = c.id RETURNING r.id"),
-            {"now": now, "n": limit})
-        ids = sorted(x[0] for x in rows.all())
-        await s.commit()
-        return ids
+    """Take up to `limit` due rows, earliest first. Each row is taken by ONE atomic find-and-update (it was FOR UPDATE SKIP LOCKED), so two loops - in this process or
+    another - can never send the same row twice."""
+    ids: list[int] = []
+    for _ in range(limit):
+        r = await claim_one(NtOutbox, [NtOutbox.status == "scheduled", NtOutbox.fire_at <= now],
+                            {"status": "sending", "claimed_at": now, "attempts": NtOutbox.attempts + 1}, sort=[("fire_at", 1)])
+        if r is None:
+            break
+        ids.append(r.id)
+    return sorted(ids)
 
 
 async def fail_row(nid: int, why: str) -> None:

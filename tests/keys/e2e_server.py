@@ -17,7 +17,7 @@ sys.path.insert(0, "/tests/keys")
 
 import uvicorn                                                      # noqa: E402
 from fastapi import Request                                         # noqa: E402
-from sqlalchemy import update                                       # noqa: E402
+from app.store import update                                        # noqa: E402
 
 from world import (World, install, ok, err, R, completion, GROQ_401, GROQ_429_TPD, GROQ_429_TPM, GEMINI_400_KEY, GEMINI_400_AUTH_KEY, GEMINI_400_EXPIRED, GEMINI_429_DAY, GEMINI_429_MIN,      # noqa: E402
                    GEMINI_503, GEMINI_403_FREE_TIER, OPENROUTER_401, OPENROUTER_429_DAY, OPENROUTER_429_UPSTREAM, conn)
@@ -134,7 +134,7 @@ async def seed():
     os.makedirs("/tests/keys/.e2e", exist_ok=True)
     out = {k: {"token": auth.make_session(u), "user": u, "keys": keys.get(k)} for k, u in users.items()}
     json.dump(out, open("/tests/keys/.e2e/tokens.json", "w"))
-    await db._engine.dispose()                                       # connections made in THIS event loop must not be reused by uvicorn's own loop
+    await __import__('app.store', fromlist=['close']).close()        # the client made in THIS event loop must not be reused by uvicorn's own loop (a new loop gets a new client)
 
 
 # ---------------------------------------------------------------------------------------------- control routes (test process only)

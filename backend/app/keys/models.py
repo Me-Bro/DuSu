@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from ..store import Boolean, DateTime, ForeignKey, Index, Integer, String
+from ..store import JSONB
+from ..store import Mapped, mapped_column
 
 from ..db import Base, _now
 

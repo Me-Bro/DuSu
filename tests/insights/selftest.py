@@ -24,9 +24,8 @@ import sys
 sys.path.insert(0, "/app")
 
 import httpx                                                        # noqa: E402
-from sqlalchemy import func, select, text as sa_text, update as sa_update   # noqa: E402
-
-from app import auth, db, main as M                                 # noqa: E402
+from app import auth, db, main as M, store                          # noqa: E402
+from app.store import func, select, update as sa_update            # noqa: E402
 from app.insights import models as IM, service as svc              # noqa: E402
 from app.keys import service as keys_svc                            # noqa: E402
 
@@ -95,33 +94,28 @@ async def main():
     assert not (M.settings.groq_api_key or M.settings.gemini_api_key or M.settings.openrouter_api_key or M.settings.github_token), \
         "refusing to run: provider keys are configured - run through run.sh, which blanks them"
 
-    # ------------------------------------------------------------------ OLD -> NEW schema rehearsal
-    section("schema rehearsal: production has every table EXCEPT the three new ones")
+    # ------------------------------------------------------------------ OLD -> NEW rehearsal
+    section("rehearsal: production has every collection EXCEPT the three new ones")
     NEW = {"ev_milestones", "ev_days", "plan_interest"}
-    for _ in range(20):                                              # a freshly started postgres restarts once after initdb
-        try:
-            async with db._engine.begin() as conn:
-                await conn.run_sync(lambda sc: db.Base.metadata.create_all(sc, tables=[t for t in db.Base.metadata.sorted_tables if t.name not in NEW]))
-            break
-        except Exception:
-            await asyncio.sleep(1)
+    await store.init([m for m in db.Base.models() if m.__tablename__ not in NEW])
+    dbh = store.core.database()
 
     async def new_tables():
-        async with db._engine.connect() as conn:
-            return {r[0] for r in (await conn.execute(sa_text("select table_name from information_schema.tables where table_schema='public' and (table_name like 'ev\\_%' or table_name = 'plan_interest')"))).all()}
+        return {n for n in await dbh.list_collection_names() if n in NEW}
 
     pre = await new_tables()
     old = {"sub": "u-old", "email": "old@example.com", "name": "Old", "picture": ""}
     await db.login(old)
-    check("the old schema has none of the three tables, and an existing learner", pre == set() and await count(db.User, db.User.id == "u-old") == 1, pre)
+    check("the old database has none of the three collections, and an existing learner", pre == set() and await count(db.User, db.User.id == "u-old") == 1, pre)
     await db.init_db()
     await db.init_db()
     post = await new_tables()
-    async with db._engine.connect() as conn:
-        idx = {r[0] for r in (await conn.execute(sa_text("select indexname from pg_indexes where tablename in ('ev_milestones', 'ev_days', 'plan_interest')"))).all()}
-        fks = (await conn.execute(sa_text("select count(*) from information_schema.table_constraints where constraint_type = 'FOREIGN KEY' and table_name in ('ev_milestones', 'ev_days', 'plan_interest')"))).scalar()
-    check("init_db() adds exactly the three new tables, twice in a row", post == NEW, post)
-    check("the funnel indexes exist and every table references the learner", {"ix_ev_milestones_name", "ix_ev_days_day"} <= idx and fks == 3, (idx, fks))
+    idx = set()
+    for n in NEW:
+        idx |= set(await dbh[n].index_information())
+    fks = sum(len(M_.__fks__) for M_ in (IM.EvMilestone, IM.EvDay, IM.PlanInterest))
+    check("init_db() adds exactly the three new collections, twice in a row", post == NEW, post)
+    check("the funnel indexes exist and every collection references the learner", {"ix_ev_milestones_name", "ix_ev_days_day"} <= idx and fks == 3, (idx, fks))
     check("the existing learner is untouched", await count(db.User, db.User.id == "u-old") == 1)
 
     # ------------------------------------------------------------------ users + client

@@ -16,8 +16,8 @@ import datetime as dt
 import hashlib
 from typing import Any, Awaitable, Callable
 
-from sqlalchemy import delete, func, select, update
-from sqlalchemy.exc import IntegrityError
+from ..store import delete, func, select, update
+from ..store import IntegrityError
 
 from .. import db, practice as P
 from . import coach, docs, engine, rules
@@ -74,7 +74,8 @@ def _ok_id(x) -> bool:
 
 
 def _utc() -> dt.datetime:
-    return dt.datetime.now(UTC)
+    n = dt.datetime.now(UTC)                                    # millisecond resolution: the claim stamps below are compared with what the database hands back
+    return n.replace(microsecond=(n.microsecond // 1000) * 1000)
 
 
 def _iso(d) -> str | None:
@@ -499,14 +500,10 @@ async def _claim_analysis(s, uid: str, resume: RiDocument, jd: RiDocument, now: 
             raise LimitReached("daily")
         an = RiAnalysis(user_id=uid, resume_id=resume.id, jd_id=jd.id, prev_id=prev_id, state="pending", claimed_at=now, rules_version=rules.RULES_VERSION,
                         picked=[], result={})
-        try:
-            async with s.begin_nested():             # a savepoint: two sessions with the same resume and job analysed at the same moment race on the unique pair
-                s.add(an)
-                await s.flush()
-        except IntegrityError:
+        if not await s.insert_if_absent(an, ["user_id", "resume_id", "jd_id"]):      # (was a savepoint) two sessions with the same resume and job analysed at the same moment race on the unique pair
             an = (await s.execute(q)).scalars().first()       # the other request got there first: it holds the claim (or has finished)
             if an is None:
-                raise
+                raise IntegrityError("the analysis row could not be created")
             if an.state == "done" and an.rules_version == rules.RULES_VERSION:
                 return "cached", an
             raise Pending()

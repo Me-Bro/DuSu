@@ -12,8 +12,8 @@ from __future__ import annotations
 import datetime as dt
 import time
 
-from sqlalchemy import delete, func, select, update
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+from ..store import delete, func, select, update
+from ..store import pg_insert
 
 from .. import db
 from ..db import _now
@@ -574,7 +574,9 @@ async def rule_health(force: bool = False) -> dict:
         return _health_cache[1]
     try:
         async with _S() as s:
-            rows = (await s.execute(select(GcMark.rule, func.count(), func.count().filter(GcMark.contest == "is_correct")).where(GcMark.conf == "sure").group_by(GcMark.rule))).all()
+            shown = (await s.execute(select(GcMark.rule, func.count()).where(GcMark.conf == "sure").group_by(GcMark.rule))).all()
+            contested = dict((await s.execute(select(GcMark.rule, func.count()).where(GcMark.conf == "sure", GcMark.contest == "is_correct").group_by(GcMark.rule))).all())    # was count(*) FILTER (...)
+            rows = [(rule, n, contested.get(rule, 0)) for rule, n in shown]
             await s.commit()
         h = {r: {"shown": int(n), "contested": int(c)} for r, n, c in rows}
     except Exception as e:

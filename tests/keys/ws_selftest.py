@@ -360,7 +360,7 @@ async def main():
     # ------------------------------------------------------------------------------------------ the ledger saw the sessions
     section("the ledger counted the sessions' requests")
     await ledger.flush()
-    from sqlalchemy import func, select
+    from app.store import func, select
     from app.keys.models import KhUsage
     async with db._Session() as s:
         total = int((await s.execute(select(func.coalesce(func.sum(KhUsage.requests), 0)).where(KhUsage.user_id == "u-ab-on"))).scalar() or 0)

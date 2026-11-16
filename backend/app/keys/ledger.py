@@ -16,9 +16,9 @@ import asyncio
 import datetime as dt
 import time
 
-from sqlalchemy import delete, select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.exc import DataError, IntegrityError
+from ..store import delete, select
+from ..store import pg_insert
+from ..store import DataError, IntegrityError
 
 from .. import db
 from . import classify

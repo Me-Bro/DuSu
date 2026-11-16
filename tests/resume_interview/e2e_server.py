@@ -48,7 +48,7 @@ async def seed():
                        "JD": JD, "ANSWER_GOOD": ANSWER_GOOD, "ANSWER_WEAK": ANSWER_WEAK}
     os.makedirs("/tests/resume_interview/.e2e", exist_ok=True)
     json.dump(out, open("/tests/resume_interview/.e2e/tokens.json", "w"))
-    await db._engine.dispose()                                       # connections made in THIS event loop must not be reused by uvicorn's own loop
+    await __import__('app.store', fromlist=['close']).close()        # the client made in THIS event loop must not be reused by uvicorn's own loop (a new loop gets a new client)
 
 
 asyncio.run(seed())

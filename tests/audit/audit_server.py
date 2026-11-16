@@ -23,8 +23,7 @@ sys.path.insert(0, "/tests/keys")
 
 import uvicorn                                                      # noqa: E402
 from fastapi import Request                                         # noqa: E402
-from sqlalchemy import update                                       # noqa: E402
-from sqlalchemy.orm.attributes import flag_modified                 # noqa: E402
+from app.store import flag_modified, update                         # noqa: E402
 from starlette.middleware.gzip import GZipMiddleware                # noqa: E402
 
 from world import World, install, ok                                # noqa: E402
@@ -208,7 +207,7 @@ async def seed():
     os.makedirs("/tests/audit/.out", exist_ok=True)
     out = {k: {"token": auth.make_session(u), "user": u, "keys": keys.get(k)} for k, u in users.items()}
     json.dump(out, open("/tests/audit/.out/tokens.json", "w"))
-    await db._engine.dispose()                                       # connections made in THIS event loop must not be reused by uvicorn's own loop
+    await __import__('app.store', fromlist=['close']).close()        # the client made in THIS event loop must not be reused by uvicorn's own loop (a new loop gets a new client)
 
 
 # ---------------------------------------------------------------------------------------------- control routes (test process only)
@@ -223,12 +222,13 @@ async def audit_settings(request: Request):
 
 @M.app.post("/__audit/reset")                                        # empty some tables so a spec can run twice on the same app (an allow-list: never a free-form table name)
 async def audit_reset(request: Request):
-    from sqlalchemy import text as _sql
-    allowed = {"plan_interest", "ev_milestones", "ev_days"}
+    from app.store import delete as _delete
+    from app.insights.models import EvDay, EvMilestone, PlanInterest
+    allowed = {"plan_interest": PlanInterest, "ev_milestones": EvMilestone, "ev_days": EvDay}
     tabs = [t for t in ((await request.json()).get("tables") or []) if t in allowed]
     async with db._Session() as s:
         for t in tabs:
-            await s.execute(_sql(f"DELETE FROM {t}"))
+            await s.execute(_delete(allowed[t]))
         await s.commit()
     M.insights._seen.clear()
     M.insights._day_seen.clear()
@@ -237,7 +237,7 @@ async def audit_reset(request: Request):
 
 @M.app.post("/__audit/reset_learner")                                # a learner back to "never practised" (a spec can then be run twice on the same app)
 async def audit_reset_learner(request: Request):
-    from sqlalchemy import delete as _del
+    from app.store import delete as _del
     who = (await request.json()).get("who", "")
     uid = f"aud-{who}"
     async with db._Session() as s:

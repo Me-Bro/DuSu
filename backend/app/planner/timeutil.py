@@ -38,7 +38,9 @@ def zone(name) -> ZoneInfo:
 
 
 def now_utc() -> dt.datetime:
-    return dt.datetime.now(UTC)
+    """UTC, aware, MILLISECOND resolution (what MongoDB stores): a timestamp used as a claim token must equal what the database hands back."""
+    n = dt.datetime.now(UTC)
+    return n.replace(microsecond=(n.microsecond // 1000) * 1000)
 
 
 def local_now(tz, now=None) -> dt.datetime:

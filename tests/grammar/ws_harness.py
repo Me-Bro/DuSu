@@ -14,7 +14,7 @@ sys.path.insert(0, "/tests/grammar")
 
 import uvicorn                                                       # noqa: E402
 import websockets                                                    # noqa: E402
-from sqlalchemy import func, select                                  # noqa: E402
+from app.store import func, select                                  # noqa: E402
 
 from app import auth, db, main as M                                  # noqa: E402
 from app.grammar import service as svc, tracker                      # noqa: E402
@@ -54,16 +54,12 @@ TALK = ["yesterday i go to the market and i buy some vegetable", "i am engineer 
 
 
 async def table_counts(uid):
-    names = ("session_scores", "conversations", "weekly_stats")
     out = {}
-    async with db._engine.connect() as conn:
-        from sqlalchemy import text as t
-        for n in names:
-            try:
-                out[n] = (await conn.execute(t(f"select count(*) from {n} where user_id=:u"), {"u": uid})).scalar()
-            except Exception:
-                out[n] = -1
-        out["xp"] = (await conn.execute(t("select coalesce(speaker_xp,0) from progress where user_id=:u"), {"u": uid})).scalar()
+    async with db._Session() as s:
+        for n, M_ in (("session_scores", db.SessionScore), ("conversations", db.Conversation), ("weekly_stats", db.WeeklyStat)):
+            out[n] = int((await s.execute(select(func.count()).select_from(M_).where(M_.user_id == uid))).scalar() or 0)
+        p = await s.get(db.Progress, uid)
+        out["xp"] = ((p.speaker_xp or 0) if p is not None else None)
     return out
 
 

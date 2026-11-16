@@ -1,0 +1,372 @@
+
+== rehearsal: production has every pl_* collection EXCEPT pl_reminder_rules
+  PASS  the old database has no pl_reminder_rules
+  PASS  init_db() adds exactly the one new collection, twice in a row, next to the old data
+  PASS  the partial unique index (idempotent create) exists
+  PASS  the columns are what the code writes
+  PASS  the existing learner's reminder is untouched
+
+== gates: the switch, sign-in, every verb
+  PASS  switch OFF: GET /reminder-rules is 404 (invisible)
+  PASS  switch OFF: POST /reminder-rules is 404 (invisible)
+  PASS  switch OFF: PATCH /reminder-rules/1 is 404 (invisible)
+  PASS  switch OFF: DELETE /reminder-rules/1 is 404 (invisible)
+  PASS  switch OFF: export still answers 404 like the rest of My Day
+  PASS  no token: GET /reminder-rules is 401
+  PASS  no token: POST /reminder-rules is 401
+  PASS  no token: PATCH /reminder-rules/1 is 401
+  PASS  no token: DELETE /reminder-rules/1 is 401
+  PASS  a junk token is 401
+  PASS  /me says My Day is on
+
+== create: a reminder that repeats on chosen days
+  PASS  create answers 200 with the rule
+  PASS  days are sorted and de-duplicated: Mon + Tue
+  PASS  it says when it rings next (Mon 19 Oct 20:00), worked out from the rule
+  PASS  a retried create (same client_key) returns the same rule, marked duplicate
+  PASS  the same client_key with OTHER words still returns the first rule (a retry is idempotent by its key)
+  PASS  the same words (any case) + time + days with a NEW key is the same reminder, not a copy
+  PASS  ...only one rule exists
+  PASS  the same words on OTHER days is a different reminder
+  PASS  the same words and days at ANOTHER time is a different reminder
+  PASS  all seven days are stored as 'daily'
+  PASS  'daily' is accepted as is
+  PASS  Hindi, emoji, an unpadded time and digit-string days all work
+  PASS  a 10 000-character title is cut to 160, not refused
+  PASS  control characters (NUL!) are stripped, the title stays one line
+[planner] 422 create_reminder_rule: title
+  PASS  refused with 422 'title': no title
+[planner] 422 create_reminder_rule: title
+  PASS  refused with 422 'title': a blank title
+[planner] 422 create_reminder_rule: title
+  PASS  refused with 422 'title': a numeric title
+[planner] 422 create_reminder_rule: time
+  PASS  refused with 422 'time': no time
+[planner] 422 create_reminder_rule: time
+  PASS  refused with 422 'time': time 25:00
+[planner] 422 create_reminder_rule: time
+  PASS  refused with 422 'time': time '9'
+[planner] 422 create_reminder_rule: time
+  PASS  refused with 422 'time': time '12:60'
+[planner] 422 create_reminder_rule: time
+  PASS  refused with 422 'time': a time that is a number
+[planner] 422 create_reminder_rule: days
+  PASS  refused with 422 'days': no days
+[planner] 422 create_reminder_rule: days
+  PASS  refused with 422 'days': empty days
+[planner] 422 create_reminder_rule: days
+  PASS  refused with 422 'days': day 7
+[planner] 422 create_reminder_rule: days
+  PASS  refused with 422 'days': days 'weekly'
+[planner] 422 create_reminder_rule: days
+  PASS  refused with 422 'days': days as a dict
+[planner] 422 create_reminder_rule: days
+  PASS  refused with 422 'days': days None
+[planner] 422 create_reminder_rule: days
+  PASS  refused with 422 'days': a 5000-digit day
+  PASS  a body that is not JSON is a 422, never a 500
+  PASS  a JSON list instead of an object is a 422, never a 500
+  PASS  none of the refused ones created anything
+
+== list: the soonest first
+  PASS  the list holds this learner's rules, with tz and the learner's today
+  PASS  soonest next ring first
+  PASS  every rule carries its time, days and status
+
+== another learner's rules are invisible; odd ids are 404, never 500
+  PASS  bob sees none of ann's rules
+  PASS  bob PATCH on ann's rule is 404
+  PASS  bob PATCH on ann's rule is 404
+  PASS  bob DELETE on ann's rule is 404
+  PASS  ann's rule is untouched
+  PASS  PATCH /reminder-rules/0 is 404
+  PASS  DELETE /reminder-rules/0 is 404
+  PASS  PATCH /reminder-rules/-1 is 404
+  PASS  DELETE /reminder-rules/-1 is 404
+  PASS  PATCH /reminder-rules/99999999999 is 404
+  PASS  DELETE /reminder-rules/99999999999 is 404
+  PASS  PATCH /reminder-rules/2147483648 is 404
+  PASS  DELETE /reminder-rules/2147483648 is 404
+  PASS  PATCH /reminder-rules/4294967296 is 404
+  PASS  DELETE /reminder-rules/4294967296 is 404
+  PASS  PATCH /reminder-rules/123456789012345678901234567890 is 404
+  PASS  DELETE /reminder-rules/123456789012345678901234567890 is 404
+  PASS  PATCH /reminder-rules/abc is 422, not 500
+  PASS  DELETE /reminder-rules/abc is 422, not 500
+
+== the older endpoints too: an id beyond a 32-bit integer is 404, never a 500
+  PASS  PATCH /tasks/99999999999 is 404
+  PASS  DELETE /tasks/99999999999 is 404
+  PASS  POST /tasks/99999999999/complete is 404
+  PASS  GET /goals/99999999999 is 404
+  PASS  PATCH /habits/99999999999 is 404
+  PASS  DELETE /reminders/99999999999 is 404
+  PASS  PATCH /reminders/99999999999 is 404
+  PASS  POST /reminders/99999999999/act is 404
+  PASS  PATCH /milestones/99999999999 is 404
+  PASS  PUT /habits/99999999999/log is 404
+
+== edit: validation
+[planner] 422 update_reminder_rule: title
+  PASS  edit refused 422 'title': a blank title
+[planner] 422 update_reminder_rule: time
+  PASS  edit refused 422 'time': a bad time
+[planner] 422 update_reminder_rule: days
+  PASS  edit refused 422 'days': no days
+[planner] 422 update_reminder_rule: action
+  PASS  edit refused 422 'action': an unknown action
+[planner] 422 update_reminder_rule: action
+  PASS  edit refused 422 'action': a non-string action
+  PASS  an empty edit is a harmless no-op
+
+== limit: thirty repeating reminders
+[planner] 409 create_reminder_rule: limit_repeating
+  PASS  the 31st is 409 limit_repeating
+  PASS  after deleting one there is room again
+  PASS  at the limit, a duplicate still answers with the rule that exists (not a 409)
+
+== the rings made at creation: only today and tomorrow, only on the chosen days, never one that has passed
+  PASS  Mon+Tue on a Wednesday: no ring today or tomorrow
+  PASS  Saturday-only on a Wednesday: no ring yet
+  PASS  daily 09:00 (already passed today): only tomorrow's ring
+  PASS  Wednesday 20:00 on a Wednesday morning: today's ring
+  PASS  a time one minute ago is still made (it rings now); tomorrow's too
+  PASS  a time hours ago is not made
+  PASS  a ring is an ordinary custom reminder: entity_type custom, kind recurring, entity_id = the rule
+  PASS  it is scheduled, in the learner's zone, with the day and the time in meta
+  PASS  its key names the rule, the local day and the time
+  PASS  its title is the rule's
+  PASS  running the materializer again and again makes no second ring
+
+== the promise: 28 days, three rules set ONCE - every ring on its own days, nothing on the others
+  PASS  exactly the expected 39 rings were delivered over 28 days (Mon/Tue gym, Saturday call, daily water)
+  PASS  none delivered twice: one row per (rule, day)
+  PASS  each rang within seconds of its time
+  PASS  each was attempted exactly once, with no follow-up
+  PASS  the gym rang only on Mondays and Tuesdays
+  PASS  the call rang only on Saturdays
+  PASS  the water rang on every weekday
+  PASS  the gym rang on 8 Mondays/Tuesdays in 28 days, the call on 4 Saturdays
+  PASS  the table does not grow without bound: only the next two days are pending
+  PASS  the unique keys held: no two rows share a key
+  PASS  after four weeks the three rules are still there, active, unchanged
+
+== pause and resume
+  PASS  a daily rule has tomorrow's ring waiting
+  PASS  pause answers 200: status paused, no next ring
+  PASS  pausing withdraws the ring that was waiting
+  PASS  while paused the materializer makes nothing
+  PASS  while paused nothing rings
+  PASS  resume answers 200: active again with a next ring
+  PASS  resuming brings tomorrow's ring back (the same row, revived)
+  PASS  resuming twice is harmless
+  PASS  pausing twice is harmless
+  PASS  an edit and a resume in one request
+  PASS  after resuming it rings, once, with the new words
+
+== edit: the words, the time, the days
+  PASS  new words: the ring that was waiting keeps its row and takes the new words
+  PASS  a new time: the old ring is withdrawn and a new one is made
+  PASS  the new ring knows its new time
+  PASS  new days (Friday only): Thursday's ring is withdrawn
+  PASS  ...and Friday's ring appears when Friday is tomorrow
+  PASS  saving without changing anything changes nothing
+  PASS  a stale ring (the rule's time changed since) is cancelled at send time, not sent
+  PASS  a ring already being sent is not touched by the pause itself (only waiting ones are withdrawn)
+  PASS  ...but at send time the paused rule stops it
+
+== delete
+  PASS  one ring has rung and is waiting for a tap
+  PASS  it is in the in-app due list
+  PASS  delete answers 200
+  PASS  the rule is gone from the list
+  PASS  its rows in the database are gone too (hard delete)
+  PASS  every ring still open is withdrawn - including the card waiting for a tap
+  PASS  the card waiting for a tap left the due list
+  PASS  nothing is ever made for a deleted rule
+  PASS  and nothing rings the next day
+  PASS  deleting twice is a 404 (it is gone)
+  PASS  editing a deleted rule is a 404
+
+== a ring is ticked off, snoozed, skipped or undone - the rule carries on
+  PASS  tick it off: done
+  PASS  today it stays on the day's list, struck through (reminders_done), with its repeat
+  PASS  untick: back to 'due now' (its time is past)
+  PASS  'later' moves THIS ring by 30 minutes, same row
+  PASS  the materializer does not make a second ring for the snoozed one (Thursday still has exactly one)
+  PASS  ...it only made Friday's, the next day's
+  PASS  the snoozed ring rings again
+  PASS  skip: skipped
+  PASS  a skipped ring is not brought back by the materializer
+  PASS  one ring cannot be edited on its own (404): the rule is the unit
+  PASS  one ring cannot be deleted on its own (404) - it would be made again
+  PASS  another learner cannot act on it (404)
+  PASS  the next day it rings again, whatever happened to today's
+  PASS  the ring rang at 09:00
+  PASS  an unanswered ring is followed up once, like any reminder
+  PASS  the follow-up rings (the same row)
+  PASS  ...then it expires (no endless pushing)
+  PASS  an expired ring can be brought back by the learner
+
+== push: the ring reaches the phone, and its action buttons work
+  PASS  the fake push service got exactly one message, carrying the words
+  PASS  the ring records the push was accepted
+  PASS  the notification's Done button (a signed token, no login) ticks it off
+
+== Today, the reminder list and the summary show the rings and the rules
+  PASS  Today lists the next rings (water tomorrow, gym today), not the Saturday one
+  PASS  each ring says which rule and how it repeats
+  PASS  a daily ring says 'daily', a Wed one says [0,1,2]
+  PASS  Today carries every rule - including the Saturday one that has no ring yet
+  PASS  ...with its own next ring (Sat 17 Oct 18:00)
+  PASS  the day's reminder count includes today's gym ring
+  PASS  the Home card's summary counts it too
+  PASS  the reminder list (All) shows the rings with their repeat
+  PASS  the same in Coming up
+  PASS  each ring has the learner's local day and time
+  PASS  after deleting a rule its leftovers never show as upcoming
+
+== DuSu reads the repeating reminders from the real database
+  PASS  the context has the repeating line with both rules and the count
+  PASS  with only a Saturday rule on a Wednesday DuSu is NOT told 'none set'
+  PASS  the opening line (Start Speaking) says nothing about an empty day
+
+== time zones, DST, pause everything, quiet hours
+  PASS  moving to Dubai re-times the same ring (09:00 there = 05:00Z), no copy
+  PASS  the rule's next ring follows the learner's zone
+  PASS  DST ends on 1 Nov in New York: 09:00 is 13:00Z before the change and 14:00Z after, and each day has exactly one ring
+  PASS  the 02:30 that does not exist on 8 March rings once, at 03:30 local (07:30Z)
+  PASS  'pause everything' withdraws every ring, rules included
+  PASS  a repeating reminder made while everything is paused is stored, active, and makes no ring (nothing may ring)
+  PASS  ...and the materializer makes none while it is on
+  PASS  ...but the rule itself is still there, still active
+  PASS  'resume everything' brings tomorrow's ring back
+  PASS  ...for the rule made while paused too
+  PASS  a ring inside quiet hours is deferred to 07:00, not sent
+  PASS  at 07:00 it rings, once
+
+== concurrency: taps and loops that arrive together
+  PASS  12 simultaneous creates with one client_key: all 200, one rule
+  PASS  12 simultaneous double-taps with DIFFERENT keys and the same words: one rule
+  PASS  8 materializers at once: no exception, no duplicate row
+  PASS  after 8 edits racing 16 materializer passes no live ring has an old time
+  PASS  ...and every live ring is at the rule's time
+  PASS  a materializer parked mid-write while the rule is edited never leaves a live ring at the OLD time
+  PASS  ...and the rings that are live are at the NEW time
+
+== tasks and habits repeat on chosen weekdays too, and everything is stored
+  PASS  a habit on Mon+Tue at 07:00: Monday's and Tuesday's reminders exist
+  PASS  on Wednesday the habit makes nothing for Wednesday or Thursday
+  PASS  the habit comes back by itself the next Monday (set once)
+  PASS  a task repeating weekly on Mon+Tue: Monday's and Tuesday's tasks are made
+  PASS  ...and the next week's, by itself
+  PASS  a daily task has a task for every day ahead
+  PASS  rules, habits and repeating tasks are all in Postgres (they survive a restart: nothing lives in memory)
+
+== check and uncheck: a task that was just checked stays on the list it was checked on, and can be unchecked there
+  PASS  before: the open task is on all
+  PASS  before: the open task is on today
+  PASS  complete answers 200 with the task done
+  PASS  AFTER checking it, All still lists it - once, as done
+  PASS  ...and so does the Today chip (it was finished today)
+  PASS  the open task of another day is still there too
+  PASS  finished tasks come AFTER the open ones (the list does not jump around)
+  PASS  the upcoming chip lists open things only: the finished task is not there
+  PASS  the overdue chip lists open things only: the finished task is not there
+  PASS  the inbox chip lists open things only: the finished task is not there
+  PASS  the Done chip lists it
+  PASS  checking it twice changes nothing and logs one event
+  PASS  unchecking it: open again
+  PASS  ...and it is on All and Today as open, once
+  PASS  ...and it left the Done chip
+  PASS  unchecking an open task is harmless
+  PASS  a SKIPPED task is listed on All as skipped
+  PASS  ...and a tap (reopen) puts it back
+  PASS  the next day it is no longer on the Today chip (that is for today)
+  PASS  ...but still on All (the last two days)
+  PASS  three days later it has left All
+  PASS  ...and is in the Done chip, where it can still be unchecked
+  PASS  ...and unchecking it from there works
+  PASS  a task finished more than two weeks ago is on neither All nor Done (it is history)
+  PASS  ...but the task itself is still there: a direct reopen works
+  PASS  a goal's tasks list (view=all&goal_id) keeps the finished one
+  PASS  another learner cannot complete somebody else's task (404)
+  PASS  another learner cannot reopen somebody else's task (404)
+  PASS  another learner cannot skip somebody else's task (404)
+  PASS  ...and does not see it on any list
+
+== check and uncheck: goals and their steps
+  PASS  a step is checked: done, the goal moves
+  PASS  the same step unchecked: open, the goal moves back
+  PASS  unchecking an open step is harmless
+  PASS  a skipped step can be put back (reopen)
+  PASS  the goal is checked: finished, 100 %, with a finished-at time
+  PASS  ...and it STAYS on the goals list (it does not vanish)
+  PASS  unchecked (reopened): active again, its progress is worked out again, and it is no longer 'finished at'
+  PASS  reopening an active goal is harmless
+  PASS  a goal that was paused, finished and resumed is active
+  PASS  another learner cannot finish or reopen it (404)
+  PASS  ...nor check its steps (404)
+
+== check and uncheck: habits (an ABSOLUTE count per day, so the latest tap wins and nothing depends on an old copy)
+  PASS  a once-a-day habit set to 1: done
+  PASS  a once-a-day habit set to 0: none
+  PASS  a once-a-day habit set to 1: done
+  PASS  a once-a-day habit set to 0: none
+  PASS  a three-a-day habit set to 3: done
+  PASS  a three-a-day habit set to 2: partial
+  PASS  a three-a-day habit set to 1: partial
+  PASS  a three-a-day habit set to 0: none
+  PASS  a three-a-day habit set to 2: partial
+  PASS  a three-a-day habit set to 3: done
+  PASS  a three-a-day habit set to 2: partial
+  PASS  sending the SAME count again changes nothing and logs nothing (a retried tap is harmless)
+  PASS  a skipped day is its own state
+  PASS  ...and checking it afterwards un-skips it
+  PASS  ...and unchecking that leaves 'none' (not skipped)
+  PASS  yesterday can be checked and unchecked too (the API takes a day; the stored log follows)
+[planner] 422 log_habit: day
+  PASS  a day in the future is refused (422)
+  PASS  another learner cannot log somebody else's habit (404)
+  PASS  Today carries the habits with today's count
+
+== check and uncheck: reminders - done, skipped, and back
+  PASS  a one-time reminder: done -> done
+  PASS  a one-time reminder: reopen -> scheduled
+  PASS  a one-time reminder: skip -> skipped
+  PASS  a one-time reminder: reopen -> scheduled
+  PASS  a one-time reminder: done -> done
+  PASS  a one-time reminder: done -> done
+  PASS  a one-time reminder: reopen -> scheduled
+  PASS  ...and it is on All the whole time (once)
+  PASS  a reminder ticked yesterday is still on All and in History
+  PASS  five days later it has left All but History still lists it
+  PASS  ...and unticking it from History works (it is due now: its time is past)
+  PASS  another learner cannot untick it (404)
+
+== one-time reminders and habit reminders behave exactly as before
+  PASS  a one-time reminder is still kind 'time', with no rule
+  PASS  it can still be edited
+  PASS  the duplicate guard still works
+  PASS  it can still be deleted
+  PASS  a habit's row is not mistaken for a rule's ring
+  PASS  a habit's reminder is still not editable on its own (404, as before)
+  PASS  a one-time reminder carries no 'repeat' key
+
+== data rights: export, delete-all, account deletion and the owner's wipe
+  PASS  the export includes the learner's repeating reminders
+  PASS  ...with their days and time
+  PASS  the export holds nobody else's
+  PASS  delete-all answers 200
+  PASS  ...and every rule and ring of theirs is gone
+  PASS  ...while another learner's rules are untouched
+  PASS  the seed put at least one row in every My Day table
+  PASS  delete_rows leaves nothing in ANY My Day table (a forgotten table would be orphaned personal data)
+  PASS  deleting the account leaves nothing either (and does not trip a foreign key)
+  PASS  the owner's wipe removes the rules of everyone it removes, and keeps the kept one's
+
+== the whole run
+  PASS  no request ended in a 5xx
+
+293 passed, 0 failed
+exit 0

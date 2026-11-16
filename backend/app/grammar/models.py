@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, text
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from ..store import Boolean, DateTime, Float, ForeignKey, Index, Integer, String
+from ..store import JSONB
+from ..store import Mapped, mapped_column
 
 from ..db import Base, _now
 
@@ -25,7 +25,7 @@ class GcSession(Base):
     The numbers are a pure fold over `units` (scoring.fold_units), so every surface shares one idempotent path."""
     __tablename__ = "gc_sessions"
     __table_args__ = (
-        Index("uq_gc_session_client", "user_id", "client_key", unique=True, postgresql_where=text("client_key IS NOT NULL")),
+        Index("uq_gc_session_client", "user_id", "client_key", unique=True, where={"client_key": {"$type": "string"}}),
         Index("ix_gc_session_user_created", "user_id", "created_at"),
     )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

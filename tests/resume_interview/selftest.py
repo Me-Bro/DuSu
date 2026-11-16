@@ -69,27 +69,22 @@ def answer_body(text=ANSWER_GOOD, key=None, device="devA", keys=True, duration=N
 async def main():
     assert not (M.settings.groq_api_key or M.settings.gemini_api_key or M.settings.openrouter_api_key or M.settings.github_token), \
         "refusing to run: provider keys are configured - run through run.sh, which blanks them (a test must never spend or reveal real keys)"
-    # OLD -> NEW rehearsal: production has every table EXCEPT the ri_* ones. Build exactly that schema, put a learner in it, then run init_db() as the new code does
-    # at start-up: it must add the four new tables (and their partial unique indexes) next to the existing data, and be safe to run twice.
-    for _ in range(20):                                              # a freshly started postgres restarts once after initdb
-        try:
-            async with db._engine.begin() as conn:
-                await conn.run_sync(lambda sc: db.Base.metadata.create_all(sc, tables=[t for t in db.Base.metadata.sorted_tables if not t.name.startswith("ri_")]))
-            break
-        except Exception:
-            await asyncio.sleep(1)
-    from sqlalchemy import text as sa_text
-    async with db._engine.connect() as conn:
-        pre = {r[0] for r in (await conn.execute(sa_text("select table_name from information_schema.tables where table_schema='public' and table_name like 'ri\\_%'"))).all()}
+    # OLD -> NEW rehearsal: production has every collection EXCEPT the ri_* ones. Build exactly that, put a learner in it, then run init_db() as the new code does
+    # at start-up: it must add the four new collections (and their partial unique indexes) next to the existing data, and be safe to run twice.
+    from app import store
+    await store.init([m for m in db.Base.models() if not m.__tablename__.startswith("ri_")])
+    dbh = store.core.database()
+    pre = {n for n in await dbh.list_collection_names() if n.startswith("ri_")}
     await db.login({"sub": "u-old", "email": "old@example.com", "name": "Old", "picture": ""})
-    check("rehearsal: the old schema has no ri_* tables", pre == set(), pre)
+    check("rehearsal: the old database has no ri_* collections", pre == set(), pre)
     await db.init_db()
     await db.init_db()
-    async with db._engine.connect() as conn:
-        post = {r[0] for r in (await conn.execute(sa_text("select table_name from information_schema.tables where table_schema='public' and table_name like 'ri\\_%'"))).all()}
-        idx = {r[0] for r in (await conn.execute(sa_text("select indexname from pg_indexes where tablename like 'ri\\_%'"))).all()}
-        users = (await conn.execute(sa_text("select count(*) from users where id='u-old'"))).scalar()
-    check("rehearsal: init_db() adds exactly the four ri_* tables next to the existing data, twice in a row", post == {"ri_documents", "ri_analyses", "ri_sessions", "ri_turns"} and users == 1, (post, users))
+    post = {n for n in await dbh.list_collection_names() if n.startswith("ri_")}
+    idx = set()
+    for n in post:
+        idx |= set(await dbh[n].index_information())
+    users = await dbh["users"].count_documents({"_id": "u-old"})
+    check("rehearsal: init_db() adds exactly the four ri_* collections next to the existing data, twice in a row", post == {"ri_documents", "ri_analyses", "ri_sessions", "ri_turns"} and users == 1, (post, users))
     check("rehearsal: the partial unique indexes (idempotency keys, one analysis per pair) exist", {"uq_ri_analysis_pair"} <= idx and len([i for i in idx if i.startswith("uq_")]) >= 6, sorted(idx))
     owner = {"sub": "u-owner", "email": "david123rana@gmail.com", "name": "Owner", "picture": ""}
     ann = {"sub": "u-ann", "email": "ann@example.com", "name": "Ann", "picture": ""}
@@ -368,7 +363,7 @@ async def main():
         progresses = [x.json().get("progress") for x in ok]
         check("XP is paid exactly ONCE (one Finish has progress, the other none)", sum(1 for p in progresses if p) == 1, progresses)
         async with db._Session() as s:
-            from sqlalchemy import func, select
+            from app.store import func, select
             n_scores = (await s.execute(select(func.count()).select_from(db.SessionScore).where(db.SessionScore.user_id == "u-ann", db.SessionScore.mode == "resume_interview"))).scalar()
         check("exactly one session_scores row in mode resume_interview", n_scores == 1, n_scores)
         check("the report: overall, 5 categories, coverage, per-question, no model was called", rep["real"] == 3 and len(rep["categories"]) == 5 and rep["coverage"] and len(rep["per_question"]) >= 3 and STUB.n["answer"] == 1)
@@ -569,7 +564,7 @@ async def main():
 
         # claims: fresh = 202, within the TTL still pending, past the TTL re-taken
         from datetime import datetime, timedelta, timezone
-        from sqlalchemy import update as sa_update
+        from app.store import update as sa_update
         from app.resume_interview.models import RiAnalysis
         rid_e, jid_e, sid_e, _t = await new_session("eve")
         async with db._Session() as s_:
@@ -635,7 +630,7 @@ async def main():
         check("...per-question rows carry no invented band", all(q["band"] in ("unknown", None) for q in j["report"]["per_question"]))
         check("...the hub lists it without a score", [x for x in (await GET("eve", "/state")).json()["sessions"] if x["id"] == sid_h][0]["overall"] is None)
         async with db._Session() as s_:
-            from sqlalchemy import func, select
+            from app.store import func, select
             row = (await s_.execute(select(db.SessionScore).where(db.SessionScore.user_id == "u-eve", db.SessionScore.mode == "resume_interview").order_by(db.SessionScore.id.desc()))).scalars().first()
             convs = (await s_.execute(select(db.Conversation).where(db.Conversation.user_id == "u-eve", db.Conversation.mode == "resume_interview"))).scalars().all()
         check("XP was paid once with the unmeasured components UNSCORED (vocabulary / grammar NULL, not 0)", row is not None and row.vocabulary is None and row.grammar_trend is None and row.overall > 0, (row.vocabulary, row.grammar_trend, row.overall) if row else None)
@@ -764,7 +759,7 @@ async def main():
         r = await c.delete(f"/rinterview/sessions/{sid2}", headers=H("ann"))
         check("deleting a session removes its turns", r.status_code == 200 and (await GET("ann", f"/sessions/{sid2}")).status_code == 404)
         # the secret never reaches an exception message
-        from sqlalchemy.exc import IntegrityError
+        from app.store import IntegrityError
         from app.resume_interview.models import RiDocument
         leak = None
         try:

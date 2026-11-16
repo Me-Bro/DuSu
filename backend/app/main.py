@@ -776,6 +776,10 @@ async def _shutdown():
         await keys_ledger.flush()                  # whatever the ledger still holds in memory is written before the process goes
     except Exception as e:
         print(f"[keys] final flush failed: {type(e).__name__}")
+    try:
+        await db.store.close()                     # the MongoDB client
+    except Exception as e:                         # noqa: BLE001
+        print(f"[db] close failed: {type(e).__name__}")
 
 _BACKEND = Path(__file__).resolve().parent.parent
 _CLIENT_HTML = _BACKEND / "test_client.html"
