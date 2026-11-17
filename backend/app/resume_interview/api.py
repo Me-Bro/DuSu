@@ -114,7 +114,7 @@ async def _llm_gate(request: Request, authorization: str | None, token: str = ""
     ok, eff, _r = await M.resolve_keys(email, body.get("keys") if isinstance(body.get("keys"), dict) else {}, uid)
     if not ok:
         raise HTTPException(402, "keys_required")
-    set_active_keys(eff, uid=uid, engine=await M.key_health_enabled(email))      # contextvar: must be set in THIS task before the model is awaited
+    set_active_keys(eff, uid=uid, engine=await M.engine_level(email))      # contextvar: must be set in THIS task before the model is awaited
     return claims, uid, email, body
 
 

@@ -13,6 +13,7 @@ import json
 import random
 import re
 import time
+from collections import deque
 from contextvars import ContextVar
 from dataclasses import dataclass
 
@@ -20,7 +21,7 @@ from openai import AsyncOpenAI
 
 from ..config import settings
 from ..keys import classify, gate, ledger
-from ..keys.errors import ProviderChainError, chain_state
+from ..keys.errors import BadReplyError, ProviderChainError, chain_state
 
 _clients: dict[tuple, AsyncOpenAI] = {}   # keyed (provider_name, api_key), not name alone
 
@@ -45,23 +46,40 @@ _active_chain: ContextVar[list | None] = ContextVar("_active_chain", default=Non
 
 @dataclass(frozen=True)
 class KeyCtx:
-    """Whose keys this request / connection is using. `engine` = the per-key walker (settings.key_health) is on for this learner; `uid` = who to count for."""
+    """Whose keys this request / connection is using. `uid` = who to count for. `engine` = which walker answers: 0 = today's (legacy) walker, 1 = the per-key walker
+    (settings.key_health), 2 = the per-key walker PLUS the validated walk (settings.chain_v3: an unusable reply is a failure that moves on to the next model)."""
     uid: str | None = None
-    engine: bool = False
+    engine: int = 0
 
 
 _active_ctx: ContextVar[KeyCtx | None] = ContextVar("_active_ctx", default=None)
 _unset = {"calls": 0}                    # LLM calls that arrived with no key context at all (a call path that forgot set_active_keys)
 
 
-def set_active_keys(keys: dict | None, uid: str | None = None, engine: bool = False) -> None:
+def set_active_keys(keys: dict | None, uid: str | None = None, engine: bool | int = 0) -> None:
     """Office mode: route this request/connection's LLM calls through the user's keys.
     Pass a falsy value / empty dict to use the default (Personal) chain.
-    `uid` / `engine` (settings.key_health): who the calls are counted for, and whether the per-key walker runs - every call site passes them (an AST test
-    in tests/keys/unit.py fails the build if one forgets `uid=`), because a forgotten site would silently skip the accounting."""
+    `uid` / `engine` (settings.key_health / settings.chain_v3): who the calls are counted for, and which walker runs (False / 0 legacy, True / 1 per-key, 2 per-key +
+    validated) - every call site passes them (an AST test in tests/keys/unit.py fails the build if one forgets `uid=` or `engine=`), because a forgotten site would
+    silently skip the accounting."""
     chain = settings.providers_from(keys) if keys else None
     _active_chain.set(chain or None)
-    _active_ctx.set(KeyCtx(uid=uid, engine=bool(engine)))
+    _active_ctx.set(KeyCtx(uid=uid, engine=max(0, min(2, int(engine or 0)))))
+
+
+_last_bad: ContextVar[BadReplyError | None] = ContextVar("_last_bad", default=None)      # the unusable-reply failure of the most recent assess() / score() in THIS task
+
+
+def last_bad() -> BadReplyError | None:
+    """The BadReplyError the most recent assess() / score() call in this task turned into the parse-failure sentinel (None when it succeeded). The few callers that answer with an
+    HTTP error use it to attach the learner-facing `kp` - 'the AI did not answer properly, try again' - instead of a bare 502."""
+    return _last_bad.get()
+
+
+def chain_v3_active() -> bool:
+    """Is the validated walk on for THIS request? (Callers use it to drop their own retry loops: the walk has already tried every model.)"""
+    ctx = _active_ctx.get()
+    return bool(ctx is not None and ctx.engine >= 2)
 
 
 def http_client():
@@ -230,16 +248,17 @@ def cooling_now() -> list[str]:
 
 
 async def _complete(messages: list[dict], max_tokens: int, prefer_fast: bool = False,
-                    temperature: float = 0.7, first: str | None = None, cool: bool = True) -> str:
-    """Every LLM call comes through here. With the per-key engine on for this learner (settings.key_health -> set_active_keys(engine=True)) the per-key walker
-    answers; otherwise it is today's walker, untouched."""
+                    temperature: float = 0.7, first: str | None = None, cool: bool = True, accept=None, cls: str = "chat") -> str:
+    """Every LLM call comes through here. With the per-key engine on for this learner (settings.key_health -> set_active_keys(engine=1)) the per-key walker
+    answers; with the validated walk on as well (settings.chain_v3 -> engine=2) it also judges every reply with `accept` (see `_v2_pass`); otherwise it is today's
+    walker, untouched. `accept` / `cls` are ignored unless engine >= 2."""
     ctx = _active_ctx.get()
     if ctx is None:
         if not _unset["calls"]:
             print("[keys] an LLM call arrived with no key context (a call path that never called set_active_keys) - counted, served the legacy way")
         _unset["calls"] += 1
     elif ctx.engine:
-        return await _complete_v2(messages, max_tokens, prefer_fast, temperature, first, cool)
+        return await _complete_v2(messages, max_tokens, prefer_fast, temperature, first, cool, accept if ctx.engine >= 2 else None, cls)
     return await _complete_legacy(messages, max_tokens, prefer_fast, temperature, first, cool)
 
 
@@ -336,7 +355,31 @@ async def _complete_legacy(messages: list[dict], max_tokens: int, prefer_fast: b
 #   * when EVERY key is gated it fails at once (no network) with a ProviderChainError that says which key failed how; one early probe a minute may let a
 #     limit that ended early be noticed; a half-open probe is single-flight so concurrent callers cannot hammer a limited key;
 #   * a failed walk leaves ONE safe log line (provider / model / kind - never text, never a key) so the next "AI busy" can be explained afterwards.
+# The VALIDATED walk (settings.chain_v3, engine 2) adds: a reply is judged by the caller's `accept` function (valid JSON with the fields the caller needs, not cut off,
+# not empty). An unusable reply is a failure like any other: the model is held back for that kind of call (20 s, doubling to 10 min; one good reply clears it), the walk
+# goes on to the NEXT PROVIDER in the same call (a different family, its own budget), its siblings follow in a second pass - and only when nothing usable came back does
+# the caller get a BadReplyError. Before, `if text:` was the only test: a broken reply counted as success, the model stayed "healthy", and every caller's own retry asked
+# the same model again.
 # ------------------------------------------------------------------------------------------------------------------------------------------------
+# The validated walk also keeps TIME (settings.chain_v3, engine 2): an interactive per-turn call gives each attempt 8 s (prose) / 11 s (a JSON turn) instead of 20, and the whole
+# walk 16 s / 22 s instead of 30 - an attempt is cut to what is left of the walk, so a walk can no longer run past its ceiling, and the LAST provider (nowhere else to switch to)
+# gets everything that is left instead of the short limit; a model that fails to ANSWER three times in a row
+# (timeouts, 5xx, connection errors) has its breaker opened for a minute (then one probe, doubling) so the next turn does not wait on it again; and the providers are asked in
+# the order of how they are doing (a measured-good provider before a measured-bad one; close scores keep the configured order). Everything else (scoring, extraction) keeps 20 / 30.
+_ATTEMPT_S = {"chat": 8.0, "json": 11.0}        # per attempt, an interactive per-turn call
+_ATTEMPT_HEAVY_S = 20.0                          # per attempt, everything else (scoring, extraction, background) - as before
+_WALK_S = {"chat": 16.0, "json": 22.0}          # the whole walk, an interactive per-turn call
+_MIN_ATTEMPT_S = 1.0                             # less than this of the walk left: not worth another request
+
+
+def _attempt_timeout(cls: str, interactive: bool) -> float:
+    return _ATTEMPT_S.get(cls, 11.0) if interactive else _ATTEMPT_HEAVY_S
+
+
+def _walk_deadline(cls: str, interactive: bool) -> float:
+    return _WALK_S.get(cls, 22.0) if interactive else _CHAIN_DEADLINE_S
+
+
 PER_MODEL_LIMITS = frozenset({"gemini", "groq"})
 _REPASS_PAUSE_S = 1.2          # a passing failure: wait this (+ up to 0.6 s of jitter) before the second pass
 _REPASS_MAX_WAIT_S = 5.0       # a limit that ends sooner than this is waited out instead of failing the turn
@@ -345,6 +388,47 @@ _pause = asyncio.sleep         # tests replace it, so a second pass does not rea
 _fail_logged: dict[str, float] = {}
 _gone_logged: dict[tuple, float] = {}
 _LOG_EVERY_S = 30.0
+
+# What every attempt did, in the order it happened (bounded): the owner's "model health" card and the tests read it. Provider / model NAMES are our own configuration;
+# there is no learner id, no key, no text and no fingerprint in it.
+_ring: deque = deque(maxlen=600)
+
+
+def _ring_add(provider: str, model: str, cls: str, kind: str, ms: float, t_in: int = 0, t_out: int = 0, finish: str | None = None, why: str = "") -> None:
+    _ring.append({"t": time.time(), "p": provider, "m": model, "c": cls, "k": kind, "ms": int(ms), "in": int(t_in or 0), "out": int(t_out or 0), "fin": finish or "", "why": why[:40]})
+
+
+def chain_health(window_s: float = 3600.0, now: float | None = None) -> list[dict]:
+    """Per (provider, model, class) over the last `window_s`: attempts and how they ended, the mean and the slowest answer. For the owner's dashboard."""
+    now = time.time() if now is None else now
+    agg: dict = {}
+    for r in list(_ring):
+        if now - r["t"] > window_s:
+            continue
+        a = agg.setdefault((r["p"], r["m"], r["c"]), {"provider": r["p"], "model": r["m"], "class": r["c"], "n": 0, "ok": 0, "bad": 0, "limited": 0, "failed": 0, "ms_sum": 0, "ms_max": 0})
+        a["n"] += 1
+        k = r["k"]
+        a["ok" if k == "ok" else "bad" if k == "bad" else "limited" if k == "limited" else "failed"] += 1
+        a["ms_sum"] += r["ms"]
+        a["ms_max"] = max(a["ms_max"], r["ms"])
+    out = []
+    for a in agg.values():
+        a["ms_avg"] = int(a.pop("ms_sum") / max(1, a["n"]))
+        out.append(a)
+    return sorted(out, key=lambda a: (a["provider"], a["model"], a["class"]))
+
+
+def model_health(now: float | None = None) -> list[dict]:
+    """Every measured model: its success rate, its speed and whether its breaker is open (owner's dashboard)."""
+    return gate.health_view(time.time() if now is None else now)
+
+
+def _rejects_params(err: Exception, sent: dict) -> bool:
+    """Did a 400 complain about the extra request parameters we added (a reasoning setting this model does not take)?"""
+    text = classify._text(err)
+    if any(str(k).lower() in text for k in sent):
+        return True
+    return any(w in text for w in ("unsupported parameter", "unrecognized request argument", "extra inputs are not permitted", "unknown parameter", "unknown field"))
 
 
 def _limit_seconds(out, err_text: str) -> float:
@@ -399,11 +483,17 @@ def _log_gone(name: str, model: str, http: int) -> None:
 
 class _Walk:
     """State shared by the passes of one walk."""
-    __slots__ = ("last_err", "wait")
+    __slots__ = ("last_err", "wait", "bad", "bad_models", "retry_now", "ignore_bad", "asked", "skipped_bad")
 
     def __init__(self):
         self.last_err = None
         self.wait = None          # seconds to wait before a second pass (None = a second pass would not help)
+        self.bad: list[str] = []  # 'provider/model:reason' of every reply that came back UNUSABLE (our own words, never the provider's)
+        self.bad_models: set = set()   # (provider, model) that answered unusably IN THIS WALK - not asked again by it, whether or not the gate remembers them
+        self.retry_now = False    # go round once more AT ONCE: a provider was left after an unusable reply (its other models are still unasked)
+        self.ignore_bad = False   # the next pass asks even a model that is being held back (every model was, and nothing was sent)
+        self.asked = 0            # requests actually sent in the current pass
+        self.skipped_bad = 0      # models skipped in the current pass because their last replies were unusable
 
     def want(self, secs: float) -> None:
         self.wait = secs if self.wait is None else min(self.wait, secs)
@@ -467,15 +557,22 @@ def _apply_failure(uid, name: str, fp: str, model: str, out, err: Exception, coo
 
 
 async def _v2_pass(entries: list, messages: list, max_tokens: int, temperature: float, uid, byok: bool, cool: bool, deadline: float,
-                   records: dict, attempts: list, w: _Walk, first_pass: bool):
-    """One walk round the chain. Returns the reply text, or None when nothing answered (what was learned is in `records` / `attempts` / `w`)."""
+                   records: dict, attempts: list, w: _Walk, first_pass: bool, accept=None, cls: str = "chat", chat: bool = False, v3: bool = False):
+    """One walk round the chain. Returns the reply text, or None when nothing answered (what was learned is in `records` / `attempts` / `w`).
+    `accept` (the validated walk, engine 2) judges every reply: it returns None for a usable one, else a short reason in our own words; `cls` is the kind of call
+    ('json' = a structured turn, 'chat' = prose) - what is held against a model is held per kind. `chat` = a per-turn chat call (prefer_fast): the provider entry's
+    `chat_extra[model]` request params are added to that one request (config.py `_groq_chat_extra`). `v3` = the validated walk: every attempt has a time limit and a
+    model whose breaker is open is not asked (gate.health_*)."""
+    w.asked = 0
+    w.skipped_bad = 0
     early = None
     if first_pass:
         now = time.time()
         if all(gate.peek(p["name"], fp, now) == "skip" for p, fp in entries):
             early = gate.soonest_probe([(p["name"], fp) for p, fp in entries], now)       # every key is gated: one early probe a minute at most
-    for p, fp in entries:
+    for ei, (p, fp) in enumerate(entries):
         name = p["name"]
+        last_provider = ei == len(entries) - 1       # nowhere else to go after this one: cutting it short would only throw an answer away
         if time.time() > deadline:
             break
         v = "probe" if (name, fp) == early else gate.verdict(name, fp, time.time())
@@ -492,9 +589,15 @@ async def _v2_pass(entries: list, messages: list, max_tokens: int, temperature: 
         other = False                                 # some model failed for a reason that is not "limited"
         try:
             client = _client(p)
-            for model in p["models"]:
+            for mi, model in enumerate(p["models"]):
                 if time.time() > deadline:
                     break
+                if accept is not None and not w.ignore_bad and ((name, model) in w.bad_models or gate.bad_blocked(name, fp, model, cls, time.time()) is not None):
+                    n_live += 1                       # it exists - it is only being held back because its last replies were unusable, so the KEY is not "limited"
+                    other = True
+                    w.skipped_bad += 1
+                    attempts.append(f"{name}/{model}:skipped-bad")
+                    continue
                 mv = gate.model_verdict(name, fp, model, time.time())
                 if mv == "skip":                      # remembered: asked again only when its time is up (no request, no wasted second)
                     ms = gate.model_get(name, fp, model)
@@ -507,41 +610,102 @@ async def _v2_pass(entries: list, messages: list, max_tokens: int, temperature: 
                         lim.append((model, max(0.0, ms.until - time.time()),
                                     classify.Outcome("limited", http=ms.http or 429, scope=ms.scope, reset_at=ms.reset_at, evidence=ms.evidence, approx=ms.approx)))
                     continue
+                hprobe = False
+                if v3:
+                    hv = gate.health_verdict(name, model, cls, time.time())
+                    if hv == "skip" and not w.ignore_bad:       # it failed to ANSWER three times in a row a moment ago: do not make this turn wait on it as well
+                        gate.model_release(name, fp, model)       # (a half-open probe of the model's own limit may have been taken just above)
+                        n_live += 1
+                        other = True
+                        w.skipped_bad += 1
+                        attempts.append(f"{name}/{model}:skipped-breaker")
+                        continue
+                    hprobe = hv == "probe"
+                    if deadline - time.time() < _MIN_ATTEMPT_S:   # the walk's own ceiling: not enough of it left for another request
+                        if hprobe:
+                            gate.health_release(name, model, cls)
+                        gate.model_release(name, fp, model)
+                        break
                 n_live += 1
+                extra = p.get("extra") or {}
+                sent: dict = {}
+                if chat and v3:                           # a per-turn CHAT call (validated walk only): params only chat wants (Groq's gpt-oss: think briefly - an empty reply costs a whole prompt of the minute)
+                    ce = (p.get("chat_extra") or {}).get(model)
+                    if ce and not gate.param_unsupported(name, model, time.time()):      # a model that answered 400 to them is sent without
+                        sent = ce
+                        extra = {**extra, **ce}
                 tok = ledger.begin(uid, name, fp)
                 done = False
+                t0 = time.time()
+                w.asked += 1
                 try:
+                    rem = deadline - time.time()
+                    kw = {"timeout": max(_MIN_ATTEMPT_S, rem if last_provider else min(_attempt_timeout(cls, chat), rem))} if v3 else {}      # the last provider gets what is left of the walk
                     raw = await client.chat.completions.with_raw_response.create(
                         model=model,
                         messages=messages,
                         max_tokens=max_tokens,
                         temperature=temperature,
-                        extra_body=p.get("extra") or {},
+                        extra_body=extra,
+                        **kw,
                     )
                     resp = raw.parse()
                     choice = resp.choices[0]
                     text = strip_reasoning(choice.message.content or "").strip()
+                    finish = getattr(choice, "finish_reason", None)
                     usage = getattr(resp, "usage", None)
                     t_in, t_out = getattr(usage, "prompt_tokens", 0) or 0, getattr(usage, "completion_tokens", 0) or 0
-                    if text:
+                    ms_taken = (time.time() - t0) * 1000
+                    if accept is not None:
+                        reason = "empty" if not text else accept(text, finish)
+                    else:
+                        reason = None if text else "empty"
+                    if reason is None:
                         ledger.settle(tok, "ok", t_in, t_out)
                         done = True
                         t_now = time.time()
                         gate.model_ok(name, fp, model)
                         changed = gate.mark_ok(name, fp, t_now)
                         ledger.note_ok(uid if byok else None, name, fp, t_now, classify.parse_ratelimit(name, getattr(raw, "headers", None), t_now), changed)
-                        # A "length" finish means the model was CUT OFF mid-thought: trim back to the last complete sentence (same as the legacy walker).
-                        if getattr(choice, "finish_reason", None) == "length":
+                        if accept is not None:
+                            gate.bad_ok(name, fp, model, cls)                     # a usable reply: whatever was held against this model for this kind of call is over
+                        if v3:
+                            gate.health_ok(name, model, cls, ms_taken, t_now)
+                        _ring_add(name, model, cls, "ok", ms_taken, t_in, t_out, finish)
+                        # A "length" finish means the model was CUT OFF mid-thought: prose is trimmed back to the last complete sentence (same as the legacy walker).
+                        # JSON that was cut off never gets here with the validated walk (its accept function rejects it) and is never trimmed - a cut object is not a smaller object.
+                        if finish == "length" and not (accept is not None and cls == "json"):
                             trimmed = _trim_to_last_sentence(text)
                             if trimmed:
                                 text = trimmed
                         return sanitize_hindi_respect(text)
-                    ledger.settle(tok, "other", t_in, t_out)         # an empty answer: it cost a request and told us nothing about the key
+                    if text:                                              # it ANSWERED, but there is nothing to use: the request counted and the key works
+                        ledger.settle(tok, "ok", t_in, t_out)
+                        t_now = time.time()
+                        gate.model_ok(name, fp, model)
+                        changed = gate.mark_ok(name, fp, t_now)
+                        ledger.note_ok(uid if byok else None, name, fp, t_now, classify.parse_ratelimit(name, getattr(raw, "headers", None), t_now), changed)
+                    else:
+                        ledger.settle(tok, "other", t_in, t_out)         # an empty answer: it cost a request and told us nothing about the key
                     done = True
-                    attempts.append(f"{name}/{model}:empty")
                     other = True
-                    w.want(_REPASS_PAUSE_S + random.random() * 0.6)
                     records.setdefault((name, fp), {"provider": name, "kind": "transient"})
+                    if accept is None:                                    # the per-key walker without validation: exactly as before
+                        attempts.append(f"{name}/{model}:empty")
+                        w.want(_REPASS_PAUSE_S + random.random() * 0.6)
+                        continue
+                    attempts.append(f"{name}/{model}:bad_output({reason})")
+                    w.bad.append(f"{name}/{model}:{reason}")
+                    w.bad_models.add((name, model))
+                    if byok or cool:                                      # a background call (cool=False) on DuSu's own chain must not hold a model back for everyone's chat
+                        gate.mark_bad(name, fp, model, cls, time.time(), reason)
+                    if v3:
+                        gate.health_fail(name, model, cls, "bad", time.time())
+                    _ring_add(name, model, cls, "bad", ms_taken, t_in, t_out, finish, reason)
+                    if first_pass:                                        # ANOTHER PROVIDER first (a different family, its own budget); this one's other models follow in the second pass
+                        if mi + 1 < len(p["models"]):
+                            w.retry_now = True
+                        break
                 except asyncio.CancelledError:
                     raise                                             # the `finally` below settles it as 'other'
                 except Exception as e:
@@ -550,6 +714,12 @@ async def _v2_pass(entries: list, messages: list, max_tokens: int, temperature: 
                     ledger.settle(tok, out.kind if out.kind in ("limited", "invalid") else "other")
                     done = True
                     attempts.append(f"{name}/{model}:{_tag(out)}")
+                    if sent and out.kind == "bad_request" and _rejects_params(e, sent):
+                        gate.mark_param_unsupported(name, model, time.time())     # this model does not take our extra parameters: from now on it is sent without them
+                        attempts.append(f"{name}/{model}:param-rejected")
+                    _ring_add(name, model, cls, out.kind, (time.time() - t0) * 1000, why=str(out.http or ""))
+                    if v3 and out.kind == "transient":
+                        gate.health_fail(name, model, cls, "transient", time.time())      # it did not ANSWER (a timeout, a 5xx, a connection error): counts toward its breaker
                     act = _apply_failure(uid, name, fp, model, out, e, cool, byok, records, lim, w)
                     if act == "gone":
                         n_live -= 1
@@ -561,6 +731,8 @@ async def _v2_pass(entries: list, messages: list, max_tokens: int, temperature: 
                     if not done:
                         ledger.settle(tok, "other")
                     gate.model_release(name, fp, model)               # a half-open probe of this model that ended without a verdict frees its slot
+                    if hprobe:
+                        gate.health_release(name, model, cls)
             if lim and not other and len(lim) == n_live:
                 soonest = min(lim, key=lambda x: x[1])                # every model that exists is limited: now the KEY is limited, until the first of them frees up
                 _limit_key(uid if byok else None, name, fp, soonest[1], soonest[2], cool, byok, records)
@@ -570,32 +742,46 @@ async def _v2_pass(entries: list, messages: list, max_tokens: int, temperature: 
 
 
 async def _complete_v2(messages: list[dict], max_tokens: int, prefer_fast: bool = False,
-                       temperature: float = 0.7, first: str | None = None, cool: bool = True) -> str:
+                       temperature: float = 0.7, first: str | None = None, cool: bool = True, accept=None, cls: str = "chat") -> str:
     ctx = _active_ctx.get()
     uid = ctx.uid if ctx else None
     own = _active_chain.get()                        # the learner's own keys, or None = the server's chain
     byok = own is not None
     chain = own or settings.providers()
+    v3 = bool(ctx is not None and ctx.engine >= 2)
     if prefer_fast:
         chain = sorted(chain, key=lambda p: 0 if p["name"] == "groq" else 1)
+    if v3:                                           # best-first by how each provider is doing now; providers whose scores are close keep the order they were in
+        rank = {n: i for i, n in enumerate(gate.order_by_health([p["name"] for p in chain], time.time()))}
+        chain = sorted(chain, key=lambda p: rank[p["name"]])
     if first:
         chain = sorted(chain, key=lambda p: 0 if p["name"] == first else 1)
     entries = [(p, gate.fingerprint(p["name"], p["key"])) for p in chain]
     if not entries:
         raise ProviderChainError("no keys configured", "no_keys", [], own=byok)
-    deadline = time.time() + _CHAIN_DEADLINE_S
+    deadline = time.time() + (_walk_deadline(cls, prefer_fast) if v3 else _CHAIN_DEADLINE_S)
     records: dict[tuple, dict] = {}
     attempts: list[str] = []
     w = _Walk()
     for pass_no in (0, 1):
-        text = await _v2_pass(entries, messages, max_tokens, temperature, uid, byok, cool, deadline, records, attempts, w, pass_no == 0)
+        text = await _v2_pass(entries, messages, max_tokens, temperature, uid, byok, cool, deadline, records, attempts, w, pass_no == 0,
+                              accept=accept, cls=cls, chat=prefer_fast, v3=v3)
         if text is not None:
             return text
-        if pass_no == 0 and cool and w.wait is not None and deadline - time.time() >= w.wait + _REPASS_MIN_LEFT_S:
-            attempts.append("pause")
-            pause, w.wait = w.wait, None
-            await _pause(pause)                      # a passing failure (or a limit that ends in seconds): wait it out, then ONE more pass
-            continue
+        if pass_no == 0:
+            if (accept is not None or v3) and w.asked == 0 and w.skipped_bad:
+                w.ignore_bad = True                  # every model was being held back (an unusable reply, an open breaker) and nothing was sent: ask them anyway rather than fail without a single attempt
+                w.retry_now = True
+            if cool and w.wait is not None and deadline - time.time() >= w.wait + _REPASS_MIN_LEFT_S:
+                attempts.append("pause")
+                pause, w.wait = w.wait, None
+                w.retry_now = False
+                await _pause(pause)                  # a passing failure (or a limit that ends in seconds): wait it out, then ONE more pass
+                continue
+            if w.retry_now and deadline - time.time() >= _REPASS_MIN_LEFT_S:
+                attempts.append("again")
+                w.retry_now = False
+                continue                             # an unusable reply left a provider early: its other models (and a model held back with nothing else to ask) go now
         break
     keys = [records.get((p["name"], fp)) or {"provider": p["name"], "kind": "transient"} for p, fp in entries]
     state = chain_state(keys)
@@ -604,6 +790,8 @@ async def _complete_v2(messages: list[dict], max_tokens: int, prefer_fast: bool 
         last_err = ("429 rate limit - the keys are skipped until they reset" if state == "all_limited" else
                     "401 the keys were rejected" if state == "all_invalid" else "no provider answered")
     _log_failure(state, byok, attempts)
+    if w.bad:                                                          # somebody answered, nobody answered USABLY: the learner is told the AI did not answer properly, never "your keys"
+        raise BadReplyError("no usable reply (" + ", ".join(w.bad[:4]) + ")", keys, own=byok, reasons=w.bad)
     raise ProviderChainError(last_err, state, keys, own=byok)
 
 
@@ -725,7 +913,9 @@ def _extract_json(text: str) -> dict:
         t = re.sub(r"^```(?:json)?\s*", "", t)
         t = re.sub(r"\s*```$", "", t).strip()
     try:
-        return json.loads(t)
+        whole = json.loads(t)
+        if isinstance(whole, dict):                   # a list / string / number is valid JSON but never the object every caller expects (`.get` on a list crashes the turn)
+            return whole
     except json.JSONDecodeError:
         pass
     i = t.find("{")
@@ -751,6 +941,56 @@ def _extract_json(text: str) -> dict:
     return {"error": "scoring_parse_failed", "raw": text[:500]}
 
 
+# ---- the validators of the validated walk (settings.chain_v3). An `accept` function gets (text, finish_reason) and returns None for a usable reply, else a short reason
+# in OUR words (it goes into the log line and the model's penalty - never anything the provider wrote). `cls` tells the gate which kind of call the reply was for.
+_FIELD_TYPES = {
+    "str": lambda v: isinstance(v, str),
+    "str+": lambda v: isinstance(v, str) and v.strip() != "",          # a non-empty string
+    "bool": lambda v: isinstance(v, bool),
+    "list": lambda v: isinstance(v, list),
+    "dict": lambda v: isinstance(v, dict),
+    "num": lambda v: (isinstance(v, (int, float)) and not isinstance(v, bool)) or (isinstance(v, str) and re.fullmatch(r"\s*-?\d+(?:\.\d+)?\s*%?\s*", v) is not None),
+}
+
+
+def _closed_object(t: str) -> bool:
+    """Does this text END like a finished JSON object (ignoring a closing code fence)? A reply that stopped because it ran out of tokens does not."""
+    return t.rstrip().rstrip("`").rstrip().endswith("}")
+
+
+def json_accept(fields: dict | None = None, check=None):
+    """The accept function for a call that must answer with ONE JSON object. `fields` = {name: type} with type in str / str+ / bool / list / dict / num (a missing or wrong-typed
+    field is a rejection that names it); `check(d)` may add a rule of its own (return a reason or None). A reply that was CUT OFF (finish_reason 'length' without a closing
+    brace) is rejected - never trimmed, never half-parsed."""
+    want = dict(fields or {})
+
+    def accept(text: str, finish) -> str | None:
+        t = (text or "").strip()
+        if finish == "length" and not _closed_object(t):
+            return "truncated"
+        d = _extract_json(t)
+        if not isinstance(d, dict) or (d.get("error") == "scoring_parse_failed" and "raw" in d):
+            return "not_json"
+        for k, typ in want.items():
+            v = d.get(k)
+            if k not in d or v is None:
+                return f"missing:{k}"
+            if not _FIELD_TYPES[typ](v):
+                return f"bad:{k}"
+        if check is not None:
+            r = check(d)
+            if r:
+                return str(r)[:40]
+        return None
+
+    return accept
+
+
+def chat_accept(text: str, finish) -> str | None:
+    """Prose: anything non-empty is usable (the walker already rejects an empty reply; a cut-off one is trimmed to its last sentence, as it always was)."""
+    return None
+
+
 class OpenRouterLLM:
     async def next_question(self, system: str, transcript: list[dict], seed: str | None = None) -> str:
         messages = [{"role": "system", "content": system}, *_recent(transcript)]
@@ -762,7 +1002,7 @@ class OpenRouterLLM:
                              "content": seed or "Let's begin. Greet me and ask your first question."})
         # 420 (was 320): the persona asks for 2-4 spoken sentences and a follow-up
         # question; 320 clipped the longer, more interesting turns mid-word.
-        return await _complete(messages, max_tokens=420, prefer_fast=True)   # per-turn chat (§9)
+        return await _complete(messages, max_tokens=420, prefer_fast=True, accept=chat_accept, cls="chat")   # per-turn chat (§9)
 
     async def next_question_stream(self, system: str, transcript: list[dict], seed: str | None = None):
         """Same as next_question, but yields whole sentences as they're written."""
@@ -778,22 +1018,38 @@ class OpenRouterLLM:
         # English->Hindi direction asks for a bigger budget (the default is unchanged).
         messages = [{"role": "system", "content": system},
                     {"role": "user", "content": text}]
-        return await _complete(messages, max_tokens=max_tokens)
+        return await _complete(messages, max_tokens=max_tokens, accept=chat_accept, cls="chat")
 
     async def generate(self, system: str, prompt: str, max_tokens: int = 500) -> str:
         """Free-form prose (weekly letters, session summaries). Returns raw text."""
         messages = [{"role": "system", "content": system},
                     {"role": "user", "content": prompt}]
-        return await _complete(messages, max_tokens=max_tokens)
+        return await _complete(messages, max_tokens=max_tokens, accept=chat_accept, cls="chat")
+
+    def v3_active(self) -> bool:
+        """Is the validated walk on for this request? (A caller then drops its own retry loop: the walk has already tried every model.)"""
+        return chain_v3_active()
+
+    def last_bad(self) -> BadReplyError | None:
+        return last_bad()
 
     async def assess(self, system: str, payload: str, max_tokens: int = 700, prefer_fast: bool = False,
-                     temperature: float = 0.7, first: str | None = None, cool: bool = True) -> dict:
+                     temperature: float = 0.7, first: str | None = None, cool: bool = True, schema: dict | None = None, check=None) -> dict:
+        """One JSON object. With the validated walk on, `schema` ({field: type}, see json_accept) and `check` are enforced INSIDE the walk: a reply that is not that object
+        is a failed attempt and the next model answers. If no model gave a usable one this returns the same failure shape callers already handle
+        ({"error": "scoring_parse_failed"}) - never a half-parsed object. With it off, nothing changes."""
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": payload + "\n\nReturn ONLY the JSON object."},
         ]
-        return _extract_json(await _complete(messages, max_tokens=max_tokens, prefer_fast=prefer_fast,
-                                             temperature=temperature, first=first, cool=cool))
+        try:
+            text = await _complete(messages, max_tokens=max_tokens, prefer_fast=prefer_fast, temperature=temperature, first=first, cool=cool,
+                                   accept=json_accept(schema, check), cls="json")
+        except BadReplyError as e:
+            _last_bad.set(e)
+            return {"error": "scoring_parse_failed", "raw": ""}
+        _last_bad.set(None)
+        return _extract_json(text)
 
     async def score(self, system: str, transcript: list[dict], max_tokens: int = 1200) -> dict:
         convo = "\n".join(f"{m['role']}: {m['content']}" for m in transcript)
@@ -801,4 +1057,10 @@ class OpenRouterLLM:
             {"role": "system", "content": system},
             {"role": "user", "content": convo + "\n\nReturn ONLY the JSON object."},
         ]
-        return _extract_json(await _complete(messages, max_tokens=max_tokens))
+        try:
+            text = await _complete(messages, max_tokens=max_tokens, accept=json_accept({"overall": "num"}), cls="json")
+        except BadReplyError as e:
+            _last_bad.set(e)
+            return {"error": "scoring_parse_failed", "raw": ""}
+        _last_bad.set(None)
+        return _extract_json(text)

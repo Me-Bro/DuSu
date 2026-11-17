@@ -81,6 +81,16 @@ class ProviderChainError(RuntimeError):
         return out
 
 
+class BadReplyError(ProviderChainError):
+    """The validated walk (settings.chain_v3): at least one model ANSWERED, but no answer could be used (not JSON, a required field missing, empty, cut off) and no
+    other model produced one. It IS a ProviderChainError (state 'transient' - from the learner's side the AI did not answer properly, "try again in a moment"), so every
+    existing handler keeps working; `reasons` lists what was wrong, in our own words (never anything the provider wrote - it can echo the learner's text)."""
+
+    def __init__(self, last_err, keys: list, own: bool = True, reasons: list | None = None):
+        super().__init__(last_err, "transient", keys, own)
+        self.reasons = list(reasons or [])
+
+
 def chain_state(records: list) -> str:
     """The headline state from the per-key records of one walk (see the module docstring). `records` = [{kind, scope}] - kind in invalid / limited /
     forbidden / needs_credit / transient."""

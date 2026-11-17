@@ -8,6 +8,21 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # and legacy hostnames side by side. See DUSU_DOMAIN_CUTOVER.md.
 PUBLIC_ORIGIN = os.getenv("PUBLIC_ORIGIN", "https://dusu.ranabrothers.online")
 
+# Groq's gpt-oss models, in the order they are tried. ONE list for DuSu's own chain and for a learner's own key (they used to be two literals that had to be kept in step).
+_GROQ_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+
+
+def _groq_chat_extra() -> dict:
+    """Request params added ONLY to per-turn calls (the walker passes prefer_fast=True), per model - see `_v2_pass` in providers/openrouter_provider.py.
+
+    Groq's gpt-oss models are REASONING models: with no `reasoning_effort` they think at length (Groq's default), the thinking is spent from the same `max_tokens` as the
+    reply and from Groq's free 8,000 tokens-per-MINUTE cap, and a 420-900 token budget can go entirely on thinking - an EMPTY answer, which the walker then repeats on the
+    sibling model (a second full prompt against the same minute). Seen in production on 7 and 9 Nov 2026 (`groq/openai/gpt-oss-120b:empty, groq/openai/gpt-oss-20b:empty`).
+    "low" keeps the thinking short and `include_reasoning: false` keeps it out of the reply (both documented for gpt-oss). Only a model that takes the parameters gets them,
+    and a model that answers 400 to them is remembered and sent without (gate.mark_param_unsupported) - so a wrong guess here costs one failed attempt, once. Scoring /
+    extraction calls (not prefer_fast) are left exactly as they were."""
+    return {m: {"reasoning_effort": "low", "include_reasoning": False} for m in _GROQ_MODELS if m.startswith("openai/gpt-oss")}
+
 
 class Settings(BaseSettings):
     """Loaded once from .env.
@@ -46,7 +61,8 @@ class Settings(BaseSettings):
 
     def providers(self) -> list[dict]:
         """Active providers in fallback order. Each: name, base_url, key,
-        models (tried in order), headers, extra (per-provider request body)."""
+        models (tried in order), headers, extra (per-provider request body),
+        and optionally chat_extra ({model: params}, added only to per-turn calls)."""
         # ORDER MATTERS: measured latency, fastest-healthy first. Every model listed
         # here was benchmarked live — a dead/404 model isn't just useless, it costs a
         # full round-trip (and, on retryable statuses like 503, several) on EVERY turn
@@ -62,9 +78,10 @@ class Settings(BaseSettings):
                 # llama-3.3-70b-versatile / llama-3.1-8b-instant were RETIRED by Groq
                 # and returned 404 on every call. Do NOT use qwen3.6-27b here: it
                 # emits raw <think> blocks into the reply and truncates.)
-                "models": ["openai/gpt-oss-120b", "openai/gpt-oss-20b"],
+                "models": list(_GROQ_MODELS),
                 "headers": {},
                 "extra": {},
+                "chat_extra": _groq_chat_extra(),     # per-turn calls only (see _groq_chat_extra)
             })
         if self.gemini_api_key:
             chain.append({
@@ -108,8 +125,8 @@ class Settings(BaseSettings):
         chain: list[dict] = []
         if k.get("groq"):
             chain.append({"name": "groq", "base_url": "https://api.groq.com/openai/v1",
-                "key": k["groq"], "models": ["openai/gpt-oss-120b", "openai/gpt-oss-20b"],
-                "headers": {}, "extra": {}})
+                "key": k["groq"], "models": list(_GROQ_MODELS),
+                "headers": {}, "extra": {}, "chat_extra": _groq_chat_extra()})
         if k.get("gemini"):
             chain.append({"name": "gemini",
                 "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",

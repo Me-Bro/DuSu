@@ -204,6 +204,8 @@ async def verify_and_save(uid: str, provider: str, key: str) -> dict:
             return {"ok": False, "result": {"provider": provider, "status": cp.kind, "expired": cp.expired}}
         if cp.kind == "limited":
             status, kind, out = "limited", "limited", cp.out
+        elif cp.kind != "ok":
+            status = "unknown"           # the provider took the key but no model of it ANSWERED (empty replies, a timeout, a 5xx): stored - nothing says it is bad - yet NOT "working"
         rl = cp.rl
     else:
         status, kind, out = "limited", "limited", pr.out
@@ -266,6 +268,9 @@ async def recheck(uid: str, provider: str | None = None, deep: bool = False) -> 
             rl = cp.rl
             if cp.kind in ("invalid", "forbidden", "limited"):
                 status, out = cp.kind, cp.out
+            elif cp.kind != "ok":
+                results[p] = "unreachable"                               # the provider took the key but no model ANSWERED (empty, a timeout, a 5xx): a Test must not say "works"
+                continue
         if status == "ok" and cur["status"] in ("limited", "forbidden") and not cur.get("stale") and not deep:
             status, out = cur["status"], None                            # the key is real, its limit is not over: keep what we knew
         if status == "ok":

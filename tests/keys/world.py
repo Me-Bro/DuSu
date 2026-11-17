@@ -95,6 +95,7 @@ class World:
         self.default_chat = lambda: ok()
         self.chat_reply = None        # optional: callable(messages, provider, key) -> R, consulted for an UNSCRIPTED chat call (a test that needs mode-specific replies)
         self.last_messages = None
+        self.bodies: list = []        # the JSON body of every chat request, in order (what was really SENT: max_tokens, reasoning_effort ...)
 
     # ----------------------------------------------------------------------- scripting
     def on(self, provider: str, key: str, *steps, kind: str | None = None):
@@ -115,12 +116,14 @@ class World:
         model = ""
         messages = None
         if kind == "chat":
+            body = {}
             try:
                 body = json.loads(req.content or b"{}")
                 model, messages = body.get("model", ""), body.get("messages")
             except Exception:
                 model = ""
             self.last_messages = messages
+            self.bodies.append(body)
         self.calls.append((provider, key, kind, model))
         steps = self.script.get((provider, key, kind)) or self.script.get((provider, key))
         if not steps:
@@ -137,6 +140,10 @@ class World:
             if callable(r):
                 r = r()
         if r.delay:
+            limit = (req.extensions.get("timeout") or {}).get("read")          # a real transport enforces the request's timeout; MockTransport does not, so do it here
+            if limit is not None and r.delay > limit:
+                await asyncio.sleep(limit)
+                raise httpx.ReadTimeout("timed out", request=req)
             await asyncio.sleep(r.delay)
         if r.exc is not None:
             raise r.exc

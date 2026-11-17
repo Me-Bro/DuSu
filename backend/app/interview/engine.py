@@ -22,6 +22,8 @@ section P calls for summarizing context once conversations get long — do that
 here later; the interface stays the same.
 """
 
+import time
+
 from .. import lang as L
 from .. import home_content as hc
 from .. import practice_talk as PT
@@ -38,6 +40,26 @@ MODES = ("interview", "conversation", "learning", "daily", "home", "practice")
 # as the retry-on-parse-failure pattern already used for /assessment. (The per-language
 # floor and the nudge text live in lang.py; the English values are the original ones.)
 _MIN_DAILY_REPLY_CHARS = 25
+_turn_logged: dict[str, float] = {}
+
+
+def _daily_has_reply(d: dict) -> str | None:
+    """The validated walk's rule for a Daily Talk turn: DuSu must have said something - the friend reply or at least the next question."""
+    for k in ("reply_hindi", "next_question_hindi"):
+        v = d.get(k)
+        if isinstance(v, str) and v.strip():
+            return None
+    return "missing:reply"
+
+
+def _log_turn(kind: str) -> None:
+    """ONE line (at most one every 30 s per kind) when a turn that needs a model's JSON got nothing usable from ANY model - the learner gets the built-in answer / the retry
+    pop-up, and this line is how that is explained afterwards. Never a learner id, a key or any text."""
+    now = time.time()
+    if now - _turn_logged.get(kind, 0.0) < 30.0:
+        return
+    _turn_logged[kind] = now
+    print(f"[turn] {kind}: no model gave a usable reply (see the [keys] chain line before this one for which models and why)")
 
 
 class Session:
@@ -222,10 +244,13 @@ class Session:
         )
         # bigger budget: the friend-reply + full JSON must fit or it truncates → empty reply
         # prefer_fast=True: this is a per-turn chat call (§9), same latency class as next_question.
-        data = await llm.assess(system, payload, max_tokens=1100, prefer_fast=True)
+        data = await llm.assess(system, payload, max_tokens=1100, prefer_fast=True, check=_daily_has_reply)
         # Retry once if the model gave a lazy dead-end reply (e.g. just "haan theek hai")
-        # instead of the real 6-step friend reply the prompt asks for.
-        if len((data.get("reply_hindi") or "").strip()) < _MIN_DAILY_REPLY_CHARS:
+        # instead of the real 6-step friend reply the prompt asks for. (With the validated walk on, a reply that is not even a usable
+        # object was already retried on every model; only a valid-but-short one is nudged.)
+        if data.get("error") and llm.v3_active():
+            _log_turn("daily")
+        elif len((data.get("reply_hindi") or "").strip()) < _MIN_DAILY_REPLY_CHARS:
             retry_payload = payload + "\n\n" + L.DAILY_SHORT_NUDGE
             retry = await llm.assess(system, retry_payload, max_tokens=1100, prefer_fast=True)
             if len((retry.get("reply_hindi") or "").strip()) >= _MIN_DAILY_REPLY_CHARS:
@@ -260,13 +285,19 @@ class Session:
         payload = (f"{note}conversation so far:\n{convo or '(nothing yet)'}\n\n"
                    f"learner just said{' (in Hindi/Hinglish)' if self.lang != 'en' else ''}: {answer}")
         data: dict = {}
+        v3 = llm.v3_active()
         for attempt in (0, 1):
+            if attempt == 1 and v3:
+                break                       # the validated walk asked every model for a usable object already; a second walk would meet the same models, held back
             ask = payload if attempt == 0 else (payload + "\n\n(Your last reply was not a valid JSON object with a non-empty "
                                                            '"reply". Return exactly the JSON object described above.)')
-            d = await llm.assess(system, ask, max_tokens=900, prefer_fast=True, temperature=0.6)   # room to read EVERY reminder when asked (Devanagari is token-heavy)
+            d = await llm.assess(system, ask, max_tokens=900, prefer_fast=True, temperature=0.6,   # room to read EVERY reminder when asked (Devanagari is token-heavy)
+                                 schema={"reply": "str+"})
             if isinstance(d, dict) and not d.get("error") and isinstance(d.get("reply"), str) and d["reply"].strip():
                 data = d
                 break
+        if not data:
+            _log_turn("home")
         self._switch_note = False
         if data:
             reply = hc.soften(data["reply"].strip())[:900]

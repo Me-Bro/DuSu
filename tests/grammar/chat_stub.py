@@ -12,7 +12,13 @@ class ChatStub:
         self.log.append(("next_question", system, json.dumps(transcript, sort_keys=True), seed))
         return "That sounds interesting - tell me a little more about it, what happened next, and how did you feel about it?"
 
-    async def assess(self, system, payload, max_tokens=700, prefer_fast=False, temperature=0.7, first=None, cool=True):
+    def v3_active(self):
+        return False                 # the stub is not the validated walk; callers keep their own retry loops
+
+    def last_bad(self):
+        return None
+
+    async def assess(self, system, payload, max_tokens=700, prefer_fast=False, temperature=0.7, first=None, cool=True, schema=None, check=None):
         self.log.append(("assess", system[:80], payload[:400], max_tokens))
         return {"summary": "Practised speaking.", "facts": {}, "events": [], "no_hindi": True, "asked_question": False, "next_hook": "continue", "recent_questions": [],
                 "scores": {"confidence": 60, "continuity": 60, "vocabulary": 60, "grammar_trend": 60, "depth": 60}, "genuine_effort": True,

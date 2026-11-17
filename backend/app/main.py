@@ -29,7 +29,7 @@ from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Header, Request
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .config import settings
 from . import practice
@@ -41,6 +41,7 @@ from .interview.engine import Session
 from .interview.prompts import ASSESS_SYSTEM, LESSON_EVAL_SYSTEM, LEVEL_TEST_SYSTEM, LETTER_SYSTEM, GREETING_SYSTEM, CAREER_ROADMAP_SYSTEM
 from .providers import llm
 from .providers.openrouter_provider import set_active_keys
+from .providers import openrouter_provider as keys_op
 from . import auth
 from . import db
 from .planner import models as _planner_models  # noqa: F401  (registers the pl_* tables on db.Base before init_db runs)
@@ -462,6 +463,34 @@ async def key_health_enabled(email: str) -> bool:
     if m == "owner":
         return await staged_visible(email)
     return False
+
+
+async def chain_v3_mode() -> str:
+    """The validated-walk rollout switch (Settings table, no migration): an UNUSABLE model reply (broken JSON, a missing field, empty, cut off) becomes a failure that moves on
+    to the next model in the same call - instead of counting as a success and being asked again by the caller. It changes what happens on the hot path of every model call
+    for the learners it covers, so it ships DARK: 'off' = the per-key walker exactly as it was (the DEFAULT); 'owner' = the owner / unlimited allowlist plus the early-access
+    testers; 'on' = everyone. It needs the per-key engine (settings.key_health) - without it this switch does nothing."""
+    try:
+        v = await _cached("chain_v3", lambda: db.get_setting("chain_v3", "off"))
+        return v if v in ("off", "owner", "on") else "off"
+    except Exception:
+        return "off"
+
+
+async def chain_v3_enabled(email: str) -> bool:
+    m = await chain_v3_mode()
+    if m == "on":
+        return True
+    if m == "owner":
+        return await staged_visible(email)
+    return False
+
+
+async def engine_level(email: str) -> int:
+    """Which walker answers THIS learner's model calls: 0 = the legacy walker (key_health off), 1 = the per-key walker (key_health), 2 = + the validated walk (chain_v3)."""
+    if not await key_health_enabled(email):
+        return 0
+    return 2 if await chain_v3_enabled(email) else 1
 
 
 async def keys_ui_mode() -> str:
@@ -1552,10 +1581,15 @@ async def admin_overview(token: str = "", authorization: str | None = Header(Non
            "life_context": await life_context_mode(), "bilingual": await bilingual_mode(),
            "home_ai": await home_ai_mode(), "planner": await planner_mode(), "resume_interview": await resume_interview_mode(),
            "grammar_coach": await grammar_coach_mode(), "notifications": await notifications_mode(),
-           "key_health": await key_health_mode(), "keys_ui": await keys_ui_mode(), "install_mode": await install_app_mode(),
+           "key_health": await key_health_mode(), "chain_v3": await chain_v3_mode(), "keys_ui": await keys_ui_mode(), "install_mode": await install_app_mode(),
            "whatsapp_group": await whatsapp_link(), "insights": "on" if await insights_on() else "off"}
     out["server_keys"] = keys_probe.cached_server_health()          # DuSu's OWN keys, from the last zero-quota probe (a dead one is flagged on the dashboard)
     out["keys_health"] = keys_ledger.snapshot()
+    try:
+        out["chain_health"] = {"models": keys_op.chain_health(3600.0), "held_back": keys_gate.bad_models(time.time()),         # per model, last hour: how every attempt ended (counts only)
+                               "health": keys_op.model_health()}                                                              # per model: success rate, speed, breaker open / when it is tried again
+    except Exception as e:
+        print(f"[admin] chain health failed: {type(e).__name__}")
     if db.db_enabled:
         try:
             out["notify_health"] = await notify_scheduler.health()
@@ -1616,6 +1650,7 @@ class SettingsIn(BaseModel):
     grammar_coach: str | None = None      # off | owner | on  (Grammar Coach - every English sentence checked, corrected and explained)
     notifications: str | None = None      # off | owner | on  (Notifications - personal practice / streak / weekly-note nudges as push)
     key_health: str | None = None         # off | owner | on  (the per-key engine: health, usage ledger, stored-keys-first, /keys/*)
+    chain_v3: str | None = None           # off | owner | on  (the validated walk: an unusable model reply moves on to the next model in the same call; needs key_health)
     keys_ui: str | None = None            # off | owner | on  (the key screens: Keys page from the server, Home key card, key-problem pop-up)
     install_mode: str | None = None       # off | owner | on  (the Install-app button + the WhatsApp-group join)
     whatsapp_group: str | None = None     # the owner's WhatsApp group / Channel invite ('' clears it); validated, tracking parameters stripped
@@ -1652,6 +1687,8 @@ async def admin_settings(inp: SettingsIn, authorization: str | None = Header(Non
         await db.set_setting("notifications", inp.notifications if inp.notifications in ("off", "owner", "on") else "off")
     if inp.key_health is not None:
         await db.set_setting("key_health", inp.key_health if inp.key_health in ("off", "owner", "on") else "off")
+    if inp.chain_v3 is not None:
+        await db.set_setting("chain_v3", inp.chain_v3 if inp.chain_v3 in ("off", "owner", "on") else "off")
     if inp.keys_ui is not None:
         await db.set_setting("keys_ui", inp.keys_ui if inp.keys_ui in ("off", "owner", "on") else "off")
     if inp.install_mode is not None:
@@ -1669,7 +1706,7 @@ async def admin_settings(inp: SettingsIn, authorization: str | None = Header(Non
             "life_context": await life_context_mode(), "bilingual": await bilingual_mode(),
             "home_ai": await home_ai_mode(), "planner": await planner_mode(), "resume_interview": await resume_interview_mode(),
             "grammar_coach": await grammar_coach_mode(), "notifications": await notifications_mode(),
-            "key_health": await key_health_mode(), "keys_ui": await keys_ui_mode(), "install_mode": await install_app_mode(),
+            "key_health": await key_health_mode(), "chain_v3": await chain_v3_mode(), "keys_ui": await keys_ui_mode(), "install_mode": await install_app_mode(),
             "whatsapp_group": await whatsapp_link(), "insights": "on" if await insights_on() else "off"}
 
 
@@ -1951,7 +1988,7 @@ async def leveltest_gen(inp: GenIn):
     ok, eff, _r = await resolve_keys(claims.get("email", ""), inp.keys, claims.get("sub"))
     if not ok:
         raise HTTPException(402, "keys_required")
-    set_active_keys(eff, uid=claims.get("sub"), engine=await key_health_enabled(claims.get("email", "")))
+    set_active_keys(eff, uid=claims.get("sub"), engine=await engine_level(claims.get("email", "")))
     sys = (
         "You design a SHORT, FRESH, fully-dynamic spoken-English level check for a Hindi-first "
         "learner. Vary ALL content every time (different everyday topics and phrasings) so it can "
@@ -1975,12 +2012,12 @@ async def leveltest_gen(inp: GenIn):
         # The model is occasionally chatty/truncates → retry a couple times before giving up
         # (the frontend still has a static fallback if all attempts fail).
         d = None
-        for _ in range(3):
-            d = await llm.assess(sys, "Generate a fresh level check now.", max_tokens=1200)
+        for _ in range(1 if llm.v3_active() else 3):       # the validated walk has already tried every model for a usable object - asking again right away asks the same ones
+            d = await llm.assess(sys, "Generate a fresh level check now.", max_tokens=1200, schema={"repeat": "str+", "mcqs": "list"})
             if isinstance(d, dict) and not d.get("error") and isinstance(d.get("mcqs"), list) and d.get("repeat"):
                 break
         if not isinstance(d, dict) or d.get("error"):
-            raise RuntimeError("gen parse failed")
+            raise (llm.last_bad() or RuntimeError("gen parse failed"))       # the validated walk's own failure carries the kp the page turns into its calm "taking longer" pop-up
         mcqs = d.get("mcqs")
         if not isinstance(mcqs, list):
             mcqs = []
@@ -2008,7 +2045,7 @@ async def assessment(inp: AssessIn):
     _ok, _eff, _r = await resolve_keys(claims.get("email", ""), inp.keys, claims.get("sub"))
     if not _ok:
         raise HTTPException(402, "keys_required")
-    set_active_keys(_eff, uid=claims.get("sub"), engine=await key_health_enabled(claims.get("email", "")))
+    set_active_keys(_eff, uid=claims.get("sub"), engine=await engine_level(claims.get("email", "")))
     payload = (
         f"goal: {inp.goal}\ncomfort: {inp.comfort}\npractice_time: {inp.practice_time}\n\n"
         f"TASK 1 (intro): {inp.intro or '(no answer)'}\n\n"
@@ -2076,7 +2113,7 @@ async def career_generate(inp: CareerGoalIn):
     _ok, _eff, _r = await resolve_keys(claims.get("email", ""), inp.keys, claims.get("sub"))
     if not _ok:
         raise HTTPException(402, "keys_required")
-    set_active_keys(_eff, uid=claims.get("sub"), engine=await key_health_enabled(claims.get("email", "")))
+    set_active_keys(_eff, uid=claims.get("sub"), engine=await engine_level(claims.get("email", "")))
     try:
         result = await llm.assess(CAREER_ROADMAP_SYSTEM, f"What they want to become: {goal}", max_tokens=1800)
         if not (isinstance(result, dict) and not result.get("error")
@@ -2311,7 +2348,7 @@ async def greeting(inp: TokenIn):
     ok, eff, _r = await resolve_keys(claims.get("email", ""), inp.keys, claims.get("sub"))
     if not ok:
         raise HTTPException(402, "keys_required")
-    set_active_keys(eff, uid=claims.get("sub"), engine=await key_health_enabled(claims.get("email", "")))
+    set_active_keys(eff, uid=claims.get("sub"), engine=await engine_level(claims.get("email", "")))
     if not db.db_enabled:
         return {"text": ""}
     try:
@@ -2383,7 +2420,7 @@ async def letter(inp: TokenIn):
     ok, eff, _r = await resolve_keys(claims.get("email", ""), inp.keys, claims.get("sub"))
     if not ok:
         raise HTTPException(402, "keys_required")
-    set_active_keys(eff, uid=claims.get("sub"), engine=await key_health_enabled(claims.get("email", "")))
+    set_active_keys(eff, uid=claims.get("sub"), engine=await engine_level(claims.get("email", "")))
     if not db.db_enabled:
         return {"letter": None}
     try:
@@ -2448,17 +2485,23 @@ async def lesson_evaluate(inp: LessonEvalIn):
     ok, eff, _r = await resolve_keys(claims.get("email", ""), inp.keys, claims.get("sub"))
     if not ok:
         raise HTTPException(402, "keys_required")
-    set_active_keys(eff, uid=claims.get("sub"), engine=await key_health_enabled(claims.get("email", "")))
+    set_active_keys(eff, uid=claims.get("sub"), engine=await engine_level(claims.get("email", "")))
     payload = (
         f"lang: {inp.lang}\ntype: {inp.type}\n"
         f"prompt: {inp.prompt}\ntarget: {inp.target or '(open answer)'}\n"
         f"learner said: {inp.said or '(no answer)'}"
     )
     try:
-        return await llm.assess(LESSON_EVAL_SYSTEM, payload)
+        d = await llm.assess(LESSON_EVAL_SYSTEM, payload, schema={"pass": "bool"})
     except Exception as e:
         print(f"[lesson] eval failed: {_safe_err(e)}")
         raise key_error(e, 502, "Could not evaluate, please try again", check_quota=False)
+    if not isinstance(d, dict) or d.get("error"):
+        # _extract_json's failure sentinel (nothing usable came back) used to be returned as HTTP 200 - the page then showed an empty verdict instead of its "Good try!"
+        # default, which it only uses for a failed request.
+        print("[lesson] eval: the model did not return a usable verdict")
+        raise key_error(llm.last_bad() or RuntimeError("no usable verdict"), 502, "Could not evaluate, please try again", check_quota=False)
+    return d
 
 
 _LESSON_ID_RE = re.compile(r"^l(\d+)_(\d+)$")
@@ -2496,17 +2539,18 @@ async def lesson_complete(inp: LessonDoneIn):
 
 
 class LevelTestItem(BaseModel):
-    prompt: str = ""
-    target: str = ""
-    said: str = ""
+    prompt: str = Field("", max_length=800)
+    target: str = Field("", max_length=800)
+    said: str = Field("", max_length=2000)
 
 
 class LevelTestIn(BaseModel):
+    # Bounded: every field here is pasted into the model's prompt and `level` is written to the learner's progress (an out-of-range level used to be accepted as-is).
     token: str
     keys: dict = {}
-    level: int
-    lang: str = "en"
-    items: list[LevelTestItem] = []
+    level: int = Field(ge=1, le=db.MAX_LEVEL)
+    lang: str = Field("en", max_length=8)
+    items: list[LevelTestItem] = Field(default=[], min_length=1, max_length=20)
 
 
 @app.post("/level/test/submit")
@@ -2519,14 +2563,14 @@ async def level_test_submit(inp: LevelTestIn):
     ok, eff, _r = await resolve_keys(claims.get("email", ""), inp.keys, claims.get("sub"))
     if not ok:
         raise HTTPException(402, "keys_required")
-    set_active_keys(eff, uid=claims.get("sub"), engine=await key_health_enabled(claims.get("email", "")))
+    set_active_keys(eff, uid=claims.get("sub"), engine=await engine_level(claims.get("email", "")))
     lines = "\n\n".join(
         f"Item {i+1}:\n  prompt: {it.prompt}\n  target: {it.target or '(open answer)'}\n  learner said: {it.said or '(no answer)'}"
         for i, it in enumerate(inp.items)
     )
     payload = f"lang: {inp.lang}\nlevel: {inp.level}\n\n{lines}"
     try:
-        result = await llm.assess(LEVEL_TEST_SYSTEM, payload, max_tokens=1100)
+        result = await llm.assess(LEVEL_TEST_SYSTEM, payload, max_tokens=1100, schema={"score": "num"})
     except Exception as e:
         print(f"[level-test] eval failed: {_safe_err(e)}")
         raise key_error(e, 502, "Could not score the test, please try again", check_quota=False)
@@ -2535,7 +2579,7 @@ async def level_test_submit(inp: LevelTestIn):
         # record a 0% failed Boss Challenge attempt for a parse failure, not an
         # actual wrong answer (the learner may have passed every item).
         print(f"[level-test] parse failure: {str(result)[:200]}")
-        raise HTTPException(502, "Could not score the test, please try again")
+        raise key_error(llm.last_bad() or RuntimeError("no usable score"), 502, "Could not score the test, please try again", check_quota=False)
 
     try:
         score = int(float(result.get("score") or 0))   # LLMs sometimes return null/"70%"/"eighty"
@@ -2544,7 +2588,9 @@ async def level_test_submit(inp: LevelTestIn):
         m = _re.search(r"\d+", str(result.get("score") or ""))
         score = int(m.group()) if m else 0
     score = max(0, min(100, score))
-    out = {"score": score, "passed": bool(result.get("passed", score >= 70)),
+    # `passed` is the SAME rule the unlock uses (db.submit_level_test: score >= 70). The model's own `passed` flag used to be shown to the learner while the unlock ignored it,
+    # so "Boss Challenge Cleared!" could appear on a failed score (or the reverse).
+    out = {"score": score, "passed": score >= 70,
            "items": result.get("items", []), "message": result.get("message", "")}
     if db.db_enabled:
         try:
@@ -2674,7 +2720,7 @@ async def practice_analyze(inp: PracticeAnalyzeIn, authorization: str | None = H
     snap = await charge_request(email, uid, _quota_day())    # ONE request, however many model runs it takes
     if not snap.get("allowed", True):
         raise HTTPException(429, "quota")
-    set_active_keys(eff, uid=uid, engine=await key_health_enabled(email))
+    set_active_keys(eff, uid=uid, engine=await engine_level(email))
     try:
         res = await practice.analyze(
             llm, kind=inp.kind, topic=topic, lang=inp.lang, feedback_lang=inp.feedback_lang, level=inp.level,
@@ -2771,7 +2817,7 @@ async def practice_bridge(inp: PracticeBridgeIn, authorization: str | None = Hea
     snap = await charge_request(email, uid, _quota_day())
     if not snap.get("allowed", True):
         raise HTTPException(429, "quota")
-    set_active_keys(eff, uid=uid, engine=await key_health_enabled(email))
+    set_active_keys(eff, uid=uid, engine=await engine_level(email))
     try:
         bridge = await practice.build_bridge(llm, lang=inp.lang, topic=inp.topic, transcript=inp.transcript)
     except ValueError:
@@ -3341,7 +3387,7 @@ async def interview_ws(ws: WebSocket):
                 if not ok:
                     await _send(ws, type="keys_required", msg="Add your own API keys in Settings to use DuSu.")
                     break
-                set_active_keys(effkeys, uid=uid, engine=await key_health_enabled(_email))
+                set_active_keys(effkeys, uid=uid, engine=await engine_level(_email))
                 quota_day = _quota_day()   # server IST day for the request quota (client `day` ignored)
                 # Everything below is independent I/O against a REMOTE database where a
                 # single round-trip is ~700-850ms. Sequentially these cost several

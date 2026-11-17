@@ -5386,6 +5386,11 @@ async function openAdmin(){
       <select class="pr-sel" id="ntSel"><option value="off" ${d.notifications === "on" || d.notifications === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.notifications === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.notifications === "on" ? "selected" : ""}>Everyone</option></select></label>
       <label class="swrow"><span><b>Key health (per-key engine)</b><br><span class="msub">Counts every AI request per learner and per key, remembers which key is limited or rejected (so a dead key is not retried on every call), keeps the keys a learner SAVED ahead of stale ones in the browser, and adds the exact reason to key errors. It changes what happens on every AI call for the people it covers, so it ships dark. Off = today's behaviour for everyone (default). Owner + early access = you and the early-access testers. Everyone = all users. Turn this on BEFORE the key screens.</span></span>
       <select class="pr-sel" id="khSel"><option value="off" ${d.key_health === "on" || d.key_health === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.key_health === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.key_health === "on" ? "selected" : ""}>Everyone</option></select></label>
+      <label class="swrow"><span><b>Validated AI replies (chain v3)</b><br><span class="msub">A model's reply that cannot be used - not JSON, a field missing, empty, cut off - counts as a failure: the NEXT provider answers in the same turn, the model is held back for a while, and the learner never sees the broken one. Without it a broken reply counted as success and was asked again from the same first model. Needs "Key health" above. Off = the walker as it was (default). Owner + early access = you and the early-access testers. Everyone = all users.</span></span>
+      <select class="pr-sel" id="c3Sel"><option value="off" ${d.chain_v3 === "on" || d.chain_v3 === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.chain_v3 === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.chain_v3 === "on" ? "selected" : ""}>Everyone</option></select></label>
+      ${(() => { const ch = d.chain_health || {}, ms = ch.models || [], hb = ch.held_back || []; if(!ms.length && !hb.length && !(ch.health || []).some(x => x.breaker)) return "";
+        const brk = (ch.health || []).filter(x => x.breaker);
+        return `<p class="keys-note" style="margin:-4px 0 8px">AI models, last hour: ${ms.map(m => esc(m.provider) + "/" + esc(String(m.model).split("/").pop()) + " " + esc(m["class"]) + " " + m.ok + " ok" + (m.bad ? " · " + m.bad + " unusable" : "") + (m.limited ? " · " + m.limited + " limited" : "") + (m.failed ? " · " + m.failed + " failed" : "") + " · " + m.ms_avg + " ms").join(" | ") || "no calls yet"}${hb.length ? " · held back now: " + hb.map(h => esc(h.provider) + "/" + esc(String(h.model).split("/").pop()) + " (" + esc(h["class"]) + ", " + esc(h.reason) + ")").join(", ") : ""}${brk.length ? " · not answering, paused: " + brk.map(h => esc(h.provider) + "/" + esc(String(h.model).split("/").pop()) + " (back in " + h.reopen_in + " s)").join(", ") : ""}</p>`; })()}
       <label class="swrow"><span><b>Key screens</b><br><span class="msub">The Keys page read from the server (masked keys, status, usage, Test / Remove), the "Your AI keys" card on Home, and the plain-words pop-up when a key is rejected or its limit is reached. Needs "Key health" above. Off = the old Keys page (default). Owner + early access = you and the early-access testers. Everyone = all users.</span></span>
       <select class="pr-sel" id="kuSel"><option value="off" ${d.keys_ui === "on" || d.keys_ui === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.keys_ui === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.keys_ui === "on" ? "selected" : ""}>Everyone</option></select></label>
       <label class="swrow"><span><b>Install app + WhatsApp group</b><br><span class="msub">An "Install app" button (header, More, a Home card) that adds DuSu to the phone's home screen, and the WhatsApp-group join. Off = nothing is drawn and the browser keeps its own install bar (default). Owner + early access = you and the early-access testers. Everyone = all users.</span></span>
@@ -5548,12 +5553,13 @@ function wireOffice(){
     const gcs = ($("gcSel") && $("gcSel").value) || undefined;
     const nts = ($("ntSel") && $("ntSel").value) || undefined;
     const khs = ($("khSel") && $("khSel").value) || undefined;
+    const c3s = ($("c3Sel") && $("c3Sel").value) || undefined;
     const kus = ($("kuSel") && $("kuSel").value) || undefined;
     const ins = ($("instSel") && $("instSel").value) || undefined;
     try{ await fetch("/admin/settings",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({token:authToken, access_phase: growth ? "growth" : "quota",
                            level_test: lvl, owner_byok: obk, practice_room: prm, life_context: lcx, bilingual: bil, home_ai: hom, planner: pln, resume_interview: rin, grammar_coach: gcs, notifications: nts,
-                           key_health: khs, keys_ui: kus, install_mode: ins})}); }catch(_){}
+                           key_health: khs, chain_v3: c3s, keys_ui: kus, install_mode: ins})}); }catch(_){}
   };
   if($("reqKeysSw")) $("reqKeysSw").onchange = saveSettings;
   if($("lvlTestSw")) $("lvlTestSw").onchange = saveSettings;
@@ -5567,6 +5573,7 @@ function wireOffice(){
   if($("gcSel")) $("gcSel").onchange = saveSettings;
   if($("ntSel")) $("ntSel").onchange = saveSettings;
   if($("khSel")) $("khSel").onchange = saveSettings;
+  if($("c3Sel")) $("c3Sel").onchange = saveSettings;
   if($("kuSel")) $("kuSel").onchange = saveSettings;
   if($("instSel")) $("instSel").onchange = saveSettings;
   if($("waSaveBtn")) $("waSaveBtn").onclick = async () => {

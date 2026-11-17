@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Keys - "do the tests catch a planted bug?"  Copies the backend, plants ONE deliberate bug in the key engine, the key endpoints or the wiring, runs the tiers in order against
-# the copy (unit, parity, the DB-backed tier, the WebSocket tier) and reports whether any of them FAILED (= the bug was caught). A mutant that survives means a check is too weak.
+# the copy (unit, the validated-walk unit tier, parity, the DB-backed tiers, the WebSocket tiers) and reports whether any of them FAILED (= the bug was caught). A mutant that survives means a check is too weak.
 # Never touches backend/ itself.
 #   tests/keys/mutants.sh            all server mutants (~25 s each when caught early, ~2 min when it survives every tier)
 #   tests/keys/mutants.sh M3 M5      only these
@@ -153,6 +153,108 @@ add M68 $PROBE "the provider's reason is cut in the middle of a word / link" '  
 add M69 $PROBE "the owner's dashboard never gets the provider's reason for a refused chat" '                out[p["name"]].update(status=st, http=c["http"], chat=c["kind"], why=c.get("why", ""))' '                out[p["name"]].update(status=st, http=c["http"], chat=c["kind"])'
 
 # ----------------------------------------------------------------------------------------------------------------------------- client mutants (browser specs, slow)
+# ---- the validated walk (settings.chain_v3), the request parameters, the save-time probe, the level-test fixes
+ENG=app/interview/engine.py
+add M70 $PRV "an unusable reply counts as usable (accept is never asked)" '                        reason = "empty" if not text else accept(text, finish)' '                        reason = "empty" if not text else None'
+add M71 $PRV "an unusable reply is not remembered (the same model is asked first on the next call)" '                    gate.mark_bad(name, fp, model, cls, time.time(), reason)
+' '                    pass
+'
+add M72 $PRV "after an unusable reply the walk asks the provider's SIBLING model before any other provider" '                    if first_pass:                                        # ANOTHER PROVIDER first (a different family, its own budget); this one'"'"'s other models follow in the second pass
+                        if mi + 1 < len(p["models"]):
+                            w.retry_now = True
+                        break' '                    if first_pass:
+                        pass'
+add M73 $PRV "the sibling pass never happens after an unusable reply" '            if w.retry_now and deadline - time.time() >= _REPASS_MIN_LEFT_S:' '            if False and w.retry_now and deadline - time.time() >= _REPASS_MIN_LEFT_S:'
+add M74 $PRV "a SINGLE held-back model with nothing else to ask is not asked (the learner is locked out)" '            if (accept is not None or v3) and w.asked == 0 and w.skipped_bad:' '            if (accept is not None or v3) and w.asked == 0 and w.skipped_bad > 1:'
+add M75 $PRV "a model that is held back is asked anyway" '                if accept is not None and not w.ignore_bad and ((name, model) in w.bad_models or gate.bad_blocked(name, fp, model, cls, time.time()) is not None):' '                if False and accept is not None and not w.ignore_bad and ((name, model) in w.bad_models or gate.bad_blocked(name, fp, model, cls, time.time()) is not None):'
+add M76 $PRV "a JSON reply cut off by the token limit is accepted when its start parses" '        if finish == "length" and not _closed_object(t):
+            return "truncated"' '        if False:
+            return "truncated"'
+add M77 $ERR "an unusable reply is reported as 'your keys are limited'" '        super().__init__(last_err, "transient", keys, own)' '        super().__init__(last_err, "all_limited", keys, own)'
+add M78 $GATE "what is held against a model for JSON is held against it for prose too" '    st = _bad.get((provider, fp, model, cls))
+    if st is not None and now < st.until:' '    st = _bad.get((provider, fp, model, "json"))
+    if st is not None and now < st.until:'
+add M79 $PRV "one usable reply does not clear what was held against the model" '                            gate.bad_ok(name, fp, model, cls)                     # a usable reply: whatever was held against this model for this kind of call is over' '                            pass'
+add M80 $GATE "the hold on a model never grows (always 20 s)" '    st.until = now + min(BAD_MAX_S, BAD_BASE_S * (2 ** min(st.strikes - 1, 10)))' '    st.until = now + BAD_BASE_S'
+add M81 $PRV "Groq's reasoning settings are sent on every call, scoring included" '                if chat and v3:                           # a per-turn CHAT call' '                if True:                                  # a per-turn CHAT call'
+add M82 $PRV "a model that refused the settings is sent them again" '                    if ce and not gate.param_unsupported(name, model, time.time()):' '                    if ce:'
+add M83 $PRV "a 400 about our settings is never remembered" '                    if sent and out.kind == "bad_request" and _rejects_params(e, sent):' '                    if False:'
+add M84 $PROBE "an EMPTY answer to the save-time probe counts as a working key" '                if not text and fin != "length":' '                if False:'
+add M115 $PROBE "a reasoning model cut off by the token limit while thinking does not count as a working key" '                if not text and fin != "length":' '                if not text:'
+add M116 $PROBE "a 400 that names the reasoning settings is read as a bad key (no retry without them)" '                    if use_ce and classify.classify(provider, e0, now).kind == "bad_request" and op._rejects_params(e0, ce):' '                    if False:'
+add M85 $PRV "an unusable reply is counted as a request that told us nothing" '                    if text:                                              # it ANSWERED, but there is nothing to use: the request counted and the key works
+                        ledger.settle(tok, "ok", t_in, t_out)' '                    if text:                                              # it ANSWERED, but there is nothing to use: the request counted and the key works
+                        ledger.settle(tok, "other", t_in, t_out)'
+add M86 $PRV "the validated walk runs for the per-key walker alone (engine 1) too" 'accept if ctx.engine >= 2 else None, cls)' 'accept, cls)'
+add M87 $PRV "assess raises when nothing is usable instead of returning the failure shape" '        except BadReplyError as e:
+            _last_bad.set(e)
+            return {"error": "scoring_parse_failed", "raw": ""}
+        _last_bad.set(None)
+        return _extract_json(text)
+
+    async def score' '        except BadReplyError as e:
+            raise
+        _last_bad.set(None)
+        return _extract_json(text)
+
+    async def score'
+add M88 $MAIN "the level test's passed comes from the model again (the unlock disagrees with the screen)" '    out = {"score": score, "passed": score >= 70,' '    out = {"score": score, "passed": bool(result.get("passed", score >= 70)),'
+add M89 $MAIN "the level test accepts any level" '    level: int = Field(ge=1, le=db.MAX_LEVEL)' '    level: int'
+add M90 $MAIN "engine_level ignores key_health (the validated walk runs for a learner without the per-key engine)" '    if not await key_health_enabled(email):
+        return 0
+    return 2 if await chain_v3_enabled(email) else 1' '    return 2 if await chain_v3_enabled(email) else 1'
+add M91 $MAIN "lesson/evaluate returns the parse-failure sentinel as HTTP 200 again" '        raise key_error(llm.last_bad() or RuntimeError("no usable verdict"), 502, "Could not evaluate, please try again", check_quota=False)
+    return d' '        return d
+    return d'
+add M92 $SVC "a deep Test says 'works' when no model of the key answered" '            elif cp.kind != "ok":
+                results[p] = "unreachable"' '            elif False:
+                results[p] = "unreachable"'
+add M93 $SVC "a key whose models answer with nothing is saved as working" '        elif cp.kind != "ok":
+            status = "unknown"' '        elif False:
+            status = "unknown"'
+add M94 $ENG "Home asks a second time after the validated walk already tried every model" '            if attempt == 1 and v3:
+                break' '            if False:
+                break'
+add M95 $MAIN "the level-check generator asks three times even with the validated walk" 'for _ in range(1 if llm.v3_active() else 3):' 'for _ in range(3):'
+add M96 $MAIN "a level test nobody could score records a failed 0% attempt" '        raise key_error(llm.last_bad() or RuntimeError("no usable score"), 502, "Could not score the test, please try again", check_quota=False)' '        result = {"score": 0, "message": ""}'
+
+# ---- time budgets, the breaker and the order of the providers (the validated walk, M1b)
+add M97  $PRV "an interactive attempt gets the SDK's default 20 s instead of its own limit" '                    kw = {"timeout": max(_MIN_ATTEMPT_S, rem if last_provider else min(_attempt_timeout(cls, chat), rem))} if v3 else {}' '                    kw = {}'
+add M98  $PRV "an attempt is not cut to what is left of the walk (a walk can run past its ceiling)" 'rem if last_provider else min(_attempt_timeout(cls, chat), rem)' 'rem if last_provider else _attempt_timeout(cls, chat)'
+add M111 $PRV "the LAST provider is cut at the short limit although there is nowhere else to go" 'rem if last_provider else min(_attempt_timeout(cls, chat), rem)' 'min(_attempt_timeout(cls, chat), rem)'
+add M112 $PRV "Groq's reasoning settings are sent by the per-key walker alone (engine 1) too" '                if chat and v3:                           # a per-turn CHAT call' '                if chat:                                  # a per-turn CHAT call'
+add M99  $PRV "a heavy call (scoring, extraction) gets the short interactive limit" '    return _ATTEMPT_S.get(cls, 11.0) if interactive else _ATTEMPT_HEAVY_S' '    return _ATTEMPT_S.get(cls, 11.0)'
+add M100 $GATE "failures to answer are not counted: the breaker never opens" '    if kind == "transient":
+        h.consec += 1' '    if kind == "transient":
+        h.consec += 0'
+add M101 $PRV "an open breaker is not consulted: the model is asked anyway" '                    if hv == "skip" and not w.ignore_bad:' '                    if False:'
+add M102 $GATE "the breaker probe is not single-flight (every caller hits a model that was failing)" '    if now < h.until:
+        return "skip"
+    if h.inflight and now - h.inflight_at < INFLIGHT_STALE_S:
+        return "skip"
+    h.inflight, h.inflight_at = True, now
+    return "probe"' '    if now < h.until:
+        return "skip"
+    h.inflight, h.inflight_at = True, now
+    return "probe"'
+add M103 $GATE "a usable reply does not close the breaker" '    h.consec = h.opened = 0
+    h.until = 0.0
+    h.inflight = False
+    h.last_at = now' '    h.inflight = False
+    h.last_at = now'
+add M104 $PRV "an unusable reply opens the breaker like a timeout (a model that ANSWERS badly is treated as dead)" 'gate.health_fail(name, model, cls, "bad", time.time())' 'gate.health_fail(name, model, cls, "transient", time.time())'
+add M105 $PRV "the providers are asked in the configured order whatever their health" '        rank = {n: i for i, n in enumerate(gate.order_by_health([p["name"] for p in chain], time.time()))}' '        rank = {n: i for i, n in enumerate([p["name"] for p in chain])}'
+add M106 $PRV "the health order is applied to the per-key walker alone (engine 1) too" '    if v3:                                           # best-first by how each provider is doing now' '    if True:                                         # best-first by how each provider is doing now'
+add M107 $GATE "the bands are so narrow that two close scores flip the order (flapping)" 'HEALTH_BAND = 4 ' 'HEALTH_BAND = 1000 '
+add M108 $GATE "a stale reading never drifts back toward the prior (a demoted provider is never tried again)" '    if h.last_at and now - h.last_at > HEALTH_STALE_S:' '    if False:'
+add M109 $GATE "a provider whose every model has its breaker open still scores like a healthy one" '    if open_n == len(vals):
+        return 0.0' '    if False:
+        return 0.0'
+add M110 $PRV "when every breaker is open and nothing else is left, nothing is asked at all" '            if (accept is not None or v3) and w.asked == 0 and w.skipped_bad:' '            if False and (accept is not None or v3) and w.asked == 0 and w.skipped_bad:'
+
+add M113 $PRV "a BACKGROUND call (Grammar Coach) holds a model of DuSu's own chain back for everyone's chat" '                    if byok or cool:                                      # a background call (cool=False) on DuSu'"'"'s own chain must not hold a model back for everyone'"'"'s chat' '                    if True:                                              # a background call (cool=False) on DuSu'"'"'s own chain must not hold a model back for everyone'"'"'s chat'
+add M114 $PRV "a walk asks a model again that already answered unusably in the SAME walk (when the gate does not remember it)" 'if accept is not None and not w.ignore_bad and ((name, model) in w.bad_models or gate.bad_blocked(name, fp, model, cls, time.time()) is not None):' 'if accept is not None and not w.ignore_bad and (gate.bad_blocked(name, fp, model, cls, time.time()) is not None):'
+
 declare -A CFILE CDESC COLD CNEW CSPEC
 cadd() { CFILE[$1]="$2"; CDESC[$1]="$3"; COLD[$1]="$4"; CNEW[$1]="$5"; CSPEC[$1]="$6"; }
 H=test_client.html
@@ -193,14 +295,14 @@ if [ "${1:-}" = "--client" ]; then
   echo; echo "client mutants: ${caught} caught, ${#survived[@]} survived: ${survived[*]:-none}"; exit 0
 fi
 
-WANT=("$@"); [ ${#WANT[@]} -eq 0 ] && WANT=($(for i in $(seq 1 59) 61 62 63 64 65 66 67 68 69; do echo M$i; done))
+WANT=("$@"); [ ${#WANT[@]} -eq 0 ] && WANT=($(for i in $(seq 1 59) $(seq 61 116); do echo M$i; done))
 caught=0; survived=()
 for m in "${WANT[@]}"; do
   fresh_copy
   plant "${FILE[$m]}" "${OLD[$m]}" "${NEW[$m]}"; rc=$?
   [ $rc -eq 7 ] && { echo "$m  NOT APPLIED  (${DESC[$m]})"; survived+=("$m(not applied)"); continue; }
   hit=""
-  for t in unit.py parity.py selftest.py ws_selftest.py; do
+  for t in chain_unit.py chain_selftest.py chain_ws.py unit.py parity.py selftest.py ws_selftest.py; do
     if ! KY_BACKEND="$PWD/$OUT/backend" tests/keys/run.sh "$t" > "$OUT/$m.$t.log" 2>&1; then hit="$t"; break; fi
   done
   if [ -z "$hit" ]; then echo "$m  SURVIVED   (${DESC[$m]})  <- no tier noticed"; survived+=("$m")

@@ -28,6 +28,9 @@ run keys_unit       env KY_BACKEND=baked KY_TEST_IMAGE="$IMG" tests/keys/run.sh 
 run keys_parity     env KY_BACKEND=baked KY_TEST_IMAGE="$IMG" tests/keys/run.sh parity.py
 run keys_self       env KY_BACKEND=baked KY_TEST_IMAGE="$IMG" tests/keys/run.sh selftest.py
 run keys_ws         env KY_BACKEND=baked KY_TEST_IMAGE="$IMG" tests/keys/run.sh ws_selftest.py
+run keys_chain_unit env KY_BACKEND=baked KY_TEST_IMAGE="$IMG" tests/keys/run.sh chain_unit.py
+run keys_chain_self env KY_BACKEND=baked KY_TEST_IMAGE="$IMG" tests/keys/run.sh chain_selftest.py
+run keys_chain_ws   env KY_BACKEND=baked KY_TEST_IMAGE="$IMG" tests/keys/run.sh chain_ws.py
 run notify_unit     env NT_BACKEND=baked NT_TEST_IMAGE="$IMG" tests/notify/run.sh unit.py
 run notify_self     env NT_BACKEND=baked NT_TEST_IMAGE="$IMG" tests/notify/run.sh selftest.py
 run grammar_self    env GC_BACKEND_DIR=baked GC_TEST_IMAGE="$IMG" tests/grammar/run.sh selftest.py

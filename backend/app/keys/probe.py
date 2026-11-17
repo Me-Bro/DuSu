@@ -137,8 +137,15 @@ async def list_models(provider: str, key: str) -> set | None:
     return ids or None
 
 
+PROBE_TOKENS = 160                  # room for a REASONING model to think briefly and still say "OK" (8 were spent entirely on thinking: an empty answer, once counted as "works")
+
+
 async def chat_probe(provider: str, key: str, uid: str | None = None, now: float | None = None) -> Probe:
-    """ONE real call to the provider with this key. `ok` also carries the provider's allowance headers when it sends them. Never raises."""
+    """ONE real call to the provider with this key. `ok` also carries the provider's allowance headers when it sends them. Never raises.
+    A key counts as working only if one of its models actually ANSWERS. The provider's reasoning settings (Groq's gpt-oss: think briefly) are sent when the model takes them;
+    a 400 that names them is not a bad key - the model is remembered as not taking them and asked once more without. An empty answer that was cut off by the token limit
+    (a reasoning model still thinking) proves the key and the model run, so it counts; an empty answer that ENDED normally does not (the provider took the request, nothing
+    says it can serve DuSu) - the provider's next model is tried."""
     from ..providers import openrouter_provider as op
     p = _entry(provider, key)
     if p is None:
@@ -151,12 +158,35 @@ async def chat_probe(provider: str, key: str, uid: str | None = None, now: float
             tok = ledger.begin(uid, provider, fp, now)
             done = False
             t0 = time.time()
+            base = dict(p.get("extra") or {})
+            ce = dict((p.get("chat_extra") or {}).get(model) or {})
+            use_ce = bool(ce) and not gate.param_unsupported(provider, model, time.time())
+
+            async def ask(extra, model=model):
+                return await client.chat.completions.with_raw_response.create(
+                    model=model, messages=[{"role": "user", "content": "Reply OK"}], max_tokens=PROBE_TOKENS, temperature=0, extra_body=extra)
+
             try:
-                raw = await client.chat.completions.with_raw_response.create(
-                    model=model, messages=[{"role": "user", "content": "Reply OK"}], max_tokens=8, temperature=0, extra_body=p.get("extra") or {})
+                try:
+                    raw = await ask({**base, **ce} if use_ce else base)
+                except Exception as e0:
+                    if use_ce and classify.classify(provider, e0, now).kind == "bad_request" and op._rejects_params(e0, ce):
+                        gate.mark_param_unsupported(provider, model, time.time())     # this model does not take them: from now on it is asked without, and so is the walker
+                        raw = await ask(base)
+                    else:
+                        raise
                 resp = raw.parse()
                 usage = getattr(resp, "usage", None)
-                ledger.settle(tok, "ok", getattr(usage, "prompt_tokens", 0) or 0, getattr(usage, "completion_tokens", 0) or 0)
+                t_in, t_out = getattr(usage, "prompt_tokens", 0) or 0, getattr(usage, "completion_tokens", 0) or 0
+                choice = resp.choices[0] if resp.choices else None
+                text = ((getattr(getattr(choice, "message", None), "content", "") or "").strip())
+                fin = getattr(choice, "finish_reason", None)
+                if not text and fin != "length":
+                    ledger.settle(tok, "other", t_in, t_out)
+                    done = True
+                    last = Probe("transient", http=200, ms=int((time.time() - t0) * 1000), why="empty")
+                    continue                                          # the provider's next model may answer
+                ledger.settle(tok, "ok", t_in, t_out)
                 done = True
                 return Probe("ok", http=200, rl=classify.parse_ratelimit(provider, getattr(raw, "headers", None), time.time()), ms=int((time.time() - t0) * 1000))
             except Exception as e:
