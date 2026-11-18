@@ -9,6 +9,8 @@ Modes:
                       features; home_content.py holds what it may mention). Never scored, never pays XP.
   - "practice"      : Practice Room conversation kinds (practice_talk.py): DuSu is the viva examiner / the other discussion
                       participant / the person in the learner's own scenario; ends after N answers; scored once as a Practice attempt.
+  - "talk"          : Talk (talk/ package): English-only chat on ONE topic card, optionally with a Hindi subtitle; one JSON call per turn
+                      (reply + hi + at most one code-verified fix). The opener comes from the topic bank (no model call).
 
 Every mode also has a language (`Session.lang`, DUSU_BILINGUAL_PLAN.md): "hi" or "en" - what the learner speaks and what
 DuSu answers in. ONLY the new features obey the learner's Hindi / English choice (lang.SWITCHABLE = the Home companion;
@@ -28,13 +30,14 @@ from .. import lang as L
 from .. import home_content as hc
 from .. import practice_talk as PT
 from ..providers import llm
+from ..talk import reply as TR, topics as TK
 from ..config import settings
 from .prompts import (interviewer_system, conversation_system, scorer_system,
                       TRANSLATE_SYSTEM, TRANSLATE_SYSTEM_EN2HI, SESSION_MEMORY_SYSTEM,
-                      DAILY_TURN_SYSTEM, DAILY_TURN_SYSTEM_EN, home_system)
+                      DAILY_TURN_SYSTEM, DAILY_TURN_SYSTEM_EN, home_system, talk_system)
 
 END_MARKER = "INTERVIEW_COMPLETE:"
-MODES = ("interview", "conversation", "learning", "daily", "home", "practice")
+MODES = ("interview", "conversation", "learning", "daily", "home", "practice", "talk")
 # Free-tier models occasionally return a lazy dead-end line ("Hi!", "How are you?")
 # instead of a real reactive follow-up. One retry with a sharper nudge, same spirit
 # as the retry-on-parse-failure pattern already used for /assessment. (The per-language
@@ -68,7 +71,7 @@ class Session:
                  career_goal: str = "", past_interview_count: int = 0, past_interview_avg: float | None = None,
                  lang: str | None = None, bilingual: bool = False,
                  home_flags: dict | None = None, home_personal: bool = True, new_learner: bool = False, hour=None, tzmin=None,
-                 practice: dict | None = None):
+                 practice: dict | None = None, talk: dict | None = None):
         self.mode = mode if mode in MODES else "interview"
         self.name = name or "there"
         self.role = role or "general"
@@ -93,6 +96,7 @@ class Session:
         self.hour = hour
         self.tzmin = tzmin                   # the learner's UTC offset in minutes (device clock) - the Home chat's "RIGHT NOW"
         self.practice = practice or {}       # Practice Room conversation kinds: {kind, topic, plang, level, rounds, feedback_lang}
+        self.talk = talk or {}               # Talk: {topic: <a validated bank topic>, support: "en_sub" | "en", note: <= 300 chars about the learner}
         self.thoughts_translated = 0   # Daily Talk's unique metric (§5) — counted deterministically below, never LLM-inferred
         self._build_system()
         self.transcript: list[dict] = []  # {role: "user"|"assistant", content}
@@ -112,6 +116,10 @@ class Session:
             p = self.practice
             self.system = PT.talk_system(p.get("kind", "viva"), p.get("topic", ""), self.lang, p.get("level", "intermediate"),
                                          int(p.get("rounds") or 8), self.name, END_MARKER)
+        elif self.mode == "talk":
+            t = self.talk
+            self.system = (talk_system(t["topic"], t["support"], TR.clean_name(self.name), self.level, TR.clean_note(t.get("note", "")), self._talk_focus_name(t["topic"]))
+                           if isinstance(t.get("topic"), dict) and t.get("support") in TK.TALK_SUPPORTS else "")
         else:  # learning + daily + home: no static chat persona (each builds its prompt per turn)
             self.system = ""
 
@@ -311,6 +319,56 @@ class Session:
         self.turns += 1
         self.transcript.append({"role": "assistant", "content": reply})
         return {"text": reply, "intent": intent, "actions": hc.actions(ids, self.home_flags, self.lang), "fallback": not data}
+
+    @staticmethod
+    def _talk_focus_name(topic: dict) -> str:
+        """The display name of the topic's Grammar Lab unit ("Present Simple"); the unit id itself if the Lab catalogue cannot name it."""
+        try:
+            from ..lab import catalog as lab_catalog
+            return lab_catalog.unit_name(topic.get("focus"))
+        except Exception:
+            return str(topic.get("focus") or "")
+
+    async def talk_turn(self, answer: str, first: bool = False) -> dict:
+        """Talk: ONE model call per learner turn -> {"text", "hi"?, "fix"?} (talk/reply.py explains every field and how each is verified or dropped).
+
+        `first=True` is the opener: it comes from the topic bank, so NO model call is made - the topic's English opener (plus its Hindi subtitle at `en_sub`) becomes DuSu's first
+        line. Only the cleaned English `text` is ever put in the transcript (memory, the reconnect replay and the end-of-chat summary never see Hindi or JSON), and the
+        learner's line is added only once DuSu has answered - a failed turn leaves the session exactly as it was.
+        Failure: a reply nobody could use raises (the validated walk's own BadReplyError when it has one), which main.py turns into the same error frame, free-turn refund and
+        retry as every other mode. Without the validated walk (settings.chain_v3 off) an unusable reply is retried once, as Home and Daily Talk do; with it the walk already asked
+        every model, so a second walk is not made."""
+        topic, support = self.talk.get("topic"), self.talk.get("support")
+        if not isinstance(topic, dict) or support not in TK.TALK_SUPPORTS:
+            raise ValueError("talk session without a topic")
+        if first:
+            op = topic["opener"]
+            out = {"text": op["en"]}
+            if support == "en_sub":
+                out["hi"] = op["hi"]
+            self.transcript.append({"role": "assistant", "content": op["en"]})
+            return out
+        ans = TR.clean_learner(answer)
+        convo = "\n".join(f"{m['role']}: {str(m['content'])[:TR.HISTORY_CHARS]}" for m in self.transcript[-TR.HISTORY_LINES:])
+        payload = f"conversation so far:\n{convo or '(just starting)'}\n\nlearner just said: {ans}"
+        v3 = llm.v3_active()
+        shaped = None
+        for attempt in (0, 1):
+            if attempt == 1 and v3:
+                break                       # the validated walk asked every model for a usable object already; a second walk would meet the same models, held back
+            ask = payload if attempt == 0 else (payload + "\n\n(Your last reply was not a valid JSON object with a non-empty English "
+                                                           '"reply". Return exactly the JSON object described above.)')
+            d = await llm.assess(self.system, ask, max_tokens=TR.MAX_TOKENS[support], prefer_fast=True, temperature=0.6, schema=TR.SCHEMA, check=TR.check)
+            shaped = TR.shape(d, ans, support=support, level=self.level)
+            if shaped:
+                break
+        if not shaped:
+            _log_turn("talk")
+            raise (llm.last_bad() if v3 else None) or RuntimeError("talk: no usable reply")
+        self.transcript.append({"role": "user", "content": ans})
+        self.turns += 1
+        self.transcript.append({"role": "assistant", "content": shaped["text"]})
+        return shaped
 
     async def build_report(self) -> dict:
         """Only interview mode is scored. Conversation returns nothing."""

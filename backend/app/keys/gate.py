@@ -19,6 +19,8 @@ import hashlib
 import hmac
 from dataclasses import dataclass
 
+from ..config import split_cloudflare
+
 INVALID_RECHECK_S = 6 * 3600
 FORBIDDEN_S = 300
 PROBE_GAP_S = 60
@@ -36,6 +38,9 @@ BREAKER_AFTER = 3                   # consecutive TRANSIENT failures (a timeout,
 BREAKER_BASE_S = 60.0               # ... for 60 s, then one probe; a probe that fails doubles it (120 s, 240 s) up to 5 minutes
 BREAKER_MAX_S = 300.0
 HEALTH_PRIOR = 0.9                  # what a model nobody has measured is assumed to be worth (a measured-good model outranks it, a measured-bad one does not)
+# Providers added 2026-11-17 were never called with a real key by anyone: they start in a LOWER band (0.7 -> band 2 of 4, the others are in band 3) and only climb as their real answers
+# prove them (and never above band 3: it takes a score of 1.0 to reach band 4). So an established provider is asked first until one of them is actually doing badly.
+PROVIDER_PRIOR = {"cloudflare": 0.7, "zai": 0.7, "sarvam": 0.7}
 HEALTH_ALPHA = 0.15                 # how fast the success rate follows what just happened (two unusable replies in a row from a fresh model drop it a band)
 HEALTH_STALE_S = 600.0              # a reading this old drifts back toward the prior - so a provider that was demoted but is no longer asked is tried first again within about 40 minutes
 HEALTH_BAND = 4                     # providers are ordered by score in this many bands, so two close scores keep their configured order (no flapping)
@@ -118,8 +123,12 @@ _PREFIXES = ("sk-or-v1-", "sk-or-", "gsk_", "AIza", "AQ.")
 
 
 def mask(key: str) -> str:
-    """'gsk_abcdef...9fA2' -> 'gsk_••••9fA2'. Never more than the provider's own prefix and the last four characters."""
+    """'gsk_abcdef...9fA2' -> 'gsk_••••9fA2'. Never more than the provider's own prefix and the last four characters.
+    A Cloudflare key is two values in one string ('<account id>:<token>'): it shows the LAST FOUR of each - never the account id in full, never the start of the token."""
     k = str(key or "").strip()
+    cf = split_cloudflare(k)
+    if cf:
+        return f"acct ••••{cf[0][-4:]} · token ••••{cf[1][-4:]}"
     if len(k) < 12:
         return "••••" + k[-2:] if len(k) > 4 else "••••"
     pre = next((p for p in _PREFIXES if k.startswith(p)), k[:3])
@@ -136,6 +145,9 @@ def clean_key(provider: str, raw) -> str | None:
         return None
     if any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in k):
         return None
+    if provider == "cloudflare":                       # two values in one string: the account id (32 hex characters, it goes into a URL path) and the token
+        cf = split_cloudflare(k)
+        return f"{cf[0]}:{cf[1]}" if cf else None
     return k
 
 
@@ -386,10 +398,15 @@ def bad_models(now: float) -> list[dict]:
 
 
 # --------------------------------------------------------------------------------------------- model health (the validated walk): breaker + speed + success rate
-def _drift(h: Health, now: float) -> None:
+def prior(provider: str | None) -> float:
+    """What a provider nobody has measured is assumed to be worth."""
+    return PROVIDER_PRIOR.get(provider or "", HEALTH_PRIOR)
+
+
+def _drift(h: Health, now: float, provider: str | None = None) -> None:
     """A reading that has not been refreshed for a while is only half believed: it drifts back toward the prior."""
     if h.last_at and now - h.last_at > HEALTH_STALE_S:
-        h.ok = 0.5 * h.ok + 0.5 * HEALTH_PRIOR
+        h.ok = 0.5 * h.ok + 0.5 * prior(provider)
         h.consec = 0
         h.last_at = now
 
@@ -421,8 +438,8 @@ def _health_for(provider: str, model: str, cls: str, now: float) -> Health:
         if len(_health) >= MAX_HEALTH_ENTRIES:
             for kk in sorted(_health, key=lambda x: _health[x].last_at)[:MAX_HEALTH_ENTRIES // 10]:
                 _health.pop(kk, None)
-        h = _health[k] = Health()
-    _drift(h, now)
+        h = _health[k] = Health(ok=prior(provider))
+    _drift(h, now, provider)
     return h
 
 
@@ -463,12 +480,12 @@ def provider_score(provider: str, now: float) -> float:
     for (prov, _m, _c), h in _health.items():
         if prov != provider:
             continue
-        _drift(h, now)
+        _drift(h, now, provider)
         vals.append(h.ok)
         if h.consec >= BREAKER_AFTER and now < h.until:
             open_n += 1
     if not vals:
-        return HEALTH_PRIOR
+        return prior(provider)
     if open_n == len(vals):
         return 0.0
     return sum(vals) / len(vals)

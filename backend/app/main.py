@@ -50,6 +50,9 @@ from .resume_interview import models as _ri_models  # noqa: F401  (registers the
 from .resume_interview import api as ri_api, life_lines as ri_life
 from .grammar import models as _gc_models  # noqa: F401  (registers the gc_* tables on db.Base before init_db runs)
 from .grammar import api as gc_api, tracker as gc_tracker, gating as gc_gating
+from .lab import models as _lab_models  # noqa: F401  (registers the gl_* tables on db.Base before init_db runs)
+from .lab import api as lab_api
+from .talk import api as talk_api, topics as talk_topics, reply as talk_reply, service as talk_service
 from .notify import models as _nt_models  # noqa: F401  (registers the nt_* tables on db.Base before init_db runs)
 from .notify import api as notify_api, scheduler as notify_scheduler
 from .keys import models as _ky_models  # noqa: F401  (registers the kh_* tables on db.Base before init_db runs)
@@ -69,6 +72,8 @@ planner_life.register()                      # DuSu reads the plan through the "
 app.include_router(ri_api.router)           # Resume Interview: /rinterview/* (404 while the `resume_interview` switch is off for the account)
 ri_life.register()                           # ... and reads the learner's interview scores the same way
 app.include_router(gc_api.router)           # Grammar Coach: /gcoach/* (404 while the `grammar_coach` switch is off for the account)
+app.include_router(lab_api.router)          # Grammar Lab: /lab/* (404 while the `grammar_lab` switch is off for the account)
+app.include_router(talk_api.router)         # Talk: /tk/* (404 while the `talk_v3` switch is off for the account); the chat is the `talk` WebSocket mode
 app.include_router(notify_api.router)       # Notifications: /notify/* (404 while the `notifications` switch is off for the account)
 app.include_router(keys_api.router)         # Keys: /keys/status|save|remove|recheck|export (404 while the `key_health` switch is off for the account)
 app.include_router(insights_api.router)     # Insights: POST /ev (a screen beacon), POST|GET /plans/interest ("Reserve my plan")
@@ -419,6 +424,45 @@ async def grammar_coach_mode() -> str:
 
 async def grammar_coach_enabled(email: str) -> bool:
     m = await grammar_coach_mode()
+    if m == "on":
+        return True
+    if m == "owner":
+        return await staged_visible(email)
+    return False
+
+
+async def grammar_lab_mode() -> str:
+    """Grammar Lab rollout switch (Settings table, no migration). It ships DARK: 'off' = nobody, the endpoints answer 404 (export / delete excepted) - the DEFAULT; 'owner' = the owner /
+    unlimited allowlist plus the early-access testers; 'on' = everyone.  The Lab makes no model call, so the switch is about showing it, not about cost."""
+    try:
+        v = await _cached("grammar_lab", lambda: db.get_setting("grammar_lab", "off"))
+        return v if v in ("off", "owner", "on") else "off"
+    except Exception:
+        return "off"
+
+
+async def grammar_lab_enabled(email: str) -> bool:
+    m = await grammar_lab_mode()
+    if m == "on":
+        return True
+    if m == "owner":
+        return await staged_visible(email)
+    return False
+
+
+async def talk_v3_mode() -> str:
+    """Talk rollout switch (Settings table, no migration). It ships DARK: 'off' = nobody - the endpoints answer 404 and a `talk` start is refused (the DEFAULT); 'owner' = the owner /
+    unlimited allowlist plus the early-access testers; 'on' = everyone.  Talk's two new support levels (English + Hindi subtitles, English only) are this switch; the third level
+    (Hindi to English) is Daily Talk and is not behind it."""
+    try:
+        v = await _cached("talk_v3", lambda: db.get_setting("talk_v3", "off"))
+        return v if v in ("off", "owner", "on") else "off"
+    except Exception:
+        return "off"
+
+
+async def talk_v3_enabled(email: str) -> bool:
+    m = await talk_v3_mode()
     if m == "on":
         return True
     if m == "owner":
@@ -1112,6 +1156,8 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
         except Exception:
             _ri_stt = False
     _gc = await grammar_coach_enabled(email)           # Grammar Coach: the client draws its entry points only when true
+    _gl = await grammar_lab_enabled(email)             # Grammar Lab: the same
+    _tk = await talk_v3_enabled(email)                 # Talk (the English + subtitles / English-only levels): the same
     common = {"role": _role, "email": email, "office": _office, "office_allowed": _office,
               "unlimited": _unlim, "plan": plan, "requests_left": req_left,
               "request_limit": req_limit, "trial_days_left": trial_days, "trial_over": trial_over,
@@ -1128,7 +1174,7 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
               "home_ai": _home_ai, "home_personal": True,
               "planner": _planner,                  # My Day (DUSU_GOALS_PLAN.md): the client draws its entry points only when true
               "resume_interview": _ri, "ri_server_stt": _ri_stt,   # Resume Interview (DUSU_RESUME_INTERVIEW_PLAN.md)
-              "grammar_coach": _gc,
+              "grammar_coach": _gc, "grammar_lab": _gl, "talk_v3": _tk,
               "notifications": await notifications_enabled(email),     # the client draws its notification settings / prompt only when true
               "key_health": _kh, "keys_ui": await keys_ui_enabled(email),     # the key screens (server-rendered Keys page, Home key card, key-problem pop-up)
               "install_app": await install_app_enabled(email),                 # the Install-app button + the WhatsApp-group join
@@ -1146,7 +1192,7 @@ async def me(token: str = "", day: str = "", authorization: str | None = Header(
     if _home_ai:
         # The Home page's feature icons (home_content.tiles): what exists for THIS learner, both languages' titles, each with
         # the route a tap opens. Only the learners who have the new Home get the key, so /me is unchanged for everyone else.
-        common["home_tiles"] = home_content.tiles({"practice_room": _pr, "planner": _planner, "resume_interview": _ri, "grammar_coach": _gc})
+        common["home_tiles"] = home_content.tiles({"practice_room": _pr, "planner": _planner, "resume_interview": _ri, "grammar_coach": _gc, "grammar_lab": _gl, "talk_v3": _tk})
     if not db.db_enabled:
         return {"onboarded": None, **common}
     try:
@@ -1580,7 +1626,7 @@ async def admin_overview(token: str = "", authorization: str | None = Header(Non
            "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode(),
            "life_context": await life_context_mode(), "bilingual": await bilingual_mode(),
            "home_ai": await home_ai_mode(), "planner": await planner_mode(), "resume_interview": await resume_interview_mode(),
-           "grammar_coach": await grammar_coach_mode(), "notifications": await notifications_mode(),
+           "grammar_coach": await grammar_coach_mode(), "grammar_lab": await grammar_lab_mode(), "talk_v3": await talk_v3_mode(), "notifications": await notifications_mode(),
            "key_health": await key_health_mode(), "chain_v3": await chain_v3_mode(), "keys_ui": await keys_ui_mode(), "install_mode": await install_app_mode(),
            "whatsapp_group": await whatsapp_link(), "insights": "on" if await insights_on() else "off"}
     out["server_keys"] = keys_probe.cached_server_health()          # DuSu's OWN keys, from the last zero-quota probe (a dead one is flagged on the dashboard)
@@ -1600,6 +1646,15 @@ async def admin_overview(token: str = "", authorization: str | None = Header(Non
             out["grammar_coach_health"] = await gc_service.health()
         except Exception as e:
             print(f"[admin] grammar coach health failed: {type(e).__name__}")
+        try:
+            from .lab import service as lab_service
+            out["grammar_lab_health"] = await lab_service.health()
+        except Exception as e:
+            print(f"[admin] grammar lab health failed: {type(e).__name__}")
+        try:
+            out["talk_v3_health"] = await talk_service.health()
+        except Exception as e:
+            print(f"[admin] talk health failed: {type(e).__name__}")
         try:
             out["planner_health"] = await planner_scheduler.health()
         except Exception as e:
@@ -1648,6 +1703,8 @@ class SettingsIn(BaseModel):
     planner: str | None = None            # off | owner | on  (My Day - tasks, habits, goals, reminders; DUSU_GOALS_PLAN.md)
     resume_interview: str | None = None   # off | owner | on  (Resume Interview - resume + job description -> recorded mock interview; DUSU_RESUME_INTERVIEW_PLAN.md)
     grammar_coach: str | None = None      # off | owner | on  (Grammar Coach - every English sentence checked, corrected and explained)
+    grammar_lab: str | None = None        # off | owner | on  (Grammar Lab - Hindi sentences into English, the twelve tenses)
+    talk_v3: str | None = None            # off | owner | on  (Talk - a daily topic, English + Hindi subtitles / English only, one verified fix per turn)
     notifications: str | None = None      # off | owner | on  (Notifications - personal practice / streak / weekly-note nudges as push)
     key_health: str | None = None         # off | owner | on  (the per-key engine: health, usage ledger, stored-keys-first, /keys/*)
     chain_v3: str | None = None           # off | owner | on  (the validated walk: an unusable model reply moves on to the next model in the same call; needs key_health)
@@ -1683,6 +1740,10 @@ async def admin_settings(inp: SettingsIn, authorization: str | None = Header(Non
         await db.set_setting("resume_interview", inp.resume_interview if inp.resume_interview in ("off", "owner", "on") else "off")
     if inp.grammar_coach is not None:
         await db.set_setting("grammar_coach", inp.grammar_coach if inp.grammar_coach in ("off", "owner", "on") else "off")
+    if inp.grammar_lab is not None:
+        await db.set_setting("grammar_lab", inp.grammar_lab if inp.grammar_lab in ("off", "owner", "on") else "off")
+    if inp.talk_v3 is not None:
+        await db.set_setting("talk_v3", inp.talk_v3 if inp.talk_v3 in ("off", "owner", "on") else "off")
     if inp.notifications is not None:
         await db.set_setting("notifications", inp.notifications if inp.notifications in ("off", "owner", "on") else "off")
     if inp.key_health is not None:
@@ -1705,7 +1766,7 @@ async def admin_settings(inp: SettingsIn, authorization: str | None = Header(Non
             "owner_byok": await owner_byok_on(), "practice_room": await practice_room_mode(),
             "life_context": await life_context_mode(), "bilingual": await bilingual_mode(),
             "home_ai": await home_ai_mode(), "planner": await planner_mode(), "resume_interview": await resume_interview_mode(),
-            "grammar_coach": await grammar_coach_mode(), "notifications": await notifications_mode(),
+            "grammar_coach": await grammar_coach_mode(), "grammar_lab": await grammar_lab_mode(), "talk_v3": await talk_v3_mode(), "notifications": await notifications_mode(),
             "key_health": await key_health_mode(), "chain_v3": await chain_v3_mode(), "keys_ui": await keys_ui_mode(), "install_mode": await install_app_mode(),
             "whatsapp_group": await whatsapp_link(), "insights": "on" if await insights_on() else "off"}
 
@@ -2226,7 +2287,8 @@ async def _home_flags(email: str) -> dict:
     the validation of the ids it suggests - one source, so they cannot disagree)."""
     return {"practice_room": await practice_room_enabled(email), "bilingual": await bilingual_enabled(email),
             "planner": await planner_enabled(email), "resume_interview": await resume_interview_enabled(email),
-            "grammar_coach": await grammar_coach_enabled(email)}
+            "grammar_coach": await grammar_coach_enabled(email), "grammar_lab": await grammar_lab_enabled(email),
+            "talk_v3": await talk_v3_enabled(email)}
 
 
 def _home_tod(hour) -> str:
@@ -2248,7 +2310,7 @@ def _clean_opening(text) -> str:
 
 # A page that lost its socket (a locked phone, a dropped connection) picks the SAME chat up again on a new one: `start {reconnect: true, resume: [...]}`. Daily Talk has its own
 # path (its replay is the older `resume`); these are the other modes that live on the session screen.
-_RESUMABLE = ("conversation", "interview", "practice", "home")
+_RESUMABLE = ("conversation", "interview", "practice", "home", "talk")
 _REPLAY_LINES, _REPLAY_CHARS = 60, 1200
 
 
@@ -3160,7 +3222,7 @@ def _facts_summary(facts: dict, summaries: list[str]) -> str:
         if tail:
             last_mode = rturns[-1].get("mode") or ""
             label = {"daily": "Daily Talk (Hindi)", "conversation": "English Talk",
-                     "interview": "Interview", "home": "your Home chat"}.get(last_mode, "your last chat")
+                     "interview": "Interview", "home": "your Home chat", "talk": "a Talk topic chat"}.get(last_mode, "your last chat")
             lines.append(f"- Where you left off last time (during {label}) — continue THIS thread "
                          f"naturally, do NOT restart with a fresh greeting: {tail}")
     if lines:
@@ -3322,7 +3384,7 @@ async def interview_ws(ws: WebSocket):
             if mem.get("no_hindi") and not hi_session:       badges.append("courage_no_hindi")
             if mem.get("asked_question") and not hi_session: badges.append("courage_question")
             if secs >= 300:               badges.append("courage_5min")
-            if session.mode in ("conversation", "daily"): badges.append("courage_first_convo")
+            if session.mode in ("conversation", "daily", "talk"): badges.append("courage_first_convo")
             if badges:
                 await db.award_badges(uid, badges)
         except Exception as e:
@@ -3429,6 +3491,22 @@ async def interview_ws(ws: WebSocket):
                                 break
                         except Exception as e:
                             print(f"[practice-talk] cap lookup failed: {type(e).__name__}")
+                # Talk (the `talk` WebSocket mode = the two NEW support levels): switched per learner like the other rollouts, and a start that names no real topic or an unknown support level
+                # is refused the same plain way - a `talk` start is NEVER turned into a Session (an unknown mode silently becomes an interview in Session.__init__).
+                _talk_cfg = None
+                if mode == "talk":
+                    if not await talk_v3_enabled(_email):
+                        await _send(ws, type="error", msg="Talk is not available for this account yet.")
+                        break
+                    _tk_topic = talk_topics.get(data.get("topic_id"))
+                    if _tk_topic is None:
+                        await _send(ws, type="error", msg="Pick a topic to talk about.")
+                        break
+                    _tk_support = data.get("support")
+                    if _tk_support not in talk_topics.TALK_SUPPORTS:
+                        await _send(ws, type="error", msg="Unknown Talk level.")
+                        break
+                    _talk_cfg = {"topic": _tk_topic, "support": _tk_support, "note": ""}
                 _quota_open = asyncio.create_task(turn_quota.open(_email, uid, quota_day))
                 # "DuSu knows your data" (life.py, CLAUDE.md §10): the learner's own numbers, read
                 # alongside the memory reads below and appended to the same text. Talk + Daily Talk + the Home companion.
@@ -3437,7 +3515,14 @@ async def interview_ws(ws: WebSocket):
                 # (switch `home_ai`) with its own privacy toggle, and "my progress?" is one of the things it is for.
                 if uid and db.db_enabled and mode in ("conversation", "daily", "home") and (mode == "home" or await life_context_enabled(_email)):
                     _life_open = asyncio.create_task(life.build(uid, _email))
-                if uid and db.db_enabled and mode in ("conversation", "interview", "daily", "home"):
+                if uid and db.db_enabled and mode == "talk":
+                    # Talk reads two things only: the memory (a compact "about the learner" line and the nickname) and the profile's CEFR level (its fix check and prompt use it). Its prompt has a
+                    # token budget, so the long memory block, the summaries and the relationship tone the other chats carry are deliberately NOT loaded for it.
+                    try:
+                        facts, ictx = await asyncio.gather(db.get_memory(uid), db.interview_context(uid))
+                    except Exception as e:
+                        print(f"[memory] load failed: {type(e).__name__}: {e}")
+                elif uid and db.db_enabled and mode in ("conversation", "interview", "daily", "home"):
                     try:
                         gather_tasks = [db.get_memory(uid), db.recent_summaries(uid, 6), db.relationship_stage(uid)]
                         if mode == "interview":
@@ -3481,6 +3566,8 @@ async def interview_ws(ws: WebSocket):
                     _dcb = _home_daily_block(facts)
                     if _dcb:
                         facts_summary = (facts_summary + "\n\n" if facts_summary else "") + _dcb
+                if _talk_cfg is not None:
+                    _talk_cfg["note"] = talk_reply.learner_note(facts)
                 started_at = time.monotonic()
                 persisted = False
                 # time-of-day from the client's local hour (0-23)
@@ -3530,6 +3617,7 @@ async def interview_ws(ws: WebSocket):
                     hour=hour,
                     tzmin=(data.get("tzmin") if mode == "home" else None),
                     practice=_practice_cfg,
+                    talk=_talk_cfg,
                 )
                 _gref = gc_tracker.valid_gref(data.get("gref"))
                 _gc_on = False
@@ -3548,7 +3636,7 @@ async def interview_ws(ws: WebSocket):
                     _n_user = _replay_into(session, data.get("resume"))
                     if session.transcript:
                         _resumed = True
-                        session.turns = 0 if session.mode in ("conversation", "interview") else _n_user
+                        session.turns = 0 if session.mode in ("conversation", "interview", "talk") else _n_user
                         if session.mode == "practice":      # the report names how long the practice took: count the time before the lock too
                             try:
                                 _el = float(data.get("elapsed") or 0)
@@ -3600,6 +3688,14 @@ async def interview_ws(ws: WebSocket):
                         await _send(ws, type="daily_question", question=q, lang=session.lang)
                 elif session.mode == "learning":
                     await _send(ws, type="ready", lang=session.lang)   # client greets (Hindi by default)
+                elif session.mode == "talk":
+                    # Talk: the topic card's own opener - from the bank, so NO model call and the first moment is instant. The Hindi subtitle rides along only at `en_sub`.
+                    _op = await session.talk_turn("", first=True)
+                    _fr = {"text": _op["text"], "lang": session.lang,
+                           "topic": {"id": session.talk["topic"]["id"], "title": session.talk["topic"]["title"]}}
+                    if "hi" in _op:
+                        _fr["hi"] = _op["hi"]
+                    await _send(ws, type="ai_text", **_fr)
                 else:
                     await _send(ws, type="status", msg="starting")
                     # Companion Moment: if the user already answered DuSu's greeting out loud,
@@ -3643,6 +3739,33 @@ async def interview_ws(ws: WebSocket):
                         continue
                     await _send(ws, type="home_turn", text=r["text"], lang=session.lang, intent=r["intent"],
                                 actions=r["actions"])
+                    continue
+                if session.mode == "talk":
+                    if not talk_reply.clean_learner(text):          # only a recogniser annotation ("[laughs]"): nothing was said
+                        await turn_quota.refund()
+                        continue
+                    if session.turns >= settings.conversation_max_turns:
+                        await turn_quota.refund()         # nothing was asked of the AI: the free turn is not spent
+                        await _send(ws, type="limit",
+                                    msg="You've reached the length limit for this chat — start a fresh one anytime.")
+                        continue
+                    await _send(ws, type="status", msg="thinking")
+                    try:
+                        r = await session.talk_turn(text[:600])
+                    except Exception as e:
+                        # a failed turn leaves the session as it was (the learner's line is added only once DuSu has answered), so a retry is not said twice
+                        await _turn_failed(e, "error", msg="Could not get a reply — please try again.")
+                        continue
+                    _fr = {"text": r["text"], "lang": session.lang}
+                    if "hi" in r:
+                        _fr["hi"] = r["hi"]
+                    if "fix" in r:
+                        _fr["fix"] = r["fix"]
+                    await _send(ws, type="ai_text", **_fr)
+                    if session.turns >= settings.conversation_max_turns:
+                        session.capped = True
+                        await _send(ws, type="limit",
+                                    msg="You've reached the length limit for this chat — start a fresh conversation anytime.")
                     continue
                 if session.mode == "learning":
                     await _send(ws, type="status", msg="translating")

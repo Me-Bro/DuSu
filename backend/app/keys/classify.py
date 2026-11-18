@@ -17,8 +17,8 @@ import re
 import time as _time
 from dataclasses import dataclass
 
-# The three keys a learner can bring. (GitHub Models is gone from this list on purpose: it answers 200 "OK" to ANY token, so it can neither validate nor serve.)
-PROVIDERS = ("groq", "gemini", "openrouter")
+# The keys a learner can bring (config.KEY_PROVIDERS - ONE list). (GitHub Models is gone from this list on purpose: it answers 200 "OK" to ANY token, so it can neither validate nor serve.)
+from ..config import KEY_PROVIDERS as PROVIDERS
 
 KINDS = ("invalid", "limited", "forbidden", "needs_credit", "model_gone", "bad_request", "transient", "unknown")
 
@@ -124,6 +124,11 @@ def _pacific_midnight_after(now: float) -> float:
         return _utc_midnight_after(now) + 8 * 3600          # no tz database: a reasonable stand-in, only ever shown as "about"
 
 
+# Providers whose daily limit resets by a rule THEY PUBLISH, so a day limit with no wait in the response may show "should reset about ...". Z.ai and Sarvam publish none (Z.ai says "resets at a
+# set time" without saying when; Sarvam's free part is a one-time credit): for them a day limit shows no time at all.
+PUBLISHED_RESET = frozenset({"groq", "gemini", "openrouter", "cloudflare"})
+
+
 def quota_day_end(provider: str, now: float) -> float:
     """When the provider's daily bucket starts again: Gemini = midnight Pacific; Groq and OpenRouter = midnight UTC (their published rules)."""
     return _pacific_midnight_after(now) if provider == "gemini" else _utc_midnight_after(now)
@@ -191,6 +196,72 @@ def _names(exc) -> set:
     return {c.__name__ for c in type(exc).__mro__}
 
 
+def _codes(obj, out: set | None = None, depth: int = 0) -> set:
+    """Every value under a key named "code" anywhere in an error body, as lower-case text (Cloudflare: errors[].code 3036; Z.ai: error.code "1302"; Sarvam: error.code "insufficient_quota_error"). Bounded."""
+    out = set() if out is None else out
+    if depth > 6 or len(out) > 40:
+        return out
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k == "code" and isinstance(v, (str, int)) and not isinstance(v, bool):
+                out.add(str(v).strip().lower()[:60])
+            else:
+                _codes(v, out, depth + 1)
+    elif isinstance(obj, (list, tuple)):
+        for v in obj[:12]:
+            _codes(v, out, depth + 1)
+    return out
+
+
+_CF_AUTH_TEXT = ("authentication error", "invalid api token", "invalid format for authorization header", "could not route", "no route for that uri", "valid user-level authentication")
+_ZAI_DAY = frozenset({"1308", "1310", "1316", "1317", "1318", "1319", "1320", "1321"})      # a usage cap (5-hour / 7-day / weekly / monthly): waiting for the cap's own time is the only cure
+
+
+def _specific(provider: str, status: int, codes: set, text: str, headers, now: float) -> Outcome | None:
+    """What the three providers added 2026-11-17 say in THEIR OWN error codes (from each provider's docs - nothing here was seen from a real key; tests/keys/capture_real_errors.py records
+    the real ones). Returns None to let the generic rules read it. Only POSITIVE evidence marks a key invalid: a wrong-model / wrong-request / overload answer never does."""
+    if provider == "cloudflare":
+        # 3036 (429) "You have used up your daily free allocation of 10,000 neurons" needs no rule: it says "daily" and the generic 429 branch reads it as a day limit (reset 00:00 UTC, published).
+        if status == 429 and ("3040" in codes or "capacity temporarily exceeded" in text):
+            sec, reset_at, ev = _retry_after(headers, text, now)             # 3040: THIS model has no capacity right now - not this key's allowance
+            return Outcome("limited", http=429, scope="upstream", retry_after=sec, reset_at=reset_at, evidence=ev)
+        if codes & {"5035", "5018", "3041", "5016"} or "requires a workers paid plan" in text:
+            return Outcome("model_gone", http=status)                       # this ONE model is not available to this account (paid-only, private, terms not accepted): the next model is tried
+        if status == 400 and ("5007" in codes or "no such model" in text or "model or task doesn't exist" in text):
+            return Outcome("model_gone", http=400)
+        if status in (400, 401, 403, 404) and (codes & {"10000", "9109", "6111", "7003", "7000"} or any(w in text for w in _CF_AUTH_TEXT)):
+            return Outcome("invalid", http=status)                          # a wrong token, a token without the Workers AI permission, or an account id that does not exist for it
+        return None
+    if provider == "zai":
+        if "1113" in codes:
+            return Outcome("needs_credit", http=status)                     # 1113 "Insufficient balance or no resource package" - sent with HTTP 429, but NOT a rate limit
+        if status == 429:
+            if codes & {"1302", "1313"}:
+                sec, reset_at, ev = _retry_after(headers, text, now)
+                return Outcome("limited", http=429, scope="minute", retry_after=sec, reset_at=reset_at, evidence=ev)
+            if "1305" in codes:
+                sec, reset_at, ev = _retry_after(headers, text, now)        # "the service may be temporarily overloaded": the shared service, not this key
+                return Outcome("limited", http=429, scope="upstream", retry_after=sec, reset_at=reset_at, evidence=ev)
+            if codes & _ZAI_DAY:
+                sec, reset_at, ev = _retry_after(headers, text, now)
+                return Outcome("limited", http=429, scope="day", retry_after=sec, reset_at=reset_at, evidence=ev)
+            if codes & {"1309", "1314", "1315"}:
+                return Outcome("forbidden", http=429)                       # a coding-plan / enterprise key that expired or is limited to another use
+        if codes & {"1211", "1221", "1222", "1311"}:
+            return Outcome("model_gone", http=status)                       # unknown model / API taken offline / the plan does not include the model
+        return None
+    if provider == "sarvam":
+        if "insufficient_quota_error" in codes or "insufficient_quota" in text:
+            return Outcome("needs_credit", http=status)                     # the free credit is used up (the docs say 402; one page lists it under 429 - both read the same)
+        if status == 429 or "rate_limit_exceeded_error" in codes:
+            sec, reset_at, ev = _retry_after(headers, text, now)
+            return Outcome("limited", http=status or 429, scope="minute", retry_after=sec, reset_at=reset_at, evidence=ev)
+        if codes & {"invalid_api_key_error", "authentication_error"}:
+            return Outcome("invalid", http=status, expired="expired" in text)
+        return None
+    return None
+
+
 def _classify(provider: str, exc, now: float) -> Outcome:
     names = _names(exc)
     status = getattr(exc, "status_code", None)
@@ -211,13 +282,17 @@ def _classify(provider: str, exc, now: float) -> Outcome:
             return Outcome("limited", http=429, scope=_scope(text), retry_after=sec, reset_at=reset_at, evidence=evidence)
         return Outcome("unknown")
 
+    sp = _specific(provider, status, _codes(getattr(exc, "body", None)), text, headers, now)
+    if sp is not None:
+        return sp
+
     if status == 401:
         return Outcome("invalid", http=401, expired="expired" in text)
     if status == 429:
         sec, reset_at, evidence = _retry_after(headers, text, now)
         scope = _scope(text)
         approx = False
-        if reset_at is None and scope == "day":
+        if reset_at is None and scope == "day" and provider in PUBLISHED_RESET:
             reset_at, approx = quota_day_end(provider, now), True
         return Outcome("limited", http=429, scope=scope, retry_after=sec, reset_at=reset_at, evidence=evidence, approx=approx)
     if status == 400:

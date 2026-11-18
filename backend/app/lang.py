@@ -16,7 +16,11 @@ DEFAULT_LANG = "hi"
 # What "bilingual switch OFF" means per WS mode - exactly today's behaviour: Face-to-Face and Interview were
 # English-only; Daily Talk and Learn were Hindi-in. main.py falls back to this when the switch is off for a user.
 LEGACY = {"conversation": "en", "interview": "en", "daily": "hi", "learning": "hi",
-          "home": "hi"}   # Home 2.0 (home_content.py): the companion is Hinglish by default, with or without the switch
+          "home": "hi",   # Home 2.0 (home_content.py): the companion is Hinglish by default, with or without the switch
+          # Talk (talk/ package): DuSu always speaks ENGLISH there; the Hindi is a SUBTITLE the learner chose with the Talk screen's own support level (en_sub / en), not the
+          # global Hindi / English choice - so `talk` is deliberately NOT in SWITCHABLE below (it would honour the client's `lang`, accept `lang` frames and have its session scored as
+          # a Hindi chat). The client mirrors this: LG.LEGACY.talk = "en", not switchable; the subtitle is drawn from the `hi` field of the frame, whatever `LG` says.
+          "talk": "en"}
 
 
 # The modes that obey the learner's Hindi / English choice: ONLY the new features (the Home AI companion; Know About DuSu has no socket;

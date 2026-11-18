@@ -99,7 +99,7 @@ async function K(browser) {
   check('P0-1', 'an AQ. key (what Google AI Studio hands out since 2026-05-28) is recognised as Gemini, never refused as a "short-lived token"', /Gemini/.test(await det('AQ.' + 'e'.repeat(30)) || '') && !/short-lived/i.test(await det('AQ.' + 'e'.repeat(30)) || ''));
   check('P0-1', 'nothing is shown for an empty or unrecognisable box', (await det('')) === '' );
   await p.fill('#ksPaste', 'zzzz' + 'q'.repeat(30)); await tap(p, '#ksSave'); await settle(p, 500);
-  check('P0-1', 'an unrecognisable key asks which service it is from (three choices) and saves nothing', await p.evaluate(() => { const b = document.getElementById('ksPick'); return !b.hidden && b.querySelectorAll('button').length === 3; }) && !(await A.api('newbie', '/keys/status')).body.keys.length, (await A.api('newbie', '/keys/status')).body);
+  check('P0-1', 'an unrecognisable key asks which service it is from (five choices: the three main services, then Z.ai and Sarvam - never Cloudflare, which needs two values) and saves nothing', await p.evaluate(() => { const b = document.getElementById('ksPick'); return !b.hidden && b.querySelectorAll('button').length === 5; }) && !(await A.api('newbie', '/keys/status')).body.keys.length, (await A.api('newbie', '/keys/status')).body);
   await p.fill('#ksPaste', ''); await p.evaluate(() => { document.getElementById('ksPick').hidden = true; });
 
   // key 1

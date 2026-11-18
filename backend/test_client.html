@@ -1476,6 +1476,24 @@
   .ks-pick .btn{ min-height:44px; }
   .ks-det{ min-height:20px; margin-top:8px; font-size:13px; line-height:1.45; color:var(--ink-dim); }
   .ks-det.ok{ color:var(--green); } .ks-det.bad{ color:#ff9d8f; }
+  .ks-more{ margin:12px 0 0; border-radius:16px; border:1px solid var(--glass-brd); background:rgba(255,255,255,.03); }
+  .ks-more > summary{ display:flex; align-items:center; min-height:48px; padding:0 14px; cursor:pointer; font-size:14px; font-weight:600; color:var(--gold-lt); list-style:none; }
+  .ks-more > summary::-webkit-details-marker{ display:none; }
+  .ks-more > summary::after{ content:"\25BE"; margin-left:auto; transition:transform .2s ease; }
+  .ks-more[open] > summary::after{ transform:rotate(180deg); }
+  .ks-more > summary:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:2px; }
+  .ks-more-p{ margin:0 14px 10px; font-size:13px; line-height:1.5; color:var(--ink-dim); }
+  .ks-svc{ margin:0 10px 10px; padding:12px; border-radius:14px; background:var(--glass); border:1px solid var(--glass-brd); }
+  .ks-svc-h{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 10px; }
+  .ks-svc-h b{ font-size:15px; }
+  .ks-svc-h a{ display:inline-flex; align-items:center; min-height:44px; padding:0 12px; border-radius:12px; border:1px solid var(--glass-brd); color:var(--gold-lt); text-decoration:none; font-weight:600; font-size:13.5px; }
+  .ks-svc-d{ margin:4px 0 8px; font-size:12.5px; line-height:1.5; color:var(--ink-dim); }
+  .ks-svc-row{ display:flex; flex-direction:column; gap:8px; }
+  .ks-svc-row input{ width:100%; min-height:48px; padding:0 12px; border-radius:12px; background:rgba(255,255,255,.05); border:1px solid var(--glass-brd); color:var(--ink); font:inherit; font-size:15px; }
+  .ks-svc-row input:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:2px; }
+  .ks-svc-row .btn{ min-height:48px; }
+  .ks-svc-m{ min-height:18px; margin:6px 0 0; font-size:12.5px; line-height:1.45; color:var(--ink-dim); }
+  .ks-svc-m.ok{ color:var(--green); } .ks-svc-m.bad{ color:#ff9d8f; }
   .ks-why{ margin:14px 0 0; font-size:12.5px; color:var(--ink-dim); line-height:1.5; }
   .ks-never{ margin:6px 0 0; font-size:12.5px; color:var(--ink-dim); }
   .ks-help{ margin:12px 0 8px; border-radius:16px; border:1px solid var(--glass-brd); background:var(--glass); }
@@ -2162,6 +2180,7 @@
   .ky-k.warn{ border-color:rgba(240,169,82,.34); } .ky-k.bad{ border-color:rgba(224,138,122,.42); }
   .ky-av{ flex:none; display:grid; place-items:center; width:38px; height:38px; border-radius:12px; font-weight:700; font-size:16px; color:#fff; background:#566; box-shadow:inset 0 0 0 1px rgba(255,255,255,.18); }
   .ky-av-groq{ background:linear-gradient(135deg,#ff8a50,#f0502f); } .ky-av-gemini{ background:linear-gradient(135deg,#4f8cff,#9b6cf0); } .ky-av-openrouter{ background:linear-gradient(135deg,#7a86ff,#4b3fe0); }
+  .ky-av-cloudflare{ background:linear-gradient(135deg,#f6a23c,#e8590c); } .ky-av-zai{ background:linear-gradient(135deg,#3b82f6,#1d4ed8); } .ky-av-sarvam{ background:linear-gradient(135deg,#e879a8,#be3b7a); }
   .ky-kb{ flex:1; min-width:0; }
   .ky-kt{ display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; }
   .ky-kt b{ font-size:14.5px; }
@@ -2205,6 +2224,12 @@
   #keysForm.ky-on .keyblk.ky-st-ok{ border-color:rgba(120,210,150,.34); }
   #keysForm.ky-on .keyblk.ky-st-warn{ border-color:rgba(240,169,82,.46); background:linear-gradient(180deg,rgba(240,169,82,.07),var(--glass)); }
   #keysForm.ky-on .keyblk.ky-st-bad{ border-color:rgba(224,138,122,.5); background:linear-gradient(180deg,rgba(224,138,122,.08),var(--glass)); }
+  #keysForm .ky-more{ margin:0 0 12px; }
+  #keysForm .ky-more > summary{ display:flex; align-items:center; min-height:48px; padding:0 4px; cursor:pointer; font-size:14px; font-weight:600; color:var(--gold-lt); list-style:none; }
+  #keysForm .ky-more > summary::-webkit-details-marker{ display:none; }
+  #keysForm .ky-more > summary::after{ content:"\25BE"; margin-left:auto; transition:transform .2s ease; }
+  #keysForm .ky-more[open] > summary::after{ transform:rotate(180deg); }
+  #keysForm .ky-more > summary:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:2px; border-radius:10px; }
   .inst-sheet .btn, .cm-sheet .btn{ width:100%; margin-top:8px; }
   .inst-list{ list-style:none; margin:0 0 6px; padding:0; }
   .inst-list li{ margin:0 0 8px; font-size:14px; line-height:1.45; }
@@ -2886,6 +2911,226 @@
   @media (min-width:1200px){
     #gc{ max-width:720px; margin:0 auto; }
   }
+  /* ===================== GRAMMAR LAB (a Hindi sentence in, English out - twelve tenses, four levels, checked by rules) =====================
+     Every class is gl-* and every id #gl*: this file's class names are global and unscoped, so nothing here may touch an old screen. Mobile-first (320 / 360 / 390 px);
+     tap targets >= 44px; nothing under 12px; nothing is signalled by colour alone (a word or a glyph always goes with it); no letter-spacing / uppercase on text that may be
+     Devanagari (it breaks the conjuncts). The desktop layer at the end changes nothing below 1200px. */
+  .gl-top{ flex-wrap:wrap; }
+  .gl-ttl{ min-width:0; flex:1 1 110px; }
+  .gl-ttl .sess-title{ outline:none; overflow-wrap:anywhere; }
+  .gl-ttl .sess-sub{ overflow-wrap:anywhere; line-height:1.3; }
+  #gl .gl-back{ width:44px; height:44px; flex:none; }
+  .gl-sw{ display:inline-flex; flex:none; border:1px solid var(--glass-brd); border-radius:999px; overflow:hidden; background:var(--glass); }
+  .gl-sw button{ font:inherit; font-size:13px; line-height:1.3; padding:0 12px; min-width:44px; min-height:44px; color:var(--ink-dim); background:transparent; border:0; cursor:pointer; touch-action:manipulation; }
+  .gl-sw button.on{ background:var(--gold); color:#0d1020; font-weight:600; }
+  .gl-sw button:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:-2px; }
+  .gl-warn{ font-size:13px; line-height:1.45; color:#ffd9a8; background:rgba(240,169,82,.1); border:1px solid rgba(240,169,82,.35); border-radius:12px; padding:9px 12px; margin:6px 0 8px; overflow-wrap:anywhere; }
+  .gl-body{ margin-top:12px; }
+  .gl-card{ background:var(--glass); border:1px solid var(--glass-brd); border-radius:18px; padding:14px 16px; margin:0 0 12px; }
+  .gl-h{ font-family:var(--font-d); font-size:19px; font-weight:600; margin:0 0 6px; overflow-wrap:anywhere; }
+  .gl-p{ font-size:13.5px; line-height:1.55; color:var(--ink-dim); margin:0 0 10px; overflow-wrap:anywhere; }
+  .gl-small{ font-size:12.5px; line-height:1.5; color:var(--ink-faint); margin:4px 0 8px; overflow-wrap:anywhere; }
+  .gl-lab{ display:block; font-size:12.5px; font-weight:600; color:var(--ink-faint); margin:0 0 6px; }
+  .gl-sh{ font-size:13px; font-weight:600; color:var(--ink-dim); margin:18px 0 8px 3px; overflow-wrap:anywhere; }
+  .gl-empty{ text-align:center; color:var(--ink-faint); font-size:13.5px; line-height:1.55; padding:14px 10px; }
+  .gl-center{ text-align:center; }
+  .gl-spin{ display:flex; align-items:center; gap:10px; font-size:13px; color:var(--ink-dim); padding:10px 2px; }
+  .gl-btn{ min-height:44px; padding-left:14px; padding-right:14px; display:inline-flex; align-items:center; justify-content:center; gap:8px; line-height:1.25; text-align:center; }
+  .gl-btn svg{ width:18px; height:18px; flex:none; }
+  .gl-btn[disabled]{ opacity:.5; cursor:not-allowed; }
+  .gl-btn:focus-visible, .gl-unit-main:focus-visible, .gl-lv:focus-visible, .gl-lvrow:focus-visible, .gl-speak:focus-visible, .gl-mic:focus-visible, #gl .gl-back:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:2px; }
+  .gl-acts{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+  .gl-acts .btn{ flex:1 1 140px; }
+  .gl-acts.gl-stack .btn{ flex:1 1 100%; }
+  .gl-link{ background:none; border:0; color:var(--ink); font:inherit; font-size:13px; text-decoration:underline; cursor:pointer; min-height:44px; padding:0 8px; touch-action:manipulation; }
+  .gl-link:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:2px; }
+  .gl-w{ width:100%; }
+  .gl-stars{ display:inline-flex; gap:2px; align-items:center; }
+  .gl-star{ width:14px; height:14px; fill:rgba(255,255,255,.14); stroke:rgba(255,255,255,.28); stroke-width:1.2; stroke-linejoin:round; flex:none; }
+  .gl-star.on{ fill:var(--amber); stroke:var(--amber); }
+  .gl-bar{ height:8px; border-radius:6px; background:rgba(255,255,255,.08); overflow:hidden; margin:8px 0 6px; flex:1 1 auto; }
+  .gl-bar i{ display:block; height:100%; background:var(--grad); border-radius:6px; }
+  /* hub */
+  .gl-total{ display:flex; align-items:center; gap:14px; }
+  .gl-total-n{ font-family:var(--font-d); font-size:40px; font-weight:600; line-height:1; flex:none; }
+  .gl-total-n small{ font-family:var(--font-b); font-size:14px; font-weight:400; color:var(--ink-dim); }
+  .gl-total-t{ min-width:0; flex:1; }
+  .gl-steps{ margin:6px 0 0 4px; padding-left:20px; display:flex; flex-direction:column; gap:6px; }
+  .gl-steps li{ font-size:13.5px; line-height:1.5; color:var(--ink-dim); overflow-wrap:anywhere; }
+  .gl-pri{ border-color:rgba(111,140,255,.5); background:linear-gradient(135deg,rgba(111,140,255,.14),rgba(122,92,240,.08)); }
+  .gl-unit{ background:var(--glass); border:1px solid var(--glass-brd); border-radius:16px; padding:4px 8px 10px; margin:0 0 10px; }
+  .gl-unit-main{ display:block; width:100%; text-align:left; font:inherit; color:inherit; background:none; border:0; cursor:pointer; padding:8px 6px; min-height:44px; touch-action:manipulation; }
+  .gl-unit-top{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .gl-unit-name{ font-size:16px; font-weight:600; overflow-wrap:anywhere; }
+  .gl-unit-sum{ font-size:12px; color:var(--ink-faint); white-space:nowrap; flex:none; display:inline-flex; align-items:center; gap:4px; }
+  .gl-unit-sum .gl-star{ width:12px; height:12px; fill:var(--amber); stroke:var(--amber); }
+  .gl-unit-gist{ display:block; font-size:12.5px; color:var(--ink-dim); line-height:1.45; margin-top:3px; overflow-wrap:anywhere; }
+  .gl-lvs{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; padding:0 2px; }
+  .gl-lv{ font:inherit; min-height:44px; padding:4px 2px; border-radius:12px; background:rgba(255,255,255,.05); border:1px solid var(--glass-brd); color:var(--ink-dim); cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; line-height:1.2; text-align:center; touch-action:manipulation; }
+  .gl-lv b{ font-size:12px; font-weight:600; color:var(--ink); overflow-wrap:anywhere; }
+  .gl-lv[disabled]{ opacity:.45; cursor:default; }
+  /* unit page */
+  .gl-forms{ display:flex; flex-direction:column; gap:8px; margin:6px 0 4px; }
+  .gl-form{ background:rgba(255,255,255,.04); border-radius:12px; padding:8px 12px; }
+  .gl-form span{ display:block; font-size:12.5px; color:var(--ink-faint); margin-bottom:2px; }
+  .gl-form code{ display:block; font-family:inherit; font-size:14px; line-height:1.45; color:var(--ink); overflow-wrap:anywhere; }
+  .gl-ex{ display:flex; align-items:flex-start; gap:10px; margin:0 0 8px; }
+  .gl-ex p{ flex:1; min-width:0; font-size:15px; line-height:1.5; overflow-wrap:anywhere; margin:0; padding-top:10px; }
+  .gl-lvrow{ display:flex; align-items:center; gap:10px; width:100%; min-height:56px; text-align:left; font:inherit; color:inherit; padding:8px 12px; border-radius:16px; cursor:pointer;
+    background:var(--glass); border:1px solid var(--glass-brd); margin:0 0 8px; touch-action:manipulation; }
+  .gl-lvrow-t{ flex:1; min-width:0; }
+  .gl-lvrow-t b{ display:block; font-size:15px; overflow-wrap:anywhere; }
+  .gl-lvrow-t small{ display:block; font-size:12.5px; color:var(--ink-dim); line-height:1.4; margin-top:1px; overflow-wrap:anywhere; }
+  .gl-lvrow-m{ display:flex; flex-direction:column; align-items:flex-end; gap:3px; font-size:12px; color:var(--ink-faint); flex:none; }
+  .gl-lvrow-go{ color:var(--gold-lt); font-size:18px; flex:none; }
+  /* drill */
+  .gl-prog{ display:flex; align-items:center; gap:10px; font-size:13px; color:var(--ink-dim); margin:0 0 6px; }
+  .gl-prog-n{ font-weight:600; color:var(--ink); white-space:nowrap; }
+  .gl-q-row{ display:flex; align-items:flex-start; gap:10px; }
+  .gl-hi{ flex:1; min-width:0; font-size:24px; line-height:1.55; font-weight:500; margin:2px 0 0; overflow-wrap:anywhere; outline:none; }
+  .gl-speak{ width:44px; height:44px; flex:none; border-radius:14px; display:grid; place-items:center; cursor:pointer; background:var(--glass); border:1px solid var(--glass-brd); color:var(--ink); touch-action:manipulation; }
+  .gl-speak svg{ width:20px; height:20px; }
+  .gl-mic-row{ display:flex; align-items:center; gap:12px; margin:0 0 12px; }
+  .gl-mic{ width:64px; height:64px; border-radius:50%; flex:none; display:grid; place-items:center; cursor:pointer; border:0; color:#241a08; background:var(--grad); box-shadow:var(--gold-glow); touch-action:manipulation; }
+  .gl-mic svg{ width:26px; height:26px; }
+  .gl-mic[disabled]{ opacity:.5; cursor:not-allowed; }
+  .gl-mic.on{ box-shadow:0 0 0 6px rgba(111,140,255,.28), var(--gold-glow); }
+  .gl-mic-t{ font-size:13.5px; line-height:1.4; color:var(--ink-dim); min-width:0; overflow-wrap:anywhere; }
+  .gl-in{ display:block; width:100%; font:inherit; font-size:16px; line-height:1.5; color:var(--ink); background:rgba(255,255,255,.06); border:1px solid var(--glass-brd); border-radius:14px; padding:12px 14px; min-height:84px; resize:vertical; }
+  .gl-in:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:1px; }
+  .gl-in[disabled]{ opacity:.6; }
+  .gl-hint{ font-size:12.5px; line-height:1.5; color:var(--ink-faint); margin:6px 0 0; overflow-wrap:anywhere; }
+  .gl-res.ok{ border-color:rgba(79,214,160,.5); background:rgba(79,214,160,.07); }
+  .gl-res.bad{ border-color:rgba(240,169,82,.45); background:rgba(240,169,82,.07); }
+  .gl-verdict{ display:flex; align-items:center; gap:10px; font-size:17px; font-weight:600; margin:0 0 8px; }
+  .gl-tick{ width:28px; height:28px; border-radius:50%; flex:none; display:grid; place-items:center; background:rgba(79,214,160,.2); color:var(--green); }
+  .gl-tick.bad{ background:rgba(240,169,82,.2); color:var(--amber); }
+  .gl-tick.info{ background:rgba(111,140,255,.2); color:var(--gold-lt); }
+  .gl-res.info{ border-color:rgba(111,140,255,.45); background:rgba(111,140,255,.07); }
+  .gl-chg-k{ font-size:13px; color:var(--ink-dim); }
+  .gl-tick svg{ width:16px; height:16px; }
+  .gl-ans{ display:flex; align-items:flex-start; gap:10px; margin:2px 0 8px; }
+  .gl-ans p{ flex:1; min-width:0; font-size:16px; line-height:1.5; font-weight:500; margin:0; padding-top:10px; overflow-wrap:anywhere; }
+  .gl-also{ margin:0 0 8px 2px; padding-left:20px; display:flex; flex-direction:column; gap:4px; }
+  .gl-also li{ font-size:14px; line-height:1.45; color:var(--ink-dim); overflow-wrap:anywhere; }
+  .gl-youl{ font-size:13.5px; line-height:1.5; color:var(--ink-dim); margin:0 0 8px; overflow-wrap:anywhere; }
+  .gl-head{ font-size:15px; font-weight:600; line-height:1.45; margin:0 0 6px; overflow-wrap:anywhere; }
+  .gl-rules{ margin:0 0 8px 2px; padding-left:20px; display:flex; flex-direction:column; gap:6px; }
+  .gl-rules li{ font-size:14px; line-height:1.5; color:var(--ink-dim); overflow-wrap:anywhere; }
+  .gl-chg{ margin:0 0 8px; display:flex; flex-direction:column; gap:6px; }
+  .gl-chg div{ font-size:15px; line-height:1.5; overflow-wrap:anywhere; background:rgba(255,255,255,.05); border-radius:10px; padding:6px 10px; }
+  .gl-said{ color:var(--rose); text-decoration:line-through; text-decoration-color:rgba(224,138,122,.55); }
+  .gl-fix{ color:var(--green); font-weight:600; }
+  .gl-ex-k{ display:block; font-size:12.5px; font-weight:600; color:var(--ink-faint); margin:8px 0 2px; }
+  .gl-ex-v{ display:block; font-size:14px; line-height:1.5; color:var(--ink-dim); overflow-wrap:anywhere; margin:0; }
+  .gl-ex-v.code{ color:var(--ink); }
+  .gl-tries{ font-size:12.5px; color:var(--ink-faint); margin:2px 0 0; }
+  /* summary */
+  .gl-hero{ text-align:center; }
+  .gl-bigstars{ display:flex; justify-content:center; gap:6px; margin:4px 0 8px; }
+  .gl-bigstars .gl-star{ width:40px; height:40px; }
+  .gl-pct{ font-family:var(--font-d); font-size:46px; font-weight:600; line-height:1; margin:2px 0 4px; }
+  .gl-tally{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:10px 0 4px; }
+  .gl-chip{ display:inline-flex; align-items:center; gap:6px; font-size:13px; padding:5px 12px; border-radius:999px; background:rgba(255,255,255,.06); color:var(--ink-dim); }
+  .gl-chip b{ color:var(--ink); }
+  .gl-chip.ok{ background:rgba(79,214,160,.14); color:var(--green); }
+  .gl-chip.bad{ background:rgba(240,169,82,.16); color:var(--amber); }
+  .gl-new{ display:inline-block; font-size:13px; font-weight:600; padding:3px 12px; border-radius:999px; background:rgba(111,140,255,.2); color:var(--gold-lt); margin:2px 0 6px; }
+  .gl-miss{ display:flex; align-items:flex-start; gap:8px; padding:6px 0; border-top:1px solid rgba(255,255,255,.07); }
+  .gl-miss:first-of-type{ border-top:0; }
+  .gl-miss > div{ flex:1; min-width:0; padding-top:8px; }
+  .gl-miss p{ margin:0; overflow-wrap:anywhere; }
+  .gl-miss .m-hi{ font-size:15px; line-height:1.5; }
+  .gl-miss .m-en{ font-size:14px; line-height:1.45; color:var(--ink-dim); }
+  @media (max-width:340px){ .gl-hi{ font-size:22px; } }
+  @media (prefers-reduced-motion: no-preference){ .gl-mic.on{ animation:glPulse 1.3s ease-in-out infinite; } }
+  @keyframes glPulse{ 0%,100%{ box-shadow:0 0 0 4px rgba(111,140,255,.22), var(--gold-glow); } 50%{ box-shadow:0 0 0 12px rgba(111,140,255,.10), var(--gold-glow); } }
+  @media (min-width:1200px){
+    #gl{ max-width:720px; margin:0 auto; }
+  }
+
+  /* ===================== TALK (backend/app/talk - milestone M5 of the learner-first release) =====================
+     Every class is tk-* and every id #tk*: this file's class names are global and unscoped, so nothing here may touch an old screen. Mobile-first (320 / 360 / 390 px);
+     the desktop layer is the one @media (min-width:1200px) rule at the end. The chat itself is the existing #session screen: only a Talk chat adds .tk-chat to it, a
+     .tk-m class to a reply that has a Hindi subtitle, and .tk-fix cards to #feed - none of that exists for any other mode. */
+  .tk-top{ flex-wrap:wrap; }
+  .tk-ttl{ min-width:0; flex:1 1 110px; }
+  .tk-ttl .sess-title{ outline:none; overflow-wrap:anywhere; }
+  .tk-ttl .sess-sub{ overflow-wrap:anywhere; line-height:1.3; }
+  #tk .tk-back{ width:44px; height:44px; flex:none; }
+  .tk-sw{ display:inline-flex; flex:none; border:1px solid var(--glass-brd); border-radius:999px; overflow:hidden; background:var(--glass); }
+  .tk-sw button{ font:inherit; font-size:13px; line-height:1.3; padding:0 12px; min-width:44px; min-height:44px; color:var(--ink-dim); background:transparent; border:0; cursor:pointer; touch-action:manipulation; }
+  .tk-sw button.on{ background:var(--gold); color:#0d1020; font-weight:600; }
+  .tk-sw button:focus-visible, .tk-chip:focus-visible, .tk-lvopt:focus-visible, .tk-alt:focus-visible, .tk-btn:focus-visible, .tk-speak:focus-visible, #tk .tk-back:focus-visible, #tkSubBtn:focus-visible{ outline:2px solid var(--gold-lt); outline-offset:2px; }
+  .tk-warn{ font-size:13px; line-height:1.45; color:#ffd9a8; background:rgba(240,169,82,.1); border:1px solid rgba(240,169,82,.35); border-radius:12px; padding:9px 12px; margin:6px 0 8px; overflow-wrap:anywhere; }
+  .tk-body{ margin-top:12px; }
+  .tk-card{ background:var(--glass); border:1px solid var(--glass-brd); border-radius:18px; padding:14px 16px; margin:0 0 12px; }
+  .tk-lab{ display:block; font-size:12.5px; font-weight:600; color:var(--ink-faint); margin:0 0 6px; }
+  .tk-lab + .tk-lab, .tk-card > .tk-lab:not(:first-child){ margin-top:14px; }
+  .tk-h{ font-family:var(--font-d); font-size:23px; font-weight:600; line-height:1.25; margin:0 0 4px; overflow-wrap:anywhere; }
+  .tk-hi{ font-size:15.5px; line-height:1.55; color:var(--ink-dim); margin:0 0 8px; overflow-wrap:anywhere; }
+  .tk-p{ font-size:13.5px; line-height:1.55; color:var(--ink-dim); margin:0 0 10px; overflow-wrap:anywhere; }
+  .tk-small{ font-size:12.5px; line-height:1.5; color:var(--ink-faint); margin:4px 0 8px; overflow-wrap:anywhere; }
+  .tk-empty{ text-align:center; color:var(--ink-dim); font-size:14px; line-height:1.6; padding:10px 6px; }
+  .tk-spin{ display:flex; align-items:center; gap:10px; font-size:13px; color:var(--ink-dim); padding:10px 2px; }
+  .tk-chips{ display:flex; flex-wrap:wrap; gap:8px; }
+  .tk-chip{ font:inherit; font-size:14px; line-height:1.35; min-height:44px; padding:8px 14px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid var(--glass-brd); color:var(--ink); text-align:left; cursor:pointer; touch-action:manipulation; overflow-wrap:anywhere; }
+  .tk-chip[aria-pressed="true"]{ border-color:rgba(111,140,255,.65); background:rgba(111,140,255,.14); }
+  .tk-focus{ margin:0 0 4px; border-style:dashed; color:var(--gold-lt); font-size:13px; }
+  span.tk-focus{ display:inline-flex; align-items:center; min-height:0; padding:5px 12px; cursor:default; font:inherit; font-size:13px; border-radius:999px; border:1px dashed var(--glass-brd); color:var(--ink-dim); }
+  .tk-hint{ margin:10px 0 0; padding:10px 12px; border-radius:14px; background:rgba(111,140,255,.09); border:1px solid rgba(111,140,255,.3); display:flex; align-items:flex-start; gap:10px; }
+  .tk-hint > div{ flex:1; min-width:0; }
+  .tk-hint p{ margin:0; overflow-wrap:anywhere; }
+  .tk-hint .tk-hint-en{ font-size:15px; line-height:1.5; font-weight:500; }
+  .tk-hint .tk-hint-hi{ font-size:14px; line-height:1.5; color:var(--ink-dim); margin-top:2px; }
+  .tk-speak{ width:44px; height:44px; flex:none; border-radius:14px; display:grid; place-items:center; cursor:pointer; background:var(--glass); border:1px solid var(--glass-brd); color:var(--ink); touch-action:manipulation; }
+  .tk-speak svg{ width:20px; height:20px; }
+  .tk-vocab{ display:flex; flex-wrap:wrap; gap:6px; }
+  .tk-w{ font-size:13px; line-height:1.4; padding:5px 11px; border-radius:999px; background:rgba(255,255,255,.05); border:1px solid var(--glass-brd); overflow-wrap:anywhere; }
+  .tk-w small{ color:var(--ink-faint); font-size:12px; margin-left:5px; }
+  .tk-lv{ display:flex; flex-direction:column; gap:8px; margin:0 0 4px; }
+  .tk-lvopt{ display:flex; align-items:flex-start; gap:12px; width:100%; min-height:56px; text-align:left; font:inherit; color:inherit; padding:10px 12px; border-radius:14px; background:rgba(255,255,255,.04); border:1px solid var(--glass-brd); cursor:pointer; touch-action:manipulation; }
+  .tk-lvopt.on{ border-color:rgba(111,140,255,.65); background:rgba(111,140,255,.12); }
+  .tk-dot{ width:18px; height:18px; border-radius:50%; border:2px solid var(--ink-faint); flex:none; margin-top:2px; }
+  .tk-lvopt.on .tk-dot{ border-color:var(--gold-lt); background:radial-gradient(circle, var(--gold-lt) 42%, transparent 48%); }
+  .tk-lvopt span.tk-lvt{ display:block; min-width:0; }
+  .tk-lvopt b{ display:block; font-size:15px; font-weight:600; overflow-wrap:anywhere; }
+  .tk-lvopt small{ display:block; font-size:12.5px; line-height:1.4; color:var(--ink-dim); margin-top:1px; overflow-wrap:anywhere; }
+  .tk-acts{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+  .tk-btn{ min-height:44px; padding-left:14px; padding-right:14px; display:inline-flex; align-items:center; justify-content:center; gap:8px; line-height:1.25; text-align:center; flex:1 1 140px; }
+  .tk-btn svg{ width:18px; height:18px; flex:none; }
+  .tk-btn[disabled]{ opacity:.5; cursor:not-allowed; }
+  .tk-alts{ display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+  .tk-alt{ display:block; width:100%; min-height:52px; text-align:left; font:inherit; color:inherit; padding:9px 12px; border-radius:14px; background:rgba(255,255,255,.04); border:1px solid var(--glass-brd); cursor:pointer; touch-action:manipulation; }
+  .tk-alt b{ display:block; font-size:14.5px; font-weight:600; overflow-wrap:anywhere; }
+  .tk-alt small{ display:block; font-size:12.5px; color:var(--ink-dim); margin-top:1px; overflow-wrap:anywhere; }
+  /* the chat: a Hindi subtitle sits UNDER DuSu's English bubble, as a sibling of it (the reconnect replay reads only .bubble) */
+  .msg.ai.tk-m{ display:grid; grid-template-columns:28px minmax(0,1fr); column-gap:10px; align-items:end; }
+  .msg.ai.tk-m .bubble{ justify-self:start; }
+  .msg.ai.tk-m .tk-sub{ grid-column:2; margin:5px 4px 0; font-size:13.5px; line-height:1.5; color:var(--ink-dim); overflow-wrap:anywhere; }
+  #feed.tk-nosub .tk-sub, #feed.tk-nosub .tk-fix-w, #feed.tk-nosub .tk-fix-lab em{ display:none; }   /* the learner turned the Hindi off: no Hindi anywhere in the chat */
+  .tk-fix{ align-self:stretch; margin:-4px 0 2px; padding:10px 12px; border-radius:14px; background:rgba(240,169,82,.08); border:1px solid rgba(240,169,82,.4); animation:fade .35s both; }
+  .tk-fix{ scroll-margin-bottom:calc(76px + env(safe-area-inset-bottom) + 16px); }   /* when it is brought into view it must clear the bottom nav */
+  .tk-fix[data-c="likely"]{ background:rgba(111,140,255,.08); border-color:rgba(111,140,255,.4); }
+  .tk-fix-row{ font-size:14px; line-height:1.5; margin:0 0 7px; overflow-wrap:anywhere; }
+  .tk-fix-lab{ display:block; font-size:12px; font-weight:600; color:var(--ink-faint); margin:0 0 1px; }
+  .tk-fix-lab em{ font-style:normal; font-weight:400; margin-left:6px; }
+  .tk-q{ color:var(--rose); text-decoration:line-through; text-decoration-color:rgba(224,138,122,.55); }
+  .tk-f{ color:var(--green); font-weight:600; }
+  .tk-fix-w{ display:block; color:var(--ink-dim); margin-top:2px; }
+  .tk-fix-acts{ display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; }
+  .tk-fix-acts .btn{ flex:1 1 120px; min-height:44px; padding:0 12px; font-size:14px; }
+  .tk-fix-st{ font-size:12.5px; color:var(--ink-faint); margin:6px 0 0; }
+  .tk-sum{ margin:14px 0 0; padding:12px 14px; border-radius:16px; background:var(--glass); border:1px solid var(--glass-brd); text-align:left; }
+  .tk-sum h4{ font-family:var(--font-d); font-size:18px; margin:0 0 2px; }
+  .tk-sum .tk-fix-row{ margin:8px 0 0; padding-top:8px; border-top:1px solid rgba(255,255,255,.07); }
+  #tkSubBtn{ min-height:44px; }
+  @media (max-width:1199.98px){ #session.tk-chat .feed{ max-height:48vh; } }
+  @media (max-width:340px){ .tk-h{ font-size:21px; } }
+  @media (min-width:1200px){
+    #tk{ max-width:720px; margin:0 auto; }
+  }
 </style>
 </head>
 <body>
@@ -3201,6 +3446,29 @@
           <div class="keyblk-hint">Create an account → "Create Key" → copy.</div>
         </div>
 
+        <details class="ky-more" id="kyMore" hidden>
+          <summary id="kyMoreSum">More free options</summary>
+          <div class="keyblk">
+            <div class="keyblk-hd"><span class="keyblk-name">Cloudflare Workers AI <span style="color:var(--gold-lt);font-weight:500">· free every day</span></span>
+              <a class="keyblk-get" href="https://dash.cloudflare.com/?to=/:account/ai/workers-ai" target="_blank" rel="noopener noreferrer">Get free key ↗</a></div>
+            <label class="keyrow"><input id="kCfAcct" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Account ID (32 letters and numbers)" aria-label="Cloudflare Account ID"></label>
+            <label class="keyrow"><input id="kCloudflare" type="password" autocomplete="off" placeholder="API token" aria-label="Cloudflare API token"><i class="kst" id="stCloudflare"></i></label>
+            <div class="keyblk-hint">Workers AI page → "Use REST API" → copy the Account ID → "Create a Workers AI API Token" → copy it. Cloudflare says it does not train on your chats.</div>
+          </div>
+          <div class="keyblk">
+            <div class="keyblk-hd"><span class="keyblk-name">Z.ai (GLM Flash)</span>
+              <a class="keyblk-get" href="https://z.ai/manage-apikey/apikey-list" target="_blank" rel="noopener noreferrer">Get free key ↗</a></div>
+            <label class="keyrow"><input id="kZai" type="password" autocomplete="off" placeholder="Paste your Z.ai key" aria-label="Z.ai key"><i class="kst" id="stZai"></i></label>
+            <div class="keyblk-hint">Create an account → "Create a Standard API Key" → copy. Z.ai processes data mainly in Singapore and its terms about training on chats are unclear.</div>
+          </div>
+          <div class="keyblk">
+            <div class="keyblk-hd"><span class="keyblk-name">Sarvam <span style="color:var(--gold-lt);font-weight:500">· ₹100 free credit</span></span>
+              <a class="keyblk-get" href="https://indus.sarvam.ai/key-management" target="_blank" rel="noopener noreferrer">Get free key ↗</a></div>
+            <label class="keyrow"><input id="kSarvam" type="password" autocomplete="off" placeholder="sk_…" aria-label="Sarvam key"><i class="kst" id="stSarvam"></i></label>
+            <div class="keyblk-hint">Sign up → create an API key → copy. The ₹100 credit is a one-time gift; after it is used up Sarvam is paid.</div>
+          </div>
+        </details>
+
         <button class="btn primary" id="verifyKeys" style="width:100%;margin-top:6px">Verify &amp; save</button>
         <div class="keys-status" id="keysStatus"></div>
       </div>
@@ -3413,6 +3681,16 @@
     <button class="pr-entry" id="gcEntry" hidden>
       <span class="pr-ic">✍️</span>
       <span><b>Grammar Coach</b><small>Every English sentence you speak, checked — what to fix, why, and quick drills.</small></span>
+      <span class="pr-go">→</span>
+    </button>
+    <button class="pr-entry" id="glEntry" hidden>
+      <span class="pr-ic">🧪</span>
+      <span><b>Grammar Lab</b><small>A sentence in Hindi, you say it in English — 12 tenses, checked and explained.</small></span>
+      <span class="pr-go">→</span>
+    </button>
+    <button class="pr-entry" id="tkEntry" hidden>
+      <span class="pr-ic">🗣️</span>
+      <span><b>Talk</b><small>A new topic every day — chat in English, with Hindi subtitles if you want them.</small></span>
       <span class="pr-go">→</span>
     </button>
   </section>
@@ -3994,6 +4272,7 @@
     <div class="controls">
       <button class="btn danger" id="endBtn">End</button>
       <button type="button" class="btn ghost" id="hmRestart" hidden></button>
+      <button type="button" class="btn ghost" id="tkSubBtn" hidden aria-pressed="true"></button>
     </div>
   </section>
 
@@ -4094,6 +4373,28 @@
     <div class="gc-warn" id="gcNote" role="status" hidden></div>
     <div class="gc-body" id="gcBody"></div>
   </section>
+
+  <!-- ===================== GRAMMAR LAB (the GL module paints #glBody with DOM calls only - never innerHTML) ===================== -->
+  <section id="gl" class="screen">
+    <div class="sess-head gl-top">
+      <button class="back gl-back" id="glBack" type="button" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+      <div class="gl-ttl"><div class="sess-title" id="glTitle" tabindex="-1">Grammar Lab</div><div class="sess-sub" id="glSub"></div></div>
+      <div class="gl-sw" id="glSw" role="group" aria-label="Language of the explanations"><button type="button" id="glLangHi" lang="hi" aria-pressed="false">हिंदी</button><button type="button" id="glLangEn" lang="en" aria-pressed="false">English</button></div>
+    </div>
+    <div class="gl-warn" id="glNote" role="status" hidden></div>
+    <div class="gl-body" id="glBody"></div>
+  </section>
+
+  <!-- ===================== TALK (the TK module paints #tkBody with DOM calls only - never innerHTML) ===================== -->
+  <section id="tk" class="screen">
+    <div class="sess-head tk-top">
+      <button class="back tk-back" id="tkBack" type="button" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+      <div class="tk-ttl"><div class="sess-title" id="tkTitle" tabindex="-1">Talk</div><div class="sess-sub" id="tkSub"></div></div>
+      <div class="tk-sw" id="tkSw" role="group" aria-label="Language of this screen"><button type="button" id="tkLangHi" lang="hi" aria-pressed="false">हिंदी</button><button type="button" id="tkLangEn" lang="en" aria-pressed="false">English</button></div>
+    </div>
+    <div class="tk-warn" id="tkNote" role="status" hidden></div>
+    <div class="tk-body" id="tkBody"></div>
+  </section>
 </div>
 
 <!-- ===================== NOTIFICATIONS SETTINGS SHEET (the NT module paints #ntSheet with DOM calls only) ===================== -->
@@ -4119,6 +4420,8 @@
   <button class="mrow" data-more="install" id="mrowInst" hidden><span class="mi">⬇️</span><span><span class="mt">Install app</span><br><span class="msub">Add DuSu to your home screen</span></span></button>
   <button class="mrow" data-more="whatsapp" id="mrowWA" hidden><span class="mi">💬</span><span><span class="mt">WhatsApp group</span><br><span class="msub">Updates, help and feedback</span></span></button>
   <button class="mrow" data-more="grammar" id="mrowGC" hidden><span class="mi">✍️</span><span><span class="mt">Grammar Coach</span><br><span class="msub">Your English, sentence by sentence</span></span></button>
+  <button class="mrow" data-more="grammar-lab" id="mrowGL" hidden><span class="mi">🧪</span><span><span class="mt">Grammar Lab</span><br><span class="msub">Hindi sentence → English, 12 tenses</span></span></button>
+  <button class="mrow" data-more="talk" id="mrowTK" hidden><span class="mi">🗣️</span><span><span class="mt">Talk</span><br><span class="msub">A new topic every day, with Hindi subtitles</span></span></button>
   <button class="mrow" data-more="profile"><span class="mi">👤</span><span><span class="mt">Profile</span><br><span class="msub">Streaks, badges, memories</span></span></button>
   <button class="mrow" data-more="keys"><span class="mi">🔑</span><span><span class="mt">My AI keys</span><br><span class="msub">Check, test or replace your free keys</span></span></button>
   <button class="mrow" data-more="leveltest" id="mrowLevelTest"><span class="mi">🧪</span><span><span class="mt">Level check</span><br><span class="msub">Re-check your English level</span></span></button>
@@ -4356,7 +4659,7 @@ const Assistant = (function(){
 })();
 
 // Screens that run a live voice loop (speak ↔ listen ↔ reply). Leaving one MUST tear it down.
-const VOICE_SCREENS = new Set(["session","daily","learning"]);
+const VOICE_SCREENS = new Set(["session","daily","learning","gl"]);   // gl = the Grammar Lab drill (its recogniser and its spoken lines are stopped by GL.stopVoice via stopAllVoice)
 // Speech "epoch": every teardown bumps it. A chained speaker (say A → say B → …) captures
 // the epoch at start and aborts the moment it changes — so cancel() during a chain doesn't
 // let the NEXT line speak. Fixes "Finish / switch tab but DuSu keeps talking".
@@ -4508,7 +4811,7 @@ const LEARN_SAY = {
 
 const LG = (function(){
   const K_LANG = "dusu_lang", K_DIR = "dusu_learn_dir";   // K_DIR is parked (Learn is Hindi -> English only): only cleaned up on sign-out
-  const LEGACY = { conversation:"en", interview:"en", daily:"hi", learning:"hi", home:"hi" };   // what each mode always was (home = Hinglish by default)
+  const LEGACY = { conversation:"en", interview:"en", daily:"hi", learning:"hi", home:"hi", talk:"en" };   // what each mode always was (home = Hinglish by default; talk = English - its Hindi is a SUBTITLE the learner chose with the Talk screen's level, never this switch; mirror of backend/app/lang.py)
   // ONLY these modes obey the learner's choice - the new features. Everything else (Daily Talk, Face-to-Face, Interview, Learn, Journey and
   // every screen around them) is pinned to LEGACY: it behaves exactly as it did before a language choice existed, whatever the switch,
   // the saved preference or a frame from the server says (DUSU_LANGUAGE_SCOPE_PLAN.md). A new feature joins by being added here.
@@ -4553,6 +4856,7 @@ const LG = (function(){
   // Face-to-Face / Interview header + End button (the original English: tr() is never anything else outside the Home chat)
   function applySession(){
     if(currentMode === "home"){ try{ HM.sessionChrome(); }catch(_){} return; }   // Home 2.0 draws its own header
+    if(currentMode === "talk"){ try{ window.TK && TK.sessionChrome(); }catch(_){} return; }   // Talk draws its own header (the topic)
     const iv = currentMode === "interview";
     setText("#sessTitle", tr(iv ? "sessIntTitle" : "sessTalkTitle"));
     const role = ($("role") && $("role").value) || "general";
@@ -4646,6 +4950,8 @@ const UI_ICON_SRC = {
   download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
   chat:'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
   pen:'<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  spell:'<path d="m6 16 6-12 6 12"/><path d="M8 12h8"/><path d="m16 20 2 2 4-4"/>',
+  talk:'<path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/>',
   user:'<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
   key:'<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/>',
   flask:'<path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/>',
@@ -4663,10 +4969,10 @@ function uiIcon(name){
   return document.importNode(doc.documentElement, true);
 }
 (function applyUiIcons(){
-  const more = { admin:"chart", myday:"checklist", "resume-interview":"file", notifications:"bell", install:"download", whatsapp:"chat", grammar:"pen", profile:"user", keys:"key", leveltest:"flask",
+  const more = { admin:"chart", myday:"checklist", "resume-interview":"file", notifications:"bell", install:"download", whatsapp:"chat", grammar:"pen", "grammar-lab":"spell", talk:"talk", profile:"user", keys:"key", leveltest:"flask",
     help:"mail", confidence:"target", achievements:"award", "interview-reports":"chart", rewards:"gift", subscribe:"star", signout:"logout" };
   document.querySelectorAll("#msheet .mrow[data-more]").forEach(r => { const ic = uiIcon(more[r.dataset.more]), slot = r.querySelector(".mi"); if(ic && slot) slot.replaceChildren(ic); });
-  [["prEntry", "mic"], ["riEntry", "file"], ["gcEntry", "pen"], ["prHomeCard", "mic"], ["plHomeCard", "checklist"], ["riHomeCard", "file"], ["gcHomeCard", "pen"]].forEach(([id, name]) => {
+  [["prEntry", "mic"], ["riEntry", "file"], ["gcEntry", "pen"], ["glEntry", "spell"], ["tkEntry", "talk"], ["prHomeCard", "mic"], ["plHomeCard", "checklist"], ["riHomeCard", "file"], ["gcHomeCard", "pen"]].forEach(([id, name]) => {
     const slot = document.querySelector("#" + id + " .pr-ic"), ic = uiIcon(name); if(slot && ic) slot.replaceChildren(ic);
   });
 })();
@@ -4699,6 +5005,7 @@ function stopAllVoice(){
   try{ if(typeof FACE !== "undefined" && FACE.stopTalking) FACE.stopTalking(); }catch(_){}
   try{ if(typeof Assistant !== "undefined" && Assistant.stopTalking) Assistant.stopTalking(); }catch(_){}
   try{ if(typeof dMicActive === "function") dMicActive(false); }catch(_){}
+  try{ window.GL && GL.stopVoice(); }catch(_){}                       // Grammar Lab drill: its recogniser (no socket, no server state)
   try{ if(ws){ ws.onclose = null; if(ws.readyState <= 1) ws.close(); } }catch(_){}   // server persists on disconnect
   ws = null;
   sessFrame = null; sessReviving = false; sessEnding = false; sessThen = ""; sessNeedsTap = false; sessRestart = null;
@@ -4737,18 +5044,22 @@ function show(id, pathOverride){
     try{ renderHomeExtras2(); }catch(_){}   // paint chips + Today's-goal instantly from cached state
     try{ HM.render(); }catch(_){}           // Home 2.0 (a no-op unless the switch is on for this learner)
   }
-  if(id === "session"){ try{ HM.onSessionShown(); }catch(_){} }   // the Home companion's chat controls
+  if(id === "session"){ try{ HM.onSessionShown(); }catch(_){} try{ window.TK && TK.onSessionShown(); }catch(_){} }   // the Home companion's chat controls; Talk's subtitle button + chat class
   try{ syncNav(id, pathOverride); }catch(_){}
   try{ syncUrl(id, pathOverride); }catch(_){}   // keep the browser URL mirroring the visible screen (override for shared screens)
   try{ window.PR && PR.syncEntries(); }catch(_){}   // Practice Room entry points (hidden until the owner switches it on)
   try{ window.PL && PL.syncEntries(); }catch(_){}   // My Day entry points (hidden until the owner switches it on)
   try{ window.RI && RI.syncEntries(); }catch(_){}   // Job Interview Practice entry points (hidden until the owner switches it on)
   try{ window.GC && GC.syncEntries(); }catch(_){}   // Grammar Coach entry points (hidden until the owner switches it on)
+  try{ window.GL && GL.syncEntries(); }catch(_){}   // Grammar Lab entry points (hidden until the owner switches it on)
+  try{ window.TK && TK.syncEntries(); }catch(_){}   // Talk entry points (hidden until the owner switches it on)
   try{ window.NT && NT.syncEntries(); }catch(_){}   // Notifications: the Home prompt + the More row (hidden until the owner switches it on)
   try{ window.KY && KY.sync(); }catch(_){}           // Keys: the Home card + the pop-up for a key that died while the learner was away (hidden until the owner switches it on)
   try{ window.INST && INST.sync(); }catch(_){}       // Install app: the header pill, the More row, the Home card (hidden until the owner switches it on)
   try{ window.CM && CM.sync(); }catch(_){}           // WhatsApp group: the Home card, the More row, Help, plans (hidden until the owner switches it on)
   if(cur === "gc" && id !== "gc"){ try{ window.GC && GC.leave(); }catch(_){} }
+  if(cur === "gl" && id !== "gl"){ try{ window.GL && GL.leave(); }catch(_){} }
+  if(cur === "tk" && id !== "tk"){ try{ window.TK && TK.leave(); }catch(_){} }
   if(cur === "pl" && id !== "pl"){ try{ window.PL && PL.leave(); }catch(_){} }
   if(cur === "ri" && id !== "ri"){ try{ window.RI && RI.leave(); }catch(_){} }   // stop the voice / keep an unfinished recording
 }
@@ -4756,10 +5067,11 @@ function show(id, pathOverride){
 const NAV_TAB = { about:"home", home:"home", journey:"journey", daily:"daily", practice:"practice",
   learning:"practice", session:"practice", setup:"practice", lesson:"practice", report:"practice",
   leaderboard:"leaderboard", profile:"more", keys:"more", admin:"more", help:"more", career:"home", league:"leaderboard", achievements:"more", interviewReports:"more",
-  prHub:"practice", prSetup:"practice", prTalk:"practice", prLive:"practice", prWork:"practice", prReport:"practice", prBridge:"practice", pl:"more", ri:"practice", gc:"more" };
+  prHub:"practice", prSetup:"practice", prTalk:"practice", prLive:"practice", prWork:"practice", prReport:"practice", prBridge:"practice", pl:"more", ri:"practice", gc:"more", gl:"practice", tk:"practice" };
 const PATH_TAB = { "/profile":"more", "/keys":"more", "/more":"more", "/my-day":"more", "/my-day/tasks":"more", "/my-day/goals":"more", "/my-day/habits":"more", "/my-day/reminders":"more", "/my-day/settings":"more",
   "/resume-interview":"practice", "/resume-interview/resume":"practice", "/resume-interview/job":"practice", "/resume-interview/match":"practice", "/resume-interview/interview":"practice", "/resume-interview/report":"practice", "/resume-interview/settings":"practice",
-  "/grammar":"more", "/grammar/mistakes":"more", "/grammar/sentences":"more", "/grammar/practice":"more", "/grammar/rules":"more", "/grammar/settings":"more" };
+  "/grammar":"more", "/grammar/mistakes":"more", "/grammar/sentences":"more", "/grammar/practice":"more", "/grammar/rules":"more", "/grammar/settings":"more",
+  "/grammar-lab":"practice", "/grammar-lab/review":"practice", "/talk":"practice" };   // (the twelve /grammar-lab/<unit> paths are added by the GL module; syncNav falls back to NAV_TAB.gl for any path it does not know)
 function syncNav(id, pathOverride){
   const nav = $("bnav"); if(nav) nav.classList.toggle("hide", id === "login" || id === "assessment");
   const t = (pathOverride && PATH_TAB[pathOverride]) || (id === "session" && currentMode === "home" ? "home" : NAV_TAB[id]);
@@ -4802,6 +5114,8 @@ function openMore(){
   try{ window.PL && PL.syncEntries(); }catch(_){}   // My Day row (hidden unless /me says planner)
   try{ window.RI && RI.syncEntries(); }catch(_){}   // Job Interview Practice row (hidden unless /me says resume_interview)
   try{ window.GC && GC.syncEntries(); }catch(_){}   // Grammar Coach row (hidden unless /me says grammar_coach)
+  try{ window.GL && GL.syncEntries(); }catch(_){}   // Grammar Lab row (hidden unless /me says grammar_lab)
+  try{ window.TK && TK.syncEntries(); }catch(_){}   // Talk row (hidden unless /me says talk_v3)
   try{ window.NT && NT.syncEntries(); }catch(_){}   // Notifications row (hidden unless /me says notifications)
   try{ window.INST && INST.paint(); window.CM && CM.sync(); }catch(_){}   // Install app + WhatsApp group rows (hidden unless /me says install_app)
   // Level check hidden entirely while the owner has the assessment switched off.
@@ -4824,6 +5138,8 @@ document.querySelectorAll(".mrow").forEach(r => r.onclick = () => {
   else if(a === "myday") navTo("/my-day");
   else if(a === "resume-interview") navTo("/resume-interview");
   else if(a === "grammar") navTo("/grammar");
+  else if(a === "grammar-lab") navTo("/grammar-lab");
+  else if(a === "talk") navTo("/talk");
   else if(a === "notifications") NT.open();             // a sheet, not a route: nothing to guard or restore on reload
   else if(a === "install") INST.start();                // the one-tap install (or the steps for this browser): a sheet, not a route
   else if(a === "whatsapp") CM.open();
@@ -4925,7 +5241,7 @@ function runGuards(route){
 }
 // visible screen → canonical path (session is shared by conversation + interview)
 function pathForScreen(id){
-  if(id === "session") return currentMode === "interview" ? "/interview" : currentMode === "home" ? "/home-chat" : currentMode === "practice" ? "/practice-room" : "/face-to-face";
+  if(id === "session") return currentMode === "interview" ? "/interview" : currentMode === "home" ? "/home-chat" : currentMode === "practice" ? "/practice-room" : currentMode === "talk" ? "/talk" : "/face-to-face";
   return ({ home:"/", practice:"/practice", daily:"/daily-talk", setup:"/interview",
     learning:"/learn", journey:"/learning-journey", lesson:"/learning-journey", report:"/interview",
     leaderboard:"/leaderboard", keys:"/keys", admin:"/more", help:"/more", profile:"/profile",
@@ -4936,6 +5252,8 @@ function pathForScreen(id){
     pl:(window.PL && PL.path()) || "/my-day",
     ri:(window.RI && RI.path()) || "/resume-interview",
     gc:(window.GC && GC.path()) || "/grammar",
+    gl:(window.GL && GL.path()) || "/grammar-lab",
+    tk:"/talk",
     superadmin:"/superadmin", subscribe:"/subscribe", login:"/", assessment:"/test" })[id] || null;
 }
 function syncUrl(id, pathOverride){
@@ -5382,6 +5700,12 @@ async function openAdmin(){
       <label class="swrow"><span><b>Grammar Coach</b><br><span class="msub">After a session DuSu checks every English sentence and shows what to fix. It stores the sentences a learner needed to fix, so it ships dark. Off = nobody (default). Owner + early access = you and the early-access testers. Everyone = all users.</span></span>
       <select class="pr-sel" id="gcSel"><option value="off" ${d.grammar_coach === "on" || d.grammar_coach === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.grammar_coach === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.grammar_coach === "on" ? "selected" : ""}>Everyone</option></select></label>
       ${d.grammar_coach_health && typeof d.grammar_coach_health.sessions === "number" ? `<p class="keys-note" style="margin:-4px 0 8px">Grammar Coach: ${d.grammar_coach_health.sessions} session(s) · ${d.grammar_coach_health.partial} partial · ${d.grammar_coach_health.failed} failed${(d.grammar_coach_health.noisy || []).length ? " · noisiest rule: " + esc(d.grammar_coach_health.noisy[0].rule) + " (" + d.grammar_coach_health.noisy[0].contested + "/" + d.grammar_coach_health.noisy[0].shown + " contested)" : ""}</p>` : ""}
+      <label class="swrow"><span><b>Grammar Lab</b><br><span class="msub">A Hindi sentence the learner says or types in English, checked by rules (no AI, no keys, no cost) and explained in Hindi: 12 tenses x 4 levels. It stores which sentences a learner got wrong (no typed text), so it ships dark. Off = nobody (default). Owner + early access = you and the early-access testers. Everyone = all users.</span></span>
+      <select class="pr-sel" id="glSel"><option value="off" ${d.grammar_lab === "on" || d.grammar_lab === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.grammar_lab === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.grammar_lab === "on" ? "selected" : ""}>Everyone</option></select></label>
+      ${d.grammar_lab_health && typeof d.grammar_lab_health.sets === "number" ? `<p class="keys-note" style="margin:-4px 0 8px">Grammar Lab: ${d.grammar_lab_health.sets} set(s) · ${d.grammar_lab_health.attempts} answer(s) · ${d.grammar_lab_health.items} sentences in the bank</p>` : ""}
+      <label class="swrow"><span><b>Talk</b><br><span class="msub">A new topic every day: the learner chats with DuSu out loud in English - with Hindi subtitles under her replies, or English only - and DuSu points out one mistake at a time. (Hindi to English is Daily Talk and is not behind this switch.) It stores a short summary of each chat and the level the learner picked, so it ships dark. Off = nobody (default). Owner + early access = you and the early-access testers. Everyone = all users.</span></span>
+      <select class="pr-sel" id="tkSel"><option value="off" ${d.talk_v3 === "on" || d.talk_v3 === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.talk_v3 === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.talk_v3 === "on" ? "selected" : ""}>Everyone</option></select></label>
+      ${d.talk_v3_health && d.talk_v3_health.topics && typeof d.talk_v3_health.topics.total === "number" ? `<p class="keys-note" style="margin:-4px 0 8px">Talk: ${d.talk_v3_health.topics.total} topic(s) in the bank · ${typeof d.talk_v3_health.sessions_today === "number" ? d.talk_v3_health.sessions_today + " chat(s) saved today" : "no chat count"}${d.talk_v3_health.rejected ? " · " + d.talk_v3_health.rejected + " topic row(s) rejected" : ""}</p>` : ""}
       <label class="swrow"><span><b>Notifications</b><br><span class="msub">Personal nudges to a learner's phone: a daily practice reminder, a streak warning and a weekly-note announcement, chosen from their own progress. It stores each learner's notification choices and history, so it ships dark. Off = nobody (default). Owner + early access = you and the early-access testers. Everyone = all users (each still has to turn it on in the app).</span></span>
       <select class="pr-sel" id="ntSel"><option value="off" ${d.notifications === "on" || d.notifications === "owner" ? "" : "selected"}>Off</option><option value="owner" ${d.notifications === "owner" ? "selected" : ""}>Owner + early access</option><option value="on" ${d.notifications === "on" ? "selected" : ""}>Everyone</option></select></label>
       <label class="swrow"><span><b>Key health (per-key engine)</b><br><span class="msub">Counts every AI request per learner and per key, remembers which key is limited or rejected (so a dead key is not retried on every call), keeps the keys a learner SAVED ahead of stale ones in the browser, and adds the exact reason to key errors. It changes what happens on every AI call for the people it covers, so it ships dark. Off = today's behaviour for everyone (default). Owner + early access = you and the early-access testers. Everyone = all users. Turn this on BEFORE the key screens.</span></span>
@@ -5551,6 +5875,8 @@ function wireOffice(){
     const pln = ($("plSel") && $("plSel").value) || undefined;
     const rin = ($("riSel") && $("riSel").value) || undefined;
     const gcs = ($("gcSel") && $("gcSel").value) || undefined;
+    const gls = ($("glSel") && $("glSel").value) || undefined;
+    const tks = ($("tkSel") && $("tkSel").value) || undefined;
     const nts = ($("ntSel") && $("ntSel").value) || undefined;
     const khs = ($("khSel") && $("khSel").value) || undefined;
     const c3s = ($("c3Sel") && $("c3Sel").value) || undefined;
@@ -5558,7 +5884,7 @@ function wireOffice(){
     const ins = ($("instSel") && $("instSel").value) || undefined;
     try{ await fetch("/admin/settings",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({token:authToken, access_phase: growth ? "growth" : "quota",
-                           level_test: lvl, owner_byok: obk, practice_room: prm, life_context: lcx, bilingual: bil, home_ai: hom, planner: pln, resume_interview: rin, grammar_coach: gcs, notifications: nts,
+                           level_test: lvl, owner_byok: obk, practice_room: prm, life_context: lcx, bilingual: bil, home_ai: hom, planner: pln, resume_interview: rin, grammar_coach: gcs, grammar_lab: gls, talk_v3: tks, notifications: nts,
                            key_health: khs, chain_v3: c3s, keys_ui: kus, install_mode: ins})}); }catch(_){}
   };
   if($("reqKeysSw")) $("reqKeysSw").onchange = saveSettings;
@@ -5571,6 +5897,8 @@ function wireOffice(){
   if($("plSel")) $("plSel").onchange = saveSettings;
   if($("riSel")) $("riSel").onchange = saveSettings;
   if($("gcSel")) $("gcSel").onchange = saveSettings;
+  if($("glSel")) $("glSel").onchange = saveSettings;
+  if($("tkSel")) $("tkSel").onchange = saveSettings;
   if($("ntSel")) $("ntSel").onchange = saveSettings;
   if($("khSel")) $("khSel").onchange = saveSettings;
   if($("c3Sel")) $("c3Sel").onchange = saveSettings;
@@ -5622,6 +5950,7 @@ function addMsg(text, who){
   m.innerHTML = `<div class="av">${who==="ai"?"Du":"🙂"}</div><div class="bubble"></div>`;
   m.querySelector(".bubble").textContent = text;
   $("feed").appendChild(m); $("feed").scrollTop = $("feed").scrollHeight;
+  return m;   // Talk hangs a Hindi subtitle on it (as a sibling of the bubble)
 }
 function addSys(text){ const d=document.createElement("div"); d.className="sysmsg"; d.textContent=text;
   $("feed").appendChild(d); $("feed").scrollTop=$("feed").scrollHeight; }
@@ -5896,6 +6225,7 @@ function leave(){
   }
   currentLesson = null;
   if(currentMode === "practice"){ try{ PR.open(); return; }catch(_){} }   // a practice conversation goes back to the Practice Room
+  if(currentMode === "talk"){ try{ navTo("/talk"); return; }catch(_){} }       // a Talk chat goes back to its topic card
   show("home");
 }
 $("backBtn").onclick = leave;
@@ -6076,14 +6406,15 @@ function onMessage(ev){
       if(!cov) say(lgt("lUnavail"), ENG_NORM());   // Learn is Hindi -> English only
       learnState(lgt("lFail")); micEnable(true); break;
     }
-    case "ai_text": addMsg(m.text, "ai"); speak(m.text, m.lang); break;   // m.lang = the language this reply was WRITTEN in
+    case "ai_text": if(currentMode === "talk" && window.TK){ TK.onAi(m); break; }   // Talk: the English bubble + a Hindi subtitle beside it + at most one correction card
+      addMsg(m.text, "ai"); speak(m.text, m.lang); break;   // m.lang = the language this reply was WRITTEN in
     case "interview_done": sessEnding = true; addSys(lgt("sysInterviewDone")); thinkShow("scoring"); break;   // sessEnding: a connection lost from here on finishes the interview on the new socket
     case "report": showReport(m.data);
       if(currentLesson && currentLesson.type === "interview"){ const cl = currentLesson; currentLesson = null; completeLesson(cl.level, cl.id, "interview"); }
       break;
     case "speaker_progress":
       if(currentMode === "interview") renderReportSpeakerStrip(m.data);
-      else { renderSessionResult(m.data); show("sessionResult"); try{ window.GC && GC.afterSessionResult(m.data); }catch(_){} }
+      else { renderSessionResult(m.data); show("sessionResult"); try{ window.GC && GC.afterSessionResult(m.data); }catch(_){} try{ window.TK && TK.afterSessionResult(m.data); }catch(_){} }
       break;
     case "mission_progress": {
       // §7 item 9 — was a dead message type client-side: server completed a weekly
@@ -6106,7 +6437,7 @@ function onMessage(ev){
       // message, so if there was anything to show, sessionResult is already up by now —
       // only fall back to the old plain exit if there genuinely was nothing (e.g. a
       // 0-turn session, which never earns/sends speaker_progress at all).
-      if((currentMode === "conversation" || currentMode === "daily") && currentScreen() === "sessionResult"){
+      if((currentMode === "conversation" || currentMode === "daily" || currentMode === "talk") && currentScreen() === "sessionResult"){
         // speaker_progress is sent BEFORE ended: still spinning here means nothing new was earned (a quiet reconnect that was finished straight away) - don't wait 20 s
         if(currentMode === "daily" && $("srBody") && $("srBody").querySelector(".spin")){ try{ renderSessionResult(null, dailyInputs > 0); }catch(_){} }
         break;
@@ -6988,7 +7319,7 @@ $("dailyFinish").onclick = finishDaily;
 const VP = (() => {
   const GRACE_MS = 10 * 60 * 1000, LONG_MS = 20 * 1000, PONG_MS = 3000, BUSY_MS = 45 * 1000;
   let p = null, timer = 0;
-  const SESS = new Set(["conversation", "interview", "practice", "home"]);          // the modes that live on the session screen
+  const SESS = new Set(["conversation", "interview", "practice", "home", "talk"]);          // the modes that live on the session screen
   const owns = () => { const sc = currentScreen(); return (sc === "daily" && currentMode === "daily") || (sc === "learning" && currentMode === "learning") || (sc === "session" && SESS.has(currentMode)); };
   function pause(){
     if(!p) p = { mode: currentMode, at: Date.now(), gone: false };
@@ -8937,6 +9268,7 @@ function logout(){
   try{ window.NT && NT.reset(); }catch(_){}   // Notifications: close the sheet, drop the cached settings (the device stays subscribed - that is the phone's, not the account's)
   try{ window.KY && KY.reset(); window.INST && INST.reset(); window.CM && CM.reset(); }catch(_){}   // Keys / Install / WhatsApp: close the sheets, drop the cached picture
   try{ window.RI && RI.reset(); }catch(_){}   // Job Interview Practice: stop the mic + voice, drop in-memory state (the on-device recordings are NOT wiped here)
+  try{ window.TK && TK.reset(); }catch(_){}   // Talk: drop the topic card and the fixes of the last chat (they belong to the account that signed out)
   localStorage.removeItem("dusu_token"); localStorage.removeItem("dusu_user"); localStorage.removeItem("dusu_state"); localStorage.removeItem("dusu_letter"); localStorage.removeItem("dusu_daily_resume"); localStorage.removeItem("dusu_keys_ok"); localStorage.removeItem("dusu_office_keys"); localStorage.removeItem("dusu_keys_owner");
   $("hdrRight").hidden = true; $("tagline").style.display = "";
   try{ ws && ws.close(); }catch(_){}
@@ -8963,7 +9295,7 @@ function routeFallback(){
 // navigated to while /me was in flight — only refresh Home if they're already on it.
 // Routes whose availability is a rollout flag the server decides (/me). A cold deep link (a reminder tap on a fresh install, a bookmark, cleared data) used to be checked
 // BEFORE /me answered: userState was still empty, the flag read as "off", and the learner was told "isn't available" about a feature that is on (reproduced 6 of 6).
-const FLAG_ROUTES = [["/my-day", "planner"], ["/resume-interview", "resume_interview"], ["/practice-room", "practice_room"], ["/grammar", "grammar_coach"], ["/home-chat", "home_ai"], ["/about", "home_ai"]];
+const FLAG_ROUTES = [["/my-day", "planner"], ["/resume-interview", "resume_interview"], ["/practice-room", "practice_room"], ["/grammar", "grammar_coach"], ["/grammar-lab", "grammar_lab"], ["/talk", "talk_v3"], ["/home-chat", "home_ai"], ["/about", "home_ai"]];
 let _meLanded = false;   // the first /me of this page load has been applied to userState
 function flagForPath(p){ for(const [pre, f] of FLAG_ROUTES){ if(p === pre || p.indexOf(pre + "/") === 0) return f; } return null; }
 // Is the answer to "does this route exist for me?" still unknown? Yes when it is a flag route, this page load's /me has not landed, and the cache does not already say "on".
@@ -9037,6 +9369,8 @@ function refreshMe(initial){
       try{ if(window.PL){ PL.syncEntries(); if(PL.enabled()) PL.start(); } }catch(_){}   // My Day: entry points + the in-app reminder poll
       try{ window.RI && RI.syncEntries(); }catch(_){}   // Job Interview Practice: the owner may have just switched it on/off
       try{ window.GC && GC.syncEntries(); }catch(_){}   // Grammar Coach: likewise
+      try{ window.GL && GL.syncEntries(); }catch(_){}   // Grammar Lab: likewise
+      try{ window.TK && TK.syncEntries(); }catch(_){}   // Talk: likewise
       try{ window.NT && NT.syncEntries(); }catch(_){}   // Notifications: likewise
       try{ window.KY && KY.sync(); window.INST && INST.sync(); window.CM && CM.sync(); }catch(_){}   // Keys, Install app, WhatsApp group: likewise
       localStorage.setItem("dusu_onboarded", st.onboarded ? "true" : "false");
@@ -10234,7 +10568,9 @@ const HM = (function(){
     achievements:  '<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>',
     goals_planning:'<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
     resume_interview:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
-    grammar_coach: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>'
+    grammar_coach: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+    grammar_lab:   '<path d="m6 16 6-12 6 12"/><path d="M8 12h8"/><path d="m16 20 2 2 4-4"/>',
+    talk:          '<path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/>'
   };
   function renderFeats(){
     const nav = $("hmFeats"); if(!nav) return;
@@ -11851,9 +12187,11 @@ const KY = (function(){
   const LS_SEEN = "dusu_ky_seen";                     // {sig, at} of the last problem the learner was shown
   const REPEAT_MS = 10 * 60 * 1000;
   const FRESH_MS = 45 * 1000;
-  const ORDER = ["groq", "gemini", "openrouter"];
-  const NAME = { groq:"Groq", gemini:"Gemini", openrouter:"OpenRouter" };
-  const FIELD = { groq:"kGroq", gemini:"kGemini", openrouter:"kOpenrouter" };
+  // The first three are what the wizard suggests, in this order (Groq first); the other three (added 2026-11-17) sit behind "More free options". ORDER is the server's order (config.KEY_PROVIDERS).
+  const MAIN = ["groq", "gemini", "openrouter"], EXTRA = ["cloudflare", "zai", "sarvam"], ORDER = MAIN.concat(EXTRA);
+  const NAME = { groq:"Groq", gemini:"Gemini", openrouter:"OpenRouter", cloudflare:"Cloudflare", zai:"Z.ai", sarvam:"Sarvam" };
+  const FIELD = { groq:"kGroq", gemini:"kGemini", openrouter:"kOpenrouter", cloudflare:"kCloudflare", zai:"kZai", sarvam:"kSarvam" };
+  const LEFTNONE = { gemini:"leftNone", cloudflare:"leftNoneCf", zai:"leftNoneGen", sarvam:"leftNoneSv" };       // what a key's card says when the provider reports no allowance (Groq and OpenRouter show numbers)
 
   /* ---------- words (Hindi = Devanagari with everyday English words in Latin; DuSu is "she"; the learner's gender is never assumed) ---------- */
   const TXT = {
@@ -11886,7 +12224,16 @@ const KY = (function(){
       ksHelpSum:"Need help? Watch how, or follow the steps",
       ksWhy:"Why a key? DuSu is free for you because you use your own free key. Free keys have daily limits set by the service.",
       ksStepLevel:"With 2 working keys you go straight into your level check, then you can start speaking. 🎤",
-      gemHint:"New Gemini keys start with AQ. (older ones with AIza). Copy the whole key with the copy button.", ksGemSkip:"You don't need Gemini: any two of Groq, Gemini and OpenRouter will do.",
+      gemHint:"New Gemini keys start with AQ. (older ones with AIza). Copy the whole key with the copy button.", ksGemSkip:"You don't need Gemini: any two free services will do.",
+      moreSum:"More free options", moreP:"These work too. You still need two keys in all.", svcGet:"Get free key ↗", svcPh:"Paste your {p} key",
+      cfD:"Free every day (10,000 neurons), no card. You need two things: the Account ID and an API token. On the Workers AI page tap Use REST API, copy the Account ID, then create a Workers AI API token. Cloudflare says it doesn't train on your chats.",
+      zaiD:"Free GLM Flash model. Create a Standard API Key and copy it. Z.ai processes data mainly in Singapore, and its terms about training on your chats are unclear, so use it for everyday practice only.",
+      svD:"₹100 free credit when you sign up - one time, then paid. Built for Hindi. Create an API key and copy it. When the credit is used up it stops until you add credit.",
+      cfAcctPh:"Account ID (32 letters and numbers)", cfTokPh:"API token", cfNeed:"Paste both the Account ID and the API token.",
+      badCredit:"❌ {p} says that key has no credit left. Add credit there, or use another service.",
+      badCf:"❌ Cloudflare didn't accept that. Check the Account ID and the token (the token needs the Workers AI permission).", shapeCf:"Check the Account ID (32 letters and numbers) and paste the token in the second box.",
+      leftNoneCf:"Cloudflare gives 10,000 neurons a day but doesn't show how many are left. DuSu tells you the moment the limit is reached.",
+      leftNoneGen:"{p} doesn't show how many are left. DuSu tells you the moment the limit is reached.", leftNoneSv:"Sarvam's free credit is a one-time gift. DuSu tells you the moment it runs out.",
       cardT:"Your AI keys", cardSub:"{w} working · {u}", cardTap:"Tap to manage your keys", cardFix:"Needs attention - tap to fix",
       chipLeft:"{n} left", chipAbout:"about {n} left",
       popInvalid:"Your AI keys need attention", popLimited:"Your free AI limit is used up for now", popDegraded:"One of your keys needs attention", popNone:"Add your AI keys",
@@ -11939,7 +12286,17 @@ const KY = (function(){
       ksHelpSum:"मदद चाहिए? देखो कैसे करते हैं, या steps पढ़ो",
       ksWhy:"Key क्यों? तुम अपनी free key इस्तेमाल करते हो, इसलिए DuSu तुम्हारे लिए free है। Free keys की daily limit service तय करती है।",
       ksStepLevel:"2 चालू keys होते ही तुम सीधे level check में जाओगे, फिर बोलना शुरू कर सकते हो। 🎤",
-      gemHint:"नई Gemini keys AQ. से शुरू होती हैं (पुरानी AIza से)। Copy button से पूरी key copy करो।", ksGemSkip:"Gemini ज़रूरी नहीं है: Groq, Gemini और OpenRouter में से कोई भी दो keys चलेंगी।",
+      gemHint:"नई Gemini keys AQ. से शुरू होती हैं (पुरानी AIza से)। Copy button से पूरी key copy करो।", ksGemSkip:"Gemini ज़रूरी नहीं है: कोई भी दो free services चलेंगी।",
+      /* UNREVIEWED Hindi (2026-11-17): moreSum ... leftNoneSv + badCredit / badCf / shapeCf below were written without a native speaker - tum style, no gendered second-person verbs; to be read before they are relied on */
+      moreSum:"और free options", moreP:"ये भी चलते हैं। शुरू करने के लिए कुल दो keys चाहिए।", svcGet:"Free key लो ↗", svcPh:"अपनी {p} key paste करो",
+      cfD:"रोज़ free (10,000 neurons), कोई card नहीं। दो चीज़ें चाहिए: Account ID और एक API token। Workers AI page पर Use REST API दबाओ, Account ID copy करो, फिर Workers AI API token बनाओ। Cloudflare कहता है कि वो तुम्हारी chats पर training नहीं करता।",
+      zaiD:"Free GLM Flash model। एक Standard API Key बनाओ और copy करो। Z.ai data ज़्यादातर Singapore में process करता है, और chats पर training के बारे में उसके terms साफ़ नहीं हैं, इसलिए सिर्फ़ रोज़ की practice के लिए use करो।",
+      svD:"Sign up पर ₹100 का free credit - एक बार, फिर paid। Hindi के लिए बना है। एक API key बनाओ और copy करो। Credit खत्म होने पर ये तब तक बंद रहेगा जब तक credit न डालो।",
+      cfAcctPh:"Account ID (32 अक्षर और अंक)", cfTokPh:"API token", cfNeed:"Account ID और API token, दोनों paste करो।",
+      badCredit:"❌ {p} कहता है कि उस key में credit नहीं बचा। वहाँ credit डालो, या कोई दूसरी service use करो।",
+      badCf:"❌ Cloudflare ने ये नहीं माना। Account ID और token देखो (token में Workers AI की permission चाहिए)।", shapeCf:"Account ID देखो (32 अक्षर और अंक) और token दूसरे box में paste करो।",
+      leftNoneCf:"Cloudflare रोज़ 10,000 neurons देता है, पर नहीं दिखाता कि कितने बचे हैं। Limit पूरी होते ही DuSu तुम्हें बता देगी।",
+      leftNoneGen:"{p} नहीं दिखाता कि कितनी बची हैं। Limit पूरी होते ही DuSu तुम्हें बता देगी।", leftNoneSv:"Sarvam का free credit एक बार का तोहफ़ा है। खत्म होते ही DuSu तुम्हें बता देगी।",
       cardT:"तुम्हारी AI keys", cardSub:"{w} चालू · {u}", cardTap:"Keys संभालने के लिए tap करो", cardFix:"ध्यान चाहिए - ठीक करने के लिए tap करो",
       chipLeft:"{n} बची", chipAbout:"लगभग {n} बची",
       popInvalid:"तुम्हारी AI keys को ध्यान चाहिए", popLimited:"अभी के लिए तुम्हारी free AI limit पूरी हो गई", popDegraded:"तुम्हारी एक key को ध्यान चाहिए", popNone:"अपनी AI keys जोड़ो",
@@ -12089,6 +12446,13 @@ const KY = (function(){
     }
     const hint = form.querySelector('[data-kyp="gemini"] .keyblk-hint');
     if(hint) hint.append(h("div", { class:"ky-hint2", id:"kyGemHint", text:tk("gemHint") }));
+    const more = $("kyMore");                                       // "More free options": Cloudflare, Z.ai, Sarvam (drawn only while the key screens are on)
+    if(more){
+      more.hidden = false; if($("kyMoreSum")) $("kyMoreSum").textContent = tk("moreSum");
+      more.addEventListener("toggle", () => { more.dataset.touched = "1"; });
+    }
+    const acct = $("kCfAcct");
+    if(acct) acct.addEventListener("keydown", ev => { if(ev.key === "Enter"){ ev.preventDefault(); const t_ = $(FIELD.cloudflare); if(t_) t_.focus(); } });
     form.append(
       h("div", { class:"ky-acts ky-all" }, h("button", { type:"button", class:"btn ghost", id:"kyAll", onclick:checkAll, text:tk("btnAll") })),
       h("p", { class:"ky-msg", id:"kym_all", role:"status", "aria-live":"polite" }),
@@ -12099,6 +12463,7 @@ const KY = (function(){
     form.dataset.ky = ""; form.classList.remove("ky-on");
     ["kySum", "kyAll", "kym_all"].forEach(id => { const e = $(id); if(e) (id === "kyAll" ? e.parentElement : e).remove(); });
     form.querySelectorAll(".ky-never, .ky-hint2").forEach(e => e.remove());
+    const more = $("kyMore"); if(more){ more.hidden = true; more.open = false; delete more.dataset.touched; }
     for(const p of ORDER){
       ["kyb_", "kye_", "kym_"].forEach(pre => { const e = $(pre + p); if(e) e.remove(); });
       const inp = $(FIELD[p]); if(!inp) continue;
@@ -12114,9 +12479,9 @@ const KY = (function(){
     else if(k.status === "forbidden") kids.push(h("p", { class:"ky-use", text:tk("hintBlocked") }));
     kids.push(h("p", { class:"ky-use", text:usageLine(k, tk) }));
     const pct = barPct(k); if(pct != null) kids.push(h("i", { class:"ky-bar", "aria-hidden":"true" }, h("b", { style:"width:" + pct + "%" })));
-    if((k.allowance || {}).kind === "unknown" && p === "gemini") kids.push(h("p", { class:"ky-use", text:tk("leftNone") }));
+    if((k.allowance || {}).kind === "unknown" && LEFTNONE[p]) kids.push(h("p", { class:"ky-use", text:tk(LEFTNONE[p], { p:NAME[p] }) }));
     kids.push(h("div", { class:"ky-acts" },
-      h("button", { type:"button", class:"btn ghost", disabled:busyP[p] ? "" : null, onclick:() => { mode[p] = "edit"; msg(p, ""); const i = $(FIELD[p]); if(i) i.value = ""; paintBlock(p); if(i) i.focus(); }, text:tk("btnChange") }),
+      h("button", { type:"button", class:"btn ghost", disabled:busyP[p] ? "" : null, onclick:() => { mode[p] = "edit"; msg(p, ""); clearField(p); paintBlock(p); const i = $(p === "cloudflare" ? "kCfAcct" : FIELD[p]); if(i) i.focus(); }, text:tk("btnChange") }),
       h("button", { type:"button", class:"btn ghost", disabled:busyP[p] ? "" : null, onclick:() => testKey(p), text:tk("btnTest") }),
       h("button", { type:"button", class:"btn ghost ky-del", disabled:busyP[p] ? "" : null, onclick:() => removeKey(p), text:tk("btnRemove") })));
     return kids;
@@ -12127,18 +12492,31 @@ const KY = (function(){
     const editing = !k || mode[p] === "edit";
     if(blk){ blk.classList.remove("ky-st-ok", "ky-st-warn", "ky-st-bad"); if(k && !editing){ const sc = badge(k, tk).cls; if(sc === "ok" || sc === "warn" || sc === "bad") blk.classList.add("ky-st-" + sc); } }
     view.hidden = editing; ed.hidden = !editing; if(row) row.hidden = !editing; if(hint) hint.hidden = !editing;
-    if(!editing){ view.replaceChildren(...viewKids(p, k)); if(inp.value) inp.value = ""; }    // a saved key is shown masked only: nothing the older code pre-filled stays in a hidden box
+    const row2 = p === "cloudflare" && $("kCfAcct") ? $("kCfAcct").closest(".keyrow") : null; if(row2) row2.hidden = !editing;      // Cloudflare is TWO boxes (Account ID + token) that are saved as one key
+    if(!editing){ view.replaceChildren(...viewKids(p, k)); if(inp.value || row2) clearField(p); }    // a saved key is shown masked only: nothing the older code pre-filled stays in a hidden box
     const sv = $("kySave_" + p), cn = $("kyCancel_" + p);
     if(sv){ sv.disabled = !!busyP[p]; sv.textContent = busyP[p] ? tk("saving") : tk("btnSave"); }
     if(cn) cn.hidden = !k;
     const m = msgs[p]; const el = $("kym_" + p); if(el){ el.textContent = (m && m.text) || ""; el.className = "ky-msg" + (m && m.cls ? " " + m.cls : ""); }
   }
+  /* A Cloudflare key is two values: the Account ID and the API token. They are sent as ONE string "<account id>:<token>" (the server stores it as one key - see config.split_cloudflare). */
+  const CF_JOINED = /^[0-9a-fA-F]{32}:\S+$/;
+  function valueOf(p){
+    const inp = $(FIELD[p]), raw = ((inp && inp.value) || "").trim();
+    if(p !== "cloudflare") return raw;
+    const tok = cleanPaste(raw);
+    if(CF_JOINED.test(tok)) return tok;                              // the whole "<account id>:<token>" pasted into one box
+    const a = cleanPaste(($("kCfAcct") && $("kCfAcct").value) || "");
+    return a && tok ? a + ":" + tok : "";
+  }
+  function clearField(p){ const i = $(FIELD[p]); if(i) i.value = ""; if(p === "cloudflare" && $("kCfAcct")) $("kCfAcct").value = ""; }
   /* ---------- the first-run wizard (audit P0-1) ----------
      A brand-new learner used to land on five phone screens of guide, videos and three identical "Save key" buttons. Now: ONE next action at a time ("Key 1 of 2"), ONE paste box that
      recognises the service from the key's own prefix, the long guide BELOW and collapsed. This only DRAWS the screen: verifying, saving, the messages and the way into the app are
      saveKey() / afterChange(), so there is still exactly one code path that stores a key. The older three-box form stays for managing keys (More -> My AI keys). */
-  const PREFIX = [["groq", /^gsk_/], ["gemini", /^(AIza|AQ\.)/], ["openrouter", /^sk-or-/]];     // since 2026-05-28 AI Studio hands out only "AQ." keys; older keys start "AIza"
-  const GETURL = { groq:"https://console.groq.com/keys", gemini:"https://aistudio.google.com/apikey", openrouter:"https://openrouter.ai/keys" };
+  const PREFIX = [["groq", /^gsk_/], ["gemini", /^(AIza|AQ\.)/], ["openrouter", /^sk-or-/], ["cloudflare", /^[0-9a-fA-F]{32}:/], ["sarvam", /^sk_/]];     // since 2026-05-28 AI Studio hands out only "AQ." keys; older keys start "AIza". Cloudflare: our own "<account id>:<token>" shape. Sarvam's docs show "sk_..." (unconfirmed). Z.ai's docs show no stable shape, so it is never guessed - the learner picks it.
+  const GETURL = { groq:"https://console.groq.com/keys", gemini:"https://aistudio.google.com/apikey", openrouter:"https://openrouter.ai/keys",
+    cloudflare:"https://dash.cloudflare.com/?to=/:account/ai/workers-ai", zai:"https://z.ai/manage-apikey/apikey-list", sarvam:"https://indus.sarvam.ai/key-management" };      // Cloudflare / Z.ai / Sarvam: the links the providers' own docs give for making a key
   let picked = "", wizBusy = false;
   const wizardOn = () => active() && typeof needsKeys === "function" && needsKeys();
   const km = (k, v) => wizardOn() ? t(k, v) : tk(k, v);          // the wizard speaks the learner's language; the manage screen stays English (CLAUDE.md section 11)
@@ -12147,15 +12525,53 @@ const KY = (function(){
   const workingN = () => (S && typeof S.working === "number") ? S.working : 0;
   const needN = () => (S && S.min) || 2;
   function nextProvider(){                                        // the service to suggest now: the first one the learner has no WORKING key for
-    for(const p of ORDER){ const k = keyOf(p); if(!k || k.status !== "ok") return p; }
-    return ORDER[0];
+    for(const p of MAIN){ const k = keyOf(p); if(!k || k.status !== "ok") return p; }
+    return MAIN[0];
   }
   function wdet(text, cls){ const e = $("ksDet"); if(e){ e.textContent = text || ""; e.className = "ks-det" + (cls ? " " + cls : ""); } }
   function showPick(on){
     const box = $("ksPick"); if(!box) return;
     box.hidden = !on; box.replaceChildren();
     if(!on) return;
-    for(const p of ORDER) box.append(h("button", { type:"button", class:"btn ghost", "aria-pressed":picked === p ? "true" : "false", onclick:() => { picked = p; wizSave(); }, text:t("ksPickName", { p:NAME[p] }) }));
+    for(const p of ORDER) if(p !== "cloudflare") box.append(h("button", { type:"button", class:"btn ghost", "aria-pressed":picked === p ? "true" : "false", onclick:() => { picked = p; wizSave(); }, text:t("ksPickName", { p:NAME[p] }) }));     // Cloudflare is two boxes (below), never a guess
+  }
+  /* "More free options" in the wizard: collapsed, so the first screen stays as it was. One card per service (Cloudflare has two boxes). A card does not save anything itself: it hands its value to
+     the same saveKey() as every other key (through the hidden Keys-screen boxes), so there is still ONE code path that stores a key. */
+  const SVC_D = { cloudflare:"cfD", zai:"zaiD", sarvam:"svD" };
+  function svcCard(p){
+    const boxes = p === "cloudflare"
+      ? [h("input", { id:"ksCfAcct", type:"text", autocomplete:"off", autocapitalize:"off", spellcheck:"false", enterkeyhint:"next" }), h("input", { id:"ksCfTok", type:"password", autocomplete:"off", enterkeyhint:"done" })]
+      : [h("input", { id:"ksIn_" + p, type:"password", autocomplete:"off", enterkeyhint:"done" })];
+    boxes[boxes.length - 1].addEventListener("keydown", ev => { if(ev.key === "Enter"){ ev.preventDefault(); svcSave(p); } });
+    return h("div", { class:"ks-svc", id:"ksSvc_" + p },
+      h("div", { class:"ks-svc-h" }, h("b", { text:p === "cloudflare" ? "Cloudflare Workers AI" : p === "zai" ? "Z.ai (GLM Flash)" : "Sarvam" }),
+        h("a", { id:"ksSvcGet_" + p, target:"_blank", rel:"noopener noreferrer" })),
+      h("p", { class:"ks-svc-d", id:"ksSvcD_" + p }),
+      h("div", { class:"ks-svc-row" }, ...boxes, h("button", { type:"button", class:"btn primary", id:"ksSvcSave_" + p, onclick:() => svcSave(p) })),
+      h("p", { class:"ks-svc-m", id:"ksM_" + p, role:"status", "aria-live":"polite" }));
+  }
+  function svcMsg(p, text, cls){ const e = $("ksM_" + p); if(e){ e.textContent = text || ""; e.className = "ks-svc-m" + (cls ? " " + cls : ""); } }
+  async function svcSave(p){
+    if(wizBusy || busyP[p]) return;
+    let v;
+    if(p === "cloudflare"){
+      const a = cleanPaste($("ksCfAcct").value), tok = cleanPaste($("ksCfTok").value);
+      v = CF_JOINED.test(tok) ? tok : (a && tok ? a + ":" + tok : "");
+      if(!v){ svcMsg(p, t("cfNeed"), "bad"); return; }
+      if($("kCfAcct")) $("kCfAcct").value = "";
+    } else {
+      v = cleanPaste($("ksIn_" + p).value);
+      if(!v){ svcMsg(p, t("empty"), "bad"); return; }
+    }
+    const field = $(FIELD[p]); if(!field) return;
+    field.value = v;
+    wizBusy = true; svcMsg(p, t("saving"), ""); paintWizard();
+    try{ await saveKey(p); }
+    finally{ wizBusy = false; }
+    const m = lastMsg.p === p ? lastMsg : null;
+    svcMsg(p, (m && m.text) || "", (m && m.cls) || "");
+    if(m && m.cls === "ok"){ for(const id of (p === "cloudflare" ? ["ksCfAcct", "ksCfTok"] : ["ksIn_" + p])){ const e = $(id); if(e) e.value = ""; } }
+    paintWizard();
   }
   function ensureWizard(){
     const wrap = document.querySelector("#keys .keys-wrap"); if(!wrap || $("ksWiz")) return;
@@ -12178,6 +12594,7 @@ const KY = (function(){
       h("div", { class:"ks-paste" }, inp, h("button", { type:"button", class:"btn primary", id:"ksSave", onclick:() => wizSave() })),
       h("div", { class:"ks-pick", id:"ksPick", hidden:true }),
       h("div", { class:"ks-det", id:"ksDet", role:"status", "aria-live":"polite" }),
+      h("details", { class:"ks-more", id:"ksMore" }, h("summary", { id:"ksMoreSum" }), h("p", { class:"ks-more-p", id:"ksMoreP" }), ...EXTRA.map(svcCard)),
       h("p", { class:"ks-why", id:"ksWhy" }), h("p", { class:"ks-never", id:"ksNever" }));
     wrap.insertBefore(w, $("ksHelp") || $("keysForm"));
   }
@@ -12192,13 +12609,25 @@ const KY = (function(){
     $("ksHead").textContent = t(w === 0 ? "ksHead1" : "ksHead2");
     $("ksBody").textContent = t(w === 0 ? "ksBody1" : "ksBody2");
     const g = $("ksGet"); g.href = GETURL[p]; g.textContent = t("ksGet", { p:NAME[p] });
-    const others = ORDER.filter(x => x !== p && !(keyOf(x) && keyOf(x).status === "ok")), or = $("ksOr");
+    const others = MAIN.filter(x => x !== p && !(keyOf(x) && keyOf(x).status === "ok")), or = $("ksOr");
     or.replaceChildren(...(others.length ? [h("span", { text:t("ksOther") }), ...others.map(x => h("a", { href:GETURL[x], target:"_blank", rel:"noopener noreferrer", text:NAME[x] + " ↗" }))] : []));
     or.hidden = !others.length;
     $("ksLab").textContent = t("ksPasteLab");
     const inp = $("ksPaste"); inp.setAttribute("placeholder", t("ksPastePh")); inp.setAttribute("aria-label", t("ksPasteLab"));
     const sv = $("ksSave"); sv.textContent = wizBusy ? t("saving") : t("ksSaveBtn"); sv.disabled = wizBusy;
     $("ksWhy").textContent = t("ksWhy"); $("ksNever").textContent = t("never");
+    $("ksMoreSum").textContent = t("moreSum"); $("ksMoreP").textContent = t("moreP");
+    for(const x of EXTRA){
+      const k = keyOf(x), g = $("ksSvcGet_" + x), sv2 = $("ksSvcSave_" + x);
+      g.href = GETURL[x]; g.textContent = t("svcGet"); g.setAttribute("aria-label", t("svcGet") + " " + NAME[x]);
+      $("ksSvcD_" + x).textContent = t(SVC_D[x]);
+      if(x === "cloudflare"){
+        const a = $("ksCfAcct"), tk2 = $("ksCfTok");
+        a.setAttribute("placeholder", t("cfAcctPh")); a.setAttribute("aria-label", t("cfAcctPh")); tk2.setAttribute("placeholder", t("cfTokPh")); tk2.setAttribute("aria-label", t("cfTokPh"));
+      } else { const i = $("ksIn_" + x); i.setAttribute("placeholder", t("svcPh", { p:NAME[x] })); i.setAttribute("aria-label", t("svcPh", { p:NAME[x] })); }
+      sv2.textContent = wizBusy ? t("saving") : t("ksSaveBtn"); sv2.disabled = wizBusy;
+      if(k && k.status === "ok" && !$("ksM_" + x).textContent) svcMsg(x, t("savedOk", { p:NAME[x] }), "ok");
+    }
     if($("ksHelpSum")) $("ksHelpSum").textContent = t("ksHelpSum");
     if($("keysTitle")) $("keysTitle").textContent = t("ksTitle");
     if($("keysSub")) $("keysSub").textContent = t("ksSub");
@@ -12214,6 +12643,7 @@ const KY = (function(){
     if(!p){ wdet(t("ksUnknown"), ""); showPick(true); return; }
     wizBusy = true; wdet(t("saving"), ""); paintWizard();
     const field = $(FIELD[p]); if(field) field.value = v;
+    if(p === "cloudflare" && $("kCfAcct")) $("kCfAcct").value = "";           // the whole "<account id>:<token>" was pasted into the one box
     try{ await saveKey(p); }
     finally{ wizBusy = false; picked = ""; }
     const m = lastMsg.p === p ? lastMsg : null;
@@ -12239,10 +12669,11 @@ const KY = (function(){
     ensureSkeleton();
     if(S && needClear){                                              // opened just now: the older code pre-filled these boxes from THIS browser's copy of the keys, which may be
       needClear = false;                                             // stale (replaced or removed on another phone) - a box for a key the server does not hold starts empty
-      for(const p of ORDER){ const i = $(FIELD[p]); if(i && !keyOf(p)) i.value = ""; }
+      for(const p of ORDER){ if(!keyOf(p)) clearField(p); }
     }
     paintSummary();
     ORDER.forEach(paintBlock);
+    const more = $("kyMore"); if(more && S && !more.dataset.touched && EXTRA.some(keyOf)) more.open = true;      // a learner who already uses one of them finds it without hunting
     paintWizard();
   }
   /* loadKeysUI() calls this every time the Keys screen opens: always re-read the server, never trust a cached picture. */
@@ -12269,21 +12700,21 @@ const KY = (function(){
   }
   async function saveKey(p){
     if(busyP[p]) return;
-    const inp = $(FIELD[p]), v = ((inp && inp.value) || "").trim();
-    if(!v){ msg(p, km("empty"), "bad"); paintBlock(p); return; }
+    const v = valueOf(p);
+    if(!v){ msg(p, km(p === "cloudflare" ? "cfNeed" : "empty"), "bad"); paintBlock(p); return; }
     const wasGate = mustAddKeys();
     busyP[p] = true; msg(p, km("saving"), ""); paintBlock(p);
     try{
       const my = begin(), d = await call("POST", "/save", { provider:p, key:v });
       if(d.ok){
-        if(inp) inp.value = ""; mode[p] = "view"; take(my, d.status);
+        clearField(p); mode[p] = "view"; take(my, d.status);
         msg(p, km(d.result.status === "limited" ? "savedLimited" : "savedOk", { p:NAME[p] }), "ok");
         await afterChange(wasGate);
       } else {
         const r = d.result || {};
-        msg(p, r.status === "unreachable" ? km("unreach", { p:NAME[p] }) : r.expired ? km("badExpired", { p:NAME[p] }) : r.status === "forbidden" ? km("badBlocked", { p:NAME[p] }) : km("bad", { p:NAME[p] }), "bad");
+        msg(p, r.status === "unreachable" ? km("unreach", { p:NAME[p] }) : r.status === "needs_credit" ? km("badCredit", { p:NAME[p] }) : r.expired ? km("badExpired", { p:NAME[p] }) : r.status === "forbidden" ? km("badBlocked", { p:NAME[p] }) : km(p === "cloudflare" ? "badCf" : "bad", { p:NAME[p] }), "bad");
       }
-    }catch(e){ msg(p, e.status === 422 ? km("shape") : e.status === 429 ? km("slow") : km("fail"), "bad"); if(e.status === 404) { S = null; } }
+    }catch(e){ msg(p, e.status === 422 ? km(p === "cloudflare" ? "shapeCf" : "shape") : e.status === 429 ? km("slow") : km("fail"), "bad"); if(e.status === 404) { S = null; } }
     finally{ busyP[p] = false; paintAll(); }
   }
   async function testKey(p){
@@ -12357,7 +12788,7 @@ const KY = (function(){
     for(const [tag, attrs] of ICONS[name]){ const c = document.createElementNS(NS, tag); for(const k in attrs) c.setAttribute(k, attrs[k]); e.append(c); }
     return e;
   }
-  const AV = { groq:"G", gemini:"G", openrouter:"O" };
+  const AV = { groq:"G", gemini:"G", openrouter:"O", cloudflare:"C", zai:"Z", sarvam:"S" };
   const needsFix = k => k.kind === "invalid" || k.kind === "forbidden";
   function kbadge(k){
     if(k.kind === "invalid") return { cls:"bad", txt:t(k.expired ? "stExpired" : "stInvalid") };
@@ -15343,6 +15774,933 @@ const GC = (function(){
   return { open, syncEntries, leave, reset, enabled, path, newRef:uid, afterSessionResult, afterInterviewReport, afterPracticeReport, mountRi, mountSummary, _txt:TXT, _sayMatch:sayMatch, _dispCase:dispCase };
 })();
 window.GC = GC;
+
+/* ================= GRAMMAR LAB - a Hindi sentence in, English out: twelve tenses x four levels, checked by rules (no AI), explained in Hindi or English =================
+   One screen (#gl) with four views: the hub (stars, Review, Resume, the twelve units), a unit page (formulas, the Hindi ending to look for, an example, the four levels), the drill (ten
+   sentences: say it with the mic or type it, three tries, the reason after a miss) and the summary. Everything dynamic is built with DOM calls only (never innerHTML): the learner's words
+   and the explanations that come back are text. The server does all the thinking (POST /lab/check is graded by pure code, no model, no key, no cost); this file only draws what
+   GET /lab/state, POST /lab/set|check|show return. The choice between Hindi and English for the explanations is local (localStorage dusu_gl_lang) and defaults to the learner's
+   Hindi / English choice, then Hindi. A wrong answer's explanation arrives in BOTH languages, so flipping the toggle never needs a request. */
+const GL = (function(){
+  const API = "/lab", BASE = "/grammar-lab", K_LANG = "dusu_gl_lang";
+  // the unit ids are the catalog's (backend/app/lab/catalog.py UNITS): the routes need them before /lab/state has answered (a unit deep link)
+  const UNITS = ["present_simple", "present_continuous", "present_perfect", "present_perfect_continuous", "past_simple", "past_continuous", "past_perfect", "past_perfect_continuous",
+    "future_simple", "future_continuous", "future_perfect", "future_perfect_continuous"];
+  const LEVELS = ["easy", "medium", "hard", "extra"];
+  const STAR_MIN = 6;                       // graded sentences a set needs before it can earn a star (the server's rule; used only for a hint)
+  const TXT = {
+    hi:{
+      back:"वापस", langAria:"समझाने की भाषा", loading:"थोड़ा रुको…", retry:"फिर से try करो", review:"Review",
+      subHub:"Hindi sentence को English में बोलो या लिखो", subSummary:"तुम्हारे results",
+      totalOf:"/ {m} stars", totalHint:"हर level में एक set पूरा करो और ज़्यादा से ज़्यादा 3 stars पाओ।",
+      howH:"कैसे काम करता है", how1:"DuSu Hindi में एक sentence दिखाती है।", how2:"उसे English में mic से बोलो, या लिखो।", how3:"कुछ ग़लत हो तो ठीक-ठीक दिखता है कि क्यों - Hindi या English में।",
+      resumeH:"अधूरा set पूरा करो", resumeP:"{what} - {t} में से {a} हो गए", resumeGo:"जारी रखो",
+      reviewH:"ग़लत sentences दोबारा करो", reviewP:"पहले ग़लत हुए {n} sentences, सब एक साथ।", reviewGo:"Review शुरू करो",
+      noBank:"Sentences अभी तैयार नहीं हैं। थोड़ी देर बाद देखो।", chipAria:"{level}: 3 में से {n} stars", unitStars:"{n} / 12 stars",
+      uWhat:"यह tense किसलिए है", uFormH:"बनाने का तरीका", fAff:"सीधा वाक्य", fNeg:"Negative वाक्य", fQ:"Question", uMarkH:"Hindi में यह ending देखो", uExH:"Example",
+      uHearHi:"Hindi सुनो", uHearEn:"English सुनो", uLevelsH:"Level चुनो", uBest:"सबसे अच्छा: {n}%", uNew:"अभी try नहीं किया", uEmpty:"इस level में अभी sentences नहीं हैं।",
+      dTask:"इसे English में बोलो", dReplay:"Hindi sentence सुनो", dAnswerLab:"तुम्हारा जवाब, English में", dHeardLab:"मैंने सुना:", dHeardHint:"कुछ ग़लत हो तो ठीक करो, फिर Check दबाओ।",
+      dPh:"अपना जवाब यहाँ लिखो", dMic:"दबाओ और बोलो", dMicOn:"Listening… रोकने के लिए दबाओ", dMicNone:"कुछ सुनाई नहीं दिया। Mic दबाकर फिर बोलो, या जवाब लिख दो।",
+      dMicDenied:"Microphone की इजाज़त नहीं मिली। जवाब नीचे लिख दो।", dMicOff:"इस phone पर बोलकर जवाब देना उपलब्ध नहीं है। जवाब नीचे लिख दो।",
+      dCheck:"Check करो", dChecking:"Check हो रहा है…", dEmpty:"पहले जवाब बोलो या लिखो।", dLeft:"बचे हुए मौके: {n}", dYouSaid:"तुमने लिखा:",
+      rOk:"सही!", rOkFirst:"पहली बार में ही सही।", rWrong:"थोड़ा ग़लत", rShown:"यह रहा जवाब", rUnsure:"Tense की कोई ग़लती नहीं मिली", rOurs:"हमारा जवाब", rAlso:"दूसरे तरीके",
+      rChanges:"क्या बदलना है", rFormula:"Formula", rMarker:"Hindi ending", rTrap:"ध्यान दो", rGist:"यह tense किसलिए है", rAdd:"जोड़ो", rDrop:"हटाओ",
+      rTryAgain:"फिर से try करो", rShow:"जवाब दिखाओ", rNext:"अगला", rResults:"Results देखो", rHear:"जवाब सुनो", rRetry:"फिर से भेजो",
+      eNet:"Internet नहीं है। तुम्हारा जवाब यहीं है - फिर से भेजो।", eSlow:"थोड़ा धीरे। कुछ सेकंड रुककर फिर try करो।", eGeneric:"कुछ गड़बड़ हो गई। फिर से try करो।",
+      eOff:"Grammar Lab अभी उपलब्ध नहीं है।", eClosed:"यह set पूरा हो चुका है। नया set शुरू करो।", eMany:"आज बहुत sets हो गए। कल फिर आओ।", eNothing:"अभी review के लिए कुछ नहीं है - कोई sentence ग़लत नहीं हुआ।",
+      s0:"लगे रहो", s1:"अच्छी शुरुआत", s2:"बहुत बढ़िया", s3:"शानदार!", sDone:"Set पूरा हुआ", sStarsAria:"3 में से {n} stars", sNew:"नया best!", sPct:"{n}% सही",
+      sRight:"सही: {n}", sWrong:"ग़लत: {n}", sUnsure:"ग़लती नहीं मिली: {n}", sFirst:"{n} पहली बार में सही", sNoStars:"Stars के लिए कम से कम {n} sentences का check होना ज़रूरी है।",
+      sWeakH:"आगे इन पर ध्यान दो", sWeakN:"{n} बार", sMissH:"ये sentences फिर से करो", sAgain:"यही level फिर से करो", sAgain2:"यही level दोबारा करो",
+      sNextLevel:"अगला level: {level}", sNextUnit:"अगला tense: {unit}", sReview:"Review दोबारा करो", sBack:"Lab में वापस जाओ" },
+    en:{
+      back:"Back", langAria:"Language of the explanations", loading:"One moment…", retry:"Try again", review:"Review",
+      subHub:"Say or type the Hindi sentence in English", subSummary:"Your results",
+      totalOf:"of {m} stars", totalHint:"Finish a set in each level to earn up to 3 stars.",
+      howH:"How it works", how1:"DuSu shows a sentence in Hindi.", how2:"Say it in English with the mic, or type it.", how3:"If something is wrong, you see exactly why - in Hindi or English.",
+      resumeH:"Finish your set", resumeP:"{what} - {a} of {t} done", resumeGo:"Continue",
+      reviewH:"Review your misses", reviewP:"{n} sentences you missed before, mixed together.", reviewGo:"Start review",
+      noBank:"The sentences are not ready yet. Check again later.", chipAria:"{level}: {n} of 3 stars", unitStars:"{n} of 12 stars",
+      uWhat:"What this tense is for", uFormH:"How to build it", fAff:"Statement", fNeg:"Negative", fQ:"Question", uMarkH:"Look for this ending in the Hindi", uExH:"Example",
+      uHearHi:"Hear the Hindi", uHearEn:"Hear the English", uLevelsH:"Choose a level", uBest:"Best: {n}%", uNew:"Not tried yet", uEmpty:"No sentences in this level yet.",
+      dTask:"Say this in English", dReplay:"Hear the Hindi sentence", dAnswerLab:"Your answer, in English", dHeardLab:"I heard:", dHeardHint:"Fix anything that is wrong, then tap Check.",
+      dPh:"Type your answer here", dMic:"Tap and speak", dMicOn:"Listening… tap to stop", dMicNone:"I did not hear anything. Tap the mic and try again, or type your answer.",
+      dMicDenied:"The microphone is not allowed. Type your answer below instead.", dMicOff:"Speaking your answer is not available on this phone. Type your answer below.",
+      dCheck:"Check", dChecking:"Checking…", dEmpty:"Say or type your answer first.", dLeft:"Tries left: {n}", dYouSaid:"You wrote:",
+      rOk:"Correct!", rOkFirst:"Right on the first try.", rWrong:"Not quite", rShown:"Here is the answer", rUnsure:"No tense mistake found", rOurs:"Our answer", rAlso:"Other ways to say it",
+      rChanges:"What to change", rFormula:"Formula", rMarker:"Hindi ending", rTrap:"Watch out", rGist:"What this tense is for", rAdd:"Add", rDrop:"Remove",
+      rTryAgain:"Try again", rShow:"Show answer", rNext:"Next", rResults:"See results", rHear:"Hear the answer", rRetry:"Send again",
+      eNet:"No internet. Your answer is still here - send it again.", eSlow:"That was a bit fast. Wait a few seconds and try again.", eGeneric:"Something went wrong. Try again.",
+      eOff:"Grammar Lab is not available yet.", eClosed:"This set is already finished. Start a new one.", eMany:"You have done a lot of sets today. Come back tomorrow.", eNothing:"Nothing to review yet - you have not missed any sentences.",
+      s0:"Keep going", s1:"Good start", s2:"Well done", s3:"Excellent!", sDone:"Set finished", sStarsAria:"{n} of 3 stars", sNew:"New best!", sPct:"{n}% right",
+      sRight:"Right: {n}", sWrong:"Wrong: {n}", sUnsure:"No mistake found: {n}", sFirst:"{n} right on the first try", sNoStars:"Stars need at least {n} checked sentences.",
+      sWeakH:"Practise next", sWeakN:"{n}x", sMissH:"Sentences to practise", sAgain:"Try this level again", sAgain2:"Do this level again",
+      sNextLevel:"Next level: {level}", sNextUnit:"Next tense: {unit}", sReview:"Review again", sBack:"Back to the Lab" } };
+
+  /* ---------- a tiny DOM builder: the ONLY way this module puts anything on the page ---------- */
+  const NS = "http://www.w3.org/2000/svg";
+  const ATTR_OK = /^(class|id|type|role|title|placeholder|for|name|tabindex|lang|dir|rows|autocapitalize|autocorrect|autocomplete|spellcheck|enterkeyhint|inputmode|maxlength|aria-[a-z]+|data-[a-z0-9-]+)$/;
+  function add(el, c){ if(c == null || c === false || c === true) return; if(Array.isArray(c)){ for(const x of c) add(el, x); return; } el.appendChild(c instanceof Node ? c : document.createTextNode(String(c))); }
+  function h(tag, a, ...kids){
+    const el = document.createElement(tag);
+    if(a && typeof a === "object" && !(a instanceof Node) && !Array.isArray(a)){
+      for(const k of Object.keys(a)){
+        const v = a[k]; if(v == null || v === false) continue;
+        if(k === "class") el.className = v;
+        else if(k.slice(0, 2) === "on"){ if(typeof v === "function") el.addEventListener(k.slice(2), v); }
+        else if(k === "disabled") el.disabled = !!v;
+        else if(k === "hidden") el.hidden = !!v;
+        else if(k === "value") el.value = String(v);
+        else if(ATTR_OK.test(k)) el.setAttribute(k, v === true ? "" : String(v));
+      }
+    } else if(a != null) kids.unshift(a);
+    add(el, kids); return el;
+  }
+  function put(el, ...kids){ while(el.firstChild) el.removeChild(el.firstChild); add(el, kids); return el; }
+  const ICONS = { back:["M19 12H5M12 19l-7-7 7-7"], speaker:["M11 5 6 9H2v6h4l5 4V5z", "M15.5 8.5a5 5 0 0 1 0 7", "M19 5a9 9 0 0 1 0 14"], mic:["M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z", "M19 10v2a7 7 0 0 1-14 0v-2", "M12 19v3"],
+    check:["M20 6 9 17l-5-5"], x:["M6 6l12 12M18 6L6 18"], info:["M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z", "M12 16v-4", "M12 8h.01"], next:["M5 12h14", "m12 5 7 7-7 7"], retry:["M3 12a9 9 0 0 1 15.5-6.2L21 8", "M21 3v5h-5", "M21 12a9 9 0 0 1-15.5 6.2L3 16", "M3 21v-5h5"] };
+  function svg(cls){
+    const s = document.createElementNS(NS, "svg");
+    s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("aria-hidden", "true"); s.setAttribute("focusable", "false"); if(cls) s.setAttribute("class", cls);
+    return s;
+  }
+  function ic(name){
+    const s = svg(); s.setAttribute("fill", "none"); s.setAttribute("stroke", "currentColor"); s.setAttribute("stroke-width", "1.8"); s.setAttribute("stroke-linecap", "round"); s.setAttribute("stroke-linejoin", "round");
+    (ICONS[name] || []).forEach(d => { const p = document.createElementNS(NS, "path"); p.setAttribute("d", d); s.appendChild(p); });
+    return s;
+  }
+  function star(on){ const s = svg("gl-star" + (on ? " on" : "")); const p = document.createElementNS(NS, "polygon"); p.setAttribute("points", "12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"); s.appendChild(p); return s; }
+  const stars = (n, cls) => h("span", { class:"gl-stars" + (cls ? " " + cls : "") }, [1, 2, 3].map(i => star(i <= n)));
+  function btn(label, kind, fn, o){ o = o || {}; return h("button", Object.assign({ type:"button", class:"btn gl-btn" + (kind ? " " + kind : "") + (o.cls ? " " + o.cls : ""), onclick:fn, disabled:o.disabled }, o.attrs || {}), o.icon ? ic(o.icon) : null, h("span", null, label)); }
+  const $g = id => document.getElementById(id);
+  const body = () => $g("glBody");
+  const spinner = (msg) => h("div", { class:"gl-spin", role:"status" }, h("div", { class:"spin" }), msg);
+  const barEl = f => { const i = h("i"); i.style.width = Math.max(0, Math.min(100, Math.round(f * 100))) + "%"; return h("div", { class:"gl-bar", "aria-hidden":"true" }, i); };
+
+  /* ---------- language: the Lab's own Hindi / English choice for explanations and chrome ---------- */
+  const rd = () => { try{ const v = localStorage.getItem(K_LANG); return v === "hi" || v === "en" ? v : ""; }catch(_){ return ""; } };
+  let pref = rd();
+  const lang = () => {
+    if(pref) return pref;
+    let l = ""; try{ l = (typeof LG !== "undefined" && LG.cur) ? LG.cur() : ""; }catch(_){}
+    if(l !== "hi" && l !== "en") l = (userState && (userState.lang === "hi" || userState.lang === "en")) ? userState.lang : "hi";
+    return l;
+  };
+  const t = (k, v) => { const L = lang(); let s = (TXT[L] && TXT[L][k] !== undefined) ? TXT[L][k] : TXT.en[k]; if(s === undefined) return k; if(v && typeof s === "string") s = s.replace(/\{(\w+)\}/g, (_, x) => v[x] != null ? v[x] : ""); return s; };
+  const enabled = () => !!(userState && userState.grammar_lab);
+
+  /* ---------- state + api ---------- */
+  let S = fresh();
+  function fresh(){ return { view:"hub", unit:"", level:"", review:false, hub:null, set:null, idx:0, res:null, said:"", draft:"", heard:false, hint:"", err:null, busy:false, summary:null, stale:true,
+    epoch:0, rec:null, listening:false, micOff:"", focus:"", loading:false }; }
+  async function api(method, path, bodyObj){
+    const init = { method, headers:{ Authorization:"Bearer " + authToken }, cache:"no-store" };
+    if(bodyObj !== undefined){ init.headers["Content-Type"] = "application/json"; init.body = JSON.stringify(bodyObj); }
+    let r; try{ r = await fetch(API + path, init); }catch(_){ throw { net:true }; }
+    if(r.status === 401){ try{ logout(); }catch(_){} throw { auth:true }; }
+    let j = null; try{ j = await r.json(); }catch(_){}
+    if(!r.ok){ const d = j && j.detail; throw { status:r.status, code:(d && typeof d === "object" ? d.error : d) || "" }; }
+    return j;
+  }
+  function eText(e){
+    if(!e) return t("eGeneric"); if(e.net) return t("eNet");
+    if(e.status === 404) return t("eOff"); if(e.status === 429) return e.code === "too_many" ? t("eMany") : t("eSlow");
+    if(e.status === 422 && e.code === "closed") return t("eClosed"); if(e.status === 422 && e.code === "nothing_to_review") return t("eNothing");
+    return t("eGeneric");
+  }
+  const cat = () => (S.hub && S.hub.catalog) || { units:{}, levels:{}, families:{}, order:UNITS };
+  const pick = (o, L) => (o && (o[L || lang()] || o.en)) || "";
+  const uname = u => { const m = cat().units[u]; return (m && pick(m.name)) || String(u || "").split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" "); };
+  const lname = l => pick((cat().levels[l] || {}).name) || l;
+  const dispCase = s => { s = String(s || "").trim(); if(!s) return s; s = s.replace(/\bi\b/g, "I").replace(/\bi'(m|ll|ve|d)\b/g, "I'$1"); return s.charAt(0).toUpperCase() + s.slice(1); };   // display only (Web Speech text is lowercase)
+
+  /* ---------- voice: the page's own speakers; the recogniser is this module's ---------- */
+  function stopMic(){
+    const r = S.rec; S.rec = null; S.listening = false;
+    if(r){ r.onresult = null; r.onerror = null; r.onend = null; try{ if(r.abort) r.abort(); else r.stop(); }catch(_){} }
+  }
+  // DuSu's voice and the microphone never run together (the recogniser would hear the speaker)
+  const hearEn = text => { try{ const was = S.listening; stopMic(); killSpeech(); say(text, ENG_SLOW()); if(was && S.view === "drill") paintDrill(); }catch(_){} };
+  const hearHi = text => { try{ const was = S.listening; stopMic(); killSpeech(); say(text, HI()); if(was && S.view === "drill") paintDrill(); }catch(_){} };
+  function stopVoice(){ stopMic(); try{ killSpeech(); }catch(_){} }
+  // for the page's stopAllVoice (a hidden tab, a screen left): stop, and if the drill was showing "listening" draw it again so the button does not keep claiming it is
+  function stopVoiceOutside(){ const was = S.listening; stopVoice(); if(was && S.view === "drill" && S.set){ try{ paintDrill(); }catch(_){} } }
+  function startMic(){
+    if(S.busy || S.listening || S.micOff) return;
+    if(!SR){ S.micOff = "off"; paintDrill(); return; }
+    try{ killSpeech(); }catch(_){}
+    let rec; try{ rec = new SR(); }catch(_){ S.micOff = "off"; paintDrill(); return; }
+    rec.lang = "en-US"; rec.interimResults = false; rec.maxAlternatives = 1; try{ rec.continuous = false; }catch(_){}
+    let got = "", err = "";
+    rec.onresult = e => { try{ got = String(e.results[0][0].transcript || "").trim(); }catch(_){} };
+    rec.onerror = e => { err = (e && e.error) || "error"; };
+    rec.onend = () => {
+      if(S.rec !== rec) return;
+      S.rec = null; S.listening = false;
+      if(got){ S.draft = dispCase(got); S.heard = true; S.hint = ""; }
+      else if(err === "not-allowed" || err === "service-not-allowed"){ S.micOff = "denied"; S.hint = ""; }
+      else S.hint = t("dMicNone");
+      if(S.view === "drill"){ paintDrill(); if(got) focusSoon("check"); }
+    };
+    S.rec = rec; S.listening = true; S.hint = "";
+    try{ rec.start(); }catch(_){ S.rec = null; S.listening = false; S.micOff = "off"; }
+    paintDrill();
+  }
+  const toggleMic = () => { if(S.listening){ const r = S.rec; if(r){ try{ r.stop(); }catch(_){ stopMic(); paintDrill(); } } } else startMic(); };
+
+  /* ---------- the shell ---------- */
+  function note(msg){ const n = $g("glNote"); if(!n) return; n.hidden = !msg; n.textContent = msg || ""; }
+  function paintHeader(){
+    const v = S.view;
+    $g("glSub").textContent = v === "hub" ? t("subHub") : v === "unit" ? uname(S.unit) : v === "drill" ? (S.review ? t("review") : uname(S.unit) + " · " + lname(S.level)) : t("subSummary");
+    $g("glBack").setAttribute("aria-label", t("back")); $g("glSw").setAttribute("aria-label", t("langAria"));
+    [["glLangHi", "hi"], ["glLangEn", "en"]].forEach(([id, l]) => { const b = $g(id); if(!b) return; b.classList.toggle("on", lang() === l); b.setAttribute("aria-pressed", lang() === l ? "true" : "false"); });
+  }
+  function path(){
+    if(S.review && (S.view === "drill" || S.view === "summary")) return BASE + "/review";
+    if(S.unit && S.view !== "hub") return BASE + "/" + S.unit;
+    return BASE;
+  }
+  const pushPath = p => { try{ if(location.pathname !== p) history.pushState({}, "", p); }catch(_){} };
+  // Show a view. `o` sets state (unit / level / review); the epoch makes a late answer for a view the learner already left a no-op.
+  function go(view, o){
+    S.epoch++; stopVoice();
+    S.view = view; if(o) Object.assign(S, o);
+    show("gl", path()); render();
+  }
+  async function render(){
+    const ep = S.epoch; paintHeader(); const b = body(); S.focus = S.focus || "";
+    const needHub = S.view === "hub" || ((S.view === "unit" || S.view === "summary") && !S.hub) || (S.view === "unit" && S.stale);
+    if(needHub){
+      put(b, spinner(t("loading")));
+      try{ const d = await api("GET", "/state"); if(ep !== S.epoch) return; S.hub = d; S.stale = false; }
+      catch(e){ if(ep !== S.epoch || (e && e.auth)) return; if(isOff(e)){ goHome(); return; } put(b, h("p", { class:"gl-empty" }, eText(e)), h("div", { class:"gl-acts" }, btn(t("retry"), "primary", () => render(), { icon:"retry", attrs:{ id:"glRetry" } }))); return; }
+    }
+    paintBody();
+  }
+  function paintBody(){
+    paintHeader();
+    const v = S.view;
+    if(v === "hub") paintHub(); else if(v === "unit") paintUnit(); else if(v === "drill") paintDrill(); else paintSummary();
+    if(S.focus){ const f = S.focus; S.focus = ""; focusSoon(f); }
+  }
+  const toTop = () => { const w = document.querySelector(".wrap"); if(w) w.scrollTop = 0; };
+  function focusSoon(what){
+    setTimeout(() => {
+      const el = what === "in" ? $g("glIn") : what === "hindi" ? $g("glHindi") : what === "check" ? ($g("glCheck") || $g("glIn")) : what === "result" ? $g("glResult") : $g("glTitle");
+      if(el && typeof el.focus === "function"){ try{ el.focus({ preventScroll:what !== "in" && what !== "check" }); }catch(_){ try{ el.focus(); }catch(__){} } }
+    }, 30);
+  }
+  function back(){
+    const v = S.view;
+    if(v === "hub") navTo("/practice");
+    else if(v === "unit") go("hub", { unit:"", review:false });
+    else if(S.review) go("hub", { unit:"", review:false });
+    else go("unit");
+  }
+  function setLang(l){
+    if(l !== "hi" && l !== "en") return;
+    pref = l; try{ localStorage.setItem(K_LANG, l); }catch(_){}
+    paintHeader(); if(S.view === "hub" || S.view === "unit" || S.view === "drill" || S.view === "summary") paintBody();   // from what is already here: no request
+  }
+
+  /* ---------- hub ---------- */
+  function unitCard(u){
+    const L = lang(), m = cat().units[u.unit] || {};
+    return h("div", { class:"gl-unit", id:"glU-" + u.unit, "data-unit":u.unit },
+      h("button", { type:"button", class:"gl-unit-main", onclick:() => navTo(BASE + "/" + u.unit) },
+        h("span", { class:"gl-unit-top" }, h("span", { class:"gl-unit-name" }, uname(u.unit)), h("span", { class:"gl-unit-sum" }, star(true), t("unitStars", { n:u.stars || 0 }))),
+        h("span", { class:"gl-unit-gist", lang:L }, pick(m.gist))),
+      h("div", { class:"gl-lvs" }, LEVELS.map(l => {
+        const lv = (u.levels || {})[l] || { items:0, stars:0 };
+        return h("button", { type:"button", class:"gl-lv", "data-level":l, disabled:!lv.items, "aria-label":t("chipAria", { level:lname(l), n:lv.stars || 0 }), onclick:() => startLevel(u.unit, l) },
+          h("b", { lang:L }, lname(l)), stars(lv.stars || 0));
+      })));
+  }
+  function paintHub(){
+    const H = S.hub, kids = [], L = lang();
+    if(!H) return;
+    if(!H.ready){ put(body(), h("p", { class:"gl-empty", id:"glNoBank" }, t("noBank"))); return; }
+    kids.push(h("div", { class:"gl-card gl-total", id:"glTotal" },
+      h("div", { class:"gl-total-n", id:"glStars" }, String(H.stars || 0)),
+      h("div", { class:"gl-total-t" }, h("div", { class:"gl-h" }, t("totalOf", { m:H.stars_max || 144 })), barEl((H.stars || 0) / (H.stars_max || 144)), h("p", { class:"gl-small" }, t("totalHint")))));
+    const o = H.open_set;
+    if(o){
+      const what = o.unit === "mixed" ? t("review") : uname(o.unit) + " · " + lname(o.level);
+      kids.push(h("div", { class:"gl-card gl-pri", id:"glResume" }, h("h3", { class:"gl-h" }, t("resumeH")), h("p", { class:"gl-p" }, t("resumeP", { what, a:o.answered, t:o.total })),
+        btn(t("resumeGo"), "primary", () => resumeSet(o), { icon:"next", attrs:{ id:"glResumeGo" } })));
+    }
+    if(H.review_due > 0) kids.push(h("div", { class:"gl-card", id:"glReviewCard" }, h("h3", { class:"gl-h" }, t("reviewH")), h("p", { class:"gl-p" }, t("reviewP", { n:H.review_due })),
+      btn(t("reviewGo"), "ghost", () => navTo(BASE + "/review"), { icon:"retry", attrs:{ id:"glReviewGo" } })));
+    const played = (H.units || []).some(u => LEVELS.some(l => ((u.levels || {})[l] || {}).sets > 0));
+    if(!played && !o) kids.push(h("div", { class:"gl-card", id:"glHow" }, h("h3", { class:"gl-h" }, t("howH")), h("ol", { class:"gl-steps" }, h("li", null, t("how1")), h("li", null, t("how2")), h("li", null, t("how3")))));
+    const fams = Object.keys(cat().families || {});
+    (fams.length ? fams : ["present", "past", "future"]).forEach(f => {
+      const us = (H.units || []).filter(u => (cat().units[u.unit] || {}).family === f); if(!us.length) return;
+      kids.push(h("h3", { class:"gl-sh", id:"glF-" + f, lang:L }, pick((cat().families || {})[f]) || f), us.map(unitCard));
+    });
+    put(body(), kids);
+  }
+  function startLevel(unit, level){ pushPath(BASE + "/" + unit); openSet(unit, level); }
+  function resumeSet(o){ pushPath(o.unit === "mixed" ? BASE + "/review" : BASE + "/" + o.unit); openSet(o.unit, o.level); }
+  // A cold deep link is routed twice (from the cached state, then when /me lands): the second enter of a Review drill that is already open or loading must not restart it (it would drop what is typed).
+  function startReview(){ if(currentScreen() === "gl" && S.view === "drill" && S.review && (S.loading || S.set)) return; openSet("mixed", "review"); }
+
+  /* ---------- unit page ---------- */
+  function paintUnit(){
+    const u = S.unit, m = cat().units[u], L = lang();
+    if(!m){ go("hub", { unit:"" }); return; }
+    const entry = ((S.hub && S.hub.units) || []).find(x => x.unit === u) || { levels:{}, stars:0 };
+    const kids = [];
+    const fm = m.formula || {};
+    kids.push(h("div", { class:"gl-card", id:"glUnitCard" },
+      h("h3", { class:"gl-h" }, uname(u)), h("span", { class:"gl-lab" }, t("uWhat")), h("p", { class:"gl-p", lang:L }, pick(m.gist)),
+      h("span", { class:"gl-lab" }, t("uFormH")),
+      h("div", { class:"gl-forms" }, [["fAff", fm.aff], ["fNeg", fm.neg], ["fQ", fm.q]].map(([k, v]) => v ? h("div", { class:"gl-form" }, h("span", null, t(k)), h("code", { lang:"en" }, v)) : null)),
+      h("span", { class:"gl-lab" }, t("uMarkH")), h("p", { class:"gl-p", id:"glMarker", lang:L }, pick(m.marker))));
+    const ex = m.example || {};
+    if(ex.hi || ex.en) kids.push(h("div", { class:"gl-card", id:"glExample" }, h("span", { class:"gl-lab" }, t("uExH")),
+      h("div", { class:"gl-ex" }, h("p", { lang:"hi" }, ex.hi || ""), h("button", { type:"button", class:"gl-speak", "aria-label":t("uHearHi"), onclick:() => hearHi(ex.hi) }, ic("speaker"))),
+      h("div", { class:"gl-ex" }, h("p", { lang:"en" }, ex.en || ""), h("button", { type:"button", class:"gl-speak", id:"glExHear", "aria-label":t("uHearEn"), onclick:() => hearEn(ex.en) }, ic("speaker")))));
+    kids.push(h("h3", { class:"gl-sh" }, t("uLevelsH")));
+    LEVELS.forEach(l => {
+      const lv = (entry.levels || {})[l] || { items:0, stars:0, best:0, sets:0 };
+      kids.push(h("button", { type:"button", class:"gl-lvrow", id:"glLv-" + l, "data-level":l, disabled:!lv.items, "aria-label":lname(l) + ". " + t("chipAria", { level:lname(l), n:lv.stars || 0 }), onclick:() => openSet(u, l) },
+        h("span", { class:"gl-lvrow-t" }, h("b", { lang:L }, lname(l)), h("small", { lang:L }, pick(((cat().levels || {})[l] || {}).gist))),
+        h("span", { class:"gl-lvrow-m" }, lv.items ? [stars(lv.stars || 0), h("span", null, lv.best > 0 ? t("uBest", { n:lv.best }) : t("uNew"))] : h("span", null, t("uEmpty"))),
+        h("span", { class:"gl-lvrow-go", "aria-hidden":"true" }, "→")));
+    });
+    put(body(), kids);
+  }
+
+  /* ---------- a set ---------- */
+  const firstOpen = (items, from) => {
+    for(let i = from + 1; i < items.length; i++) if(!items[i].done) return i;
+    for(let i = 0; i <= from && i < items.length; i++) if(!items[i].done) return i;
+    return -1;
+  };
+  async function openSet(unit, level){
+    const review = unit === "mixed";
+    S.epoch++; const ep = S.epoch;
+    stopVoice();
+    Object.assign(S, { view:"drill", unit:review ? "" : unit, level:review ? "review" : level, review, set:null, idx:0, res:null, said:"", draft:"", heard:false, hint:"", err:null, busy:false, summary:null, stale:true, focus:"", loading:true });
+    show("gl", path()); paintHeader(); note("");
+    put(body(), spinner(t("loading")));
+    let d;
+    try{ d = await api("POST", "/set", { unit, level }); }
+    catch(e){
+      if(ep !== S.epoch || (e && e.auth)) return;
+      S.loading = false;
+      if(isOff(e)){ goHome(); return; }
+      if(e && (e.code === "nothing_to_review" || e.status === 429 || e.code === "too_many" || e.status === 404)){ go("hub", { unit:"", review:false }); note(eText(e)); return; }
+      put(body(), h("p", { class:"gl-empty" }, eText(e)), h("div", { class:"gl-acts" }, btn(t("retry"), "primary", () => openSet(unit, level), { icon:"retry", attrs:{ id:"glRetry" } })));
+      return;
+    }
+    if(ep !== S.epoch) return;
+    S.loading = false; S.set = d; S.idx = firstOpen(d.items || [], -1);
+    quietHub();
+    if(S.idx < 0){ finishSet(); return; }
+    paintBody();
+  }
+  const isOff = e => !!(e && e.status === 404 && /not available/i.test(String(e.code || "")));   // 404 "Grammar Lab is not available yet" = the switch is off; any other 404 = a set that is not there any more
+  function quietHub(){ if(S.hub) return; const ep = S.epoch; api("GET", "/state").then(d => { if(!S.hub){ S.hub = d; S.stale = false; if(ep === S.epoch) paintHeader(); } }).catch(() => {}); }
+  const curItem = () => (S.set && S.set.items && S.set.items[S.idx]) || null;
+
+  /* ---------- the drill ---------- */
+  function explainBlock(ex, o){
+    o = o || {}; const L = lang(); if(!ex) return null;
+    const kids = [];
+    if(ex.headline) kids.push(h("p", { class:"gl-head", lang:L }, ex.headline));
+    if((ex.rules || []).length) kids.push(h("ul", { class:"gl-rules", lang:L }, ex.rules.map(r => h("li", null, r))));
+    if((ex.changes || []).length) kids.push(h("span", { class:"gl-ex-k" }, t("rChanges")), h("div", { class:"gl-chg", id:"glChanges" }, ex.changes.map(c => {
+      const said = String(c.said || ""), fix = String(c.fix || "");
+      if(said && fix) return h("div", { lang:"en" }, h("span", { class:"gl-said" }, said), " → ", h("span", { class:"gl-fix" }, fix));
+      if(fix) return h("div", { lang:"en" }, h("span", { class:"gl-chg-k", lang:lang() }, t("rAdd") + ":"), " ", h("span", { class:"gl-fix" }, fix));          // a word the learner left out
+      return h("div", { lang:"en" }, h("span", { class:"gl-chg-k", lang:lang() }, t("rDrop") + ":"), " ", h("span", { class:"gl-said" }, said));      // a word that is one too many
+    })));
+    if(ex.formula) kids.push(h("span", { class:"gl-ex-k" }, t("rFormula")), h("span", { class:"gl-ex-v code", lang:"en" }, ex.formula));
+    if(ex.marker) kids.push(h("span", { class:"gl-ex-k" }, t("rMarker")), h("span", { class:"gl-ex-v", lang:L }, ex.marker));
+    if(ex.trap) kids.push(h("span", { class:"gl-ex-k" }, t("rTrap")), h("span", { class:"gl-ex-v", lang:L }, ex.trap));
+    if(o.gist && !ex.headline && ex.gist) kids.push(h("span", { class:"gl-ex-k" }, t("rGist")), h("span", { class:"gl-ex-v", lang:L }, ex.gist));
+    return kids.length ? h("div", { class:"gl-explain" }, kids) : null;
+  }
+  function answerLine(text){
+    return h("div", { class:"gl-ans" }, h("p", { id:"glTarget", lang:"en" }, text), h("button", { type:"button", class:"gl-speak", id:"glHearAns", "aria-label":t("rHear"), onclick:() => hearEn(text) }, ic("speaker")));
+  }
+  function resultCard(it){
+    const r = S.res; if(!r) return null;
+    const L = lang(), v = r.verdict, ex = r.explain && (r.explain[L] || r.explain.en) || null, done = !!r.done;
+    const kids = [];
+    if(v === "empty" || v === "lang") return null;                 // those two are shown as a short message above the input, and the input stays
+    if(S.err) kids.push(h("div", { class:"gl-warn", id:"glErr", role:"alert" }, S.err));
+    const good = v === "ok", soft = v === "unsure";
+    const title = good ? t("rOk") : v === "shown" ? t("rShown") : soft ? t("rUnsure") : done ? t("rShown") : t("rWrong");
+    const kind = good ? "ok" : (v === "shown" || soft) ? "info" : "bad";             // a miss is amber; "here is the answer" and "no tense mistake found" are not a failure, so they are neutral
+    kids.push(h("div", { class:"gl-verdict" }, h("span", { class:"gl-tick " + kind }, ic(good ? "check" : kind === "info" ? "info" : "x")), h("span", { id:"glVerdict" }, title)));
+    if(good && r.first_try) kids.push(h("p", { class:"gl-youl" }, t("rOkFirst")));
+    if(!good && v !== "shown" && S.said) kids.push(h("p", { class:"gl-youl" }, t("dYouSaid") + " ", h("span", { lang:"en" }, S.said)));
+    if(!good) { const eb = explainBlock(ex, { gist:v === "shown" }); if(eb) kids.push(eb); }
+    if(done){
+      const main = String(r.target || r.model || ""), others = [r.model].concat(r.also || []).filter((x, i, a) => x && x !== main && a.indexOf(x) === i);
+      kids.push(h("span", { class:"gl-ex-k" }, t("rOurs")), answerLine(main));
+      if(others.length) kids.push(h("span", { class:"gl-ex-k" }, t("rAlso")), h("ul", { class:"gl-also", id:"glAlso", lang:"en" }, others.map(x => h("li", null, x))));
+      kids.push(h("div", { class:"gl-acts" }, btn(r.summary || firstOpen(S.set.items, S.idx) < 0 ? t("rResults") : t("rNext"), "primary", next, { icon:"next", attrs:{ id:"glNext" } })));
+    } else {
+      kids.push(h("p", { class:"gl-tries", id:"glLeft" }, t("dLeft", { n:r.left != null ? r.left : 0 })));
+      kids.push(h("div", { class:"gl-acts" }, btn(t("rTryAgain"), "primary", tryAgain, { icon:"retry", attrs:{ id:"glTryAgain" }, disabled:S.busy }), btn(S.busy ? t("dChecking") : t("rShow"), "ghost", showAnswer, { attrs:{ id:"glShow" }, disabled:S.busy })));
+    }
+    return h("div", { class:"gl-card gl-res " + kind, id:"glResult", role:"status", "aria-live":"polite", tabindex:"-1" }, kids);
+  }
+  function inputCard(it){
+    const r = S.res, L = lang();
+    const kids = [];
+    if(r && (r.verdict === "empty" || r.verdict === "lang")){
+      const ex = r.explain && (r.explain[L] || r.explain.en);
+      kids.push(h("div", { class:"gl-warn", id:"glMsg", role:"status", lang:L }, (ex && ex.headline) || t("dEmpty")));
+    }
+    if(S.err) kids.push(h("div", { class:"gl-warn", id:"glErr", role:"alert" }, S.err, " ", h("button", { type:"button", class:"gl-link", id:"glRetryCheck", onclick:check }, t("rRetry"))));
+    const ta = h("textarea", { id:"glIn", class:"gl-in", rows:"2", lang:"en", placeholder:t("dPh"), "aria-labelledby":"glInLab", autocapitalize:"sentences", autocomplete:"off", autocorrect:"off", spellcheck:"false", enterkeyhint:"done", maxlength:"400", disabled:S.busy, value:S.draft });
+    const lab = h("span", { class:"gl-lab", id:"glInLab" }, S.heard ? t("dHeardLab") : t("dAnswerLab"));
+    ta.addEventListener("input", () => { S.draft = ta.value; S.hint = ""; if(S.heard){ S.heard = false; put(lab, t("dAnswerLab")); const hh = $g("glHeardHint"); if(hh) hh.hidden = true; } });
+    ta.addEventListener("keydown", e => { if(e.key === "Enter" && !e.shiftKey && !e.isComposing){ e.preventDefault(); check(); } });
+    const micOn = SR && !S.micOff;
+    if(micOn) kids.push(h("div", { class:"gl-mic-row" },
+      h("button", { type:"button", class:"gl-mic" + (S.listening ? " on" : ""), id:"glMic", "aria-pressed":S.listening ? "true" : "false", "aria-label":S.listening ? t("dMicOn") : t("dMic"), onclick:toggleMic, disabled:S.busy }, ic("mic")),
+      h("div", { class:"gl-mic-t", id:"glMicT", role:"status" }, S.listening ? t("dMicOn") : t("dMic"))));
+    else kids.push(h("p", { class:"gl-small", id:"glMicNote", role:"status" }, S.micOff === "denied" ? t("dMicDenied") : t("dMicOff")));
+    kids.push(lab, ta, h("p", { class:"gl-hint", id:"glHeardHint", hidden:!S.heard }, t("dHeardHint")));
+    if(S.hint) kids.push(h("p", { class:"gl-hint", id:"glHint", role:"status" }, S.hint));
+    if(it.tries > 0 && it.tries < 3) kids.push(h("p", { class:"gl-tries" }, t("dLeft", { n:3 - it.tries })));
+    kids.push(h("div", { class:"gl-acts" }, btn(S.busy ? t("dChecking") : t("dCheck"), "primary", check, { icon:S.busy ? null : "check", attrs:{ id:"glCheck" }, disabled:S.busy })));
+    return h("div", { class:"gl-card", id:"glInput" }, kids);
+  }
+  function paintDrill(){
+    const D = S.set, b = body(); if(!D || S.view !== "drill") return;
+    const it = curItem(); if(!it){ finishSet(); return; }
+    const r = S.res, kids = [];
+    kids.push(h("div", { class:"gl-prog", id:"glProg" }, h("span", { class:"gl-prog-n", id:"glProgN" }, (S.idx + 1) + " / " + D.total), barEl((D.answered || 0) / (D.total || 1))));
+    kids.push(h("div", { class:"gl-card", id:"glQ" }, h("span", { class:"gl-lab" }, t("dTask")),
+      h("div", { class:"gl-q-row" }, h("p", { class:"gl-hi", id:"glHindi", lang:"hi", tabindex:"-1" }, it.hi),
+        h("button", { type:"button", class:"gl-speak", id:"glHear", "aria-label":t("dReplay"), onclick:() => hearHi(it.hi) }, ic("speaker")))));
+    const rc = resultCard(it);
+    if(rc) kids.push(rc);
+    if(!rc) kids.push(inputCard(it));
+    put(b, kids);
+  }
+  async function check(){
+    if(S.busy) return;
+    const D = S.set, it = curItem(); if(!D || !it || it.done) return;
+    const ta = $g("glIn"), txt = String((ta ? ta.value : S.draft) || "").trim();
+    if(!txt){ S.hint = t("dEmpty"); S.err = null; paintDrill(); return; }
+    stopMic();
+    S.busy = true; S.err = null; S.hint = ""; S.said = txt; S.draft = txt; S.heard = false; paintDrill();
+    const ep = S.epoch, setId = D.set, itemId = it.id;
+    let r;
+    try{ r = await api("POST", "/check", { set:setId, item:itemId, said:txt }); }
+    catch(e){
+      if(ep !== S.epoch || (e && e.auth)) return;
+      S.busy = false;
+      if(isOff(e)){ goHome(); return; }
+      if(e && (e.status === 404 || (e.status === 422 && e.code === "closed"))){ go("hub", { unit:"", review:false }); note(e.status === 404 ? t("eGeneric") : eText(e)); return; }   // the set is gone or already finished: nothing to retry
+      S.err = eText(e); paintDrill(); return;
+    }
+    if(ep !== S.epoch) return;
+    S.busy = false; applyResult(it, r);
+  }
+  async function showAnswer(){
+    if(S.busy) return;
+    const D = S.set, it = curItem(); if(!D || !it || it.done) return;
+    S.busy = true; S.err = null; paintDrill();
+    const ep = S.epoch;
+    let r;
+    try{ r = await api("POST", "/show", { set:D.set, item:it.id }); }
+    catch(e){
+      if(ep !== S.epoch || (e && e.auth)) return;
+      S.busy = false;
+      if(isOff(e)){ goHome(); return; }
+      if(e && (e.status === 404 || (e.status === 422 && e.code === "closed"))){ go("hub", { unit:"", review:false }); note(e.status === 404 ? t("eGeneric") : eText(e)); return; }
+      S.err = eText(e); paintDrill(); return;
+    }
+    if(ep !== S.epoch) return;
+    S.busy = false; applyResult(it, r);
+  }
+  function applyResult(it, r){
+    S.res = r;
+    if(typeof r.tries === "number") it.tries = r.tries;
+    if(r.done) it.done = true;
+    if(typeof r.answered === "number") S.set.answered = r.answered;
+    if(r.summary) S.summary = r.summary;
+    const noAttempt = r.verdict === "empty" || r.verdict === "lang";
+    paintDrill(); paintHeader();
+    if(!noAttempt){ const q = $g("glQ"); if(q) q.scrollIntoView({ block:"start" }); }       // the sentence and the reason together, from the top of the question
+    focusSoon(noAttempt ? "in" : "result");
+  }
+  function tryAgain(){ S.res = null; S.draft = ""; S.heard = false; S.hint = ""; S.err = null; S.said = ""; paintDrill(); focusSoon("in"); }
+  function next(){
+    const D = S.set; if(!D) return;
+    const i = firstOpen(D.items, S.idx);
+    S.res = null; S.draft = ""; S.heard = false; S.hint = ""; S.err = null; S.said = "";
+    if(i < 0){ finishSet(); return; }
+    S.idx = i; paintDrill(); toTop(); focusSoon("hindi");
+  }
+  async function finishSet(){
+    if(!S.summary && S.set){
+      const ep = S.epoch;
+      try{ const d = await api("GET", "/set/" + S.set.set); if(ep !== S.epoch) return; S.summary = d.summary || null; }catch(e){ if(ep !== S.epoch || (e && e.auth)) return; }
+    }
+    if(!S.summary){ go("hub", { unit:"", review:false }); return; }
+    S.stale = true; go("summary"); toTop(); focusSoon("title");
+  }
+
+  /* ---------- summary ---------- */
+  function paintSummary(){
+    const s = S.summary, L = lang(); if(!s){ go("hub", { unit:"", review:false }); return; }
+    const kids = [], n = s.stars || 0;
+    const title = s.graded ? t("s" + Math.max(0, Math.min(3, n))) : t("sDone");
+    kids.push(h("div", { class:"gl-card gl-hero", id:"glHero" },
+      h("h3", { class:"gl-h", id:"glSumTitle" }, title),
+      h("div", { class:"gl-bigstars", id:"glBigStars", role:"img", "aria-label":t("sStarsAria", { n }) }, [1, 2, 3].map(i => star(i <= n))),
+      s.new_best ? h("span", { class:"gl-new", id:"glNewBest" }, t("sNew")) : null,
+      h("div", { class:"gl-pct", id:"glPct" }, t("sPct", { n:s.pct || 0 })),
+      h("div", { class:"gl-tally" }, h("span", { class:"gl-chip ok", id:"glRight" }, t("sRight", { n:s.right || 0 })), h("span", { class:"gl-chip bad", id:"glWrong" }, t("sWrong", { n:s.wrong || 0 })),
+        s.unsure ? h("span", { class:"gl-chip", id:"glUnsure" }, t("sUnsure", { n:s.unsure })) : null),
+      h("p", { class:"gl-p", id:"glFirst" }, t("sFirst", { n:s.first_try || 0 })),
+      (s.graded < STAR_MIN && n === 0) ? h("p", { class:"gl-small", id:"glNoStars" }, t("sNoStars", { n:STAR_MIN })) : null));
+    if((s.weak || []).length) kids.push(h("div", { class:"gl-card", id:"glWeak" }, h("h3", { class:"gl-h" }, t("sWeakH")),
+      h("ul", { class:"gl-rules" }, s.weak.map(w => h("li", { lang:L }, pick(w.rule, L) || w.code, " ", h("span", { class:"gl-small" }, "(" + t("sWeakN", { n:w.n }) + ")"))))));
+    if((s.missed || []).length) kids.push(h("div", { class:"gl-card", id:"glMissed" }, h("h3", { class:"gl-h" }, t("sMissH")),
+      s.missed.map(m => h("div", { class:"gl-miss", "data-id":m.id }, h("div", null, h("p", { class:"m-hi", lang:"hi" }, m.hi), h("p", { class:"m-en", lang:"en" }, m.en)),
+        h("button", { type:"button", class:"gl-speak", "aria-label":t("rHear"), onclick:() => hearEn(m.en) }, ic("speaker"))))));
+    const nx = s.next || { unit:S.unit, level:S.level, reason:"again" };
+    const acts = [];
+    if(nx.reason === "again" || (!S.review && nx.unit === S.unit && nx.level === S.level)){
+      acts.push(btn(t("sAgain"), "primary", () => openSet(S.review ? "mixed" : S.unit, S.review ? "review" : S.level), { icon:"retry", attrs:{ id:"glAgain" } }));
+    } else if(nx.reason === "review"){
+      acts.push(btn(t("sReview"), "primary", () => openSet("mixed", "review"), { icon:"retry", attrs:{ id:"glNextStep" } }));
+    } else {
+      const lab = nx.reason === "next_unit" ? t("sNextUnit", { unit:uname(nx.unit) }) : t("sNextLevel", { level:lname(nx.level) });
+      acts.push(btn(lab, "primary", () => openSet(nx.unit, nx.level), { icon:"next", attrs:{ id:"glNextStep" } }));
+      acts.push(btn(t("sAgain2"), "ghost", () => openSet(S.unit, S.level), { icon:"retry", attrs:{ id:"glAgain" } }));
+    }
+    acts.push(btn(t("sBack"), "ghost", () => go("hub", { unit:"", review:false }), { attrs:{ id:"glBackLab" } }));
+    kids.push(h("div", { class:"gl-acts gl-stack", id:"glSumActs" }, acts));
+    put(body(), kids);
+  }
+
+  /* ---------- entry points, lifecycle, routes ---------- */
+  function syncEntries(){
+    const on = enabled();
+    const e = $g("glEntry"); if(e) e.hidden = !on;
+    const m = $g("mrowGL"); if(m) m.hidden = !on;
+  }
+  function leave(){ S.epoch++; stopVoice(); }
+  function reset(){ stopVoice(); S = fresh(); try{ put(body()); note(""); }catch(_){} }
+  const guard = fn => () => { if(!enabled()){ try{ goHome(); }catch(_){} return; } fn(); };
+  ROUTES[BASE] = { enter: guard(() => go("hub", { unit:"", review:false })) };
+  ROUTES[BASE + "/review"] = { enter: guard(() => startReview()) };
+  UNITS.forEach(u => { ROUTES[BASE + "/" + u] = { enter: guard(() => go("unit", { unit:u, review:false })) }; PATH_TAB[BASE + "/" + u] = "practice"; });
+  if($g("glBack")) $g("glBack").onclick = back;
+  if($g("glLangHi")) $g("glLangHi").onclick = () => setLang("hi");
+  if($g("glLangEn")) $g("glLangEn").onclick = () => setLang("en");
+  if($g("glEntry")) $g("glEntry").onclick = () => navTo(BASE);
+  return { open:() => navTo(BASE), syncEntries, leave, reset, stopVoice:stopVoiceOutside, enabled, path, _txt:TXT, _units:UNITS };
+})();
+window.GL = GL;
+
+/* ================= TALK - a topic every day: chat out loud in English, with Hindi subtitles or English only, one verified correction at a time =================
+   Milestone M5 of the learner-first release (backend/app/talk, tests/talk). One door with three support levels: Hindi -> English (that IS Daily Talk: this screen only opens it, its
+   frames are untouched), English + Hindi subtitles and English only (the `talk` WebSocket mode). This module paints (1) the #tk screen - today's topic card, starter hints, useful
+   words, the level switch, "choose another topic" - from GET /tk/state and /tk/topic/{id}, with DOM calls only (never innerHTML: the topic text and, in the chat, the model's
+   words are text), and (2) the Talk chat ON THE EXISTING #session SCREEN: the English bubble as every chat draws it, the Hindi subtitle as a SIBLING of the bubble (the
+   reconnect replay is read back from .bubble, so nothing Hindi may live inside it), and at most one correction card under the learner's own line - drawn after DuSu has finished
+   speaking. The page's voice loop, the lock / reconnect machinery (VP, sessRevive), the retry pop-up and the session result are the ones every chat uses; the few hooks into them
+   are one line each. The chat is English whatever the Hindi / English switch says (LG.LEGACY.talk = "en", not switchable); the screen's own words follow its own toggle.
+   All Hindi below is UNREVIEWED (Devanagari for the Hindi words, Latin for everyday English words, तुम, no gendered second person): a native reader has not signed it off. */
+const TK = (function(){
+  "use strict";
+  const API = "/tk", BASE = "/talk", K_LANG = "dusu_tk_lang", K_SUB = "dusu_tk_sub";
+  const LV_IDS = ["hi", "en_sub", "en"];
+  const TXT = {
+    hi:{
+      back:"वापस", langAria:"इस screen की भाषा", loading:"थोड़ा रुको…", retry:"फिर से try करो",
+      sub:"हर दिन एक नया topic", todayH:"आज का topic", pickedH:"तुम्हारा चुना हुआ topic",
+      startersH:"ऐसे शुरू करो", startersP:"किसी पर tap करो - यह सिर्फ़ एक hint है, कुछ भेजा नहीं जाता।", hintHear:"English सुनो",
+      vocabH:"काम के शब्द", focus:"Grammar focus: {unit}", focusAria:"{unit} - Grammar Lab में खोलो",
+      levelH:"बात कैसे करनी है?", start:"बात शुरू करो", startDaily:"Daily Talk शुरू करो",
+      another:"कोई और topic चुनो", anotherHide:"Topics छिपाओ", todayBack:"आज के topic पर वापस",
+      empty:"Topics जल्दी आ रहे हैं। तब तक Daily Talk में Hindi से English की practice करो।", emptyGo:"Daily Talk खोलो",
+      eNet:"Internet नहीं है। थोड़ी देर बाद फिर try करो।", eGeneric:"कुछ गड़बड़ हो गई। फिर से try करो।", eOff:"Talk अभी उपलब्ध नहीं है।", eTopic:"वह topic नहीं मिला। कोई और चुनो।" },
+    en:{
+      back:"Back", langAria:"Language of this screen", loading:"One moment…", retry:"Try again",
+      sub:"A new topic every day", todayH:"Today's topic", pickedH:"Your chosen topic",
+      startersH:"You could start like this", startersP:"Tap one - it is only a hint, nothing is sent.", hintHear:"Hear it in English",
+      vocabH:"Useful words", focus:"Grammar focus: {unit}", focusAria:"{unit} - open it in the Grammar Lab",
+      levelH:"How do you want to talk?", start:"Start talking", startDaily:"Start Daily Talk",
+      another:"Choose another topic", anotherHide:"Hide topics", todayBack:"Back to today's topic",
+      empty:"Topics are coming soon. Until then, practise Hindi to English in Daily Talk.", emptyGo:"Open Daily Talk",
+      eNet:"No internet. Try again in a moment.", eGeneric:"Something went wrong. Try again.", eOff:"Talk is not available yet.", eTopic:"That topic was not found. Choose another." } };
+  // the words INSIDE the chat (the correction card, the subtitle button, the end-of-chat list): English; at the English + Hindi subtitles level each label also carries its Hindi
+  const CH = {
+    en:{ said:"You said", better:"Better", could:"You could say", why:"Why", hear:"Hear it", again:"Try again", trying:"Listening - say it again now.", paused:"Voice is paused right now.",
+      fixAria:"A correction for what you just said", sumH:"Your top fixes", sumP:"Worth remembering from this chat." },
+    hi:{ said:"तुमने कहा", better:"बेहतर", could:"ऐसे भी कहा जा सकता है", why:"क्यों", trying:"सुन रही हूँ - अब इसे फिर से बोलो।",
+      subHide:"Hindi subtitles बंद करो", subShow:"Hindi subtitles दिखाओ", sumH:"इस chat की ज़रूरी बातें", sumP:"इस बातचीत से याद रखने लायक़।" } };
+
+  /* ---------- a tiny DOM builder: the ONLY way this module puts anything on the page ---------- */
+  const NS = "http://www.w3.org/2000/svg";
+  const ATTR_OK = /^(class|id|type|role|title|placeholder|for|name|tabindex|lang|dir|aria-[a-z]+|data-[a-z0-9-]+)$/;
+  function add(el, c){ if(c == null || c === false || c === true) return; if(Array.isArray(c)){ for(const x of c) add(el, x); return; } el.appendChild(c instanceof Node ? c : document.createTextNode(String(c))); }
+  function h(tag, a, ...kids){
+    const el = document.createElement(tag);
+    if(a && typeof a === "object" && !(a instanceof Node) && !Array.isArray(a)){
+      for(const k of Object.keys(a)){
+        const v = a[k]; if(v == null || v === false) continue;
+        if(k === "class") el.className = v;
+        else if(k.slice(0, 2) === "on"){ if(typeof v === "function") el.addEventListener(k.slice(2), v); }
+        else if(k === "disabled") el.disabled = !!v;
+        else if(k === "hidden") el.hidden = !!v;
+        else if(ATTR_OK.test(k)) el.setAttribute(k, v === true ? "" : String(v));
+      }
+    } else if(a != null) kids.unshift(a);
+    add(el, kids); return el;
+  }
+  function put(el, ...kids){ while(el.firstChild) el.removeChild(el.firstChild); add(el, kids); return el; }
+  const ICONS = { speaker:["M11 5 6 9H2v6h4l5 4V5z", "M15.5 8.5a5 5 0 0 1 0 7", "M19 5a9 9 0 0 1 0 14"], retry:["M3 12a9 9 0 0 1 15.5-6.2L21 8", "M21 3v5h-5", "M21 12a9 9 0 0 1-15.5 6.2L3 16", "M3 21v-5h5"], next:["M5 12h14", "m12 5 7 7-7 7"] };
+  function ic(name){
+    const s = document.createElementNS(NS, "svg");
+    s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("aria-hidden", "true"); s.setAttribute("focusable", "false"); s.setAttribute("fill", "none"); s.setAttribute("stroke", "currentColor");
+    s.setAttribute("stroke-width", "1.8"); s.setAttribute("stroke-linecap", "round"); s.setAttribute("stroke-linejoin", "round");
+    (ICONS[name] || []).forEach(d => { const p = document.createElementNS(NS, "path"); p.setAttribute("d", d); s.appendChild(p); });
+    return s;
+  }
+  const $g = id => document.getElementById(id);
+  const body = () => $g("tkBody");
+  const btn = (label, kind, fn, o) => { o = o || {}; return h("button", Object.assign({ type:"button", class:"btn tk-btn" + (kind ? " " + kind : ""), onclick:fn, disabled:o.disabled }, o.attrs || {}), o.icon ? ic(o.icon) : null, h("span", null, label)); };
+  const spinner = msg => h("div", { class:"tk-spin", role:"status" }, h("div", { class:"spin" }), msg);
+
+  /* ---------- the screen's language: its own choice (dusu_tk_lang), then the learner's Hindi / English choice, then Hindi. It never reaches the chat. ---------- */
+  const rd = () => { try{ const v = localStorage.getItem(K_LANG); return v === "hi" || v === "en" ? v : ""; }catch(_){ return ""; } };
+  let pref = rd();
+  const lang = () => {
+    if(pref) return pref;
+    let l = ""; try{ l = (typeof LG !== "undefined" && LG.cur) ? LG.cur() : ""; }catch(_){}
+    if(l !== "hi" && l !== "en") l = (userState && (userState.lang === "hi" || userState.lang === "en")) ? userState.lang : "hi";
+    return l;
+  };
+  const t = (k, v) => { const L = lang(); let s = (TXT[L] && TXT[L][k] !== undefined) ? TXT[L][k] : TXT.en[k]; if(s === undefined) return k; if(v && typeof s === "string") s = s.replace(/\{(\w+)\}/g, (_, x) => v[x] != null ? v[x] : ""); return s; };
+  const pick = (o, L) => (o && (o[L || lang()] || o.en)) || "";
+  const enabled = () => !!(userState && userState.talk_v3);
+  const unitName = u => String(u || "").split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  const clip = (s, n) => { s = String(s || ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
+
+  /* ---------- state + api ---------- */
+  function fresh(){ return { state:null, topic:null, picked:false, support:"", hint:-1, altsOpen:false, epoch:0, busyTopic:false, at:0 }; }
+  let S = fresh();
+  let subOn = (() => { try{ return localStorage.getItem(K_SUB) !== "0"; }catch(_){ return true; } })();   // the Hindi-subtitle toggle: on by default, remembered
+  let chatSeq = 0;   // one number per chat: a watcher left over from an earlier chat must not draw into the next one
+  function chatFresh(){ return { topic:null, support:"", fixes:[], epoch:++chatSeq, n:0 }; }
+  let C = chatFresh();
+  async function api(method, path, bodyObj){
+    const init = { method, headers:{ Authorization:"Bearer " + authToken }, cache:"no-store" };
+    if(bodyObj !== undefined){ init.headers["Content-Type"] = "application/json"; init.body = JSON.stringify(bodyObj); }
+    let r; try{ r = await fetch(API + path, init); }catch(_){ throw { net:true }; }
+    if(r.status === 401){ try{ logout(); }catch(_){} throw { auth:true }; }
+    let j = null; try{ j = await r.json(); }catch(_){}
+    if(!r.ok){ const d = j && j.detail; throw { status:r.status, code:(d && typeof d === "object" ? d.error : d) || "" }; }
+    return j;
+  }
+  const isOff = e => !!(e && e.status === 404 && /not available/i.test(String(e.code || "")));   // 404 "Talk is not available" = the switch is off; any other 404 = a topic that is not there
+  const eText = e => !e ? t("eGeneric") : e.net ? t("eNet") : isOff(e) ? t("eOff") : e.status === 404 ? t("eTopic") : t("eGeneric");
+
+  /* ---------- the screen ---------- */
+  function note(msg){ const n = $g("tkNote"); if(!n) return; n.hidden = !msg; n.textContent = msg || ""; }
+  function paintHeader(){
+    const sub = $g("tkSub"); if(sub) sub.textContent = t("sub");
+    const b = $g("tkBack"); if(b) b.setAttribute("aria-label", t("back"));
+    const sw = $g("tkSw"); if(sw) sw.setAttribute("aria-label", t("langAria"));
+    [["tkLangHi", "hi"], ["tkLangEn", "en"]].forEach(([id, l]) => { const x = $g(id); if(!x) return; x.classList.toggle("on", lang() === l); x.setAttribute("aria-pressed", lang() === l ? "true" : "false"); });
+  }
+  function open(){
+    // A cold start routes the page twice (from the cached state, then when /me lands): the second pass must not wipe a card that has just been drawn (a flash of spinner, a lost tap).
+    if(currentScreen() === "tk" && S.state && S.topic && Date.now() - S.at < 6000) return;
+    S.epoch++; S.picked = false; S.hint = -1; S.altsOpen = false; S.topic = null;
+    show("tk", BASE); note(""); paintHeader(); load();
+  }
+  async function load(){
+    const ep = S.epoch;
+    put(body(), spinner(t("loading")));
+    try{
+      const d = await api("GET", "/state");
+      if(ep !== S.epoch) return;
+      S.state = d; S.topic = d.topic || null; S.support = LV_IDS.indexOf(d.support) >= 0 ? d.support : "hi"; S.at = Date.now();
+    }catch(e){
+      if(ep !== S.epoch || (e && e.auth)) return;
+      if(isOff(e)){ try{ goHome(); }catch(_){} return; }
+      put(body(), h("p", { class:"tk-empty" }, eText(e)), h("div", { class:"tk-acts" }, btn(t("retry"), "primary", load, { icon:"retry", attrs:{ id:"tkRetry" } })));
+      return;
+    }
+    paint();
+  }
+  function paint(){
+    paintHeader();
+    const d = S.state; if(!d) return;
+    if(d.empty || !S.topic){
+      put(body(), h("div", { class:"tk-card", id:"tkEmpty" }, h("p", { class:"tk-empty" }, t("empty")), h("div", { class:"tk-acts" }, btn(t("emptyGo"), "primary", () => navTo("/daily-talk"), { attrs:{ id:"tkEmptyGo" } }))));
+      return;
+    }
+    put(body(), topicCard(), levelCard());
+  }
+  const pickIdx = i => S.hint === i ? -1 : i;
+  function hintNode(){
+    const tp = S.topic, s = tp && tp.starters && tp.starters[S.hint]; if(!s) return null;
+    return h("div", { class:"tk-hint", id:"tkHint", role:"status" },
+      h("div", null, h("p", { class:"tk-hint-en", lang:"en" }, s.en), h("p", { class:"tk-hint-hi", lang:"hi" }, s.hi)),
+      h("button", { type:"button", class:"tk-speak", id:"tkHintHear", "aria-label":t("hintHear"), onclick:() => hear(s.en) }, ic("speaker")));
+  }
+  function paintHint(){
+    const host = $g("tkHintHost"); if(host) put(host, hintNode());
+    document.querySelectorAll("#tkStarters .tk-chip").forEach(c => c.setAttribute("aria-pressed", +c.getAttribute("data-i") === S.hint ? "true" : "false"));
+  }
+  function hear(text){ try{ killSpeech(); say(text, ENG_SLOW()); }catch(_){} }
+  function topicCard(){
+    const tp = S.topic, L = lang();
+    const focus = /^[a-z_]{3,40}$/.test(String(tp.focus || "")) ? tp.focus : "";
+    const unit = unitName(focus);
+    const labFocus = t("focus", { unit });
+    const focusEl = !focus ? null : (userState && userState.grammar_lab)
+      ? h("button", { type:"button", class:"tk-chip tk-focus", id:"tkFocus", "aria-label":t("focusAria", { unit }), "data-unit":focus, onclick:() => navTo("/grammar-lab/" + focus) }, labFocus, " →")
+      : h("span", { class:"tk-focus", id:"tkFocus", "data-unit":focus }, labFocus);
+    return h("div", { class:"tk-card", id:"tkCard", "data-topic":tp.id },
+      h("span", { class:"tk-lab" }, S.picked ? t("pickedH") : t("todayH")),
+      h("h3", { class:"tk-h", id:"tkTopicEn", lang:"en" }, pick(tp.title, "en")),
+      h("p", { class:"tk-hi", id:"tkTopicHi", lang:"hi" }, pick(tp.title, "hi")),
+      focusEl,
+      h("span", { class:"tk-lab" }, t("startersH")),
+      h("div", { class:"tk-chips", id:"tkStarters" }, (tp.starters || []).map((s, i) => h("button", { type:"button", class:"tk-chip", id:"tkS" + i, "data-i":i, "aria-pressed":S.hint === i ? "true" : "false", lang:"en", onclick:() => { S.hint = pickIdx(i); paintHint(); } }, s.en))),
+      h("p", { class:"tk-small", lang:L }, t("startersP")),
+      h("div", { id:"tkHintHost" }, hintNode()),
+      h("span", { class:"tk-lab" }, t("vocabH")),
+      h("div", { class:"tk-vocab", id:"tkVocab" }, (tp.vocab || []).map(v => h("span", { class:"tk-w" }, h("span", { lang:"en" }, v.en), " ", h("small", { lang:"hi" }, v.hi)))));
+  }
+  function levelCard(){
+    const L = lang();
+    const lvs = ((S.state && S.state.levels) || []).filter(l => l && LV_IDS.indexOf(l.id) >= 0);
+    return h("div", { class:"tk-card", id:"tkLevelCard" },
+      h("span", { class:"tk-lab", id:"tkLvLab" }, t("levelH")),
+      h("div", { class:"tk-lv", id:"tkLv", role:"radiogroup", "aria-labelledby":"tkLvLab" }, lvs.map((l, i) => {
+        const on = S.support === l.id;
+        return h("button", { type:"button", class:"tk-lvopt" + (on ? " on" : ""), id:"tkLv-" + l.id, role:"radio", "aria-checked":on ? "true" : "false", "data-level":l.id, onclick:() => setSupport(l.id), onkeydown:e => lvKey(e, i, lvs) },
+          h("span", { class:"tk-dot", "aria-hidden":"true" }), h("span", { class:"tk-lvt" }, h("b", { lang:L }, pick(l.label, L)), h("small", { lang:L }, pick(l.hint, L))));
+      })),
+      h("div", { class:"tk-acts" },
+        btn(S.support === "hi" ? t("startDaily") : t("start"), "primary", startTalk, { attrs:{ id:"tkStart" } }),
+        btn(S.altsOpen ? t("anotherHide") : t("another"), "ghost", toggleAlts, { attrs:{ id:"tkAnother", "aria-expanded":S.altsOpen ? "true" : "false" } })),
+      h("div", { id:"tkAltsHost" }, S.altsOpen ? altsNode() : null));
+  }
+  // arrow keys move through the radios like a native radio group (each is also a Tab stop)
+  function lvKey(e, i, lvs){
+    const d = (e.key === "ArrowDown" || e.key === "ArrowRight") ? 1 : (e.key === "ArrowUp" || e.key === "ArrowLeft") ? -1 : 0;
+    if(!d) return;
+    e.preventDefault();
+    const n = lvs[(i + d + lvs.length) % lvs.length]; setSupport(n.id);
+    const b = $g("tkLv-" + n.id); if(b) b.focus();
+  }
+  function setSupport(id){
+    if(LV_IDS.indexOf(id) < 0 || S.support === id) return;
+    S.support = id;
+    document.querySelectorAll("#tkLv .tk-lvopt").forEach(b => { const on = b.getAttribute("data-level") === id; b.classList.toggle("on", on); b.setAttribute("aria-checked", on ? "true" : "false"); });
+    const st = $g("tkStart"); if(st){ const sp = st.querySelector("span"); if(sp) put(sp, id === "hi" ? t("startDaily") : t("start")); }
+    api("POST", "/prefs", { support:id }).then(() => { if(S.state){ S.state.support = id; S.state.support_chosen = true; } }).catch(() => {});   // remembered on the server; the choice already works without it
+  }
+  function altsNode(){
+    const L = lang(), list = [];
+    if(S.picked && S.state && S.state.topic) list.push({ id:S.state.topic.id, label:t("todayBack"), sub:pick(S.state.topic.title, "en") });
+    (S.state && S.state.alternatives || []).forEach(a => { if(a && a.id && S.topic && a.id !== S.topic.id) list.push({ id:a.id, label:pick(a.title, "en"), sub:pick(a.title, "hi") }); });
+    return h("div", { class:"tk-alts", id:"tkAlts" }, list.map(a => h("button", { type:"button", class:"tk-alt", "data-id":a.id, onclick:() => pickTopic(a.id) }, h("b", { lang:L }, a.label), h("small", null, a.sub))));
+  }
+  function toggleAlts(){
+    S.altsOpen = !S.altsOpen;
+    const host = $g("tkAltsHost"); if(host) put(host, S.altsOpen ? altsNode() : null);
+    const b = $g("tkAnother"); if(b){ b.setAttribute("aria-expanded", S.altsOpen ? "true" : "false"); const sp = b.querySelector("span"); if(sp) put(sp, S.altsOpen ? t("anotherHide") : t("another")); }
+  }
+  async function pickTopic(id){
+    if(S.busyTopic || !S.state) return;
+    const ep = S.epoch;
+    if(S.state.topic && S.state.topic.id === id){ S.topic = S.state.topic; S.picked = false; S.hint = -1; S.altsOpen = false; paint(); focusTitle(); return; }
+    S.busyTopic = true;
+    try{
+      const tp = await api("GET", "/topic/" + encodeURIComponent(id));
+      if(ep !== S.epoch) return;
+      S.topic = tp; S.picked = true; S.hint = -1; S.altsOpen = false; note(""); paint(); focusTitle();
+    }catch(e){ if(ep !== S.epoch || (e && e.auth)) return; if(isOff(e)){ try{ goHome(); }catch(_){} return; } note(eText(e)); }
+    finally{ S.busyTopic = false; }
+  }
+  function focusTitle(){ setTimeout(() => { const el = $g("tkTopicEn"); if(el){ el.setAttribute("tabindex", "-1"); try{ el.focus({ preventScroll:false }); }catch(_){} } }, 30); }
+  function setLang(l){ if(l !== "hi" && l !== "en") return; pref = l; try{ localStorage.setItem(K_LANG, l); }catch(_){} paintHeader(); if(S.state) paint(); }   // from what is already here: no request
+  function startTalk(){
+    if(S.support === "hi"){ navTo("/daily-talk"); return; }   // Hindi -> English IS Daily Talk: its own route, its own socket, its frames exactly as before
+    if(!S.topic) return;
+    startChat(S.topic, S.support);
+  }
+
+  /* ---------- the chat (on #session) ---------- */
+  function startChat(topic, support){
+    if(guardKeys()) return;
+    if(!SR){ showNotif(lgt("needChrome")); return; }
+    if(overLimit()){ limitNote(); return; }
+    currentMode = "talk";
+    C = chatFresh(); C.topic = topic; C.support = support;
+    sessFrame = null; sessAway = 0; sessReviving = false; sessEnding = false; sessThen = ""; sessNeedsTap = false; sessRestart = null; try{ VP.clear(); }catch(_){}
+    put($g("feed")); thinkHide();
+    $g("endBtn").className = "btn danger";
+    sessionChrome();
+    show("session");
+    orb("connecting", lgt("orbReady"), lgt("orbReadyHint"));
+    addSys(lgt("tipPhones"));
+    thinkShow("start");   // until DuSu's opening line arrives (it is the topic's own opener: no model call, so it is quick)
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+      running = true; srFails = 0;
+      usageInc(); refreshUsage();   // count the chat now that it actually started, like Face-to-Face
+      const f = { type:"start", mode:"talk", token:authToken, keys:officeKeys(), topic_id:topic.id, support, hour:new Date().getHours(), tzmin:-new Date().getTimezoneOffset(), day:localDay(), name:$("name").value };
+      sessFrame = f; sessT0 = Date.now();   // kept: a screen lock / a dropped connection re-opens the SAME topic at the SAME level (sessRevive re-sends this frame with reconnect:true)
+      ws.send(JSON.stringify(f));
+      orb("connecting", lgt("orbReady2"), lgt("orbReady2Hint"));
+    };
+    ws.onmessage = onMessage;
+    ws.onclose = () => { running = false; stopListening(); thinkHide(); if(window.speechSynthesis) window.speechSynthesis.cancel(); FACE.stopTalking(); Assistant.stopTalking(); };
+    ws.onerror = () => { thinkHide(); orb("idle", lgt("connErr"), lgt("connErrHint")); if(!sessFrame){ sessNeedsTap = true; sessRestart = () => startChat(topic, support); } };   // never connected: a tap on DuSu opens the same chat again
+  }
+  function sessionChrome(){
+    if($g("sessTitle")) $g("sessTitle").textContent = "Talk";
+    if($g("sessSub")) $g("sessSub").textContent = C.topic ? clip(pick(C.topic.title, "en"), 58) : "";
+    if($g("endBtn")) $g("endBtn").textContent = lgt("endBtn");
+    paintSubBtn();
+  }
+  function paintSubBtn(){
+    const b = $g("tkSubBtn"); if(!b) return;
+    const on = currentMode === "talk" && C.support === "en_sub";
+    b.hidden = !on;
+    if(on){ b.setAttribute("aria-pressed", subOn ? "true" : "false"); put(b, subOn ? CH.hi.subHide : CH.hi.subShow); }
+  }
+  function onSessionShown(){
+    const on = currentMode === "talk";
+    const s = $g("session"); if(s) s.classList.toggle("tk-chat", on);
+    const f = $g("feed"); if(f) f.classList.toggle("tk-nosub", on && !subOn);
+    const bb = $g("backBtn"); if(bb){ const sp = bb.querySelector("span"); if(sp) sp.textContent = on ? "Talk" : "Home"; bb.title = on ? "Talk" : "Home"; }   // Back from a Talk chat goes to the Talk screen, not Home
+    paintSubBtn();
+  }
+  function toggleSub(){
+    subOn = !subOn; try{ localStorage.setItem(K_SUB, subOn ? "1" : "0"); }catch(_){}
+    onSessionShown();
+  }
+  // DuSu's line: the English bubble exactly as every chat draws it (it is what the replay reads back and what is spoken), then the Hindi subtitle as its SIBLING.
+  function onAi(m){
+    let el = null;
+    try{
+      el = addMsg(String(m.text == null ? "" : m.text), "ai");
+      const hi = typeof m.hi === "string" ? m.hi.trim() : "";
+      if(el && hi && C.support === "en_sub"){   // `hi` exists only at that level; a stray one at English-only is not drawn
+        el.classList.add("tk-m"); el.appendChild(h("div", { class:"tk-sub", lang:"hi" }, hi.slice(0, 600)));
+        const f = $g("feed"); if(f) f.scrollTop = f.scrollHeight;
+      }
+    }catch(e){ console.warn("TK.onAi", e); if(!el){ try{ addMsg(String(m.text == null ? "" : m.text), "ai"); }catch(_){} } }
+    const fix = cleanFix(m.fix), user = lastUser();   // the correction belongs to the learner's line this reply answers
+    speak(m.text, m.lang);
+    if(fix){ C.fixes.push(fix); whenSpeechEnds(() => drawFix(fix, user)); }
+  }
+  function cleanFix(f){
+    if(!f || typeof f !== "object" || Array.isArray(f)) return null;
+    const s = k => (typeof f[k] === "string" ? f[k].trim() : "");
+    const q = s("q"), ff = s("f"), full = s("full");
+    if(!q || !ff || !full) return null;
+    return { q:q.slice(0, 300), f:ff.slice(0, 300), r:s("r").slice(0, 400), w:s("w").slice(0, 400), c:f.c === "sure" ? "sure" : "likely", full:full.slice(0, 700) };   // anything but a verified "sure" is worded softly
+  }
+  const lastUser = () => { const u = document.querySelectorAll("#feed .msg.user"); return u.length ? u[u.length - 1] : null; };
+  // The correction never talks over DuSu: it is drawn when her speech ends (at once if nothing is spoken - a locked phone, no voice on this device).
+  function whenSpeechEnds(fn){
+    const ep = C.epoch;
+    if(!aiSpeaking || document.hidden){ fn(); return; }
+    let n = 0;
+    const iv = setInterval(() => {
+      if(ep !== C.epoch){ clearInterval(iv); return; }
+      if(!aiSpeaking || document.hidden || ++n > 600){ clearInterval(iv); fn(); }
+    }, 100);
+  }
+  function drawFix(fix, user){
+    if(currentScreen() !== "session" || currentMode !== "talk") return;
+    if(!user || !user.isConnected) return;   // the learner's line is gone (a new chat cleared the feed): there is nothing to hang the correction under
+    const card = fixCard(fix);
+    user.after(card);   // directly under the learner's own bubble
+    const f = $g("feed"); if(f) f.scrollTop = f.scrollHeight;
+    try{ card.scrollIntoView({ block:"nearest" }); }catch(_){}   // on a phone the chat sits under the orb: bring the card into view (no focus change, nothing spoken is touched)
+  }
+  function fixCard(f){
+    const dual = C.support === "en_sub", sure = f.c === "sure", n = ++C.n;
+    const lab = k => h("span", { class:"tk-fix-lab" }, CH.en[k], dual ? " " : null, dual ? h("em", { lang:"hi" }, CH.hi[k]) : null);
+    const st = h("p", { class:"tk-fix-st", role:"status", "aria-live":"polite" });
+    return h("div", { class:"tk-fix", id:"tkFix" + n, role:"group", "aria-label":CH.en.fixAria, "data-c":f.c },
+      h("div", { class:"tk-fix-row tk-fix-said" }, lab("said"), h("span", { class:"tk-q", lang:"en" }, f.q)),
+      h("div", { class:"tk-fix-row tk-fix-better" }, lab(sure ? "better" : "could"), h("span", { class:"tk-f", lang:"en" }, f.f)),
+      f.r || f.w ? h("div", { class:"tk-fix-row tk-fix-why" }, lab("why"), f.r ? h("span", { lang:"en" }, f.r) : null, f.w ? h("span", { class:"tk-fix-w", lang:"hi" }, f.w) : null) : null,
+      h("div", { class:"tk-fix-acts" },
+        btn(CH.en.hear, "ghost", () => { try{ speak(f.full, "en"); }catch(_){} }, { icon:"speaker", attrs:{ "data-act":"hear" } }),
+        btn(CH.en.again, "primary", () => tryAgain(st), { icon:"retry", attrs:{ "data-act":"again" } })),
+      st);
+  }
+  // "Try again": hand the learner the mic now, to say the corrected line (it goes out like any turn of the chat).
+  function tryAgain(st){
+    if(currentScreen() !== "session" || currentMode !== "talk") return;
+    if(!running){ if(st) st.textContent = CH.en.paused; return; }
+    killSpeech(); aiSpeaking = false; stopListening();
+    orb("listening", lgt("orbListen"), lgt("orbListenHint"));
+    if(st) st.textContent = C.support === "en_sub" ? CH.hi.trying : CH.en.trying;
+    startListening();
+    try{ $g("orb").scrollIntoView({ block:"nearest" }); }catch(_){}
+  }
+  // the top three fixes of this chat, on the page's own session-result screen (sure ones first, then in the order they happened, no two the same)
+  function topFixes(n){
+    const seen = new Set(), out = [];
+    const all = C.fixes.filter(x => x.c === "sure").concat(C.fixes.filter(x => x.c !== "sure"));
+    for(const x of all){ const k = x.f.toLowerCase(); if(seen.has(k)) continue; seen.add(k); out.push(x); if(out.length >= n) break; }
+    return out;
+  }
+  function afterSessionResult(){
+    if(currentMode !== "talk") return;
+    const b = $g("srBody"); if(!b) return;
+    const old = $g("tkSum"); if(old) old.remove();
+    const top = topFixes(3); if(!top.length) return;
+    const dual = C.support === "en_sub";
+    b.appendChild(h("div", { class:"tk-sum", id:"tkSum" },
+      h("h4", null, CH.en.sumH), h("p", { class:"tk-small" }, CH.en.sumP, dual ? " " + CH.hi.sumP : ""),
+      top.map(x => h("div", { class:"tk-fix-row" }, h("span", { class:"tk-q", lang:"en" }, x.q), " → ", h("span", { class:"tk-f", lang:"en" }, x.f),
+        x.r ? h("span", { class:"tk-fix-w", lang:"en" }, x.r) : null, (x.w && dual) ? h("span", { class:"tk-fix-w", lang:"hi" }, x.w) : null))));
+  }
+
+  /* ---------- entry points, lifecycle, routes ---------- */
+  function syncEntries(){
+    const on = enabled();
+    const e = $g("tkEntry"); if(e) e.hidden = !on;
+    const m = $g("mrowTK"); if(m) m.hidden = !on;
+    // /me can land after the card was drawn from the cached state: the grammar-focus chip is a link only while the Grammar Lab is available for this account
+    try{ const f = $g("tkFocus"); if(f && currentScreen() === "tk" && S.state && S.topic && (f.tagName === "BUTTON") !== !!(userState && userState.grammar_lab)) paint(); }catch(_){}
+  }
+  function leave(){ S.epoch++; try{ killSpeech(); }catch(_){} }
+  function reset(){ S = fresh(); C = chatFresh(); try{ put(body()); note(""); }catch(_){} }
+  ROUTES[BASE] = { enter: () => { if(!enabled()){ try{ goHome(); }catch(_){} return; } open(); } };
+  // Escape closes what the learner opened on the card (the starter hint, then the other-topic list) and hands the focus back to the button that opened it
+  if(body()) body().addEventListener("keydown", e => {
+    if(e.key !== "Escape") return;
+    if(S.hint >= 0){ const i = S.hint; S.hint = -1; paintHint(); const c = $g("tkS" + i); if(c) c.focus(); }
+    else if(S.altsOpen){ toggleAlts(); const b = $g("tkAnother"); if(b) b.focus(); }
+  });
+  if($g("tkBack")) $g("tkBack").onclick = () => navTo("/practice");
+  if($g("tkLangHi")) $g("tkLangHi").onclick = () => setLang("hi");
+  if($g("tkLangEn")) $g("tkLangEn").onclick = () => setLang("en");
+  if($g("tkEntry")) $g("tkEntry").onclick = () => navTo(BASE);
+  if($g("tkSubBtn")) $g("tkSubBtn").onclick = toggleSub;
+  return { open, syncEntries, leave, reset, enabled, path:() => BASE, onAi, onSessionShown, sessionChrome, afterSessionResult, _txt:TXT, _ch:CH };
+})();
+window.TK = TK;
 
 
 if($("assessExit")) $("assessExit").onclick = skipAssessment;

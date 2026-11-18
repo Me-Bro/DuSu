@@ -31,8 +31,8 @@ class OperationalError(DBAPIError):                                 # the databa
     def __init__(self, *a):
         super().__init__('connection lost')
 
-from world import (World, install, ok, err, timeout, conn, completion, R, GROQ_401, GROQ_429_TPD, GROQ_429_PLAIN, GEMINI_400_KEY, GEMINI_400_AUTH_KEY, GEMINI_429_DAY, GEMINI_503,   # noqa: E402
-                   OPENROUTER_401, OPENROUTER_429_DAY)
+from world import (World, install, ok, err, timeout, conn, completion, R, raw, GROQ_401, GROQ_429_TPD, GROQ_429_PLAIN, GEMINI_400_KEY, GEMINI_400_AUTH_KEY, GEMINI_429_DAY, GEMINI_503,   # noqa: E402
+                   OPENROUTER_401, OPENROUTER_429_DAY, CF_429_DAY, CF_403_AUTH, CF_404_MODEL, ZAI_401_AUTH, ZAI_429_BALANCE, ZAI_429_RATE, SARVAM_402, SARVAM_403_KEY)
 
 from app import auth, db, main as M                                 # noqa: E402
 from app.keys import api as keys_api, classify, gate, ledger, probe, service as svc  # noqa: E402
@@ -95,7 +95,28 @@ def OK_(n, v=1):
     SECRET.append(k[14:-6]); return k
 
 
-names = ["ann", "bob", "cat", "dan", "eve", "fay", "gus", "hal", "ida", "ivy", "jon", "kim", "lee", "max", "mia", "ola", "lou", "pia", "zed", "sim", "ned", "tes", "uni"]
+import hashlib                                                      # noqa: E402
+
+
+def CFK(n, v=1):
+    """(account id, token, the stored 'account:token' string) for a learner: a distinct 32-hex id and a token whose middle must never appear in a response or a log line; the id must never appear in full."""
+    acct = hashlib.md5(f"{n}{v}".encode()).hexdigest()
+    tok = f"cftok{n}{v}" + "C" * 24 + f"{n}{v}xCq"
+    SECRET.append(tok[8:-6]); SECRET.append(acct)
+    return acct, tok, f"{acct}:{tok}"
+
+
+def ZK(n, v=1):
+    k = hashlib.md5(f"z{n}{v}".encode()).hexdigest() + "." + f"Z{n}{v}" * 3 + "QzXy"
+    SECRET.append(k[8:-6]); return k
+
+
+def SK(n, v=1):
+    k = f"sk_{n}{v}" + "S" * 24 + f"{n}{v}xSq"
+    SECRET.append(k[8:-6]); return k
+
+
+names = ["ann", "bob", "cat", "dan", "eve", "fay", "gus", "hal", "ida", "ivy", "jon", "kim", "lee", "max", "mia", "ola", "lou", "pia", "zed", "sim", "ned", "tes", "uni", "cyd", "zoe", "sam", "rex"]
 uid = lambda n: f"u-{n}"                                            # noqa: E731
 JSONOK = lambda: ok('{"pass": true, "feedback": "good"}')           # noqa: E731
 
@@ -810,6 +831,166 @@ async def main():
         check("no login: 401", (await req(None, "GET", f"/notify/test/{tid}")).status_code == 401)
         await set_mode(notifications="off")
         check("with the Notifications switch off the journey endpoint is invisible too (404)", (await req("fay", "GET", f"/notify/test/{tid}")).status_code == 404)
+
+
+        # -------------------------------------------------------------- Cloudflare Workers AI, Z.ai and Sarvam (learner-added, 2026-11-17)
+        section("three more services a learner can add: save, reject, limit, credit, remove, re-check - with no zero-quota probe to lean on")
+        await set_mode(key_health="on", keys_ui="on")
+        reset_world()
+        acct, tok, cfk = CFK("cyd")
+        WORLD.on("cloudflare", tok, ok("OK"), kind="chat")
+        r = await save("cyd", "cloudflare", cfk)
+        j = r.json()
+        calls = [x[2] for x in WORLD.calls if x[1] == tok]
+        check("Cloudflare save: exactly ONE real call and NO zero-quota probe (its docs name none) - the one call is the whole check", r.status_code == 200 and j["ok"] is True and calls == ["chat"], (r.status_code, calls))
+        check("... it went to THIS learner's account endpoint with the token alone as the bearer", WORLD.paths[-1][1] == f"/client/v4/accounts/{acct}/ai/v1/chat/completions" and WORLD.auth[-1] == ("cloudflare", "Bearer " + tok), (WORLD.paths[-1], WORLD.auth[-1]))
+        check("... the answer is masked: the LAST FOUR of the account id and of the token - never the account id in full, never the token", j["result"]["masked"] == f"acct ••••{acct[-4:]} · token ••••{tok[-4:]}"
+              and acct not in r.text and tok not in r.text and cfk not in r.text, j)
+        k0 = j["status"]["keys"][0]
+        check("... stored as ONE key (sealed), working, allowance honestly unknown, the verification call counted as one request", (await stored("cyd")).get("cloudflare") == cfk and k0["provider"] == "cloudflare" and k0["status"] == "ok"
+              and k0["allowance"] == {"kind": "unknown"} and k0["used_today"]["requests"] == 1 and j["status"]["stored"] == 1 and j["status"]["min"] == 2, k0)
+        row = (await rows(KM.KhStatus, KM.KhStatus.user_id == uid("cyd"), KM.KhStatus.provider == "cloudflare"))[0]
+        check("... the status row is keyed by the fingerprint of the whole string (never the key, never the account id)", row.fp == gate.fingerprint("cloudflare", cfk) and acct not in json.dumps(row.meta) and tok not in json.dumps(row.meta))
+        before = len(WORLD.calls)
+        for bad_shape in (tok, "abcd:" + tok, f"{acct}:", f"{acct} {tok}", f"../{acct[:29]}:{tok}"):
+            r = await api("cyd", "POST", "/save", {"provider": "cloudflare", "key": bad_shape})
+            check(f"Cloudflare value {bad_shape[:14]!r} (not 'account id : token') is 422 key_shape - nothing is sent to anyone", r.status_code == 422 and r.json()["detail"]["error"] == "key_shape" and len(WORLD.calls) == before, (r.status_code, r.text))
+
+        section("Cloudflare: a wrong token, the daily allowance, a hiccup, an empty answer, a retired model - and what is stored after each")
+        a2, t2, c2 = CFK("cyd", 2)
+        WORLD.on("cloudflare", t2, err(403, CF_403_AUTH), kind="chat")
+        r = await save("cyd", "cloudflare", c2)
+        check("a wrong token (403 'Authentication error'): not ok, status 'invalid', and the learner's earlier Cloudflare key is untouched", r.json()["ok"] is False and r.json()["result"]["status"] == "invalid" and (await stored("cyd"))["cloudflare"] == cfk, r.text)
+        a3, t3, c3 = CFK("cyd", 3)
+        WORLD.on("cloudflare", t3, err(429, CF_429_DAY), kind="chat")
+        r = await save("cyd", "cloudflare", c3)
+        j = r.json()
+        kk = next(x for x in j["status"]["keys"] if x["provider"] == "cloudflare")
+        check("the daily allowance used up (3036): the key is REAL, so it IS stored - as limited, DAY scope, with the published reset marked 'about'", j["ok"] is True and j["result"]["status"] == "limited" and (await stored("cyd"))["cloudflare"] == c3
+              and kk["status"] == "limited" and kk["scope"] == "day" and kk["approx"] and kk["reset_at"], j)
+        a4, t4, c4 = CFK("cyd", 4)
+        WORLD.on("cloudflare", t4, err(503, {"errors": [{"code": 3043, "message": "AiError: internal"}]}), kind="chat")
+        r = await save("cyd", "cloudflare", c4)
+        check("a hiccup (503 on every model): 'unreachable' - and with no zero-quota check to prove the key, NOTHING is stored on a guess", r.json()["ok"] is False and r.json()["result"]["status"] == "unreachable" and (await stored("cyd"))["cloudflare"] == c3, r.text)
+        a8, t8, c8 = CFK("cyd", 8)
+        WORLD.on("cloudflare", t8, raw(502, "<html><body><h1>502 Bad Gateway</h1></body></html>"), kind="chat")
+        r = await save("cyd", "cloudflare", c8)
+        check("a CDN's HTML 502 page (not JSON): 'unreachable' and nothing stored - never a 500, never 'invalid'", r.status_code == 200 and r.json()["ok"] is False and r.json()["result"]["status"] == "unreachable"
+              and (await stored("cyd"))["cloudflare"] == c3, (r.status_code, r.text))
+        a9, t9, c9 = CFK("cyd", 9)
+        WORLD.on("cloudflare", t9, raw(200, '{"choices": [{"message": {"role": "assist', "application/json"), kind="chat")
+        r = await save("cyd", "cloudflare", c9)
+        check("a 200 whose JSON is cut off: 'unreachable', nothing stored", r.status_code == 200 and r.json()["ok"] is False and r.json()["result"]["status"] == "unreachable" and (await stored("cyd"))["cloudflare"] == c3, (r.status_code, r.text))
+        a5, t5, c5 = CFK("cyd", 5)
+        WORLD.on("cloudflare", t5, ok(""), kind="chat")
+        r = await save("cyd", "cloudflare", c5)
+        check("an EMPTY answer from every model (section 26: a key must produce a real answer): 'unreachable', not stored", r.json()["ok"] is False and r.json()["result"]["status"] == "unreachable" and (await stored("cyd"))["cloudflare"] == c3, r.text)
+        a6, t6, c6 = CFK("cyd", 6)
+        WORLD.on("cloudflare", t6, err(404, CF_404_MODEL), kind="chat")
+        r = await save("cyd", "cloudflare", c6)
+        check("every model 'gone' says nothing about the key: 'unreachable', not stored - and all THREE models were tried", r.json()["ok"] is False and r.json()["result"]["status"] == "unreachable"
+              and len([x for x in WORLD.calls if x[1] == t6]) == 3 and (await stored("cyd"))["cloudflare"] == c3, [x for x in WORLD.calls if x[1] == t6])
+
+        section("Z.ai and Sarvam: the same rules; out of credit is told apart from 'unreachable'")
+        zk, sk_ = ZK("cyd"), SK("cyd")
+        r = await save("cyd", "zai", zk)
+        check("Z.ai save: one real call (thinking switched off in the request), stored masked, allowance unknown", r.json()["ok"] is True and [x[2] for x in WORLD.calls if x[1] == zk] == ["chat"] and WORLD.bodies[-1].get("thinking") == {"type": "disabled"}
+              and zk not in r.text and zk[8:-6] not in r.text and r.json()["result"]["masked"].endswith(zk[-4:]) and (await stored("cyd"))["zai"] == zk, r.text)
+        zbad = ZK("cyd", 2)
+        WORLD.on("zai", zbad, err(401, ZAI_401_AUTH), kind="chat")
+        r = await save("cyd", "zai", zbad)
+        check("Z.ai 401 (code 1000): invalid, not stored", r.json()["ok"] is False and r.json()["result"]["status"] == "invalid" and (await stored("cyd"))["zai"] == zk, r.text)
+        zcred = ZK("cyd", 3)
+        WORLD.on("zai", zcred, err(429, ZAI_429_BALANCE), kind="chat")
+        r = await save("cyd", "zai", zcred)
+        check("Z.ai 1113 'insufficient balance' (an HTTP 429!): told as needs_credit - not 'rate limited', not 'unreachable' - and not stored", r.json()["ok"] is False and r.json()["result"]["status"] == "needs_credit" and (await stored("cyd"))["zai"] == zk, r.text)
+        zlim = ZK("cyd", 4)
+        WORLD.on("zai", zlim, err(429, ZAI_429_RATE), kind="chat")
+        r = await save("cyd", "zai", zlim)
+        zz = next(x for x in r.json()["status"]["keys"] if x["provider"] == "zai")
+        check("Z.ai 1302 (a free key runs one request at a time): the key is real - stored as limited, minute scope, NO invented reset time", r.json()["ok"] is True and zz["status"] == "limited" and zz["scope"] == "minute" and zz["reset_at"] is None, zz)
+        await save("cyd", "zai", zk)
+        r = await save("cyd", "sarvam", sk_)
+        check("Sarvam save: one real call, stored masked, allowance unknown", r.json()["ok"] is True and [x[2] for x in WORLD.calls if x[1] == sk_] == ["chat"] and sk_ not in r.text and (await stored("cyd"))["sarvam"] == sk_, r.text)
+        scred = SK("cyd", 2)
+        WORLD.on("sarvam", scred, err(402, SARVAM_402), kind="chat")
+        r = await save("cyd", "sarvam", scred)
+        check("Sarvam 402 (the one-time credit is used up): needs_credit, not stored - the earlier key stays", r.json()["ok"] is False and r.json()["result"]["status"] == "needs_credit" and (await stored("cyd"))["sarvam"] == sk_, r.text)
+        sbad = SK("cyd", 3)
+        WORLD.on("sarvam", sbad, err(403, SARVAM_403_KEY), kind="chat")
+        r = await save("cyd", "sarvam", sbad)
+        check("Sarvam 403 invalid_api_key_error: invalid, not stored", r.json()["ok"] is False and r.json()["result"]["status"] == "invalid" and (await stored("cyd"))["sarvam"] == sk_, r.text)
+
+        section("the status screen lists them in the app's order, with no key text, and 'two keys to start' counts each service ONCE")
+        r = await api("cyd", "GET", "/status")
+        st = r.json()
+        check("status: groq-less learner has cloudflare, zai, sarvam in KEY_PROVIDERS order, each with a masked value and an unknown allowance", [k["provider"] for k in st["keys"]] == ["cloudflare", "zai", "sarvam"]
+              and all(k["allowance"] == {"kind": "unknown"} and "•" in k["masked"] for k in st["keys"]) and st["providers"] == list(classify.PROVIDERS), st)
+        check("... and nothing in the response is a key, a token or an account id", not any(x in r.text for x in (acct, c3, zk, sk_, t3, zk[8:-6])), r.text[:200])
+        a_, t_, c_ = CFK("zoe")
+        WORLD.on("cloudflare", t_, ok("OK"), kind="chat")
+        await save("zoe", "cloudflare", c_)
+        me = (await req("zoe", "GET", "/me")).json()
+        async with db._Session() as s_:
+            ukrow = await s_.get(db.UserKey, uid("zoe"))
+        check("ONE Cloudflare key (two values, one string) is ONE key toward the two needed: stored 1, not set up, has_keys false (strict too)", me["keys"]["stored"] == 1 and not await db.has_user_keys(uid("zoe"), strict=True)
+              and not await db.has_user_keys(uid("zoe")) and ukrow is not None and ukrow.verified is False and me.get("has_keys") is False, (me.get("keys"), me.get("has_keys")))
+        zk2 = ZK("zoe")
+        await save("zoe", "zai", zk2)
+        me = (await req("zoe", "GET", "/me")).json()
+        check("... Cloudflare + Z.ai = two keys: the learner is SET UP", me["keys"]["stored"] == 2 and await db.has_user_keys(uid("zoe"), strict=True) and me.get("has_keys") is True, me.get("keys"))
+
+        section("precedence and the chain: the keys the learner SAVED win; a malformed Cloudflare value is never half-used")
+        ok_, eff, why = await M.resolve_keys("zoe@example.com", {}, uid("zoe"))
+        check("resolve_keys: a learner with stored Cloudflare + Z.ai gets exactly those, the composite intact", ok_ and eff == {"cloudflare": c_, "zai": zk2}, (ok_, eff))
+        ok_, eff, why = await M.resolve_keys("zoe@example.com", {"cloudflare": "0" * 32 + ":" + "other-token", "sarvam": SK("zoe")}, uid("zoe"))
+        check("... a Cloudflare key the browser sends does NOT replace the stored one (a stale copy on another phone), and a service with nothing stored is filled in", eff["cloudflare"] == c_ and eff.get("sarvam"), eff)
+        ok_, eff, why = await M.resolve_keys("zed@example.com", {"cloudflare": "not-a-valid-pair"}, uid("sim"))
+        check("... a malformed Cloudflare value alone gives NO chain (keys_required) - it never falls through to DuSu's own keys", ok_ is False and why == "keys_required", (ok_, why))
+
+        section("re-check: with no zero-quota probe, the ONE real call is the check - and it never spends a limited key's allowance")
+        WORLD.calls.clear()
+        r = await api("zoe", "POST", "/recheck", {})
+        check("a shallow re-check of Cloudflare + Z.ai keys makes ONE real call each and NO models / key request", sorted((x[0], x[2]) for x in WORLD.calls) == [("cloudflare", "chat"), ("zai", "chat")]
+              and r.json()["checked"] == {"cloudflare": "ok", "zai": "ok"}, (WORLD.calls, r.json().get("checked")))
+        WORLD.on("cloudflare", t_, err(403, CF_403_AUTH), kind="chat")
+        r = await api("zoe", "POST", "/recheck", {"provider": "cloudflare"})
+        kc = next(x for x in r.json()["keys"] if x["provider"] == "cloudflare")
+        check("a token revoked since: the shallow re-check SEES it (invalid) - an auth-probe-less provider must not read 'ok' on no evidence", r.json()["checked"]["cloudflare"] == "invalid" and kc["status"] == "invalid", (r.json().get("checked"), kc))
+        WORLD.on("cloudflare", t_, err(429, CF_429_DAY), kind="chat")
+        await api("zoe", "POST", "/recheck", {"provider": "cloudflare", "deep": True})
+        WORLD.calls.clear()
+        r = await api("zoe", "POST", "/recheck", {"provider": "cloudflare"})
+        check("a limited key whose time is not up: a shallow re-check makes NO call (it would only spend the allowance)", not WORLD.calls_for("cloudflare") and r.json()["checked"]["cloudflare"] == "limited", (WORLD.calls, r.json().get("checked")))
+        r = await api("zoe", "POST", "/recheck", {"provider": "cloudflare", "deep": True})
+        check("... a deep Test (the learner asked) does make the call", len(WORLD.calls_for("cloudflare")) == 1, WORLD.calls)
+        WORLD.on("zai", zk2, err(429, ZAI_429_BALANCE), kind="chat")
+        r = await api("zoe", "POST", "/recheck", {"provider": "zai", "deep": True})
+        kz = next(x for x in r.json()["keys"] if x["provider"] == "zai")
+        check("a deep Test on a key that ran out of credit says so (limited, kind needs_credit) - not 'could not reach'", r.json()["checked"]["zai"] == "limited" and kz["status"] == "limited" and kz["kind"] == "needs_credit", (r.json().get("checked"), kz))
+
+        section("remove: the key, its status row and its gate are gone, and the chain no longer reaches it")
+        r = await api("zoe", "POST", "/remove", {"provider": "cloudflare"})
+        check("removing the Cloudflare key: gone from the stored keys and the status", "cloudflare" not in await stored("zoe") and all(k["provider"] != "cloudflare" for k in r.json()["keys"]), r.text)
+        check("... its status row is deleted", not await rows(KM.KhStatus, KM.KhStatus.user_id == uid("zoe"), KM.KhStatus.provider == "cloudflare"))
+        ok_, eff, why = await M.resolve_keys("zoe@example.com", {}, uid("zoe"))
+        WORLD.calls.clear()
+        op.set_active_keys(eff, uid=uid("zoe"), engine=1)
+        try:
+            await op._complete([{"role": "user", "content": "hi"}], 20)
+        except Exception:
+            pass                                                   # Z.ai was marked out of credit just above: the chain may well fail - the point is who was ASKED
+        check("... and a chat afterwards never asks Cloudflare (the removed key is not in the chain)", eff == {"zai": zk2} and not WORLD.calls_for("cloudflare"), (eff, WORLD.calls))
+
+        section("the older /keys/verify: a Cloudflare value goes through the same chain build")
+        a7, t7, c7 = CFK("sam")
+        WORLD.on("cloudflare", t7, ok("OK"), kind="chat")
+        r = await req("sam", "POST", "/keys/verify", {"token": T["sam"], "keys": {"cloudflare": c7}})
+        check("legacy verify tests the Cloudflare value with one chat call to its account path and reports ok", r.status_code == 200 and r.json()["results"].get("cloudflare", {}).get("ok") is True
+              and WORLD.paths[-1][1] == f"/client/v4/accounts/{a7}/ai/v1/chat/completions" and WORLD.auth[-1] == ("cloudflare", "Bearer " + t7), (r.text, WORLD.paths[-1]))
+        check("... merged into the stored keys (the engine is on), one key, not yet 'saved' (needs two)", (await stored("sam")).get("cloudflare") == c7 and r.json()["saved"] is False, r.text)
+        r = await req("sam", "POST", "/keys/verify", {"token": T["sam"], "keys": {"cloudflare": "not-a-pair"}})
+        check("... a malformed value is not tested at all (providers_from skips it) and stores nothing new", r.status_code == 200 and "cloudflare" not in r.json()["results"] and (await stored("sam")).get("cloudflare") == c7, r.text)
 
     check("no 5xx anywhere in the run", not FIVE, FIVE[:5])
     check("no key text in ANY response of the run", not LEAKS, LEAKS[:5])

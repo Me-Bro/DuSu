@@ -11,7 +11,7 @@ OUT="tests/keys/.mutants"; mkdir -p "$OUT"
 declare -A FILE DESC OLD NEW TIER
 add() { FILE[$1]="$2"; DESC[$1]="$3"; OLD[$1]="$4"; NEW[$1]="$5"; }
 
-CLS=app/keys/classify.py; GATE=app/keys/gate.py; ERR=app/keys/errors.py; LED=app/keys/ledger.py; SVC=app/keys/service.py; API=app/keys/api.py
+CFG=app/config.py; CLS=app/keys/classify.py; GATE=app/keys/gate.py; ERR=app/keys/errors.py; LED=app/keys/ledger.py; SVC=app/keys/service.py; API=app/keys/api.py
 PRV=app/providers/openrouter_provider.py; PROBE=app/keys/probe.py; MAIN=app/main.py; DB=app/db.py; NSV=app/notify/service.py
 
 add M1  $CLS "a 401 is not read as a rejected key" '    if status == 401:
@@ -77,10 +77,10 @@ add M20 $CLS "Gemini's quota day is the UTC day" '    if provider == "gemini":
 add M21 $SVC "saving a key replaces everything else (no merge)" '        after = {k: v for k, v in mutate(dict(before)).items() if v}' '        after = {k: v for k, v in mutate({}).items() if v}'
 add M22 $SVC "removing a key leaves its status row behind" '        await s.execute(delete(KhStatus).where(KhStatus.user_id == uid, KhStatus.provider == provider))' '        pass'
 add M23 $SVC "the status payload shows the key itself" '"masked": gate.mask(key),' '"masked": key,'
-add M24 $SVC "a key the provider rejects is stored anyway" '    if pr.kind in ("invalid", "forbidden"):
-        return {"ok": False, "result": {"provider": provider, "status": pr.kind, "expired": pr.expired}}' '    if False:
-        return {"ok": False, "result": {"provider": provider, "status": pr.kind, "expired": pr.expired}}'
-add M25 $SVC "a shallow re-check clears a limit that has not ended" '        if status == "ok" and cur["status"] in ("limited", "forbidden") and not cur.get("stale") and not deep:' '        if False:'
+add M24 $SVC "a key the provider rejects is stored anyway" '        if pr.kind in ("invalid", "forbidden"):
+            return {"ok": False, "result": {"provider": provider, "status": pr.kind, "expired": pr.expired}}' '        if False:
+            return {"ok": False, "result": {"provider": provider, "status": pr.kind, "expired": pr.expired}}'
+add M25 $SVC "a shallow re-check clears a limit that has not ended" '        if status == "ok" and cur["status"] in ("limited", "forbidden") and not cur.get("stale") and not deep_p:' '        if False:'
 add M26 $SVC "a limit that ran its course still shows as limited" '        if until is not None and now > until:' '        if False:'
 add M27 $PRV "cool=False (Grammar Coach) gates a SERVER key everyone needs" '        if byok or cool:                              # cool=False (Grammar Coach) on the server chain must not gate a key everyone'"'"'s chat needs' '        if True:'
 add M28 $PRV "a timeout tries the provider's next model (another 20 s)" '    if kind == "transient" and not out.http:
@@ -99,7 +99,7 @@ add M33 $MAIN "the failure frames lose their kp" '    return {"kp": kp} if kp el
 add M34 $MAIN "an HTTP key problem keeps the site's own status and no kp" '    if kp and kp["state"] in ("all_invalid", "all_limited", "no_keys"):
         return KeyProblem(429, "quota", kp)' '    if False:
         return KeyProblem(429, "quota", kp)'
-add M35 $DB "a legacy github entry counts as a second key" '_KEY_PROVIDERS = ("groq", "gemini", "openrouter")' '_KEY_PROVIDERS = ("groq", "gemini", "openrouter", "github")'
+add M35 $DB "a legacy github entry counts as a second key" '# _KEY_PROVIDERS (imported above) = config.KEY_PROVIDERS' '_KEY_PROVIDERS = tuple(_KEY_PROVIDERS) + ("github",)'
 add M36 $MAIN "/health probes the providers on every request" '    sk = {n: v.get("status", "unknown") for n, v in keys_probe.cached_server_health().items()}      # the last zero-quota probe of OUR keys (never probes here)' '    sk = {n: v.get("status", "unknown") for n, v in (await keys_probe.refresh_server_health()).items()}'
 add M37 $MAIN "the older /keys/verify still replaces everything" '            if await key_health_enabled(claims.get("email", "")):
                 # MERGE, never replace' '            if False:
@@ -209,9 +209,9 @@ add M91 $MAIN "lesson/evaluate returns the parse-failure sentinel as HTTP 200 ag
 add M92 $SVC "a deep Test says 'works' when no model of the key answered" '            elif cp.kind != "ok":
                 results[p] = "unreachable"' '            elif False:
                 results[p] = "unreachable"'
-add M93 $SVC "a key whose models answer with nothing is saved as working" '        elif cp.kind != "ok":
-            status = "unknown"' '        elif False:
-            status = "unknown"'
+add M93 $SVC "a key whose models answer with nothing is saved as working" '            elif cp.kind != "ok":
+                status = "unknown"' '            elif False:
+                status = "unknown"'
 add M94 $ENG "Home asks a second time after the validated walk already tried every model" '            if attempt == 1 and v3:
                 break' '            if False:
                 break'
@@ -255,17 +255,81 @@ add M110 $PRV "when every breaker is open and nothing else is left, nothing is a
 add M113 $PRV "a BACKGROUND call (Grammar Coach) holds a model of DuSu's own chain back for everyone's chat" '                    if byok or cool:                                      # a background call (cool=False) on DuSu'"'"'s own chain must not hold a model back for everyone'"'"'s chat' '                    if True:                                              # a background call (cool=False) on DuSu'"'"'s own chain must not hold a model back for everyone'"'"'s chat'
 add M114 $PRV "a walk asks a model again that already answered unusably in the SAME walk (when the gate does not remember it)" 'if accept is not None and not w.ignore_bad and ((name, model) in w.bad_models or gate.bad_blocked(name, fp, model, cls, time.time()) is not None):' 'if accept is not None and not w.ignore_bad and (gate.bad_blocked(name, fp, model, cls, time.time()) is not None):'
 
+
+# ---- the three services a learner can add (Cloudflare Workers AI, Z.ai, Sarvam - 2026-11-17)
+add M117 $CFG "the Cloudflare key is split at the LAST colon (a token that contains a colon breaks)" '    acct, sep, tok = str(key or "").strip().partition(":")' '    acct, sep, tok = str(key or "").strip().rpartition(":")'
+add M118 $GATE "the masked Cloudflare key shows the account id in full" '        return f"acct ••••{cf[0][-4:]} · token ••••{cf[1][-4:]}"' '        return f"acct {cf[0]} · token ••••{cf[1][-4:]}"'
+add M119 $CLS "Cloudflare's daily-allowance 429 is read as a rejected key" '    if status == 429:
+        sec, reset_at, evidence = _retry_after(headers, text, now)
+        scope = _scope(text)' '    if status == 429 and provider == "cloudflare":
+        return Outcome("invalid", http=429)
+    if status == 429:
+        sec, reset_at, evidence = _retry_after(headers, text, now)
+        scope = _scope(text)'
+add M120 $CLS "a Z.ai 401 is read as a rate limit" '    if provider == "zai":
+        if "1113" in codes:' '    if provider == "zai":
+        if status == 401:
+            return Outcome("limited", http=401, scope="minute")
+        if "1113" in codes:'
+add M121 $CFG "Z.ai thinking is not switched off (its reasoning eats the reply)" '"headers": {}, "extra": {"thinking": {"type": "disabled"}}})' '"headers": {}, "extra": {}})'
+add M122 $CFG "the Cloudflare endpoint is built without the learner's account id" '"base_url": f"https://api.cloudflare.com/client/v4/accounts/{cf[0]}/ai/v1",' '"base_url": "https://api.cloudflare.com/client/v4/accounts/ai/v1",'
+add M123 $SVC "a Cloudflare key (two values, one string) counts TWICE toward the two keys needed to start" '        row.verified = sum(1 for p in PROVIDERS if after.get(p)) >= MIN_KEYS' '        row.verified = sum(2 if p == "cloudflare" else 1 for p in PROVIDERS if after.get(p)) >= MIN_KEYS'
+add M124 $PRV "a key leaks into the failure log line (through the attempt list)" '                    attempts.append(f"{name}/{model}:{_tag(out)}")' '                    attempts.append(f"{name}/{model}:{_tag(out)}:{p['"'"'key'"'"']}")'
+add M125 $GATE "the unverified services start in the same health band as the established ones" 'PROVIDER_PRIOR = {"cloudflare": 0.7, "zai": 0.7, "sarvam": 0.7}' 'PROVIDER_PRIOR = {}'
+add M126 $PRV "the unverified services are asked FIRST in the chain" '    entries = [(p, gate.fingerprint(p["name"], p["key"])) for p in chain]
+    if not entries:' '    chain = sorted(chain, key=lambda p: 0 if p["name"] in ("cloudflare", "zai", "sarvam") else 1)
+    entries = [(p, gate.fingerprint(p["name"], p["key"])) for p in chain]
+    if not entries:'
+add M127 $SVC "a removed key stays stored (and in the chain)" '    before, _after = await _locked_update(uid, lambda d: {k: v for k, v in d.items() if k != provider})' '    before, _after = await _locked_update(uid, lambda d: d)'
+add M128 $PRV "the stored 'account:token' string is sent as the credential (not the token)" '    return AsyncOpenAI(api_key=p.get("api_key") or p["key"],' '    return AsyncOpenAI(api_key=p["key"],'
+add M129 $SVC "a hiccup is stored on a guess (no auth probe to prove the key)" '        if cp.kind not in ("ok", "limited"):
+            return {"ok": False, "result": {"provider": provider, "status": "unreachable"}}
+        status, kind, out, rl = ("ok", "", None, cp.rl) if cp.kind == "ok"' '        if cp.kind not in ("ok", "limited", "transient", "unknown", "model_gone"):
+            return {"ok": False, "result": {"provider": provider, "status": "unreachable"}}
+        status, kind, out, rl = ("ok", "", None, cp.rl) if cp.kind == "ok"'
+add M130 $CFG "an account id that could change the URL is accepted" '_CF_ACCOUNT = re.compile(r"^[0-9a-fA-F]{32}$")' '_CF_ACCOUNT = re.compile(r"^[^:\s]{1,64}$")'
+add M131 $CLS "Z.ai 1113 'insufficient balance' (an HTTP 429) is read as a rate limit" '        if "1113" in codes:
+            return Outcome("needs_credit", http=status)' '        if False:
+            return Outcome("needs_credit", http=status)'
+add M132 $CLS "Sarvam's out-of-credit 429 is read as a per-minute limit" '        if "insufficient_quota_error" in codes or "insufficient_quota" in text:' '        if False:'
+add M133 $SVC "a re-check of a key with no zero-quota probe makes no call (a revoked token reads ok)" '        deep_p = deep or not probe.has_auth_probe(p)' '        deep_p = deep'
+add M134 $SVC "a limited key is re-probed on every shallow re-check (it spends the allowance)" '        if deep_p and not deep and cur["status"] in ("limited", "forbidden") and not cur.get("stale"):' '        if False:'
+add M135 $CLS "Z.ai and Sarvam show a made-up reset time for a day limit" 'PUBLISHED_RESET = frozenset({"groq", "gemini", "openrouter", "cloudflare"})' 'PUBLISHED_RESET = frozenset({"groq", "gemini", "openrouter", "cloudflare", "zai", "sarvam"})'
+add M136 $CLS "Cloudflare's 3040 'capacity exceeded' is read as the key's own limit (the next model is never asked)" '        if status == 429 and ("3040" in codes or "capacity temporarily exceeded" in text):' '        if False:'
+add M137 $PROBE "out of credit is not told apart from 'unreachable' when a key is saved" '("invalid", "limited", "forbidden", "model_gone", "needs_credit")' '("invalid", "limited", "forbidden", "model_gone")'
+add M138 $CFG "a learner-added service sneaks into DuSu's OWN chain" '        return chain
+
+    def providers_from(self, keys: dict) -> list[dict]:' '        return chain + self.providers_from({"zai": os.getenv("ZAI_API_KEY", "")})
+
+    def providers_from(self, keys: dict) -> list[dict]:'
+add M139 $CLS "a Cloudflare 403 'Authentication error' is no longer a rejected key (the learner is told it is only forbidden)" '        if status in (400, 401, 403, 404) and (codes & {"10000", "9109", "6111", "7003", "7000"} or any(w in text for w in _CF_AUTH_TEXT)):' '        if False:'
+add M140 $PROBE "a provider with no documented probe is auth-probed anyway (a request to a URL nobody documented)" 'AUTH_PROBE = frozenset({"groq", "gemini", "openrouter"})' 'AUTH_PROBE = frozenset({"groq", "gemini", "openrouter", "cloudflare", "zai", "sarvam"})'
+add M141 $GATE "the Cloudflare token is not part of the key's fingerprint (two tokens of one account share a gate)" '    return hmac.new(_KEYS_SECRET, f"{provider}|{key}".encode("utf-8"), hashlib.sha256).hexdigest()[:12]' '    k_ = key.split(":")[0]
+    return hmac.new(_KEYS_SECRET, f"{provider}|{k_}".encode("utf-8"), hashlib.sha256).hexdigest()[:12]'
+
+add M142 $CFG "Sarvam is sent only the Bearer header (its docs disagree on which one the endpoint reads, so a valid key could be shown as rejected)" '"headers": {"api-subscription-key": k["sarvam"]}' '"headers": {}'
+
+# which tier is expected to catch each of the 2026-11-17 mutants (it runs first)
+for m in M117 M118 M119 M120 M121 M122 M124 M125 M126 M128 M130 M131 M132 M135 M136 M138 M139 M140 M141 M142; do TIER[$m]=unit.py; done
+for m in M123 M127 M129 M133 M134 M137; do TIER[$m]=selftest.py; done
+
 declare -A CFILE CDESC COLD CNEW CSPEC
 cadd() { CFILE[$1]="$2"; CDESC[$1]="$3"; COLD[$1]="$4"; CNEW[$1]="$5"; CSPEC[$1]="$6"; }
 H=test_client.html
 cadd C1 $H "the pop-up is not deduped" '    if(seen && seen.sig === sig && Date.now() - seen.at < REPEAT_MS) return true;      // the same news, told a moment ago' '' keys.spec.cjs
 cadd C2 $H "the fetch wrapper does not look at HTTP error bodies" 'res.clone().json().then(d => { if(d && d.kp) problem(d.kp, "http"); }).catch(() => {});' 'res.clone().json().then(d => {}).catch(() => {});' keys.spec.cjs
 cadd C3 $H "a stale answer overwrites a newer one" 'function take(my, payload){ if(my < appliedSeq) return false;' 'function take(my, payload){ if(false) return false;' keys.spec.cjs
-cadd C4 $H "a saved key stays in a hidden input" 'if(inp.value) inp.value = ""; }    // a saved key is shown masked only' '}    // a saved key is shown masked only' keys.spec.cjs
+cadd C4 $H "a saved key stays in a hidden input" 'if(inp.value || row2) clearField(p); }    // a saved key is shown masked only' '}    // a saved key is shown masked only' keys.spec.cjs
 cadd C5 $H "the install pill is drawn when the app is already installed" '    const on = enabled() && !installedLike(mode());' '    const on = enabled();' install.spec.cjs
 cadd C6 $H "install does not yield to a key problem" '  const ORDER = ["key", "install", "nt", "wa"];' '  const ORDER = ["install", "key", "nt", "wa"];' install.spec.cjs
 cadd C7 $H "the Android app (TWA) is not recognised" 'function inTwa(){ try{ return sessionStorage.getItem("dusu_twa") === "1" || document.referrer.indexOf("android-app://") === 0; }catch(_){ return false; } }' 'function inTwa(){ return false; }' install.spec.cjs
 cadd C8 $H "the WhatsApp link is used without re-checking it" 'const link = () => { const u = (typeof userState !== "undefined" && userState && userState.community && userState.community.whatsapp) || ""; return SAFE.test(u) ? u : ""; };' 'const link = () => (typeof userState !== "undefined" && userState && userState.community && userState.community.whatsapp) || "";' install.spec.cjs
+
+cadd C9 $H "a Cloudflare pair from the wizard is sent as the token alone (the account id is dropped)" '      v = CF_JOINED.test(tok) ? tok : (a && tok ? a + ":" + tok : "");' '      v = tok;' providers.spec.cjs
+cadd C10 $H "a Cloudflare pair from the manage screen is sent as the token alone" '    return a && tok ? a + ":" + tok : "";' '    return tok;' providers.spec.cjs
+cadd C11 $H "'More free options' is OPEN on the first screen (the first screen is longer)" 'h("details", { class:"ks-more", id:"ksMore" }, ' 'h("details", { class:"ks-more", id:"ksMore", open:"" }, ' providers.spec.cjs
+cadd C12 $H "the pick list offers Cloudflare for a key no prefix recognises (a guess at a two-value key)" 'for(const p of ORDER) if(p !== "cloudflare") box.append(' 'for(const p of ORDER) box.append(' providers.spec.cjs
+cadd C13 $H "a saved Cloudflare pair stays in the wizard's two boxes (the token is left on screen)" '    if(m && m.cls === "ok"){ for(const id of (p === "cloudflare" ? ["ksCfAcct", "ksCfTok"] : ["ksIn_" + p])){ const e = $(id); if(e) e.value = ""; } }' '' providers.spec.cjs
 
 plant() {   # plant FILE OLD NEW into $OUT/backend  -> 0 ok, 7 does not apply
   python3 - "$OUT/backend/$1" "$2" "$3" <<'PY'
@@ -280,7 +344,7 @@ PY
 fresh_copy() { rm -rf "$OUT/backend"; mkdir -p "$OUT/backend"; tar -C backend --exclude=.venv --exclude=__pycache__ --exclude='.env*' -cf - . | tar -C "$OUT/backend" -xf -; }
 
 if [ "${1:-}" = "--client" ]; then
-  shift; WANT=("$@"); [ ${#WANT[@]} -eq 0 ] && WANT=(C1 C2 C3 C4 C5 C6 C7 C8)
+  shift; WANT=("$@"); [ ${#WANT[@]} -eq 0 ] && WANT=(C1 C2 C3 C4 C5 C6 C7 C8 C9 C10 C11 C12 C13)
   caught=0; survived=()
   for m in "${WANT[@]}"; do
     fresh_copy
@@ -295,14 +359,16 @@ if [ "${1:-}" = "--client" ]; then
   echo; echo "client mutants: ${caught} caught, ${#survived[@]} survived: ${survived[*]:-none}"; exit 0
 fi
 
-WANT=("$@"); [ ${#WANT[@]} -eq 0 ] && WANT=($(for i in $(seq 1 59) $(seq 61 116); do echo M$i; done))
+WANT=("$@"); [ ${#WANT[@]} -eq 0 ] && WANT=($(for i in $(seq 1 59) $(seq 61 142); do echo M$i; done))
 caught=0; survived=()
 for m in "${WANT[@]}"; do
-  fresh_copy
+  fresh_copy; rm -f "$OUT/$m".*.log
   plant "${FILE[$m]}" "${OLD[$m]}" "${NEW[$m]}"; rc=$?
   [ $rc -eq 7 ] && { echo "$m  NOT APPLIED  (${DESC[$m]})"; survived+=("$m(not applied)"); continue; }
   hit=""
-  for t in chain_unit.py chain_selftest.py chain_ws.py unit.py parity.py selftest.py ws_selftest.py; do
+  # TIER[Mx] = the tier that should catch it: it runs FIRST (saves minutes); if it does not catch it every other tier still runs, in the usual order
+  for t in ${TIER[$m]:-} chain_unit.py chain_selftest.py chain_ws.py unit.py parity.py selftest.py ws_selftest.py; do
+    [ -f "$OUT/$m.$t.log" ] && continue
     if ! KY_BACKEND="$PWD/$OUT/backend" tests/keys/run.sh "$t" > "$OUT/$m.$t.log" 2>&1; then hit="$t"; break; fi
   done
   if [ -z "$hit" ]; then echo "$m  SURVIVED   (${DESC[$m]})  <- no tier noticed"; survived+=("$m")

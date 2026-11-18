@@ -188,6 +188,28 @@ async def main():
     check("groq -> gemini -> openrouter in the same order; the per-key walker adds Groq's second model (its limits are per model)",
           [a[0] for a in h[0]["attempts"]] == ["groq", "gemini", "openrouter"] and [a[0] for a in n[0]["attempts"]] == ["groq", "groq", "gemini", "openrouter"]
           and [a for a in n[0]["attempts"] if a[0] != "groq" or a[1] == "openai/gpt-oss-120b"] == h[0]["attempts"], (h, n))
+    print("\n== the services added 2026-11-17 change NOTHING for a learner who does not use them")
+    k3 = {"groq": "gsk_" + "a" * 40 + "9fA2", "gemini": "AIza" + "b" * 35 + "zZ91", "openrouter": "sk-or-v1-" + "c" * 50 + "Q7xP"}
+    saved_keys = (settings.groq_api_key, settings.gemini_api_key, settings.openrouter_api_key)
+    expect = [
+        {"name": "groq", "base_url": "https://api.groq.com/openai/v1", "key": k3["groq"], "models": ["openai/gpt-oss-120b", "openai/gpt-oss-20b"], "headers": {}, "extra": {},
+         "chat_extra": {"openai/gpt-oss-120b": {"reasoning_effort": "low", "include_reasoning": False}, "openai/gpt-oss-20b": {"reasoning_effort": "low", "include_reasoning": False}}},
+        {"name": "gemini", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/", "key": k3["gemini"], "models": ["gemini-flash-lite-latest"], "headers": {}, "extra": {}},
+        {"name": "openrouter", "base_url": "https://openrouter.ai/api/v1", "key": k3["openrouter"], "models": ["google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free"],
+         "headers": {"HTTP-Referer": __import__("app.config", fromlist=["PUBLIC_ORIGIN"]).PUBLIC_ORIGIN, "X-Title": "DuSu"}, "extra": {"reasoning": {"exclude": True, "effort": "low"}}}]
+    check("providers_from for a learner with the original three keys is exactly the chain they always had (every field of every entry, as hard-coded here from before the change)",
+          settings.providers_from(k3) == expect, settings.providers_from(k3))
+    check("...even with stray / empty / malformed values for the new names next to them", settings.providers_from({**k3, "cloudflare": "nope", "zai": "", "sarvam": "  "}) == expect)
+    check("DuSu's OWN chain (settings.providers) is the same three-provider chain", [p["name"] for p in settings.providers()] == ["groq", "gemini", "openrouter"])
+    from app.config import KEY_PROVIDERS
+    check("the first three KEY_PROVIDERS are the old three in the old order", KEY_PROVIDERS[:3] == ("groq", "gemini", "openrouter"))
+    op.set_active_keys(k3, uid="uP", engine=0)
+    w = World()
+    install(w)
+    gate.reset_all(); ledger.reset_all(); op._cooldown.clear(); op._clients.clear()
+    t = await op._complete(MSG, 50)
+    check("a learner with the original three keys: the legacy walker still asks Groq's first model, once, with the key as the bearer (nothing new on the wire)", t == "OK" and w.calls_for()[0][:2] == ("groq", k3["groq"])
+          and [a for a in w.auth] == [("groq", "Bearer " + k3["groq"])] and "thinking" not in w.bodies[0], (w.calls, w.auth))
     print(f"\n{N - len(FAILS)} / {N} checks passed")
     sys.exit(1 if FAILS else 0)
 

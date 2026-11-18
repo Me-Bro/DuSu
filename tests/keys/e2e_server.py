@@ -20,7 +20,8 @@ from fastapi import Request                                         # noqa: E402
 from app.store import update                                        # noqa: E402
 
 from world import (World, install, ok, err, R, completion, GROQ_401, GROQ_429_TPD, GROQ_429_TPM, GEMINI_400_KEY, GEMINI_400_AUTH_KEY, GEMINI_400_EXPIRED, GEMINI_429_DAY, GEMINI_429_MIN,      # noqa: E402
-                   GEMINI_503, GEMINI_403_FREE_TIER, OPENROUTER_401, OPENROUTER_429_DAY, OPENROUTER_429_UPSTREAM, conn)
+                   GEMINI_503, GEMINI_403_FREE_TIER, OPENROUTER_401, OPENROUTER_429_DAY, OPENROUTER_429_UPSTREAM, conn,
+                   CF_429_DAY, CF_429_CAPACITY, CF_403_AUTH, ZAI_429_CAP, ZAI_429_RATE, ZAI_429_BUSY, ZAI_401_AUTH, ZAI_429_BALANCE, SARVAM_429_RATE, SARVAM_403_KEY, SARVAM_402, CF_403_PLAIN, OPENROUTER_402)
 import httpx                                                        # noqa: E402
 
 from app import auth, db, main as M                                 # noqa: E402
@@ -34,15 +35,21 @@ JSON_REPLY = json.dumps({"reply": "Hello there, nice to meet you.", "intent": "g
                          "asked_question": False, "next_hook": "", "pass": True, "feedback": "good"})
 
 CHAT_ERR = {
-    "limited": {"groq": (429, GROQ_429_TPD), "gemini": (429, GEMINI_429_DAY), "openrouter": (429, OPENROUTER_429_DAY)},
-    "limited_min": {"groq": (429, GROQ_429_TPM), "gemini": (429, GEMINI_429_MIN), "openrouter": (429, OPENROUTER_429_UPSTREAM)},
-    "upstream": {"groq": (429, GROQ_429_TPM), "gemini": (429, GEMINI_429_MIN), "openrouter": (429, OPENROUTER_429_UPSTREAM)},
-    "invalid": {"groq": (401, GROQ_401), "gemini": (400, GEMINI_400_KEY), "openrouter": (401, OPENROUTER_401)},
-    "invalid_aq": {"groq": (401, GROQ_401), "gemini": (400, GEMINI_400_AUTH_KEY), "openrouter": (401, OPENROUTER_401)},     # Google's wording for a wrong AQ. key
-    "expired": {"groq": (401, {"error": {"message": "API key expired", "code": "invalid_api_key"}}), "gemini": (400, GEMINI_400_EXPIRED), "openrouter": (401, OPENROUTER_401)},
-    "down": {"groq": (503, {"error": {"message": "boom"}}), "gemini": (503, GEMINI_503), "openrouter": (503, {"error": {"message": "boom"}})},
-    "chat_down": {"groq": (503, {"error": {"message": "boom"}}), "gemini": (503, GEMINI_503), "openrouter": (503, {"error": {"message": "boom"}})},      # like `down`, but the zero-quota checks still answer ok: the KEY is fine, the AI is not
-    "forbidden": {"groq": (403, {"error": {"message": "Forbidden"}}), "gemini": (403, GEMINI_403_FREE_TIER), "openrouter": (403, {"error": {"message": "Forbidden"}})},   # chat refused (Google: free tier not available for this project), the list still answers ok
+    "limited": {"groq": (429, GROQ_429_TPD), "gemini": (429, GEMINI_429_DAY), "openrouter": (429, OPENROUTER_429_DAY), "cloudflare": (429, CF_429_DAY), "zai": (429, ZAI_429_CAP), "sarvam": (429, SARVAM_429_RATE)},
+    "limited_min": {"groq": (429, GROQ_429_TPM), "gemini": (429, GEMINI_429_MIN), "openrouter": (429, OPENROUTER_429_UPSTREAM), "cloudflare": (429, CF_429_CAPACITY), "zai": (429, ZAI_429_RATE), "sarvam": (429, SARVAM_429_RATE)},
+    "upstream": {"groq": (429, GROQ_429_TPM), "gemini": (429, GEMINI_429_MIN), "openrouter": (429, OPENROUTER_429_UPSTREAM), "cloudflare": (429, CF_429_CAPACITY), "zai": (429, ZAI_429_BUSY), "sarvam": (429, SARVAM_429_RATE)},
+    "invalid": {"groq": (401, GROQ_401), "gemini": (400, GEMINI_400_KEY), "openrouter": (401, OPENROUTER_401), "cloudflare": (403, CF_403_AUTH), "zai": (401, ZAI_401_AUTH), "sarvam": (403, SARVAM_403_KEY)},
+    "invalid_aq": {"groq": (401, GROQ_401), "gemini": (400, GEMINI_400_AUTH_KEY), "openrouter": (401, OPENROUTER_401), "cloudflare": (403, CF_403_AUTH), "zai": (401, ZAI_401_AUTH), "sarvam": (403, SARVAM_403_KEY)},     # Google's wording for a wrong AQ. key
+    "expired": {"groq": (401, {"error": {"message": "API key expired", "code": "invalid_api_key"}}), "gemini": (400, GEMINI_400_EXPIRED), "openrouter": (401, OPENROUTER_401),
+                "cloudflare": (403, CF_403_AUTH), "zai": (401, {"error": {"code": "1003", "message": "Authentication Token expired, please regenerate/obtain"}}), "sarvam": (403, SARVAM_403_KEY)},
+    "down": {"groq": (503, {"error": {"message": "boom"}}), "gemini": (503, GEMINI_503), "openrouter": (503, {"error": {"message": "boom"}}), "cloudflare": (503, {"errors": [{"code": 3043, "message": "boom"}]}),
+             "zai": (500, {"error": {"code": "1234", "message": "boom"}}), "sarvam": (503, {"error": {"message": "boom"}})},
+    "chat_down": {"groq": (503, {"error": {"message": "boom"}}), "gemini": (503, GEMINI_503), "openrouter": (503, {"error": {"message": "boom"}}), "cloudflare": (503, {"errors": [{"code": 3043, "message": "boom"}]}),
+                  "zai": (500, {"error": {"code": "1234", "message": "boom"}}), "sarvam": (503, {"error": {"message": "boom"}})},      # like `down`, but the zero-quota checks still answer ok: the KEY is fine, the AI is not
+    "forbidden": {"groq": (403, {"error": {"message": "Forbidden"}}), "gemini": (403, GEMINI_403_FREE_TIER), "openrouter": (403, {"error": {"message": "Forbidden"}}), "cloudflare": (403, CF_403_PLAIN),
+                  "zai": (403, {"error": {"code": "1220", "message": "No permission"}}), "sarvam": (403, {"error": {"message": "Forbidden", "code": "forbidden_error"}})},   # chat refused (Google: free tier not available for this project), the list still answers ok
+    "credit": {"groq": (402, {"error": {"message": "credit"}}), "gemini": (402, {"error": {"message": "credit"}}), "openrouter": (402, OPENROUTER_402), "cloudflare": (402, {"errors": [{"code": 1, "message": "credit"}]}),
+               "zai": (429, ZAI_429_BALANCE), "sarvam": (402, SARVAM_402)},          # out of credit (Z.ai answers 1113 with HTTP 429)
 }
 
 

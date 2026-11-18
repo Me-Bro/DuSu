@@ -8,9 +8,14 @@ is redacted before it is written. A real 429 cannot be provoked on demand, so th
     records it. It uses a few requests of YOUR free quota; leave it off if you would rather not.
 and it prints what keys/classify.py makes of each answer, so a wrong guess in the classifier shows up as a line you can read.
 
+The three services a learner can add since 2026-11-17 (Cloudflare Workers AI, Z.ai, Sarvam) are recorded the same way, from THESE environment variables (nothing is read from backend/.env
+and no key of theirs is stored on the server): CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN, ZAI_API_KEY, SARVAM_API_KEY. For Cloudflare the wrong-key rows are the valuable ones, because
+its error codes for a wrong token / a wrong account id are the part keys/classify.py had to take from memory: a wrong token with a wrong account id, and - when you give your real
+account id - a wrong token for it, and your real token for a wrong account id. Every answer is the provider's real one, with every secret (and the account id) redacted.
+
 Run (the app image has the SDK; this needs the internet, unlike every other test here):
-  docker run --rm -e GROQ_API_KEY -e GEMINI_API_KEY -e OPENROUTER_API_KEY -v "$PWD/backend":/app -v "$PWD/tests":/tests -v "$PWD":/out dusu-ri-test \
-      python /tests/keys/capture_real_errors.py [--burst 20] --out /out/real-errors.json
+  docker run --rm -e GROQ_API_KEY -e GEMINI_API_KEY -e OPENROUTER_API_KEY -e CLOUDFLARE_ACCOUNT_ID -e CLOUDFLARE_API_TOKEN -e ZAI_API_KEY -e SARVAM_API_KEY \
+      -v "$PWD/backend":/app -v "$PWD/tests":/tests -v "$PWD":/out dusu-ri-test python /tests/keys/capture_real_errors.py [--burst 20] --out /out/real-errors.json
 Then paste the interesting bodies into tests/keys/world.py (a 429 body is the one worth having) and re-run tests/keys/run.sh unit.py.
 """
 
@@ -29,7 +34,8 @@ from app.providers import openrouter_provider as op   # noqa: E402
 
 WANT = ("retry-after", "x-ratelimit-limit-requests", "x-ratelimit-remaining-requests", "x-ratelimit-reset-requests", "x-ratelimit-limit-tokens",
         "x-ratelimit-remaining-tokens", "x-ratelimit-reset-tokens", "x-ratelimit-reset", "x-ratelimit-limit", "x-ratelimit-remaining", "content-type")
-WRONG = {"groq": "gsk_" + "0" * 52, "gemini": "AIza" + "0" * 35, "openrouter": "sk-or-v1-" + "0" * 64}
+WRONG = {"groq": "gsk_" + "0" * 52, "gemini": "AIza" + "0" * 35, "openrouter": "sk-or-v1-" + "0" * 64,
+         "cloudflare": "0" * 32 + ":" + "0" * 40, "zai": "0" * 32 + "." + "0" * 16, "sarvam": "sk_" + "0" * 32}
 
 
 def redact(obj, secrets):
@@ -66,11 +72,17 @@ async def main():
     ap.add_argument("--burst", type=int, default=0)
     ap.add_argument("--out", default="real-errors.json")
     a = ap.parse_args()
-    keys = {"groq": os.getenv("GROQ_API_KEY", ""), "gemini": os.getenv("GEMINI_API_KEY", ""), "openrouter": os.getenv("OPENROUTER_API_KEY", "")}
-    secrets = [k for k in keys.values() if k] + list(WRONG.values())
+    keys = {"groq": os.getenv("GROQ_API_KEY", ""), "gemini": os.getenv("GEMINI_API_KEY", ""), "openrouter": os.getenv("OPENROUTER_API_KEY", ""),
+            "zai": os.getenv("ZAI_API_KEY", ""), "sarvam": os.getenv("SARVAM_API_KEY", "")}
+    cf_acct, cf_tok = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip(), os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
+    keys["cloudflare"] = f"{cf_acct}:{cf_tok}" if cf_acct and cf_tok else ""
+    secrets = [k for k in keys.values() if k] + list(WRONG.values()) + [x for x in (cf_acct, cf_tok) if x]       # the account id is redacted too
     results = []
-    for prov in ("groq", "gemini", "openrouter"):
+    for prov in ("groq", "gemini", "openrouter", "cloudflare", "zai", "sarvam"):
         results.append(await one(prov, WRONG[prov], "a deliberately wrong key", secrets))
+        if prov == "cloudflare" and cf_acct and cf_tok:
+            results.append(await one(prov, f"{cf_acct}:{'0' * 40}", "your account id, a wrong token", secrets))
+            results.append(await one(prov, f"{'0' * 32}:{cf_tok}", "a wrong account id, your token", secrets))
         if keys[prov]:
             results.append(await one(prov, keys[prov], "your key, one tiny call", secrets))
             for i in range(a.burst):

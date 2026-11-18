@@ -93,7 +93,9 @@ def http_client():
 def new_sdk_client(p: dict, timeout: float = _REQUEST_TIMEOUT_S) -> AsyncOpenAI:
     """An OpenAI-SDK client for one provider entry, NOT cached (the probes use it for a key that is not stored yet)."""
     kw = {"http_client": _http_client_factory()} if _http_client_factory is not None else {}
-    return AsyncOpenAI(api_key=p["key"], base_url=p["base_url"], default_headers=p.get("headers") or {}, timeout=timeout, max_retries=0, **kw)
+    # `key` is the identity of the stored key (what the gate and the ledger fingerprint); `api_key`, when a provider entry has one, is what goes on the wire (Cloudflare: "<account id>:<token>" is
+    # stored, only the token is sent).
+    return AsyncOpenAI(api_key=p.get("api_key") or p["key"], base_url=p["base_url"], default_headers=p.get("headers") or {}, timeout=timeout, max_retries=0, **kw)
 
 
 def evict_client(provider: str, key: str) -> None:

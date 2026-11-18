@@ -1,4 +1,5 @@
 import os
+import re
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -8,8 +9,41 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # and legacy hostnames side by side. See DUSU_DOMAIN_CUTOVER.md.
 PUBLIC_ORIGIN = os.getenv("PUBLIC_ORIGIN", "https://dusu.ranabrothers.online")
 
+# The services a LEARNER can bring a key for, in the order the chain asks them. ONE tuple: keys/classify.py (the classifier), db.py (what counts as "a key"), the key endpoints and the
+# Keys screens all read it. The first three are the original ones; the last three (added 2026-11-17, learner-added ONLY - no key of theirs is ever stored on the server, nothing here
+# touches `providers()`, the server's own chain) are NEW and unverified against a real key, so they sit last in the order and start in a lower health band (keys/gate.py PROVIDER_PRIOR).
+KEY_PROVIDERS = ("groq", "gemini", "openrouter", "cloudflare", "zai", "sarvam")
+
+# Cloudflare Workers AI needs TWO values from the learner: the Account ID (32 hex characters; it is part of the endpoint's URL) and an API token with the Workers AI permission. They are stored
+# as ONE string "<account id>:<token>" under the provider name "cloudflare" - one key to the rest of the code (one row, one fingerprint, one "key" toward the two needed to start). The account id
+# has no colon, so the string is split at the FIRST colon (a token may contain one). The id is validated as exactly 32 hex characters because it is interpolated into a URL path: anything else
+# (a slash, "..", a query) could redirect the request to another Cloudflare endpoint.
+_CF_ACCOUNT = re.compile(r"^[0-9a-fA-F]{32}$")
+
+
+def split_cloudflare(key) -> tuple[str, str] | None:
+    """(account_id, token) from the stored "<account id>:<token>" string, or None when it is not that shape (no colon, an account id that is not 32 hex characters, an empty token or one with
+    spaces). The account id comes back lower-cased."""
+    acct, sep, tok = str(key or "").strip().partition(":")
+    acct, tok = acct.strip(), tok.strip()
+    if not sep or not _CF_ACCOUNT.match(acct) or not tok or any(c.isspace() for c in tok):
+        return None
+    return acct.lower(), tok
+
+
+def join_cloudflare(account, token) -> str | None:
+    """The one string to store for a Cloudflare key, or None when the two values do not make a usable one."""
+    parts = split_cloudflare(f"{str(account or '').strip()}:{str(token or '').strip()}")
+    return f"{parts[0]}:{parts[1]}" if parts else None
+
+
 # Groq's gpt-oss models, in the order they are tried. ONE list for DuSu's own chain and for a learner's own key (they used to be two literals that had to be kept in step).
 _GROQ_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+# Learner-added services (2026-11-17). Model ids are the providers' own, from their official catalogues (Cloudflare: developers.cloudflare.com/workers-ai/models/, Z.ai: docs.z.ai pricing
+# page, Sarvam: docs.sarvam.ai chat-completions reference); NONE of them was called with a real key. A retired id answers 404 / 410 / "unknown model", which the walker remembers per key.
+_CLOUDFLARE_MODELS = ["@cf/google/gemma-4-26b-a4b-it", "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/mistralai/mistral-small-3.1-24b-instruct"]
+_ZAI_MODELS = ["glm-4.7-flash", "glm-4.5-flash"]
+_SARVAM_MODELS = ["sarvam-105b-conversations", "sarvam-105b"]
 
 
 def _groq_chat_extra() -> dict:
@@ -138,6 +172,28 @@ class Settings(BaseSettings):
                 "models": ["google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free"],
                 "headers": {"HTTP-Referer": PUBLIC_ORIGIN, "X-Title": "DuSu"},
                 "extra": {"reasoning": {"exclude": True, "effort": "low"}}})
+        # ---- the three services added 2026-11-17 (learner-added only; facts from each provider's own docs, checked 2026-11-17 - see tests/keys/README.md "Providers added 2026-11-17").
+        # All three speak the OpenAI chat shape. `key` is the identity of the stored key (what the gate / ledger fingerprint); `api_key` (when present) is what goes on the wire.
+        cf = split_cloudflare(k.get("cloudflare"))
+        if cf:
+            # Workers AI's own free allowance is 10,000 neurons a day PER ACCOUNT (all models share it; reset 00:00 UTC), so one 429 "daily free allocation" gates the key, not one model.
+            # Gemma 4 26B first (cheapest: ~35 neurons for a Home turn, 256K context, valid Hindi JSON seen on OpenRouter's copy of it), then Llama 3.3 70B (capable but ~4x the neurons, 24K
+            # context), then Mistral Small 3.1. No `extra`: none of them needs a parameter, and Gemma's reasoning switch (`chat_template_kwargs`) has no documented keys.
+            chain.append({"name": "cloudflare", "base_url": f"https://api.cloudflare.com/client/v4/accounts/{cf[0]}/ai/v1",
+                "key": k["cloudflare"], "api_key": cf[1], "models": list(_CLOUDFLARE_MODELS),
+                "headers": {}, "extra": {}})
+        if k.get("zai"):
+            # Z.ai: thinking is ON by default on the GLM-4.7 series and its reasoning is spent from the same max_tokens as the reply (an empty answer), so it is switched off for every call.
+            chain.append({"name": "zai", "base_url": "https://api.z.ai/api/paas/v4/",
+                "key": k["zai"], "models": list(_ZAI_MODELS),
+                "headers": {}, "extra": {"thinking": {"type": "disabled"}}})
+        if k.get("sarvam"):
+            # Sarvam: a one-time free credit (Rs 100), then paid; Hindi-first. `reasoning_effort` only on per-turn calls (validated walk), like Groq's: a model that answers 400 to it is remembered.
+            # Sarvam's own docs disagree on the auth header (the chat reference lists BOTH `Authorization: Bearer` and `api-subscription-key`; a migration guide and a skills page say
+            # `api-subscription-key`, not Bearer). The SDK sends Bearer; this default header adds the other, so a valid key is accepted whichever one the endpoint reads (both go only to api.sarvam.ai).
+            chain.append({"name": "sarvam", "base_url": "https://api.sarvam.ai/v1",
+                "key": k["sarvam"], "models": list(_SARVAM_MODELS),
+                "headers": {"api-subscription-key": k["sarvam"]}, "extra": {}, "chat_extra": {m: {"reasoning_effort": "low"} for m in _SARVAM_MODELS}})
         return chain                       # (a stored / sent "github" key is ignored: see providers())
 
 

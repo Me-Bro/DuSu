@@ -58,7 +58,7 @@ const dupSet = list => new Set(list.filter((x, i) => list.indexOf(x) !== i));
 const origPath = path.join(REPO, 'tests', 'keys', '.orig.html');
 const baseline = fs.existsSync(origPath) ? dupSet([...fs.readFileSync(origPath, 'utf8').matchAll(/\sid="([\w-]+)"/g)].map(x => x[1])) : new Set(['plTitle2', 'plTime', 'plRrDays', 'plDate']);
 T.eq([...dupSet(all)].filter(x => !baseline.has(x)), [], 'these changes added no duplicate id (4 older My Day ones sit inside script templates, not in the markup)');
-const created = { KY: ['kySum', 'kyAll', 'kym_all', 'kyTitle', 'kyCount', 'kyBar', 'kyKeys', 'ksWiz', 'ksStep', 'ksBarI', 'ksHead', 'ksBody', 'ksGet', 'ksOr', 'ksLab', 'ksPaste', 'ksSave', 'ksPick', 'ksDet', 'ksWhy', 'ksNever'], INST: ['instTitle', 'instGo', 'instCopy'], CM: ['waTitle'] };
+const created = { KY: ['kySum', 'kyAll', 'kym_all', 'kyTitle', 'kyCount', 'kyBar', 'kyKeys', 'ksWiz', 'ksStep', 'ksBarI', 'ksHead', 'ksBody', 'ksGet', 'ksOr', 'ksLab', 'ksPaste', 'ksSave', 'ksPick', 'ksDet', 'ksWhy', 'ksNever', 'ksMoreSum', 'ksMoreP', 'ksCfAcct', 'ksCfTok'], INST: ['instTitle', 'instGo', 'instCopy'], CM: ['waTitle'] };
 for (const n of ['KY', 'INST', 'CM']) {
   const ids = new Set([...MODULES[n].matchAll(/\$\("(\w+)"\)/g)].map(x => x[1]));
   const missing = [...ids].filter(id => !staticIds.has(id) && !created[n].includes(id) && !/^ky[bem]_|^kySave_|^kyCancel_/.test(id));

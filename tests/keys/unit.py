@@ -24,10 +24,13 @@ sys.path.insert(0, "/tests/keys")
 import httpx                                              # noqa: E402
 import openai                                             # noqa: E402
 
-from world import (World, install, ok, err, timeout, conn, completion, R,                      # noqa: E402
+from world import (World, install, ok, err, timeout, conn, completion, R, raw,                      # noqa: E402
                    GROQ_401, GROQ_429_TPD, GROQ_429_TPM, GROQ_429_PLAIN, GEMINI_400_KEY, GEMINI_400_AUTH_KEY, GEMINI_400_EXPIRED, GEMINI_400_OTHER,
                    GEMINI_403_LEAKED, GEMINI_429_DAY, GEMINI_429_MIN, GEMINI_429_BARE, GEMINI_503, OPENROUTER_401, OPENROUTER_402,
-                   OPENROUTER_404, OPENROUTER_429_DAY, OPENROUTER_429_UPSTREAM)
+                   OPENROUTER_404, OPENROUTER_429_DAY, OPENROUTER_429_UPSTREAM,
+                   CF_429_DAY, CF_429_CAPACITY, CF_403_AUTH, CF_400_AUTH_HDR, CF_404_ROUTE, CF_400_NO_MODEL, CF_404_MODEL, CF_410_MODEL, CF_403_PAID, CF_403_PLAIN, CF_413, CF_API_429,
+                   ZAI_401_AUTH, ZAI_401_NOHDR, ZAI_401_EXPIRED, ZAI_429_RATE, ZAI_429_BUSY, ZAI_429_BALANCE, ZAI_429_CAP, ZAI_400_MODEL, ZAI_400_PARAM, ZAI_400_UNSAFE, ZAI_403_PERM, ZAI_500,
+                   SARVAM_403_KEY, SARVAM_403_AUTH, SARVAM_403_PLAIN, SARVAM_402, SARVAM_429_QUOTA, SARVAM_429_RATE, SARVAM_422)
 
 FAILS, N = [], 0
 
@@ -811,6 +814,301 @@ check("... and a Channel", M.clean_whatsapp("https://whatsapp.com/channel/0029Va
 check("... and nothing else (other hosts, http, lookalikes, junk, empty)", all(M.clean_whatsapp(u) == "" for u in (
     "http://chat.whatsapp.com/TestInviteCode0123456789", "https://chat.whatsapp.com.evil.com/TestInviteCode0123456789", "https://evil.com/chat.whatsapp.com/TestInviteCode0123456789",
     "https://chat.whatsapp.com/short", "javascript:alert(1)", "", None, "https://wa.me/919999999999")))
+
+# ============================================================================================ G. the three services a learner can add (Cloudflare Workers AI, Z.ai, Sarvam - 2026-11-17)
+section("G1. the registry: what the chain looks like for a learner who brought these keys")
+import inspect                                           # noqa: E402
+import json                                              # noqa: E402
+from app import config as cfg                            # noqa: E402
+
+CF_ACCT = "0123456789abcdef0123456789abcdef"
+CF_TOK = "cfdemo_" + "T" * 33 + "9xYz"
+CF_KEY = f"{CF_ACCT}:{CF_TOK}"
+ZAI_KEY = "a" * 32 + "." + "Zz" * 8 + "Q4rT"
+SV_KEY = "sk_" + "s" * 30 + "Sv91"
+ALL6 = {"groq": K1, "gemini": K2, "openrouter": K3, "cloudflare": CF_KEY, "zai": ZAI_KEY, "sarvam": SV_KEY}
+NEW3 = ("cloudflare", "zai", "sarvam")
+
+check("KEY_PROVIDERS: the three original ones first (Groq first), the three new ones last - ONE list the classifier, the database and the screens read",
+      cfg.KEY_PROVIDERS == ("groq", "gemini", "openrouter", "cloudflare", "zai", "sarvam") and classify.PROVIDERS == cfg.KEY_PROVIDERS)
+import app.db as _db                                      # noqa: E402
+check("db's idea of 'a key a learner can bring' is the same list", tuple(_db._KEY_PROVIDERS) == cfg.KEY_PROVIDERS)
+chain6 = cfg.settings.providers_from(ALL6)
+check("providers_from: groq, gemini, openrouter, cloudflare, zai, sarvam - in that order", [p["name"] for p in chain6] == list(cfg.KEY_PROVIDERS), [p["name"] for p in chain6])
+cf = next(p for p in chain6 if p["name"] == "cloudflare")
+check("Cloudflare: the endpoint is built WITH the learner's account id, the identity of the key is the stored string, the wire key is the TOKEN only",
+      cf["base_url"] == f"https://api.cloudflare.com/client/v4/accounts/{CF_ACCT}/ai/v1" and cf["key"] == CF_KEY and cf["api_key"] == CF_TOK, {k: cf[k] for k in ("base_url", "api_key")})
+check("Cloudflare: models in the order Gemma 4 26B (cheapest), Llama 3.3 70B, Mistral Small 3.1 - all @cf/ ids",
+      cf["models"] == ["@cf/google/gemma-4-26b-a4b-it", "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/mistralai/mistral-small-3.1-24b-instruct"], cf["models"])
+zp = next(p for p in chain6 if p["name"] == "zai")
+check("Z.ai: the documented base URL, glm-4.7-flash then glm-4.5-flash, thinking switched OFF for every call", zp["base_url"] == "https://api.z.ai/api/paas/v4/" and zp["models"] == ["glm-4.7-flash", "glm-4.5-flash"]
+      and zp["extra"] == {"thinking": {"type": "disabled"}} and zp["key"] == ZAI_KEY and "api_key" not in zp, zp)
+sv = next(p for p in chain6 if p["name"] == "sarvam")
+check("Sarvam: the documented base URL, the conversations model first, reasoning_effort low only as a per-turn chat parameter",
+      sv["base_url"] == "https://api.sarvam.ai/v1" and sv["models"] == ["sarvam-105b-conversations", "sarvam-105b"] and sv["extra"] == {}
+      and sv["chat_extra"] == {"sarvam-105b-conversations": {"reasoning_effort": "low"}, "sarvam-105b": {"reasoning_effort": "low"}}, sv)
+check("Sarvam: its own api-subscription-key header rides along with the bearer (its docs disagree on which one the endpoint reads); no other provider entry carries a header with a key in it",
+      sv["headers"] == {"api-subscription-key": SV_KEY} and all(not any(("key" in h.lower() or "auth" in h.lower()) for h in (p.get("headers") or {})) for p in chain6 if p["name"] != "sarvam"), [(p["name"], list(p.get("headers") or {})) for p in chain6])
+old3 = cfg.settings.providers_from({"groq": K1, "gemini": K2, "openrouter": K3})
+check("a learner with only the three original keys gets EXACTLY the chain they always got (no new key in any entry)", [p["name"] for p in old3] == ["groq", "gemini", "openrouter"]
+      and all(set(p) <= {"name", "base_url", "key", "models", "headers", "extra", "chat_extra"} for p in old3) and all("api_key" not in p for p in old3))
+check("an empty / blank / github value adds nothing", cfg.settings.providers_from({}) == [] and cfg.settings.providers_from({"cloudflare": "", "zai": "  ", "sarvam": None, "github": "ghp_x"}) == [])
+check("a malformed Cloudflare value (no colon / short id) is skipped, never half-used", cfg.settings.providers_from({"cloudflare": CF_TOK}) == [] and cfg.settings.providers_from({"cloudflare": "abc:" + CF_TOK}) == [])
+src = inspect.getsource(cfg.Settings.providers)
+check("DuSu's OWN chain (Settings.providers) has no trace of the new services - they are learner-added only, no key of theirs is ever stored on the server", not any(n in src for n in NEW3), [n for n in NEW3 if n in src])
+
+section("G2. the Cloudflare key is two values in one string")
+check("split: 32 hex + colon + token -> (id lower-cased, token)", cfg.split_cloudflare(CF_KEY) == (CF_ACCT, CF_TOK) and cfg.split_cloudflare(CF_KEY.upper().replace(CF_TOK.upper(), CF_TOK)) == (CF_ACCT, CF_TOK))
+check("split: a colon INSIDE the token stays in the token (the id has none: it is cut at the FIRST colon)", cfg.split_cloudflare(f"{CF_ACCT}:ab:cd:ef") == (CF_ACCT, "ab:cd:ef"))
+check("split: no colon, an empty id, an empty token, a token with spaces, a short / long / non-hex id -> None",
+      all(cfg.split_cloudflare(v) is None for v in (CF_TOK, ":" + CF_TOK, CF_ACCT + ":", CF_ACCT + ": ", f"{CF_ACCT}:a b", "abcd:" + CF_TOK, CF_ACCT + "0:" + CF_TOK, "z" * 32 + ":" + CF_TOK, "", None, 12)))
+check("split: an account id that would change the URL (a slash, dots, a query) is refused - it is interpolated into a path",
+      all(cfg.split_cloudflare(v) is None for v in (f"../{CF_ACCT[:29]}:{CF_TOK}", f"{CF_ACCT[:30]}/x:{CF_TOK}", f"{CF_ACCT[:30]}?x:{CF_TOK}", f"{CF_ACCT[:30]}%2f:{CF_TOK}")))
+check("join: the two boxes -> one normalised string; a bad pair -> None", cfg.join_cloudflare(" " + CF_ACCT.upper() + " ", " " + CF_TOK + " ") == CF_KEY and cfg.join_cloudflare(CF_ACCT, "") is None and cfg.join_cloudflare("", CF_TOK) is None)
+check("clean_key('cloudflare') accepts the composite (normalised), refuses a token alone; the other providers' rules are unchanged",
+      gate.clean_key("cloudflare", "  " + CF_KEY + "\n") == CF_KEY and gate.clean_key("cloudflare", CF_TOK) is None and gate.clean_key("cloudflare", f"{CF_ACCT}: x") is None
+      and gate.clean_key("zai", ZAI_KEY) == ZAI_KEY and gate.clean_key("sarvam", SV_KEY) == SV_KEY and gate.clean_key("groq", K1) == K1)
+check("column width: the longest new provider name fits kh_status.provider / kh_usage.provider (String(12))", all(len(p) <= 12 for p in cfg.KEY_PROVIDERS))
+
+section("G3. mask and fingerprint of a two-value key")
+mk = gate.mask(CF_KEY)
+check("mask: the LAST FOUR of the account id and of the token, nothing else - never the account id in full, never the start of the token",
+      mk == f"acct ••••{CF_ACCT[-4:]} · token ••••{CF_TOK[-4:]}" and CF_ACCT not in mk and CF_ACCT[:8] not in mk and CF_TOK[:6] not in mk and CF_TOK not in mk, mk)
+check("mask of Z.ai / Sarvam keys never leaks the middle", all(k[6:-6] not in gate.mask(k) for k in (ZAI_KEY, SV_KEY)), [gate.mask(ZAI_KEY), gate.mask(SV_KEY)])
+fcf = gate.fingerprint("cloudflare", CF_KEY)
+check("fingerprint of the whole string: stable, 12 hex, contains neither the account id nor the token, differs if EITHER half changes",
+      re.fullmatch(r"[0-9a-f]{12}", fcf) and fcf == gate.fingerprint("cloudflare", CF_KEY) and CF_ACCT[:8] not in fcf and CF_TOK[:8] not in fcf
+      and fcf != gate.fingerprint("cloudflare", CF_ACCT[:-1] + "0:" + CF_TOK) and fcf != gate.fingerprint("cloudflare", CF_ACCT + ":" + CF_TOK + "x"))
+
+section("G4. the classifier on each service's OWN error shapes (from the docs - unverified against a real key)")
+NOWU = 1_800_000_000.0                                  # an instant; the next UTC midnight after it is computed from the same instant
+mid = classify._utc_midnight_after(NOWU)
+o = classify.classify("cloudflare", sdk_err(429, CF_429_DAY), NOWU)
+check("Cloudflare 3036 'daily free allocation' (HTTP 429): limited, DAY scope, the published reset (next 00:00 UTC) shown as 'about' - never read as a bad key", o.kind == "limited" and o.scope == "day" and o.approx and not o.evidence and o.reset_at == mid, o)
+o = classify.classify("cloudflare", sdk_err(429, CF_429_CAPACITY), NOWU)
+check("Cloudflare 3040 'capacity temporarily exceeded': limited, scope UPSTREAM (this model has no room right now - not the key's allowance)", o.kind == "limited" and o.scope == "upstream", o)
+o = classify.classify("cloudflare", sdk_err(429, CF_API_429, {"retry-after": "37"}), NOWU)
+check("Cloudflare's global API rate limit (429 + retry-after): limited with the provider's own 37 s", o.kind == "limited" and o.retry_after == 37 and o.evidence, o)
+check("Cloudflare 401 -> invalid", classify.classify("cloudflare", sdk_err(401, CF_403_AUTH), NOWU).kind == "invalid")
+check("Cloudflare 403 code 10000 'Authentication error' (a wrong token, a token without the Workers AI permission) -> invalid", classify.classify("cloudflare", sdk_err(403, CF_403_AUTH), NOWU).kind == "invalid")
+check("Cloudflare 400 code 6111 'Invalid format for Authorization header' -> invalid", classify.classify("cloudflare", sdk_err(400, CF_400_AUTH_HDR), NOWU).kind == "invalid")
+check("Cloudflare 404 code 7003 'Could not route ... object identifier is invalid' (an account id that does not exist) -> invalid", classify.classify("cloudflare", sdk_err(404, CF_404_ROUTE), NOWU).kind == "invalid")
+check("Cloudflare model errors: 400 code 5007 / 404 3042 / 410 5028 / 403 5035 'requires a Workers Paid plan' -> model_gone (the next model is tried; the KEY is not blamed)",
+      [classify.classify("cloudflare", sdk_err(c, b), NOWU).kind for c, b in ((400, CF_400_NO_MODEL), (404, CF_404_MODEL), (410, CF_410_MODEL), (403, CF_403_PAID))] == ["model_gone"] * 4)
+check("Cloudflare 403 3023 'service unavailable for account' -> forbidden (not invalid: nothing says the token is wrong)", classify.classify("cloudflare", sdk_err(403, CF_403_PLAIN), NOWU).kind == "forbidden")
+check("Cloudflare 413 / 503 / 408 -> bad_request / transient / transient", [classify.classify("cloudflare", sdk_err(c, CF_413), NOWU).kind for c in (413, 503, 408)] == ["bad_request", "transient", "transient"])
+check("a 429 is never a rejected key and a 401 is never a limit, for every new service",
+      all(classify.classify(p, sdk_err(429, b), NOWU).kind != "invalid" for p, b in (("cloudflare", CF_429_DAY), ("cloudflare", CF_API_429), ("zai", ZAI_429_RATE), ("zai", ZAI_429_BUSY), ("zai", ZAI_429_CAP), ("sarvam", SARVAM_429_RATE), ("sarvam", SARVAM_429_QUOTA)))
+      and all(classify.classify(p, sdk_err(401, b), NOWU).kind == "invalid" for p, b in (("cloudflare", CF_403_AUTH), ("zai", ZAI_401_AUTH), ("zai", ZAI_401_NOHDR), ("sarvam", SARVAM_403_KEY))))
+check("Z.ai 401 codes 1000 / 1001 -> invalid; 1003 'token expired' -> invalid AND expired", classify.classify("zai", sdk_err(401, ZAI_401_AUTH), NOWU).kind == "invalid" and classify.classify("zai", sdk_err(401, ZAI_401_NOHDR), NOWU).kind == "invalid"
+      and classify.classify("zai", sdk_err(401, ZAI_401_EXPIRED), NOWU).expired)
+o = classify.classify("zai", sdk_err(429, ZAI_429_RATE), NOWU)
+check("Z.ai 1302 'rate limit reached for requests' (a free key runs ONE request at a time): limited, minute scope", o.kind == "limited" and o.scope == "minute", o)
+o = classify.classify("zai", sdk_err(429, ZAI_429_BUSY), NOWU)
+check("Z.ai 1305 'service temporarily overloaded': limited, scope upstream (the shared service, not this key)", o.kind == "limited" and o.scope == "upstream", o)
+o = classify.classify("zai", sdk_err(429, ZAI_429_BALANCE), NOWU)
+check("Z.ai 1113 'insufficient balance' arrives with HTTP 429 but is NOT a rate limit: needs_credit", o.kind == "needs_credit" and o.http == 429, o)
+o = classify.classify("zai", sdk_err(429, ZAI_429_CAP), NOWU)
+check("Z.ai 1308 usage cap: limited, DAY scope - and NO reset time (Z.ai publishes none; an invented 'resets at' would be a false claim)", o.kind == "limited" and o.scope == "day" and o.reset_at is None and not o.approx, o)
+check("Z.ai 1211 unknown model -> model_gone; 1210 invalid parameter / 1301 unsafe input -> bad_request (never the key's fault); 1220 -> forbidden; 500 -> transient",
+      [classify.classify("zai", sdk_err(c, b), NOWU).kind for c, b in ((400, ZAI_400_MODEL), (400, ZAI_400_PARAM), (400, ZAI_400_UNSAFE), (403, ZAI_403_PERM), (500, ZAI_500))] == ["model_gone", "bad_request", "bad_request", "forbidden", "transient"])
+check("Sarvam 402 and the 429 'Quota Exceeded' the chat reference lists (code insufficient_quota_error) -> needs_credit; a rate-limit 429 -> minute limit",
+      classify.classify("sarvam", sdk_err(402, SARVAM_402), NOWU).kind == "needs_credit" and classify.classify("sarvam", sdk_err(429, SARVAM_429_QUOTA), NOWU).kind == "needs_credit"
+      and classify.classify("sarvam", sdk_err(429, SARVAM_429_RATE), NOWU).scope == "minute")
+check("Sarvam 403 invalid_api_key_error / authentication_error -> invalid; a bare 403 'Forbidden' -> forbidden; 422 -> bad_request; 503 -> transient",
+      [classify.classify("sarvam", sdk_err(c, b), NOWU).kind for c, b in ((403, SARVAM_403_KEY), (403, SARVAM_403_AUTH), (403, SARVAM_403_PLAIN), (422, SARVAM_422), (503, {"error": {"message": "busy"}}))]
+      == ["invalid", "invalid", "forbidden", "bad_request", "transient"])
+check("the same words from ANOTHER provider are not read with these rules (a Groq 429 that mentions 1302 / 3040 is a plain Groq limit)",
+      classify.classify("groq", sdk_err(429, {"error": {"message": "Rate limit reached ... 1302 ... 3040"}}), NOWU).scope != "upstream" and classify.classify("groq", sdk_err(429, {"error": {"message": "x", "code": "1113"}}), NOWU).kind == "limited")
+o = classify.classify("zai", sdk_err(429, {"error": {"message": "daily limit reached, try again tomorrow"}}), NOWU)
+check("a Z.ai / Sarvam 429 that only SAYS 'daily' (no code we know) is a day limit with NO invented reset time, while Groq's identical words get the published midnight-UTC reset",
+      o.kind == "limited" and o.scope == "day" and o.reset_at is None and not o.approx
+      and classify.classify("sarvam", sdk_err(429, {"error": {"message": "daily limit reached"}}), NOWU).reset_at is None
+      and classify.classify("groq", sdk_err(429, {"error": {"message": "daily limit reached"}}), NOWU).reset_at == mid, o)
+check("PUBLISHED_RESET: Cloudflare shows an 'about' reset for a day limit (its docs say 00:00 UTC); Z.ai and Sarvam never do", "cloudflare" in classify.PUBLISHED_RESET and not (classify.PUBLISHED_RESET & {"zai", "sarvam"}))
+check("limit_seconds: a Z.ai day limit with no wait is held 30 min then asked again; a needs_credit never goes through it", classify.limit_seconds(classify.classify("zai", sdk_err(429, ZAI_429_CAP), NOWU)) == 1800.0)
+check("_codes reads Cloudflare (list of {code: int}), Z.ai ({error: {code: str}}) and Sarvam, bounded", classify._codes(CF_400_AUTH_HDR) >= {"6003", "6111"} and classify._codes(ZAI_429_BALANCE) == {"1113"}
+      and classify._codes(SARVAM_402) == {"insufficient_quota_error"} and classify._codes({"code": True}) == set())
+
+section("G5. unverified services start in a LOWER health band and climb only on real answers")
+gate.reset_all()
+NOWH = 1_800_000_000.0
+check("an unmeasured new provider scores 0.7, an unmeasured old one 0.9", all(gate.provider_score(p, NOWH) == 0.7 for p in NEW3) and gate.provider_score("groq", NOWH) == gate.HEALTH_PRIOR)
+check("so with nobody measured the established providers stay first, whatever order they were handed in", gate.order_by_health(["cloudflare", "groq", "zai", "gemini", "sarvam", "openrouter"], NOWH) == ["groq", "gemini", "openrouter", "cloudflare", "zai", "sarvam"])
+for _ in range(25):
+    gate.health_ok("cloudflare", "@cf/google/gemma-4-26b-a4b-it", "chat", 500, NOWH)
+band_ = lambda n: int(gate.provider_score(n, NOWH) * gate.HEALTH_BAND + 1e-9)       # noqa: E731
+check("a new provider that proves itself (25 good replies) climbs to the SAME band as an unmeasured established one - never above it (so it never jumps the queue on its own word)",
+      gate.provider_score("cloudflare", NOWH) > 0.95 and band_("cloudflare") == band_("groq") == 3 and gate.order_by_health(["groq", "cloudflare"], NOWH) == ["groq", "cloudflare"]
+      and gate.order_by_health(["cloudflare", "groq"], NOWH) == ["cloudflare", "groq"], (gate.provider_score("cloudflare", NOWH), band_("cloudflare"), band_("groq")))
+gate.reset_all()
+for _ in range(6):
+    gate.health_fail("groq", "m", "chat", "bad", NOWH)
+for _ in range(6):
+    gate.health_ok("zai", "glm-4.7-flash", "chat", 800, NOWH)
+check("when the established provider is doing badly and the new one is doing well, the new one is asked first", gate.order_by_health(["groq", "zai"], NOWH) == ["zai", "groq"], (gate.provider_score("groq", NOWH), gate.provider_score("zai", NOWH)))
+gate.reset_all()
+h_new = gate._health_for("sarvam", "sarvam-105b", "chat", NOWH)
+h_old = gate._health_for("groq", "m", "chat", NOWH)
+check("a fresh Health starts at the provider's own prior", h_new.ok == 0.7 and h_old.ok == gate.HEALTH_PRIOR)
+h_new.last_at = h_old.last_at = NOWH - gate.HEALTH_STALE_S - 5
+h_new.ok = h_old.ok = 0.2
+gate._drift(h_new, NOWH, "sarvam"); gate._drift(h_old, NOWH, "groq")
+check("a stale reading drifts back to ITS provider's prior (0.45 for a new one, 0.55 for an old one)", abs(h_new.ok - 0.45) < 1e-9 and abs(h_old.ok - 0.55) < 1e-9, (h_new.ok, h_old.ok))
+gate.reset_all()
+
+section("G6. the walker with these services")
+SERVER_OUT = io.StringIO() if False else None
+
+
+async def t_new_only():
+    # --- Cloudflare alone
+    w = World()
+    fresh({"cloudflare": CF_KEY}, w=w)
+    text = await op._complete(MSG, 50)
+    check("a chain of ONLY a Cloudflare key answers", text == "OK", text)
+    check("the request goes to THIS learner's account path, with the first model", w.paths[0][1] == f"/client/v4/accounts/{CF_ACCT}/ai/v1/chat/completions" and w.calls[0][3] == "@cf/google/gemma-4-26b-a4b-it", (w.paths, w.calls))
+    check("on the wire the bearer is the TOKEN alone - the stored 'account:token' string is never sent as a credential, and the token is not in the URL",
+          w.auth[0] == ("cloudflare", "Bearer " + CF_TOK) and CF_TOK not in w.paths[0][2] and CF_KEY not in w.paths[0][2], (w.auth, w.paths))
+    u = usage_of("uA", "cloudflare")
+    check("the ledger counted it under the Cloudflare key (fingerprint of the whole string)", u["requests"] == 1 and any(k[3] == gate.fingerprint("cloudflare", CF_KEY) for k in ledger._usage), (u, list(ledger._usage)))
+    # --- Z.ai alone
+    w = World()
+    fresh({"zai": ZAI_KEY}, w=w)
+    await op._complete(MSG, 50)
+    await op._complete(MSG, 50, prefer_fast=True)
+    check("Z.ai: thinking is switched off on EVERY call (a per-turn call and a scoring call), the first model is glm-4.7-flash, the key is the bearer",
+          all(b.get("thinking") == {"type": "disabled"} for b in w.bodies) and len(w.bodies) == 2 and w.calls[0][3] == "glm-4.7-flash" and w.auth[0] == ("zai", "Bearer " + ZAI_KEY), (w.bodies, w.auth))
+    # --- Sarvam alone, per engine
+    for eng, fast, want in ((2, True, "low"), (1, True, None), (2, False, None)):
+        w = World()
+        fresh({"sarvam": SV_KEY}, w=w, engine=eng)
+        await op._complete(MSG, 50, prefer_fast=fast)
+        check(f"Sarvam: reasoning_effort is sent only on a per-turn call of the validated walk (engine {eng}, per-turn {fast})", w.bodies[0].get("reasoning_effort") == want and w.calls[0][3] == "sarvam-105b-conversations", w.bodies)
+        if eng == 2 and fast:
+            check("Sarvam on the wire: Authorization: Bearer <key> AND api-subscription-key: <key>", w.auth[0] == ("sarvam", "Bearer " + SV_KEY) and w.subkey[0] == ("sarvam", SV_KEY), (w.auth, w.subkey))
+    wz = World().on("cloudflare", CF_TOK, err(503, BOOM))            # Cloudflare fails, so Z.ai is asked too: both kinds of request are on record
+    fresh({"zai": ZAI_KEY, "cloudflare": CF_KEY}, w=wz)
+    await op._complete(MSG, 50)
+    check("no other service is sent an api-subscription-key header", all(v is None for _p, v in wz.subkey) and {p for p, _v in wz.subkey} == {"cloudflare", "zai"}, wz.subkey)
+
+
+async def t_new_failures():
+    # Cloudflare's daily allowance is per ACCOUNT: one 429 gates the key, the other models are not asked
+    r, _ = await walk({"cloudflare": CF_KEY}, World().on("cloudflare", CF_TOK, err(429, CF_429_DAY)))
+    g = gate.get("cloudflare", gate.fingerprint("cloudflare", CF_KEY))
+    check("3036 daily allocation: the KEY is gated (limited, day) after ONE request - all of an account's models share the allowance, so no second model is asked",
+          isinstance(r, ProviderChainError) and r.state == "all_limited" and len(world.calls_for("cloudflare")) == 1 and g is not None and g.status == "limited" and g.scope == "day" and g.approx, (r, world.calls, g))
+    # 3040 capacity: per model - the next model answers, the key is untouched
+    r, _ = await walk({"cloudflare": CF_KEY}, World().on("cloudflare", CF_TOK, err(429, CF_429_CAPACITY), ok("second model")))
+    check("3040 capacity exceeded is per MODEL: Llama answers, the key is not gated and Gemma is only remembered as busy", r == "second model" and [c[3] for c in world.calls_for("cloudflare")][:2] == ["@cf/google/gemma-4-26b-a4b-it", "@cf/meta/llama-3.3-70b-instruct-fp8-fast"]
+          and gate.get("cloudflare", gate.fingerprint("cloudflare", CF_KEY)) is None, (r, world.calls))
+    # a rejected Cloudflare key is asked once, never again, and the chain moves on
+    w = World().on("cloudflare", CF_TOK, err(403, CF_403_AUTH))
+    fresh({"cloudflare": CF_KEY, "zai": ZAI_KEY}, w=w)
+    await op._complete(MSG, 50)
+    await op._complete(MSG, 50)
+    check("a rejected Cloudflare token (403 10000) is asked ONCE; Z.ai answers both calls; the status row says invalid", len(w.calls_for("cloudflare")) == 1 and len(w.calls_for("zai")) == 2
+          and ledger._status[("uA", "cloudflare", gate.fingerprint("cloudflare", CF_KEY))]["status"] == "invalid", w.calls)
+    # a model that needs a paid plan: the next model is asked, the key is not blamed
+    r, _ = await walk({"cloudflare": CF_KEY}, World().on("cloudflare", CF_TOK, err(403, CF_403_PAID), ok("fine")))
+    ms = gate.model_get("cloudflare", gate.fingerprint("cloudflare", CF_KEY), "@cf/google/gemma-4-26b-a4b-it")
+    check("5035 'requires a Workers Paid plan' on the first model: remembered as unavailable for THIS key, the next model answers, the key is fine", r == "fine" and ms is not None and ms.status == "gone"
+          and gate.get("cloudflare", gate.fingerprint("cloudflare", CF_KEY)) is None, (r, ms))
+    # Z.ai: 1113 is out of credit (HTTP 429!) - not a rate limit
+    r, _ = await walk({"zai": ZAI_KEY}, World().on("zai", ZAI_KEY, err(429, ZAI_429_BALANCE)))
+    g = gate.get("zai", gate.fingerprint("zai", ZAI_KEY))
+    kp = r.kp() if isinstance(r, ProviderChainError) else {}
+    check("Z.ai 1113: gated as OUT OF CREDIT (scope credit), the learner is told needs_credit - not 'limited', not 'rejected'", g is not None and g.scope == "credit" and kp.get("keys") and kp["keys"][0]["kind"] == "needs_credit", (g, kp))
+    # Z.ai rate limit (a free key runs one request at a time): the KEY waits
+    r, _ = await walk({"zai": ZAI_KEY}, World().on("zai", ZAI_KEY, err(429, ZAI_429_RATE)))
+    check("Z.ai 1302: the key is limited (minute) after one request - its two models share the one-at-a-time limit", isinstance(r, ProviderChainError) and len(world.calls_for("zai")) == 1
+          and gate.get("zai", gate.fingerprint("zai", ZAI_KEY)).scope == "minute", (r, world.calls))
+    # Sarvam out of credit
+    r, _ = await walk({"sarvam": SV_KEY}, World().on("sarvam", SV_KEY, err(402, SARVAM_402)))
+    kp = r.kp() if isinstance(r, ProviderChainError) else {}
+    check("Sarvam 402: out of credit, said as such", kp.get("keys") and kp["keys"][0]["kind"] == "needs_credit" and gate.get("sarvam", gate.fingerprint("sarvam", SV_KEY)).scope == "credit", kp)
+    # the established providers keep their place: with everything healthy only Groq is asked
+    fresh(ALL6)
+    await op._complete(MSG, 50)
+    check("with all six keys healthy the established provider answers alone - the unverified ones are not asked first", [c[0] for c in world.calls_for()] == ["groq"], world.calls)
+    # ... and they are the last resort, in their own order, when the three before them are down
+    w = World()
+    for pn in ("groq", "gemini", "openrouter"):
+        w.on(pn, ALL6[pn], err(401, GROQ_401))
+    w.on("cloudflare", CF_TOK, err(403, CF_403_AUTH))
+    w.on("zai", ZAI_KEY, err(401, ZAI_401_AUTH))
+    fresh(ALL6, w=w)
+    text = await op._complete(MSG, 50)
+    check("when the first five are rejected the sixth (Sarvam) answers - the chain really reaches the last service", text == "OK" and [c[0] for c in world.calls_for()][-1] == "sarvam"
+          and [c[0] for c in world.calls_for()].index("cloudflare") < [c[0] for c in world.calls_for()].index("zai") < [c[0] for c in world.calls_for()].index("sarvam"), [c[0] for c in world.calls_for()])
+
+
+async def t_new_hygiene():
+    buf = io.StringIO()
+    w = World()
+    for pn, tok in (("cloudflare", CF_TOK), ("zai", ZAI_KEY), ("sarvam", SV_KEY)):
+        w.on(pn, tok, err(503, BOOM))
+    with contextlib.redirect_stdout(buf):
+        fresh({"cloudflare": CF_KEY, "zai": ZAI_KEY, "sarvam": SV_KEY}, w=w)
+        pz, saved = Pauses(), op._pause
+        op._pause = pz
+        try:
+            await op._complete(MSG, 50)
+        except ProviderChainError as e:
+            err_obj = e
+        finally:
+            op._pause = saved
+        op._log_failure("transient", True, ["cloudflare/@cf/x:transient-503"])
+    out = buf.getvalue()
+    leaked = [n for n, v in (("token", CF_TOK), ("composite", CF_KEY), ("account id", CF_ACCT), ("zai key", ZAI_KEY), ("sarvam key", SV_KEY)) if v in out]
+    check("a failed walk over these services prints one line and it carries NO key, no token, no account id", "[keys] chain failed" in out and not leaked, (leaked, out[-300:]))
+    shown = json.dumps(err_obj.kp()) + str(err_obj)
+    check("what the learner can be shown (kp + the error text) carries none of the three secrets", not any(v in shown for v in (CF_TOK, CF_KEY, CF_ACCT, ZAI_KEY, SV_KEY)), shown[:200])
+    snap = json.dumps({"status": {str(k): v for k, v in ledger._status.items()}, "usage": {str(k): v for k, v in ledger._usage.items()}})
+    check("the ledger holds fingerprints only - none of the secrets", not any(v in snap for v in (CF_TOK, CF_KEY, CF_ACCT, ZAI_KEY, SV_KEY)), snap[:200])
+
+
+async def t_new_probe():
+    import app.keys.probe as kprobe
+    w = World()
+    fresh({}, w=w)
+    check("has_auth_probe: Groq / Gemini / OpenRouter yes; Cloudflare / Z.ai / Sarvam no (their docs name no zero-quota check)", [kprobe.has_auth_probe(p) for p in classify.PROVIDERS] == [True, True, True, False, False, False])
+    r1 = await kprobe.auth_probe("cloudflare", CF_KEY)
+    r2 = await kprobe.auth_probe("zai", ZAI_KEY)
+    r3 = await kprobe.list_models("sarvam", SV_KEY)
+    check("auth_probe / list_models for them make NO request at all (never a URL with a token, never a guess)", r1.kind == "unknown" and r2.kind == "unknown" and r3 is None and not w.calls, w.calls)
+    cp = await kprobe.chat_probe("cloudflare", CF_KEY, "uA")
+    check("chat_probe on Cloudflare: one real call to the learner's account path with the token as bearer", cp.kind == "ok" and w.paths[-1][1] == f"/client/v4/accounts/{CF_ACCT}/ai/v1/chat/completions" and w.auth[-1] == ("cloudflare", "Bearer " + CF_TOK), (cp, w.paths))
+    cp = await kprobe.chat_probe("zai", ZAI_KEY, "uA")
+    check("chat_probe on Z.ai sends thinking disabled too", cp.kind == "ok" and w.bodies[-1].get("thinking") == {"type": "disabled"}, w.bodies[-1])
+    w2 = World().on("sarvam", SV_KEY, err(402, SARVAM_402))
+    fresh({}, w=w2)
+    cp = await kprobe.chat_probe("sarvam", SV_KEY, "uA")
+    check("chat_probe tells 'out of credit' apart from 'unreachable' (needs_credit)", cp.kind == "needs_credit", cp.kind)
+    w3 = World().on("cloudflare", CF_TOK, err(404, CF_404_MODEL), err(404, CF_404_MODEL), err(404, CF_404_MODEL))
+    fresh({}, w=w3)
+    cp = await kprobe.chat_probe("cloudflare", CF_KEY, "uA")
+    check("chat_probe: every model gone is NOT a verdict on the key (model_gone) - and all three models were tried", cp.kind == "model_gone" and len(w3.calls_for("cloudflare")) == 3, (cp.kind, w3.calls))
+    # --- answers that are not JSON the SDK can read: a CDN's HTML 502, a 200 cut off mid-way
+    for pn, key, tok in (("cloudflare", CF_KEY, CF_TOK), ("zai", ZAI_KEY, ZAI_KEY), ("sarvam", SV_KEY, SV_KEY)):
+        w4 = World().on(pn, tok, raw(502, "<html><body><h1>502 Bad Gateway</h1></body></html>"))
+        fresh({}, w=w4)
+        cp = await kprobe.chat_probe(pn, key, "uA")
+        check(f"{pn}: an HTML 502 from a CDN is transient - not a verdict on the key (so a save would store nothing)", cp.kind == "transient", cp.kind)
+        w5 = World().on(pn, tok, raw(200, '{"choices": [{"message": {"role": "assist', "application/json"))
+        fresh({}, w=w5)
+        cp = await kprobe.chat_probe(pn, key, "uA")
+        check(f"{pn}: a 200 whose JSON is cut off is not 'working' either (never stored on it)", cp.kind in ("transient", "unknown"), cp.kind)
+    r5, _ = await walk({"cloudflare": CF_KEY, "zai": ZAI_KEY}, World().on("cloudflare", CF_TOK, raw(200, "{not json", "application/json")).on("zai", ZAI_KEY, ok("zai answered")))
+    check("a Cloudflare reply that is not JSON at all: the walk goes on to Z.ai in the same call, and the key is NOT gated (it is no evidence about the key)", r5 == "zai answered" and gate.get("cloudflare", gate.fingerprint("cloudflare", CF_KEY)) is None, r5)
+    check("_why_from_body reads Cloudflare's errors[] and never echoes a key", kprobe._why_from_body(CF_429_DAY).startswith("AiError: You have used up") and "<key>" in kprobe._why_from_body({"error": {"message": "bad " + "gsk_" + "x" * 20}}))
+
+
+run(t_new_only())
+run(t_new_failures())
+run(t_new_hygiene())
+run(t_new_probe())
 
 # ============================================================================================ F. hygiene
 section("F. hygiene")

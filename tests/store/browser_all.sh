@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Every browser tier against the REAL app on a scratch MongoDB (a real Chromium, the real uvicorn, the real loops), one after the other. One line per spec in
 # tests/store/.out/browser.txt (full logs next to it). Long: tens of minutes. Run it in the background.
-#   tests/store/browser_all.sh [name ...]      (no names = all;  names: my_day_real my_day_checks notify keys install gemini grammar ri busy lock lock2 audit)
+#   tests/store/browser_all.sh [name ...]      (no names = all;  names: my_day_real my_day_checks notify keys install gemini providers grammar ri busy lock lock2 lab lab_static talk talk_static audit)
 #   BROWSER_IMAGE=dusu-backend:mongo-rc3 tests/store/browser_all.sh      runs every spec against the code INSIDE that built image (what a deploy runs)
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 if [ -n "${BROWSER_IMAGE:-}" ]; then
   export MD_BACKEND=baked MD_TEST_IMAGE="$BROWSER_IMAGE" NT_BACKEND=baked NT_TEST_IMAGE="$BROWSER_IMAGE" KY_BACKEND=baked KY_TEST_IMAGE="$BROWSER_IMAGE"
   export GC_BACKEND=baked GC_TEST_IMAGE="$BROWSER_IMAGE" RI_BACKEND=baked RI_TEST_IMAGE="$BROWSER_IMAGE" DV_BACKEND=baked DV_TEST_IMAGE="$BROWSER_IMAGE"
-  export AUDIT_BACKEND=baked AUDIT_IMAGE="$BROWSER_IMAGE"
+  export AUDIT_BACKEND=baked AUDIT_IMAGE="$BROWSER_IMAGE" TK_BACKEND=baked TK_TEST_IMAGE="$BROWSER_IMAGE" LAB_BACKEND=baked LAB_TEST_IMAGE="$BROWSER_IMAGE"
 fi
 mkdir -p tests/store/.out
 OUT=tests/store/.out/browser.txt
@@ -29,11 +29,16 @@ run notify        tests/notify/browser/run_real.sh real.spec.cjs
 run keys          tests/keys/browser/run_real.sh keys.spec.cjs
 run install       tests/keys/browser/run_real.sh install.spec.cjs
 run gemini        tests/keys/browser/run_real.sh gemini.spec.cjs
+run providers     tests/keys/browser/run_real.sh providers.spec.cjs
 run grammar       tests/grammar/browser/run_real.sh real.spec.cjs
 run ri            tests/resume_interview/browser/run_real.sh real.spec.cjs
 run busy          tests/daily_voice/browser/run_real.sh busy.spec.cjs
 run lock          tests/daily_voice/browser/run_real.sh lock.spec.cjs
 run lock2         tests/daily_voice/browser/run_real.sh lock2.spec.cjs
+run lab           tests/lab/browser/run_real.sh real.spec.cjs
+run lab_static    tests/lab/browser/run.sh static.spec.cjs
+run talk          tests/talk/browser/run_real.sh real.spec.cjs
+run talk_static   tests/talk/browser/run.sh static.spec.cjs   # (talk's old = old needs a copy of the page from BEFORE the change: ORIG_HTML_HOST=<abs path in the repo> tests/talk/browser/run.sh oldnew.spec.cjs)
 if want audit; then
   tests/audit/up.sh > tests/store/.out/browser_audit_up.log 2>&1 || { echo "audit FAIL (the audit app did not come up)" | tee -a "$OUT"; exit 1; }
   run audit tests/audit/spec.sh verify.cjs

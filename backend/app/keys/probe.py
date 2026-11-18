@@ -22,11 +22,18 @@ from ..config import settings
 from . import classify, gate, ledger
 
 SERVER_HEALTH_TTL_S = 600
+# Only these three have a documented zero-quota way to ask "is this key accepted?" (a model list / key info). Cloudflare Workers AI's OpenAI-compatible endpoint documents no list; Z.ai and
+# Sarvam document none either (checked 2026-11-17). For the others the ONE real chat call is the check - at save time, on a deep Test and on a re-check.
+AUTH_PROBE = frozenset({"groq", "gemini", "openrouter"})
+
+
+def has_auth_probe(provider: str) -> bool:
+    return provider in AUTH_PROBE
 
 
 @dataclass
 class Probe:
-    kind: str                                  # ok | invalid | limited | forbidden | model_gone | transient | unknown
+    kind: str                                  # ok | invalid | limited | forbidden | needs_credit | model_gone | transient | unknown
     http: int = 0
     expired: bool = False
     out: classify.Outcome | None = None        # the classifier's full answer for a failure
@@ -60,6 +67,8 @@ def _why_from_body(body) -> str:
     """The first message in an error body (Groq sends a dict, Gemini a LIST of dicts, OpenRouter nests it), one line, <= 240 characters (cut at a word, never in the middle of a link),
     with anything key-shaped removed."""
     cur = body[0] if isinstance(body, list) and body else body
+    if isinstance(cur, dict) and isinstance(cur.get("errors"), list) and cur["errors"]:     # Cloudflare: {"success": false, "errors": [{"code": ..., "message": ...}]}
+        cur = cur["errors"][0]
     msg = ""
     if isinstance(cur, dict):
         err = cur.get("error", cur)
@@ -86,12 +95,12 @@ async def auth_probe(provider: str, key: str, now: float | None = None) -> Probe
     """Does this provider accept this key? Never raises."""
     from ..providers import openrouter_provider as op
     p = _entry(provider, key)
-    if p is None:
+    if p is None or provider not in AUTH_PROBE:
         return Probe("unknown")
     t0 = time.time()
     try:
         async with op.http_client() as c:
-            r = await c.get(_url(p), headers={"Authorization": f"Bearer {key}", **(p.get("headers") or {})})
+            r = await c.get(_url(p), headers={"Authorization": f"Bearer {p.get('api_key') or key}", **(p.get("headers") or {})})
     except Exception:
         return Probe("unknown", ms=int((time.time() - t0) * 1000))
     ms = int((time.time() - t0) * 1000)
@@ -119,9 +128,9 @@ async def list_models(provider: str, key: str) -> set | None:
     goes in the Authorization header only (OpenRouter's catalogue is public and is asked without it). Gemini names its models 'models/<id>' - the prefix is dropped."""
     from ..providers import openrouter_provider as op
     p = _entry(provider, key)
-    if p is None:
+    if p is None or provider not in AUTH_PROBE:
         return None
-    headers = {} if provider == "openrouter" else {"Authorization": f"Bearer {key}"}
+    headers = {} if provider == "openrouter" else {"Authorization": f"Bearer {p.get('api_key') or key}"}
     headers.update(p.get("headers") or {})
     try:
         async with op.http_client() as c:
@@ -193,7 +202,7 @@ async def chat_probe(provider: str, key: str, uid: str | None = None, now: float
                 out = classify.classify(provider, e, now)
                 ledger.settle(tok, out.kind if out.kind in ("limited", "invalid") else "other")
                 done = True
-                kind = out.kind if out.kind in ("invalid", "limited", "forbidden", "model_gone") else ("transient" if out.kind == "transient" else "unknown")
+                kind = out.kind if out.kind in ("invalid", "limited", "forbidden", "model_gone", "needs_credit") else ("transient" if out.kind == "transient" else "unknown")
                 last = Probe(kind, http=out.http, expired=out.expired, out=out, ms=int((time.time() - t0) * 1000), why=_why_from_body(getattr(e, "body", None)))
                 if kind != "model_gone":          # a retired model is the platform's problem - try the provider's next model; anything else is the answer
                     return last

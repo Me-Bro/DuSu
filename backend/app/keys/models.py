@@ -24,7 +24,7 @@ TS = DateTime(timezone=True)
 class KhStatus(Base):
     __tablename__ = "kh_status"
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
-    provider: Mapped[str] = mapped_column(String(12), primary_key=True)           # groq | gemini | openrouter
+    provider: Mapped[str] = mapped_column(String(12), primary_key=True)           # groq | gemini | openrouter | cloudflare | zai | sarvam (config.KEY_PROVIDERS)
     fp: Mapped[str] = mapped_column(String(16), primary_key=True)                 # HMAC fingerprint of the key (12 hex)
     status: Mapped[str] = mapped_column(String(10), default="unknown")            # ok | limited | invalid | forbidden | unknown
     kind: Mapped[str] = mapped_column(String(16), default="")                     # the classifier kind behind it (needs_credit, model_gone ...)

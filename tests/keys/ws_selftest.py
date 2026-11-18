@@ -22,7 +22,8 @@ sys.path.insert(0, "/tests/keys")
 import uvicorn                                                       # noqa: E402
 import websockets                                                    # noqa: E402
 
-from world import World, install, ok, err, GROQ_401, GROQ_429_TPD, GEMINI_400_KEY, GEMINI_429_DAY, GEMINI_503, OPENROUTER_401, OPENROUTER_429_DAY    # noqa: E402
+from world import (World, install, ok, err, GROQ_401, GROQ_429_TPD, GEMINI_400_KEY, GEMINI_429_DAY, GEMINI_503, OPENROUTER_401, OPENROUTER_429_DAY,    # noqa: E402
+                   CF_429_DAY, CF_403_AUTH, ZAI_429_CAP, ZAI_401_AUTH, SARVAM_429_RATE, SARVAM_403_KEY)
 
 from app import auth, db, main as M                                  # noqa: E402
 from app.keys import gate, ledger                                    # noqa: E402
@@ -46,11 +47,12 @@ def section(t):
     print(f"\n== {t}")
 
 
-BEHAVE = {"groq": "ok", "gemini": "ok", "openrouter": "ok"}
+BEHAVE = {"groq": "ok", "gemini": "ok", "openrouter": "ok", "cloudflare": "ok", "zai": "ok", "sarvam": "ok"}
 ERRS = {
-    "limited": {"groq": err(429, GROQ_429_TPD), "gemini": err(429, GEMINI_429_DAY), "openrouter": err(429, OPENROUTER_429_DAY)},
-    "invalid": {"groq": err(401, GROQ_401), "gemini": err(400, GEMINI_400_KEY), "openrouter": err(401, OPENROUTER_401)},
-    "down": {"groq": err(503, {"error": {"message": "boom"}}), "gemini": err(503, GEMINI_503), "openrouter": err(503, {"error": {"message": "boom"}})},
+    "limited": {"groq": err(429, GROQ_429_TPD), "gemini": err(429, GEMINI_429_DAY), "openrouter": err(429, OPENROUTER_429_DAY), "cloudflare": err(429, CF_429_DAY), "zai": err(429, ZAI_429_CAP), "sarvam": err(429, SARVAM_429_RATE)},
+    "invalid": {"groq": err(401, GROQ_401), "gemini": err(400, GEMINI_400_KEY), "openrouter": err(401, OPENROUTER_401), "cloudflare": err(403, CF_403_AUTH), "zai": err(401, ZAI_401_AUTH), "sarvam": err(403, SARVAM_403_KEY)},
+    "down": {"groq": err(503, {"error": {"message": "boom"}}), "gemini": err(503, GEMINI_503), "openrouter": err(503, {"error": {"message": "boom"}}),
+             "cloudflare": err(503, {"errors": [{"code": 3043, "message": "boom"}]}), "zai": err(500, {"error": {"code": "1234", "message": "boom"}}), "sarvam": err(503, {"error": {"message": "boom"}})},
 }
 JSON_REPLY = json.dumps({"reply": "Hello there", "intent": "general_conversation", "suggest": [], "english": "I went to the market", "reply_hindi": "Bahut accha",
                          "next_question_hindi": "Aur batao?", "tip": "", "mood": "ok", "context": {}, "summary": "They chatted.", "facts": {}, "events": [],
@@ -356,6 +358,52 @@ async def main():
     await drive(tok[n], "conversation", turns=1)
     used = {c[1] for c in WORLD.calls[before:] if c[2] == "chat"}
     check("... and the next session uses the new stored keys", new["groq"] in used and keys[n]["groq"] not in used, used)
+
+    # ------------------------------------------------------------------------------------------ Cloudflare / Z.ai / Sarvam (learner-added keys, 2026-11-17)
+    section("a learner whose keys are Cloudflare + Z.ai: the real WebSocket chat uses them, fails over between them, and tells the truth when both fail")
+    import hashlib
+    acct = hashlib.md5(b"ws-newsvc").hexdigest()
+    cftok = "cftokws" + "C" * 30 + "xCq"
+    cfk, zk = f"{acct}:{cftok}", "z" * 32 + "." + "ZwsZws" * 3 + "xZq"
+    nu = {"sub": "u-newsvc", "email": "newsvc@example.com", "name": "New Svc", "picture": ""}
+    await db.login(nu)
+    await db.save_assessment(nu["sub"], {"goal": "job", "comfort": "ok", "practice_time": "10", "level": "B1", "scores": {}, "weak_areas": []})
+    tok["newsvc"] = auth.make_session(nu)
+    await db.save_user_keys(nu["sub"], {"cloudflare": cfk, "zai": zk}, verified=True)
+    gate.reset_all()
+    before = len(WORLD.calls)
+    frames, first = await drive(tok["newsvc"], "conversation", turns=1)
+    chat = [c for c in WORLD.calls[before:] if c[2] == "chat"]
+    check("Face-to-Face with only a Cloudflare + Z.ai chain answers (opening + a reply) - the first provider in the chain is Cloudflare, asked with the TOKEN", last(frames, {"ai_text"}) is not None
+          and chat and chat[0][0] == "cloudflare" and chat[0][1] == cftok and all(c[0] == "cloudflare" for c in chat), (first, chat[:3]))
+    check("... on the learner's own account path", any(p[0] == "cloudflare" and p[1] == f"/client/v4/accounts/{acct}/ai/v1/chat/completions" for p in WORLD.paths[before:]), WORLD.paths[-2:])
+    check("... and no key, token or account id went to the page", cftok not in json.dumps(frames) and acct not in json.dumps(frames) and zk not in json.dumps(frames))
+    gate.reset_all()
+    BEHAVE["cloudflare"] = "limited"
+    before = len(WORLD.calls)
+
+    async def cf_limited():
+        BEHAVE["cloudflare"], BEHAVE["zai"] = "limited", "ok"
+
+    frames, first = await drive(tok["newsvc"], "conversation", turns=1, mid=cf_limited)
+    chat = [c for c in WORLD.calls[before:] if c[2] == "chat"]
+    check("Cloudflare's daily allowance used up mid-session: Z.ai answers the SAME turn (no error frame, a reply arrives)", last(frames, {"ai_text"}) is not None and not last(frames, {"error", "quota"})
+          and any(c[0] == "zai" for c in chat) and any(c[0] == "cloudflare" for c in chat), (frames[-2:], [c[:3] for c in chat]))
+    for beh, state, kind_ in (("limited", "all_limited", "limited"), ("invalid", "all_invalid", "invalid")):
+        gate.reset_all()
+        frames, first = await drive(tok["newsvc"], "conversation", fail_after_start=beh)
+        fail = last(frames, {"quota", "error"})
+        kp = (fail or {}).get("kp") or {}
+        check(f"both services {beh}: the failure frame carries kp {state} that NAMES cloudflare and zai ({kind_})", fail is not None and kp.get("state") == state and sorted(k["provider"] for k in kp.get("keys", [])) == ["cloudflare", "zai"]
+              and all(k["kind"] == kind_ for k in kp["keys"]), fail)
+        check(f"... and nothing secret in it", cftok not in json.dumps(fail) and acct not in json.dumps(fail) and zk not in json.dumps(fail))
+    gate.reset_all()
+    frames, first = await drive(tok["newsvc"], "conversation", fail_after_start="down")
+    fail = last(frames, {"quota", "error"})
+    check("both services down (5xx): an `error` frame with kp transient (never `quota`, never 'your keys') - they answered nothing, which is not the learner's fault", fail is not None and fail["type"] == "error"
+          and fail["kp"]["state"] == "transient" and fail["kp"]["own"] is True, fail)
+    for k in BEHAVE:
+        BEHAVE[k] = "ok"
 
     # ------------------------------------------------------------------------------------------ the ledger saw the sessions
     section("the ledger counted the sessions' requests")

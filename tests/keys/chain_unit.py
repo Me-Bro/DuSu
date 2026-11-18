@@ -737,6 +737,52 @@ for t in (t_timeouts, t_breaker, t_order, t_all_open):
     print(f"\n-- {t.__name__}")
     asyncio.run(t())
 
+# ============================================================================================ I. Cloudflare / Z.ai / Sarvam under the validated walk (learner-added, 2026-11-17)
+section("I. an unverified service is safe: a bad reply from it is a failure like any other, and it starts behind the established ones")
+CF_ACCT = "0123456789abcdef0123456789abcdef"
+CF_TOK = "cfdemo_" + "T" * 33 + "9xYz"
+CF_KEY = f"{CF_ACCT}:{CF_TOK}"
+ZAI_KEY = "a" * 32 + "." + "Zz" * 8 + "Q4rT"
+SV_KEY = "sk_" + "s" * 30 + "Sv91"
+CFM = ["@cf/google/gemma-4-26b-a4b-it", "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/mistralai/mistral-small-3.1-24b-instruct"]
+
+
+async def t_new_services():
+    # a service that answers with prose where JSON was needed is held back for JSON calls (per key), and the next provider answers in the SAME call
+    r, w, pz = await walk({"cloudflare": CF_KEY, "zai": ZAI_KEY}, World().on("cloudflare", CF_TOK, NOTJSON).on("zai", ZAI_KEY, GOOD))
+    check("Cloudflare answers prose where JSON was needed: Z.ai answers in the same call, no pause - an unverified model cannot hand the learner a broken reply",
+          isinstance(r, str) and json.loads(r)["reply"].startswith("Haan") and [c[0] for c in w.calls_for()] == ["cloudflare", "zai"] and pz == [], (r, w.calls, pz))
+    fpc = gate.fingerprint("cloudflare", CF_KEY)
+    check("... Gemma is held back for JSON calls (per KEY, per kind) - not the key, not the prose calls", gate.bad_blocked("cloudflare", fpc, CFM[0], "json", time.time()) is not None
+          and gate.bad_blocked("cloudflare", fpc, CFM[0], "chat", time.time()) is None and gate.get("cloudflare", fpc) is None)
+    check("... and Cloudflare's other models wait for the second pass (another provider first)", [c[3] for c in w.calls_for("cloudflare")] == [CFM[0]])
+    # nothing usable anywhere on these services
+    r, w, pz = await walk({"cloudflare": CF_KEY, "zai": ZAI_KEY, "sarvam": SV_KEY}, World().on("cloudflare", CF_TOK, NOTJSON).on("zai", ZAI_KEY, ok('{"intent": "x"}')).on("sarvam", SV_KEY, ok("")))
+    check("nothing usable on any of the three: a BadReplyError (transient - 'the AI did not answer properly'), never 'your keys'", isinstance(r, BadReplyError) and r.state == "transient" and not is_keys_problem(r.kp()), r)
+    check("... every model of every one of them was asked once (3 + 2 + 2)", sorted(models(w)) == sorted(CFM + ["glm-4.7-flash", "glm-4.5-flash", "sarvam-105b-conversations", "sarvam-105b"]), models(w))
+    # Sarvam: reasoning_effort is learned like Groq's - a 400 that names it is remembered per model
+    w = World().on("sarvam", SV_KEY, err(400, {"error": {"message": "Unknown parameter: reasoning_effort", "code": "unprocessable_entity_error"}}), ok("Hello there!"))
+    fresh({"sarvam": SV_KEY}, w=w)
+    t = await op._complete(MSG, 50, prefer_fast=True, accept=op.chat_accept, cls="chat")
+    check("Sarvam: a model that answers 400 to reasoning_effort is remembered and the walk answers with the next model", t == "Hello there!" and gate.param_unsupported("sarvam", "sarvam-105b-conversations", time.time()), (t, models(w)))
+    w2 = World().on("sarvam", SV_KEY, ok("again"))
+    install(w2)
+    await op._complete(MSG, 50, prefer_fast=True, accept=op.chat_accept, cls="chat")
+    check("... and the next call to it is sent without", "reasoning_effort" not in w2.bodies[0], w2.bodies[0])
+    # order: the unverified services start a band lower, so a healthy established provider answers alone
+    r, w, _ = await walk({"groq": K1, "cloudflare": CF_KEY, "zai": ZAI_KEY}, World().on("groq", K1, GOOD).on("cloudflare", CF_TOK, GOOD).on("zai", ZAI_KEY, GOOD))
+    check("with Groq healthy and the new services unmeasured only Groq is asked (a health-ordered chain does not put the unverified first)", [c[0] for c in w.calls_for()] == ["groq"], w.calls)
+    fresh({"cloudflare": CF_KEY, "groq": K1}, w=World().on("groq", K1, GOOD).on("cloudflare", CF_TOK, GOOD))
+    for _ in range(8):
+        gate.health_fail("groq", G120, "json", "bad", time.time()); gate.health_fail("groq", G20, "json", "bad", time.time())
+    for _ in range(8):
+        gate.health_ok("cloudflare", CFM[0], "json", 600, time.time())
+    await op._complete(MSG, 50, accept=ACCEPT, cls="json", prefer_fast=True)
+    check("... but once Groq is doing badly and Cloudflare has proved itself, Cloudflare is asked first - the order follows real answers", [c[0] for c in op._http_client_factory.__self__.calls_for()][:1] == ["cloudflare"], op._http_client_factory.__self__.calls)
+
+
+asyncio.run(t_new_services())
+
 op._ATTEMPT_S.clear(); op._ATTEMPT_S.update(SAVED_T[0])
 op._ATTEMPT_HEAVY_S, op._MIN_ATTEMPT_S, op._REPASS_MIN_LEFT_S = SAVED_T[1], SAVED_T[3], SAVED_T[4]
 op._WALK_S.clear(); op._WALK_S.update(SAVED_T[2])

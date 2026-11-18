@@ -39,7 +39,7 @@ def _ts(x):
 
 # --------------------------------------------------------------------------------------------- the stored keys
 async def stored_keys(uid: str | None) -> dict:
-    """{provider: key} for the three providers a learner can bring (a legacy 'github' entry is ignored)."""
+    """{provider: key} for the providers a learner can bring (config.KEY_PROVIDERS; a legacy 'github' entry is ignored). A Cloudflare key is ONE string, '<account id>:<token>'."""
     if not (uid and db.db_enabled):
         return {}
     try:
@@ -192,23 +192,34 @@ async def verify_and_save(uid: str, provider: str, key: str) -> dict:
     from ..providers import openrouter_provider as op
     now = time.time()
     fp = gate.fingerprint(provider, key)
-    pr = await probe.auth_probe(provider, key, now)
-    if pr.kind in ("invalid", "forbidden"):
-        return {"ok": False, "result": {"provider": provider, "status": pr.kind, "expired": pr.expired}}
-    if pr.kind not in ("ok", "limited"):
-        return {"ok": False, "result": {"provider": provider, "status": "unreachable"}}      # could not check: nothing is stored on a guess
-    status, kind, out, rl = "ok", "", None, None
-    if pr.kind == "ok":
-        cp = await probe.chat_probe(provider, key, uid, now)             # a key can authenticate and still not chat; and it tells us the allowance
-        if cp.kind in ("invalid", "forbidden"):
+    pr = probe.Probe("ok")
+    if not probe.has_auth_probe(provider):
+        # Cloudflare / Z.ai / Sarvam document no zero-quota check, so the ONE real call is the whole check - and with no authentication evidence to fall back on, only a REAL answer (or a limit,
+        # which proves the key was accepted) is stored; a hiccup, an empty reply or "no such model" says nothing about the key, so nothing is stored on that guess.
+        cp = await probe.chat_probe(provider, key, uid, now)
+        if cp.kind in ("invalid", "forbidden", "needs_credit"):          # needs_credit: the key is real but has nothing left to spend (Sarvam's one-time credit, Z.ai's balance) - not stored, and told apart from "unreachable"
             return {"ok": False, "result": {"provider": provider, "status": cp.kind, "expired": cp.expired}}
-        if cp.kind == "limited":
-            status, kind, out = "limited", "limited", cp.out
-        elif cp.kind != "ok":
-            status = "unknown"           # the provider took the key but no model of it ANSWERED (empty replies, a timeout, a 5xx): stored - nothing says it is bad - yet NOT "working"
-        rl = cp.rl
+        if cp.kind not in ("ok", "limited"):
+            return {"ok": False, "result": {"provider": provider, "status": "unreachable"}}
+        status, kind, out, rl = ("ok", "", None, cp.rl) if cp.kind == "ok" else ("limited", "limited", cp.out, None)
     else:
-        status, kind, out = "limited", "limited", pr.out
+        pr = await probe.auth_probe(provider, key, now)
+        if pr.kind in ("invalid", "forbidden"):
+            return {"ok": False, "result": {"provider": provider, "status": pr.kind, "expired": pr.expired}}
+        if pr.kind not in ("ok", "limited"):
+            return {"ok": False, "result": {"provider": provider, "status": "unreachable"}}      # could not check: nothing is stored on a guess
+        status, kind, out, rl = "ok", "", None, None
+        if pr.kind == "ok":
+            cp = await probe.chat_probe(provider, key, uid, now)         # a key can authenticate and still not chat; and it tells us the allowance
+            if cp.kind in ("invalid", "forbidden"):
+                return {"ok": False, "result": {"provider": provider, "status": cp.kind, "expired": cp.expired}}
+            if cp.kind == "limited":
+                status, kind, out = "limited", "limited", cp.out
+            elif cp.kind != "ok":
+                status = "unknown"       # the provider took the key but no model of it ANSWERED (empty replies, a timeout, a 5xx): stored - nothing says it is bad - yet NOT "working"
+            rl = cp.rl
+        else:
+            status, kind, out = "limited", "limited", pr.out
     before, _after = await _locked_update(uid, lambda d: {**d, provider: key})
     old = before.get(provider)
     if old and old != key:                                               # a REPLACED key: forget the old one everywhere
@@ -258,20 +269,30 @@ async def recheck(uid: str, provider: str | None = None, deep: bool = False) -> 
             continue
         fp = gate.fingerprint(p, key)
         cur = effective(p, fp, rows.get((p, fp)), now)
-        pr = await probe.auth_probe(p, key, now)
+        # a provider with no zero-quota check (Cloudflare, Z.ai, Sarvam) is always looked at with its one real call: nothing else can say whether the key still works
+        deep_p = deep or not probe.has_auth_probe(p)
+        if deep_p and not deep and cur["status"] in ("limited", "forbidden") and not cur.get("stale"):
+            results[p] = cur["status"]                                   # no zero-quota check exists and its limit has not ended: a real call now would only spend the allowance - keep what we knew
+            continue
+        pr = await probe.auth_probe(p, key, now) if probe.has_auth_probe(p) else probe.Probe("ok")
         if pr.kind not in ("ok", "invalid", "forbidden", "limited"):
             results[p] = "unreachable"                                   # no verdict: nothing changes
             continue
         status, out, rl, meta = pr.kind, pr.out, None, (pr.meta or None)
-        if pr.kind == "ok" and deep:
+        if pr.kind == "ok" and deep_p:
             cp = await probe.chat_probe(p, key, uid, now)
             rl = cp.rl
             if cp.kind in ("invalid", "forbidden", "limited"):
                 status, out = cp.kind, cp.out
+            elif cp.kind == "needs_credit":                              # the key is real but out of credit: shown as "Out of credit" (the walker marks it the same way)
+                gate.mark_limited(p, fp, now, 1800.0, scope="credit", http=cp.http)
+                ledger.note_checked(uid, p, fp, now, "limited", "needs_credit", http=cp.http, meta=(pr.meta or None))
+                results[p] = "limited"
+                continue
             elif cp.kind != "ok":
                 results[p] = "unreachable"                               # the provider took the key but no model ANSWERED (empty, a timeout, a 5xx): a Test must not say "works"
                 continue
-        if status == "ok" and cur["status"] in ("limited", "forbidden") and not cur.get("stale") and not deep:
+        if status == "ok" and cur["status"] in ("limited", "forbidden") and not cur.get("stale") and not deep_p:
             status, out = cur["status"], None                            # the key is real, its limit is not over: keep what we knew
         if status == "ok":
             gate.clear(p, fp)

@@ -48,7 +48,7 @@ def section(t):
 HOME_JSON = json.dumps({"reply": "Good evening, ready for a small practice?", "intent": "general_conversation", "suggest": []})
 DAILY_JSON = json.dumps({"english": "I went to the market", "reply_hindi": "Bahut accha, aur market mein kya kya kharida tumne aaj?", "next_question_hindi": "Aur kya kiya?",
                          "tip": "", "mood": "ok", "context": {}})
-BEHAVE = {"groq": "ok", "gemini": "ok", "openrouter": "ok"}
+BEHAVE = {"groq": "ok", "gemini": "ok", "openrouter": "ok", "cloudflare": "ok", "zai": "ok", "sarvam": "ok"}
 
 
 def reply(messages, provider, key):
@@ -176,6 +176,25 @@ async def main():
     frames, got, calls = await drive(token, "conversation", {"groq": "empty"})
     check("an EMPTY answer from Groq's first model: the walk goes to Gemini at once (the old walker asked Groq's second model first)", got["type"] == "ai_text" and got["text"].startswith("Nice to meet you")
           and [c[0] for c in calls] == ["groq", "gemini"], (got, calls))
+
+    section("chain_v3 ON: a learner whose keys are Cloudflare + Z.ai (learner-added services) - an unverified model cannot hand over a broken reply")
+    import hashlib
+    acct = hashlib.md5(b"chain-cf").hexdigest()
+    cftok, zk = "cftokchain" + "C" * 28 + "xCq", "y" * 32 + "." + "ZchZch" * 3 + "xZq"
+    u2 = {"sub": "u-chain2", "email": "chain2@example.com", "name": "Learner Two", "picture": ""}
+    await db.login(u2)
+    await db.save_assessment(u2["sub"], {"goal": "job", "comfort": "ok", "practice_time": "10", "level": "B1", "scores": {}, "weak_areas": []})
+    token2 = auth.make_session(u2)
+    await db.save_user_keys(u2["sub"], {"cloudflare": f"{acct}:{cftok}", "zai": zk}, verified=True)
+    fresh()
+    frames, got, calls = await drive(token2, "home", {"cloudflare": "prose"})
+    check("Cloudflare answers prose where the Home turn needs JSON: Z.ai's real reply reaches the learner in the SAME turn", got["type"] == "home_turn" and got["text"] == "Good evening, ready for a small practice?", got)
+    check("... one request to Cloudflare's first model (Gemma 4), then Z.ai's first (glm-4.7-flash)", [(c[0], c[3]) for c in calls] == [("cloudflare", "@cf/google/gemma-4-26b-a4b-it"), ("zai", "glm-4.7-flash")], calls)
+    check("... no quota / error frame, and nothing secret in anything the page received", not [f for f in frames if f["type"] in ("quota", "home_error", "error")] and cftok not in json.dumps(frames) and acct not in json.dumps(frames) and zk not in json.dumps(frames), [f["type"] for f in frames])
+    fresh()
+    frames, got, calls = await drive(token2, "home", {"cloudflare": "cut", "zai": "nofield"})
+    check("Cloudflare cut off mid-JSON and Z.ai missing the field: nothing usable - the built-in answer, one pass over the five models (3 + 2), never a `quota` frame",
+          got["type"] == "home_turn" and not [f for f in frames if f["type"] in ("quota", "home_error", "error")] and len(calls) == 5, (got, [(c[0], c[3]) for c in calls]))
 
     # ------------------------------------------------------------------------------------------ chain_v3 OFF = the walker as it was
     section("chain_v3 OFF (key_health still on): exactly the old behaviour")

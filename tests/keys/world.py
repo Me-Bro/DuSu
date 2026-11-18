@@ -14,7 +14,8 @@ import json
 
 import httpx
 
-HOSTS = {"groq": "api.groq.com", "gemini": "generativelanguage.googleapis.com", "openrouter": "openrouter.ai"}
+HOSTS = {"groq": "api.groq.com", "gemini": "generativelanguage.googleapis.com", "openrouter": "openrouter.ai",
+         "cloudflare": "api.cloudflare.com", "zai": "api.z.ai", "sarvam": "api.sarvam.ai"}
 PROVIDER_OF = {v: k for k, v in HOSTS.items()}
 
 
@@ -27,8 +28,9 @@ def completion(text="OK", usage=(5, 3), finish="stop"):
 class R:
     """One scripted answer."""
 
-    def __init__(self, status=200, body=None, headers=None, exc=None, delay=0.0):
+    def __init__(self, status=200, body=None, headers=None, exc=None, delay=0.0, text=None, ctype="text/html"):
         self.status, self.body, self.headers, self.exc, self.delay = status, body, headers or {}, exc, delay
+        self.text, self.ctype = text, ctype             # a body that is NOT json (an HTML 502 from a CDN, a JSON reply cut off mid-way)
 
 
 def ok(text="OK", headers=None, usage=(5, 3), finish="stop"):
@@ -37,6 +39,11 @@ def ok(text="OK", headers=None, usage=(5, 3), finish="stop"):
 
 def err(status, body, headers=None):
     return R(status, body, headers)
+
+
+def raw(status, text, ctype="text/html", headers=None):
+    """An answer whose body is not JSON the SDK can read: a CDN's HTML error page (status 502), or a 200 whose JSON was cut off."""
+    return R(status, None, headers, text=text, ctype=ctype)
 
 
 def timeout():
@@ -84,6 +91,46 @@ OPENROUTER_429_UPSTREAM = {"error": {"message": "Provider returned error", "code
                                                          "accumulate your rate limits: https://openrouter.ai/settings/integrations", "provider_name": "Google AI Studio"}}}
 
 
+# --- Cloudflare Workers AI / Z.ai / Sarvam (added 2026-11-17). SYNTHETIC like the rest: the shapes follow each provider's OWN docs (Cloudflare: developers.cloudflare.com/workers-ai/platform/errors/, Z.ai: docs.z.ai/api-reference/api-code,
+# Sarvam: docs.sarvam.ai chat-completions reference + pricing page); NONE was seen from a real key - tests/keys/capture_real_errors.py records the real ones. Marked per body where the docs gave
+# the code but not the exact text, or where the code is from the tester's memory of Cloudflare's API (10000 / 6003 / 6111 / 7003).
+def _cf(code, msg, **extra):
+    return {"result": None, "success": False, "errors": [{"code": code, "message": msg, **extra}], "messages": []}
+
+
+CF_429_DAY = _cf(3036, "AiError: You have used up your daily free allocation of 10,000 neurons. Please upgrade to Cloudflare's Workers Paid plan if you would like to continue usage.")      # docs: code + start of the text
+CF_429_CAPACITY = _cf(3040, "AiError: Capacity temporarily exceeded, please try again.")                                                                                                 # docs: code; text paraphrased
+CF_403_AUTH = _cf(10000, "Authentication error")                                                                                                                                         # NOT in the fetched docs: from memory of Cloudflare's API
+CF_400_AUTH_HDR = {"result": None, "success": False, "errors": [{"code": 6003, "message": "Invalid request headers", "error_chain": [{"code": 6111, "message": "Invalid format for Authorization header"}]}], "messages": []}   # from memory
+CF_404_ROUTE = _cf(7003, "Could not route to /client/v4/accounts/00000000000000000000000000000000/ai/v1/chat/completions, perhaps your object identifier is invalid?")                  # from memory: a wrong account id
+CF_400_NO_MODEL = _cf(5007, "AiError: No such model @cf/nope/nope or task")                                                                                                              # docs: code + status 400
+CF_404_MODEL = _cf(3042, "AiError: Invalid model name")                                                                                                                                  # docs: code + status 404
+CF_410_MODEL = _cf(5028, "AiError: Model has been deprecated")                                                                                                                           # docs: code + status 410
+CF_403_PAID = _cf(5035, "AiError: Model requires a Workers Paid plan")                                                                                                                   # docs: code + status 403
+CF_403_PLAIN = {"result": None, "success": False, "errors": [{"code": 3023, "message": "AiError: Service unavailable for account"}], "messages": []}                                       # docs: code 3023, status 403
+CF_413 = _cf(3006, "AiError: Request is too large")
+CF_API_429 = {"result": None, "success": False, "errors": [{"code": 971, "message": "Too many requests"}], "messages": []}                                                               # the global API rate limit: HTTP 429 + a retry-after header (code from memory)
+ZAI_401_AUTH = {"error": {"code": "1000", "message": "Authentication Failed"}}                                                                                                           # docs
+ZAI_401_NOHDR = {"error": {"code": "1001", "message": "Authentication parameter not received in Header, unable to authenticate"}}                                                        # docs
+ZAI_401_EXPIRED = {"error": {"code": "1003", "message": "Authentication Token expired, please regenerate/obtain"}}                                                                       # docs
+ZAI_429_RATE = {"error": {"code": "1302", "message": "Rate limit reached for requests"}}                                                                                                 # docs
+ZAI_429_BUSY = {"error": {"code": "1305", "message": "The service may be temporarily overloaded, please try again later"}}                                                               # docs
+ZAI_429_BALANCE = {"error": {"code": "1113", "message": "Insufficient balance or no resource package. Please recharge."}}                                                                # docs (HTTP 429!)
+ZAI_429_CAP = {"error": {"code": "1308", "message": "Usage limit reached for this period; it resets at a set time."}}                                                                    # docs: code; text paraphrased
+ZAI_400_MODEL = {"error": {"code": "1211", "message": "Unknown Model, please check the model code."}}                                                                                    # docs
+ZAI_400_PARAM = {"error": {"code": "1210", "message": "Invalid API parameter"}}                                                                                                          # docs
+ZAI_400_UNSAFE = {"error": {"code": "1301", "message": "The input or output was flagged as unsafe or sensitive."}}                                                                       # docs: code; text paraphrased
+ZAI_403_PERM = {"error": {"code": "1220", "message": "You do not have permission to access the requested API"}}                                                                          # docs: code; text paraphrased
+ZAI_500 = {"error": {"code": "1234", "message": "Network error, please retry later"}}                                                                                                    # docs: code
+SARVAM_403_KEY = {"error": {"message": "Invalid API key", "code": "invalid_api_key_error", "request_id": "r-1"}}                                                                          # docs: code names; text invented
+SARVAM_403_AUTH = {"error": {"message": "Authentication failed", "code": "authentication_error", "request_id": "r-2"}}                                                                    # docs: code name
+SARVAM_403_PLAIN = {"error": {"message": "Forbidden", "code": "forbidden_error", "request_id": "r-3"}}                                                                                    # docs: message "Forbidden"
+SARVAM_402 = {"error": {"message": "Insufficient credits", "code": "insufficient_quota_error", "request_id": "r-4"}}                                                                      # docs: 402 + code (pricing page)
+SARVAM_429_QUOTA = {"error": {"message": "Quota Exceeded", "code": "insufficient_quota_error", "request_id": "r-5"}}                                                                      # docs: the chat reference lists 429 "Quota Exceeded" with this code
+SARVAM_429_RATE = {"error": {"message": "Rate limit exceeded", "code": "rate_limit_exceeded_error"}}                                                                                     # docs (rate-limits page)
+SARVAM_422 = {"error": {"message": "Unprocessable Entity", "code": "unprocessable_entity_error", "request_id": "r-6"}}                                                                    # docs
+
+
 class World:
     """Scripts: `world.script[(provider, key)] = [R, R, ...]` (the LAST one repeats), or `[(provider, key, 'chat'|'models'|'key')]` for one endpoint only. `world.calls` is the
     ordered log of (provider, key, kind, model). `world.default_chat` answers anything not scripted."""
@@ -96,6 +143,9 @@ class World:
         self.chat_reply = None        # optional: callable(messages, provider, key) -> R, consulted for an UNSCRIPTED chat call (a test that needs mode-specific replies)
         self.last_messages = None
         self.bodies: list = []        # the JSON body of every chat request, in order (what was really SENT: max_tokens, reasoning_effort ...)
+        self.paths: list = []         # (provider, url path, full url) of every request (Cloudflare puts the account id in the path)
+        self.auth: list = []          # (provider, the raw Authorization header) of every request - what really went on the wire
+        self.subkey: list = []        # (provider, the raw api-subscription-key header or None) of every request - Sarvam is sent its own header as well as Bearer
 
     # ----------------------------------------------------------------------- scripting
     def on(self, provider: str, key: str, *steps, kind: str | None = None):
@@ -125,6 +175,9 @@ class World:
             self.last_messages = messages
             self.bodies.append(body)
         self.calls.append((provider, key, kind, model))
+        self.paths.append((provider, req.url.path, str(req.url)))
+        self.auth.append((provider, auth))
+        self.subkey.append((provider, req.headers.get("api-subscription-key")))
         steps = self.script.get((provider, key, kind)) or self.script.get((provider, key))
         if not steps:
             if kind == "chat":
@@ -147,6 +200,8 @@ class World:
             await asyncio.sleep(r.delay)
         if r.exc is not None:
             raise r.exc
+        if r.text is not None:
+            return httpx.Response(r.status, content=r.text.encode("utf-8"), headers={"content-type": r.ctype, **r.headers}, request=req)
         return httpx.Response(r.status, json=r.body, headers=r.headers, request=req)
 
     def client(self) -> httpx.AsyncClient:

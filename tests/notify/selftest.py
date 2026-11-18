@@ -593,7 +593,10 @@ async def main():
         await asyncio.sleep(0.4)
         check("while the switch is off the loop does nothing (no tick, no send)", sch.state["ticks"] == 0 and not SENT and due >= 1, (sch.state["ticks"], len(SENT), due))
         mode["v"] = "on"
-        await asyncio.sleep(1.5)
+        for _ in range(300):                                                                   # wait for the loop's first FINISHED tick (up to 30 s) instead of a fixed 1.5 s: on a busy host a tick that delivers
+            await asyncio.sleep(0.1)                                                           # six messages can take longer than that, and cancelling it mid-tick looked like "the loop never ticked"
+            if sch.state["ticks"] >= 1:
+                break
         task.cancel()
         try:
             await task

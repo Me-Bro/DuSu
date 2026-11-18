@@ -26,7 +26,7 @@ from . import store
 from .store import (Base, Boolean, Date, DateTime, ForeignKey, Index, Integer, JSONB, Mapped, String, Text, delete, desc,   # noqa: F401  (Base is re-exported: the feature modules import it from here)
                     flag_modified, func, mapped_column, select, update)
 
-from .config import settings
+from .config import settings, KEY_PROVIDERS as _KEY_PROVIDERS      # ONE list of the services a learner can bring a key for
 
 # --- BYOK key at-rest sealing (Fernet — real authenticated encryption) ---------------
 # Key derived from a server secret (set KEYS_SECRET, falls back to SESSION_SECRET, then a
@@ -629,7 +629,10 @@ _MODE_BONUS = {"daily": 10, "conversation": 15, "interview": 25,   # §2.1 ("con
                # "conversation" below, which would count a rehearsal toward the Face-to-Face
                # achievements — so every kind the Practice Room can send must be listed here.
                "presentation": 25, "viva": 25, "speech": 20, "seminar": 20, "discussion": 15, "custom": 15,
-               "resume_interview": 25}      # Resume Interview (DUSU_RESUME_INTERVIEW_PLAN.md): an unlisted mode is silently logged as "conversation"
+               "resume_interview": 25,      # Resume Interview (DUSU_RESUME_INTERVIEW_PLAN.md): an unlisted mode is silently logged as "conversation"
+               # Talk (talk/ package): an English-only chat on a topic card, the same effort as Face-to-Face (it IS Face-to-Face with a topic and one correction a turn), so the same 15.
+               # Listed explicitly: unlisted, it would be booked as "conversation" by accident and a later change to Face-to-Face's bonus would silently move Talk's too.
+               "talk": 15}
 _SESSION_XP_CAP = 300     # §2.1 anti-gaming cap
 _DAILY_XP_CAP = 600       # §2.1 anti-gaming cap
 _STREAK_MIN_MINUTES = 3   # §4 streak-qualifying floor
@@ -893,8 +896,8 @@ async def check_achievement_badges(user_id: str) -> list[str]:
                 select(SessionScore.mode, func.count()).where(SessionScore.user_id == user_id)
                 .group_by(SessionScore.mode)
             )).all())
-            candidates["conversation_builder"] = (counts.get("conversation", 0) + counts.get("daily", 0)) >= 100
-            candidates["fearless_speaker"] = counts.get("conversation", 0) >= 50
+            candidates["conversation_builder"] = (counts.get("conversation", 0) + counts.get("talk", 0) + counts.get("daily", 0)) >= 100
+            candidates["fearless_speaker"] = (counts.get("conversation", 0) + counts.get("talk", 0)) >= 50
             candidates["interview_ready"] = counts.get("interview", 0) >= 50
         new_ids = [bid for bid, earned in candidates.items() if earned and bid not in badges]
         if new_ids:
@@ -970,7 +973,7 @@ async def update_weekly_missions(user_id: str, mode: str, minutes: float, sessio
                 m["progress"] = min(m["target"], (m.get("progress", 0) or 0) + minutes)
             elif metric == "long_session" and minutes >= m["target"]:
                 m["progress"] = m["target"]
-            elif metric == "conversation_sessions" and mode == "conversation":
+            elif metric == "conversation_sessions" and mode in ("conversation", "talk"):      # a Talk chat is an English conversation too
                 m["progress"] = (m.get("progress", 0) or 0) + 1
             elif metric == "any_sessions":
                 m["progress"] = (m.get("progress", 0) or 0) + 1
@@ -1771,11 +1774,11 @@ async def get_user_keys(user_id: str) -> dict:
 MIN_STORED_KEYS = 2
 
 
-_KEY_PROVIDERS = ("groq", "gemini", "openrouter")
+# _KEY_PROVIDERS (imported above) = config.KEY_PROVIDERS
 
 
 async def has_user_keys(user_id: str, strict: bool = False) -> bool:
-    """True if the user has stored key(s) that were verified working. `strict` (settings.key_health) counts only the three providers a learner can really bring -
+    """True if the user has stored key(s) that were verified working. `strict` (settings.key_health) counts only the providers a learner can really bring (config.KEY_PROVIDERS) -
     a legacy 'github' entry (GitHub Models answered 200 to ANY token) or junk no longer counts as a second key."""
     async with _Session() as s:               # type: ignore[misc]
         row = await s.get(UserKey, user_id)
@@ -2329,6 +2332,8 @@ async def admin_wipe_users(keep_emails: set[str]) -> int:
         await _ri.delete_rows(s, del_ids)
         from .grammar import service as _gc            # Grammar Coach: the sentences a learner needed to fix - personal data, same rule
         await _gc.delete_rows(s, del_ids)
+        from .lab import service as _gl                # Grammar Lab: what a learner practised (no text) - deleted with the account
+        await _gl.delete_rows(s, del_ids)
         from .notify import service as _nt             # Notifications: what DuSu decided to tell each learner and what happened to it - same rule
         await _nt.delete_rows(s, del_ids)
         from .keys import service as _ky               # Keys: which key was used / limited / rejected, and how often - counts and statuses, never key text - same rule
@@ -2358,6 +2363,8 @@ async def delete_user(user_id: str) -> bool:
         await _ri.delete_rows(s, [user_id])
         from .grammar import service as _gc
         await _gc.delete_rows(s, [user_id])
+        from .lab import service as _gl
+        await _gl.delete_rows(s, [user_id])
         from .notify import service as _nt
         await _nt.delete_rows(s, [user_id])
         from .keys import service as _ky

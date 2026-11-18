@@ -41,4 +41,9 @@ run voice_ws        env DV_BACKEND=baked DV_TEST_IMAGE="$IMG" tests/daily_voice/
 run voice_sessions  env DV_BACKEND=baked DV_TEST_IMAGE="$IMG" tests/daily_voice/run.sh ws_sessions_selftest.py
 run ri_unit         env RI_BACKEND=baked RI_TEST_IMAGE="$IMG" tests/resume_interview/run.sh unit.py
 run ri_self         env RI_BACKEND=baked RI_TEST_IMAGE="$IMG" tests/resume_interview/run.sh selftest.py
+run lab_server      env LAB_BACKEND_DIR=baked LAB_TEST_IMAGE="$IMG" tests/lab/run.sh
+run talk_engine     env TALK_BACKEND_DIR=baked TALK_TEST_IMAGE="$IMG" tests/talk/run.sh --nomongo unit_engine.py
+run talk_http       env TALK_BACKEND_DIR=baked TALK_TEST_IMAGE="$IMG" tests/talk/run.sh selftest.py
+run talk_ws         env TALK_BACKEND_DIR=baked TALK_TEST_IMAGE="$IMG" tests/talk/run.sh ws_selftest.py
+run talk_wire       env TALK_BACKEND_DIR=baked TALK_TEST_IMAGE="$IMG" tests/talk/run.sh wire_walk.py
 echo "== done" | tee -a "$OUT"
